@@ -3,213 +3,108 @@
 <html lang="vi"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>OAK Beauty - Service Management</title>
 <script src="assets/js/tailwind-36d3755fef.js"></script>
-<link href="assets/css/gf-inter-f920ffd565.css" rel="stylesheet"/>
-<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet"/>
-<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "primary-container": "#2c2c2c",
-                        "inverse-on-surface": "#ffeedc",
-                        "surface-container": "#ffebd3",
-                        "surface-variant": "#ffddb2",
-                        "outline-variant": "#c4c7c7",
-                        "inverse-primary": "#c8c6c5",
-                        "on-surface": "#291800",
-                        "on-secondary-fixed": "#2f1400",
-                        "on-surface-variant": "#444748",
-                        "secondary-fixed-dim": "#ffb781",
-                        "surface-container-low": "#fff1e4",
-                        "background": "#fff8f4",
-                        "on-primary-fixed": "#1b1c1c",
-                        "on-error-container": "#93000a",
-                        "surface-container-lowest": "#ffffff",
-                        "secondary": "#924c00",
-                        "surface-dim": "#f6d5aa",
-                        "surface-container-highest": "#ffddb2",
-                        "surface": "#fff8f4",
-                        "on-primary-fixed-variant": "#474747",
-                        "secondary-fixed": "#ffdcc4",
-                        "primary": "#171818",
-                        "on-secondary-container": "#703800",
-                        "on-error": "#ffffff",
-                        "surface-bright": "#fff8f4",
-                        "error-container": "#ffdad6",
-                        "tertiary-container": "#302c1a",
-                        "on-background": "#291800",
-                        "tertiary": "#1b1708",
-                        "error": "#ba1a1a",
-                        "surface-tint": "#5f5e5e",
-                        "on-tertiary-fixed": "#1f1c0b",
-                        "on-secondary": "#ffffff",
-                        "on-primary-container": "#949393",
-                        "on-primary": "#ffffff",
-                        "on-secondary-fixed-variant": "#6f3800",
-                        "surface-container-high": "#ffe4c3",
-                        "primary-fixed-dim": "#c8c6c5",
-                        "on-tertiary-fixed-variant": "#4c4733",
-                        "inverse-surface": "#402d0f",
-                        "tertiary-fixed": "#ebe2c8",
-                        "on-tertiary-container": "#9a937c",
-                        "tertiary-fixed-dim": "#cec6ad",
-                        "on-tertiary": "#ffffff",
-                        "outline": "#747878",
-                        "secondary-container": "#fda055",
-                        "primary-fixed": "#e4e2e1"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.125rem",
-                        "lg": "0.25rem",
-                        "xl": "0.5rem",
-                        "full": "0.75rem"
-                    },
-                    "spacing": {
-                        "gutter": "24px",
-                        "container-max": "1280px",
-                        "base": "8px",
-                        "margin-desktop": "64px",
-                        "margin-mobile": "16px",
-                        "section-gap": "120px"
-                    },
-                    "fontFamily": {
-                        "display-lg": ["Playfair Display"],
-                        "body-lg": ["Inter"],
-                        "headline-sm": ["Playfair Display"],
-                        "body-md": ["Inter"],
-                        "headline-lg-mobile": ["Playfair Display"],
-                        "headline-lg": ["Playfair Display"],
-                        "caption": ["Inter"],
-                        "headline-md": ["Playfair Display"],
-                        "label-md": ["Inter"]
-                    },
-                    "fontSize": {
-                        "display-lg": ["64px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700" }],
-                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
-                        "headline-sm": ["24px", { "lineHeight": "1.4", "fontWeight": "500" }],
-                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
-                        "headline-lg-mobile": ["32px", { "lineHeight": "1.2", "fontWeight": "600" }],
-                        "headline-lg": ["48px", { "lineHeight": "1.2", "fontWeight": "600" }],
-                        "caption": ["12px", { "lineHeight": "1.4", "fontWeight": "400" }],
-                        "headline-md": ["32px", { "lineHeight": "1.3", "fontWeight": "500" }],
-                        "label-md": ["14px", { "lineHeight": "1.0", "letterSpacing": "0.05em", "fontWeight": "600" }]
-                    }
-                }
-            }
-        }
-    </script>
+<script src="assets/js/oak-tailwind-config.js"></script>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
 <style>
-        .toggle-checkbox:checked {
-            right: 0;
-            border-color: #2c2c2c;
-        }
-        .toggle-checkbox:checked + .toggle-label {
-            background-color: #2c2c2c;
-        }
-        .toggle-checkbox:checked + .toggle-label:after {
-            transform: translateX(100%);
-            border-color: white;
-        }
+        /* Availability toggle (this page only) */
+        .toggle-checkbox:checked { right: 0; border-color: #2c2c2c; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #2c2c2c; }
+        .toggle-checkbox:checked + .toggle-label:after { transform: translateX(100%); border-color: white; }
         .toggle-label {
-            width: 40px;
-            height: 20px;
-            background-color: #c4c7c7;
-            border-radius: 9999px;
-            position: relative;
-            cursor: pointer;
-            transition: background-color 0.3s;
+            width: 40px; height: 20px; background-color: #c4c7c7; border-radius: 9999px;
+            position: relative; cursor: pointer; transition: background-color 0.3s;
         }
         .toggle-label:after {
-            content: '';
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 16px;
-            height: 16px;
-            background-color: white;
-            border-radius: 50%;
-            transition: transform 0.3s;
+            content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+            background-color: white; border-radius: 50%; transition: transform 0.3s;
         }
     </style>
+<title>Quản lý Dịch vụ - OAK Beauty</title>
 </head>
-<body class="bg-background text-on-background font-body-md min-h-screen antialiased flex">
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface">
+<h1 class="sr-only">OAK Beauty — Partner Dashboard</h1>
 <!-- SideNavBar -->
-<nav class="h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container z-50 flex flex-col h-full p-gutter">
-<div class="mb-12 flex flex-col gap-2">
-<h1 class="font-display-lg text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h1>
-<p class="font-body-md text-body-md text-on-surface-variant">Partner Dashboard</p>
+<nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container p-gutter z-50">
+<div class="mb-12">
+<h1 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h1>
+<p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest">Partner Dashboard</p>
 </div>
 <ul class="flex flex-col gap-2 flex-grow">
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 group" href="tong-quan-doi-tac.html">
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="tong-quan-doi-tac.html">
 <span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
-<span class="font-label-md text-label-md uppercase tracking-wider group-hover:text-secondary transition-colors">Tổng quan</span>
+<span class="font-body-md text-body-md">Tổng quan</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 group" href="quan-ly-lich-hen.html">
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-lich-hen.html">
 <span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
-<span class="font-label-md text-label-md uppercase tracking-wider group-hover:text-secondary transition-colors">Lịch hẹn</span>
+<span class="font-body-md text-body-md">Lịch hẹn</span>
 </a>
 </li>
 <li>
 <a class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim font-bold bg-surface-variant dark:bg-on-primary-fixed-variant scale-95 duration-150" href="quan-ly-dich-vu.html">
-<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
-<span class="font-label-md text-label-md uppercase tracking-wider">Dịch vụ</span>
+<span class="material-symbols-outlined fill" data-icon="content_cut">content_cut</span>
+<span class="font-body-md text-body-md">Dịch vụ</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 group" href="quan-ly-nhan-vien.html">
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-nhan-vien.html">
 <span class="material-symbols-outlined" data-icon="group">group</span>
-<span class="font-label-md text-label-md uppercase tracking-wider group-hover:text-secondary transition-colors">Nhân viên</span>
+<span class="font-body-md text-body-md">Nhân viên</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 group" href="#">
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="#">
 <span class="material-symbols-outlined" data-icon="settings">settings</span>
-<span class="font-label-md text-label-md uppercase tracking-wider group-hover:text-secondary transition-colors">Cài đặt</span>
+<span class="font-body-md text-body-md">Cài đặt</span>
 </a>
 </li>
 </ul>
 <div class="mt-auto pt-8 border-t border-outline-variant/30">
-<a href="quan-ly-lich-hen.html" style="display:contents;color:inherit;text-decoration:none"><button class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 hover:bg-opacity-90 transition-all rounded-DEFAULT flex items-center justify-center gap-2">
-<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+<a class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
                 Đặt lịch mới
-            </button></a>
+            </a>
 </div>
 </nav>
-<!-- Main Content Area -->
-<main class="ml-64 w-[calc(100%-16rem)] flex flex-col min-h-screen">
 <!-- TopNavBar -->
-<header class="flex justify-between items-center h-20 px-gutter bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl docked full-width top-0 sticky border-b border-outline-variant/30 dark:border-outline/20 z-40">
-<div class="flex items-center gap-4 w-1/3">
-<div class="relative w-full max-w-md">
+<header class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-gutter md:ml-64 md:w-[calc(100%-16rem)] bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl top-0 sticky border-b border-outline-variant/30 dark:border-outline/20 z-40">
+<div class="flex items-center gap-4 min-w-0">
+<h2 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed truncate">Dịch vụ</h2>
+</div>
+<div class="flex items-center gap-4 md:gap-6 shrink-0">
+<div class="relative hidden lg:block w-72">
 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
-<input class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Search services..." type="text"/>
+<input aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm kiếm..." type="text"/>
 </div>
-</div>
-<div class="flex items-center gap-6">
-<button class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100">
+<button aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" type="button">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-secondary rounded-full"></span>
 </button>
-<div class="flex items-center gap-3 pl-6 border-l border-outline-variant/30">
-<img alt="Store Owner Avatar" class="w-10 h-10 rounded-full object-cover" data-alt="Close up portrait of a sophisticated salon owner in a modern, light-filled salon setting. Warm, natural lighting highlights professional demeanor. Editorial style photography, high end magazine look, soft focus background." src="assets/images/img-77a799e9a6.jpg"/>
-<span class="font-label-md text-label-md uppercase tracking-wider text-on-surface">Profile</span>
+<div class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30">
+<div class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0">
+<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover" data-alt="Close up portrait of a sophisticated salon owner in a modern, light-filled salon setting. Warm, natural lighting highlights professional demeanor. Editorial style photography, high end magazine look, soft focus background." src="assets/images/img-77a799e9a6.jpg"/>
+</div>
+<span class="font-label-md text-label-md text-primary cursor-pointer hover:text-secondary transition-colors hidden sm:inline">Profile</span>
 </div>
 </div>
 </header>
+
+<!-- Main Content Area -->
+<main class="md:ml-64 flex flex-col min-h-screen pb-24 md:pb-0">
+
 <!-- Page Content -->
 <div class="p-margin-desktop max-w-container-max mx-auto w-full flex-grow">
-<div class="flex justify-between items-end mb-12">
+<div class="flex flex-wrap justify-between items-end gap-4 mb-12">
 <div>
-<h2 class="font-headline-lg text-headline-lg font-display-lg text-on-surface mb-2">Service Management</h2>
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-2">Service Management</h2>
 <p class="font-body-md text-body-md text-on-surface-variant">Curate and manage your high-end salon offerings.</p>
 </div>
-<button class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-3 px-6 hover:bg-opacity-90 transition-all rounded-DEFAULT flex items-center gap-2">
+<button class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-3 px-6 hover:bg-primary transition-all rounded-full flex items-center gap-2">
 <span class="material-symbols-outlined" data-icon="add">add</span>
                     Add New Service
                 </button>
@@ -236,7 +131,7 @@
 </div>
 <div class="p-6 flex flex-col flex-grow">
 <div class="flex justify-between items-start mb-2">
-<h3 class="font-headline-sm text-headline-sm font-display-lg text-on-surface">Signature Blowout</h3>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Signature Blowout</h3>
 <span class="font-body-lg text-body-lg text-on-surface font-medium">$65</span>
 </div>
 <p class="font-caption text-caption text-on-surface-variant mb-6 uppercase tracking-widest">45 Minutes • Hair Styling</p>
@@ -259,7 +154,7 @@
 </div>
 <div class="p-6 flex flex-col flex-grow">
 <div class="flex justify-between items-start mb-2">
-<h3 class="font-headline-sm text-headline-sm font-display-lg text-on-surface">Balayage &amp; Tone</h3>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Balayage &amp; Tone</h3>
 <span class="font-body-lg text-body-lg text-on-surface font-medium">$220</span>
 </div>
 <p class="font-caption text-caption text-on-surface-variant mb-6 uppercase tracking-widest">180 Minutes • Coloring</p>
@@ -282,7 +177,7 @@
 </div>
 <div class="p-6 flex flex-col flex-grow">
 <div class="flex justify-between items-start mb-2">
-<h3 class="font-headline-sm text-headline-sm font-display-lg text-on-surface-variant">Keratin Smoothing</h3>
+<h3 class="font-headline-sm text-headline-sm text-on-surface-variant">Keratin Smoothing</h3>
 <span class="font-body-lg text-body-lg text-on-surface-variant font-medium">$250</span>
 </div>
 <p class="font-caption text-caption text-on-surface-variant mb-6 uppercase tracking-widest">120 Minutes • Treatments</p>
@@ -297,7 +192,7 @@
 <!-- Special Offers Section (Bento Grid Style) -->
 <div class="mb-section-gap">
 <div class="flex justify-between items-end mb-8">
-<h2 class="font-headline-md text-headline-md font-display-lg text-on-surface">Special Offers &amp; Combos</h2>
+<h2 class="font-headline-md text-headline-md text-on-surface">Special Offers &amp; Combos</h2>
 <button class="text-secondary font-label-md text-label-md uppercase hover:underline">Manage All Offers</button>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[250px]">
@@ -309,11 +204,11 @@
 <div class="relative z-10 flex justify-between items-start">
 <div>
 <span class="bg-primary text-on-primary font-caption text-caption uppercase px-3 py-1 rounded-full tracking-widest">Combo</span>
-<h3 class="font-headline-md text-headline-md font-display-lg text-on-surface mt-4 max-w-sm">Bridal Package: Hair &amp; Makeup Trial</h3>
+<h3 class="font-headline-md text-headline-md text-on-surface mt-4 max-w-sm">Bridal Package: Hair &amp; Makeup Trial</h3>
 </div>
 <div class="text-right">
 <span class="block font-body-md text-body-md text-on-surface-variant line-through">$350</span>
-<span class="block font-headline-sm text-headline-sm font-display-lg text-primary">$295</span>
+<span class="block font-headline-sm text-headline-sm text-primary">$295</span>
 </div>
 </div>
 <div class="relative z-10 flex justify-between items-end mt-auto">
@@ -325,7 +220,7 @@
 <div class="bg-surface-container rounded-xl p-8 flex flex-col justify-between border border-outline-variant/20 hover:border-outline-variant transition-colors">
 <div>
 <span class="text-secondary font-label-md text-label-md uppercase tracking-widest">Flash Sale</span>
-<h3 class="font-headline-sm text-headline-sm font-display-lg text-on-surface mt-2">Free Olaplex with Color</h3>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mt-2">Free Olaplex with Color</h3>
 </div>
 <div class="mt-auto">
 <p class="font-body-md text-body-md text-on-surface-variant mb-4">Automatically applied to all balayage bookings.</p>
@@ -358,4 +253,27 @@
             });
         });
     </script>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-1 py-2 flex justify-between items-center">
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="tong-quan-doi-tac.html">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Tổng quan</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-lich-hen.html">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Lịch hẹn</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-secondary font-bold" href="quan-ly-dich-vu.html">
+<span class="material-symbols-outlined fill" data-icon="content_cut">content_cut</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Dịch vụ</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-nhan-vien.html">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Nhân viên</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
+</a>
+</nav>
 </body></html>

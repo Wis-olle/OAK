@@ -1,261 +1,97 @@
 <!DOCTYPE html>
 
-<html class="h-full" lang="en"><head>
+<html lang="vi"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>OAK Beauty Salon - Partner Dashboard - Staff Management</title>
 <script src="assets/js/tailwind-36d3755fef.js"></script>
-<link href="assets/css/gf-playfair-display-77d590b3e1.css" rel="stylesheet"/>
-<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet"/>
-<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet"/>
-<style>
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-        }
-        .material-symbols-outlined.fill {
-            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-        }
-        [x-cloak] { display: none !important; }
-    </style>
-<script id="tailwind-config">
-        tailwind.config = {
-          darkMode: "class",
-          theme: {
-            extend: {
-              "colors": {
-                      "primary-container": "#2c2c2c",
-                      "inverse-on-surface": "#ffeedc",
-                      "surface-container": "#ffebd3",
-                      "surface-variant": "#ffddb2",
-                      "outline-variant": "#c4c7c7",
-                      "inverse-primary": "#c8c6c5",
-                      "on-surface": "#291800",
-                      "on-secondary-fixed": "#2f1400",
-                      "on-surface-variant": "#444748",
-                      "secondary-fixed-dim": "#ffb781",
-                      "surface-container-low": "#fff1e4",
-                      "background": "#fff8f4",
-                      "on-primary-fixed": "#1b1c1c",
-                      "on-error-container": "#93000a",
-                      "surface-container-lowest": "#ffffff",
-                      "secondary": "#924c00",
-                      "surface-dim": "#f6d5aa",
-                      "surface-container-highest": "#ffddb2",
-                      "surface": "#fff8f4",
-                      "on-primary-fixed-variant": "#474747",
-                      "secondary-fixed": "#ffdcc4",
-                      "primary": "#171818",
-                      "on-secondary-container": "#703800",
-                      "on-error": "#ffffff",
-                      "surface-bright": "#fff8f4",
-                      "error-container": "#ffdad6",
-                      "tertiary-container": "#302c1a",
-                      "on-background": "#291800",
-                      "tertiary": "#1b1708",
-                      "error": "#ba1a1a",
-                      "surface-tint": "#5f5e5e",
-                      "on-tertiary-fixed": "#1f1c0b",
-                      "on-secondary": "#ffffff",
-                      "on-primary-container": "#949393",
-                      "on-primary": "#ffffff",
-                      "on-secondary-fixed-variant": "#6f3800",
-                      "surface-container-high": "#ffe4c3",
-                      "primary-fixed-dim": "#c8c6c5",
-                      "on-tertiary-fixed-variant": "#4c4733",
-                      "inverse-surface": "#402d0f",
-                      "tertiary-fixed": "#ebe2c8",
-                      "on-tertiary-container": "#9a937c",
-                      "tertiary-fixed-dim": "#cec6ad",
-                      "on-tertiary": "#ffffff",
-                      "outline": "#747878",
-                      "secondary-container": "#fda055",
-                      "primary-fixed": "#e4e2e1"
-              },
-              "borderRadius": {
-                      "DEFAULT": "0.125rem",
-                      "lg": "0.25rem",
-                      "xl": "0.5rem",
-                      "full": "0.75rem"
-              },
-              "spacing": {
-                      "gutter": "24px",
-                      "container-max": "1280px",
-                      "base": "8px",
-                      "margin-desktop": "64px",
-                      "margin-mobile": "16px",
-                      "section-gap": "120px"
-              },
-              "fontFamily": {
-                      "display-lg": [
-                              "Playfair Display"
-                      ],
-                      "body-lg": [
-                              "Inter"
-                      ],
-                      "headline-sm": [
-                              "Playfair Display"
-                      ],
-                      "body-md": [
-                              "Inter"
-                      ],
-                      "headline-lg-mobile": [
-                              "Playfair Display"
-                      ],
-                      "headline-lg": [
-                              "Playfair Display"
-                      ],
-                      "caption": [
-                              "Inter"
-                      ],
-                      "headline-md": [
-                              "Playfair Display"
-                      ],
-                      "label-md": [
-                              "Inter"
-                      ]
-              },
-              "fontSize": {
-                      "display-lg": [
-                              "64px",
-                              {
-                                      "lineHeight": "1.1",
-                                      "letterSpacing": "-0.02em",
-                                      "fontWeight": "700"
-                              }
-                      ],
-                      "body-lg": [
-                              "18px",
-                              {
-                                      "lineHeight": "1.6",
-                                      "fontWeight": "400"
-                              }
-                      ],
-                      "headline-sm": [
-                              "24px",
-                              {
-                                      "lineHeight": "1.4",
-                                      "fontWeight": "500"
-                              }
-                      ],
-                      "body-md": [
-                              "16px",
-                              {
-                                      "lineHeight": "1.6",
-                                      "fontWeight": "400"
-                              }
-                      ],
-                      "headline-lg-mobile": [
-                              "32px",
-                              {
-                                      "lineHeight": "1.2",
-                                      "fontWeight": "600"
-                              }
-                      ],
-                      "headline-lg": [
-                              "48px",
-                              {
-                                      "lineHeight": "1.2",
-                                      "fontWeight": "600"
-                              }
-                      ],
-                      "caption": [
-                              "12px",
-                              {
-                                      "lineHeight": "1.4",
-                                      "fontWeight": "400"
-                              }
-                      ],
-                      "headline-md": [
-                              "32px",
-                              {
-                                      "lineHeight": "1.3",
-                                      "fontWeight": "500"
-                              }
-                      ],
-                      "label-md": [
-                              "14px",
-                              {
-                                      "lineHeight": "1.0",
-                                      "letterSpacing": "0.05em",
-                                      "fontWeight": "600"
-                              }
-                      ]
-              }
-      },
-          },
-        }
-    </script>
-<!-- Alpine.js for interactivity -->
-<script defer="" src="assets/js/alpine-a18e64ece2.js"></script>
+<script src="assets/js/oak-tailwind-config.js"></script>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<title>Quản lý Nhân viên - OAK Beauty</title>
 </head>
-<body class="bg-background text-on-background h-full font-body-md text-body-md antialiased" x-data="{ staffModalOpen: false, selectedStaff: null }">
-<!-- TopNavBar -->
-<header class="hidden md:flex justify-between items-center h-20 px-gutter ml-64 w-[calc(100%-16rem)] bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl docked full-width top-0 sticky border-b border-outline-variant/30 dark:border-outline/20 z-40">
-<div class="flex items-center gap-4">
-<span class="font-display-lg text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty Salon</span>
-</div>
-<div class="flex items-center gap-6">
-<button aria-label="Notifications" class="text-on-surface-variant hover:text-secondary transition-colors">
-<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
-<button aria-label="Profile" class="flex items-center gap-2 hover:opacity-80 transition-opacity">
-<img alt="Store Owner Avatar" class="w-10 h-10 rounded-full object-cover border border-outline-variant/30" data-alt="A small, circular professional headshot of a stylish salon owner with neat hair, wearing a dark blazer, set against a bright, minimalist background in a modern editorial style, high resolution and flattering lighting." src="assets/images/img-3f3df7f55e.jpg"/>
-</button>
-</div>
-</header>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="{ staffModalOpen: false, selectedStaff: null }">
+<h1 class="sr-only">OAK Beauty — Partner Dashboard</h1>
 <!-- SideNavBar -->
 <nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container p-gutter z-50">
 <div class="mb-12">
-<h1 class="font-display-lg text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h1>
-<p class="font-caption text-caption text-on-surface-variant mt-1">Partner Dashboard</p>
+<h1 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h1>
+<p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest">Partner Dashboard</p>
 </div>
 <ul class="flex flex-col gap-2 flex-grow">
 <li>
-<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 font-label-md text-label-md uppercase tracking-wider" href="tong-quan-doi-tac.html">
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="tong-quan-doi-tac.html">
 <span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
-                    Tổng quan
-                </a>
+<span class="font-body-md text-body-md">Tổng quan</span>
+</a>
 </li>
 <li>
-<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 font-label-md text-label-md uppercase tracking-wider" href="quan-ly-lich-hen.html">
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-lich-hen.html">
 <span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
-                    Lịch hẹn
-                </a>
+<span class="font-body-md text-body-md">Lịch hẹn</span>
+</a>
 </li>
 <li>
-<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 font-label-md text-label-md uppercase tracking-wider" href="quan-ly-dich-vu.html">
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-dich-vu.html">
 <span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
-                    Dịch vụ
-                </a>
+<span class="font-body-md text-body-md">Dịch vụ</span>
+</a>
 </li>
 <li>
-<!-- ACTIVE TAB -->
-<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim font-bold bg-surface-variant dark:bg-on-primary-fixed-variant transition-colors scale-95 duration-150 font-label-md text-label-md uppercase tracking-wider" href="quan-ly-nhan-vien.html">
-<span class="material-symbols-outlined fill" data-icon="group" data-weight="fill">group</span>
-                    Nhân viên
-                </a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim font-bold bg-surface-variant dark:bg-on-primary-fixed-variant scale-95 duration-150" href="quan-ly-nhan-vien.html">
+<span class="material-symbols-outlined fill" data-icon="group">group</span>
+<span class="font-body-md text-body-md">Nhân viên</span>
+</a>
 </li>
 <li>
-<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 font-label-md text-label-md uppercase tracking-wider" href="#">
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="#">
 <span class="material-symbols-outlined" data-icon="settings">settings</span>
-                    Cài đặt
-                </a>
+<span class="font-body-md text-body-md">Cài đặt</span>
+</a>
 </li>
 </ul>
-<a href="quan-ly-lich-hen.html" style="display:contents;color:inherit;text-decoration:none"><button class="mt-auto w-full bg-primary text-on-primary py-4 px-6 rounded-DEFAULT font-label-md text-label-md uppercase tracking-wider hover:bg-primary-container hover:text-primary transition-colors border border-primary">
-            Đặt lịch mới
-        </button></a>
+<div class="mt-auto pt-8 border-t border-outline-variant/30">
+<a class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                Đặt lịch mới
+            </a>
+</div>
 </nav>
+<!-- TopNavBar -->
+<header class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-gutter md:ml-64 md:w-[calc(100%-16rem)] bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl top-0 sticky border-b border-outline-variant/30 dark:border-outline/20 z-40">
+<div class="flex items-center gap-4 min-w-0">
+<h2 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed truncate">Nhân viên</h2>
+</div>
+<div class="flex items-center gap-4 md:gap-6 shrink-0">
+<div class="relative hidden lg:block w-72">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
+<input aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm kiếm..." type="text"/>
+</div>
+<button aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" type="button">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-secondary rounded-full"></span>
+</button>
+<div class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30">
+<div class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0">
+<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover" data-alt="Close up portrait of a sophisticated salon owner in a modern, light-filled salon setting. Warm, natural lighting highlights professional demeanor. Editorial style photography, high end magazine look, soft focus background." src="assets/images/img-77a799e9a6.jpg"/>
+</div>
+<span class="font-label-md text-label-md text-primary cursor-pointer hover:text-secondary transition-colors hidden sm:inline">Profile</span>
+</div>
+</div>
+</header>
+
+
 <!-- Main Content Canvas -->
-<main class="md:ml-64 p-margin-mobile md:p-margin-desktop min-h-[calc(100vh-5rem)]">
+<main class="md:ml-64 p-margin-mobile md:p-margin-desktop pb-24 md:pb-margin-desktop min-h-[calc(100vh-5rem)]">
 <div class="max-w-container-max mx-auto">
 <!-- Header Section -->
 <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6 border-b border-outline-variant/30 pb-6">
 <div>
-<h2 class="font-display-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Staff Management</h2>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Staff Management</h2>
 <p class="font-body-lg text-body-lg text-on-surface-variant">Manage your team, schedules, and performance metrics.</p>
 </div>
-<button @click="staffModalOpen = true" class="bg-primary text-on-primary px-8 py-4 font-label-md text-label-md uppercase tracking-wider flex items-center gap-2 hover:bg-surface-tint transition-colors">
+<button @click="staffModalOpen = true" class="bg-primary-container text-on-primary px-8 py-4 font-label-md text-label-md uppercase tracking-wider flex items-center gap-2 hover:bg-primary transition-colors rounded-full">
 <span class="material-symbols-outlined" data-icon="add">add</span>
                     Add New Staff
                 </button>
@@ -264,16 +100,16 @@
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-section-gap">
 <div class="bg-surface-container-lowest p-6 border border-outline-variant/20 flex flex-col gap-2">
 <span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Total Staff</span>
-<span class="font-display-lg text-headline-lg text-primary">12</span>
+<span class="font-headline-lg text-headline-lg text-primary">12</span>
 </div>
 <div class="bg-surface-container-lowest p-6 border border-outline-variant/20 flex flex-col gap-2">
 <span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">On Shift Today</span>
-<span class="font-display-lg text-headline-lg text-primary">8</span>
+<span class="font-headline-lg text-headline-lg text-primary">8</span>
 </div>
 <div class="bg-surface-container-lowest p-6 border border-outline-variant/20 flex flex-col gap-2">
 <span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Avg. Rating</span>
 <div class="flex items-baseline gap-2">
-<span class="font-display-lg text-headline-lg text-primary">4.8</span>
+<span class="font-headline-lg text-headline-lg text-primary">4.8</span>
 <span class="material-symbols-outlined text-secondary fill text-[24px]" data-icon="star" data-weight="fill">star</span>
 </div>
 </div>
@@ -373,26 +209,7 @@
 </div>
 </div>
 </main>
-<!-- BottomNavBar (Mobile Only) -->
-<nav class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-4 py-2 flex justify-between items-center pb-safe">
-<a class="flex flex-col items-center gap-1 p-2 text-on-surface-variant" href="tong-quan-doi-tac.html">
-<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
-<span class="font-caption text-[10px] uppercase tracking-wider">Tổng quan</span>
-</a>
-<a class="flex flex-col items-center gap-1 p-2 text-on-surface-variant" href="quan-ly-lich-hen.html">
-<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
-<span class="font-caption text-[10px] uppercase tracking-wider">Lịch hẹn</span>
-</a>
-<!-- ACTIVE TAB MOBILE -->
-<a class="flex flex-col items-center gap-1 p-2 text-secondary font-bold" href="quan-ly-nhan-vien.html">
-<span class="material-symbols-outlined fill" data-icon="group" data-weight="fill">group</span>
-<span class="font-caption text-[10px] uppercase tracking-wider">Nhân viên</span>
-</a>
-<a class="flex flex-col items-center gap-1 p-2 text-on-surface-variant" href="#">
-<span class="material-symbols-outlined" data-icon="settings">settings</span>
-<span class="font-caption text-[10px] uppercase tracking-wider">Cài đặt</span>
-</a>
-</nav>
+
 <!-- Staff Edit Modal -->
 <div aria-labelledby="modal-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="staffModalOpen">
 <!-- Backdrop -->
@@ -461,10 +278,33 @@
 <button @click="staffModalOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors">
                     Cancel
                 </button>
-<button @click="staffModalOpen = false" class="px-8 py-3 bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-surface-tint transition-colors">
+<button @click="staffModalOpen = false" class="px-8 py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors rounded-full">
                     Save Changes
                 </button>
 </div>
 </div>
 </div>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-1 py-2 flex justify-between items-center">
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="tong-quan-doi-tac.html">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Tổng quan</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-lich-hen.html">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Lịch hẹn</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-dich-vu.html">
+<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Dịch vụ</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-secondary font-bold" href="quan-ly-nhan-vien.html">
+<span class="material-symbols-outlined fill" data-icon="group">group</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Nhân viên</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
+</a>
+</nav>
 </body></html>

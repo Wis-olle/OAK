@@ -1,0 +1,61 @@
+/* OAK Beauty - shared custom utilities.
+   One definition per class; merged from the per-page <style> blocks.
+   Load AFTER gf-material-symbols-outlined-de9b7b5eb5.css. */
+
+/* Filled variant of the Material Symbols icon font */
+.material-symbols-outlined.fill {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Alpine.js: hide un-initialised markup */
+[x-cloak] {
+    display: none !important;
+}
+
+/* Glassmorphism */
+.glass-nav {
+    background-color: rgba(255, 248, 244, 0.9);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(196, 199, 199, 0.3);
+}
+
+.glass-panel {
+    background: rgba(255, 248, 244, 0.8);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Ambient shadow for floating elements */
+.ambient-shadow {
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.05);
+}
+
+/* Scrollable strips without a visible scrollbar */
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+/* Hover image zoom */
+.img-hover-zoom {
+    overflow: hidden;
+}
+
+.img-hover-zoom img {
+    transition: transform 0.5s ease;
+}
+
+.img-hover-zoom:hover img {
+    transform: scale(1.05);
+}
+
+/* Easing shared by editorial hover states */
+.smooth-hover {
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
