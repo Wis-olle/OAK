@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OAK Beauty - Lịch hẹn</title>
+<script src="assets/js/tailwind-36d3755fef.js"></script>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet"/>
+
+
+<link href="assets/css/gf-inter-f920ffd565.css" rel="stylesheet"/>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary-container": "#2c2c2c",
+                        "inverse-on-surface": "#ffeedc",
+                        "surface-container": "#ffebd3",
+                        "surface-variant": "#ffddb2",
+                        "outline-variant": "#c4c7c7",
+                        "inverse-primary": "#c8c6c5",
+                        "on-surface": "#291800",
+                        "on-secondary-fixed": "#2f1400",
+                        "on-surface-variant": "#444748",
+                        "secondary-fixed-dim": "#ffb781",
+                        "surface-container-low": "#fff1e4",
+                        "background": "#fff8f4",
+                        "on-primary-fixed": "#1b1c1c",
+                        "on-error-container": "#93000a",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#924c00",
+                        "surface-dim": "#f6d5aa",
+                        "surface-container-highest": "#ffddb2",
+                        "surface": "#fff8f4",
+                        "on-primary-fixed-variant": "#474747",
+                        "secondary-fixed": "#ffdcc4",
+                        "primary": "#171818",
+                        "on-secondary-container": "#703800",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#fff8f4",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#302c1a",
+                        "on-background": "#291800",
+                        "tertiary": "#1b1708",
+                        "error": "#ba1a1a",
+                        "surface-tint": "#5f5e5e",
+                        "on-tertiary-fixed": "#1f1c0b",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#949393",
+                        "on-primary": "#ffffff",
+                        "on-secondary-fixed-variant": "#6f3800",
+                        "surface-container-high": "#ffe4c3",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "on-tertiary-fixed-variant": "#4c4733",
+                        "inverse-surface": "#402d0f",
+                        "tertiary-fixed": "#ebe2c8",
+                        "on-tertiary-container": "#9a937c",
+                        "tertiary-fixed-dim": "#cec6ad",
+                        "on-tertiary": "#ffffff",
+                        "outline": "#747878",
+                        "secondary-container": "#fda055",
+                        "primary-fixed": "#e4e2e1"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    spacing: {
+                        "gutter": "24px",
+                        "container-max": "1280px",
+                        "base": "8px",
+                        "margin-desktop": "64px",
+                        "margin-mobile": "16px",
+                        "section-gap": "120px"
+                    },
+                    fontFamily: {
+                        "display-lg": ["Playfair Display"],
+                        "body-lg": ["Inter"],
+                        "headline-sm": ["Playfair Display"],
+                        "body-md": ["Inter"],
+                        "headline-lg-mobile": ["Playfair Display"],
+                        "headline-lg": ["Playfair Display"],
+                        "caption": ["Inter"],
+                        "headline-md": ["Playfair Display"],
+                        "label-md": ["Inter"]
+                    },
+                    fontSize: {
+                        "display-lg": ["64px", { lineHeight: "1.1", letterSpacing: "-0.02em", fontWeight: "700" }],
+                        "body-lg": ["18px", { lineHeight: "1.6", fontWeight: "400" }],
+                        "headline-sm": ["24px", { lineHeight: "1.4", fontWeight: "500" }],
+                        "body-md": ["16px", { lineHeight: "1.6", fontWeight: "400" }],
+                        "headline-lg-mobile": ["32px", { lineHeight: "1.2", fontWeight: "600" }],
+                        "headline-lg": ["48px", { lineHeight: "1.2", fontWeight: "600" }],
+                        "caption": ["12px", { lineHeight: "1.4", fontWeight: "400" }],
+                        "headline-md": ["32px", { lineHeight: "1.3", fontWeight: "500" }],
+                        "label-md": ["14px", { lineHeight: "1.0", letterSpacing: "0.05em", fontWeight: "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .time-grid {
+            display: grid;
+            grid-template-columns: 80px repeat(3, minmax(200px, 1fr));
+            grid-auto-rows: 60px;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md text-body-md flex h-screen overflow-hidden antialiased">
+<!-- Shared Component: SideNavBar -->
+<nav class="h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container flex flex-col p-gutter z-50">
+<div class="mb-12 flex items-center gap-4">
+<div class="w-12 h-12 bg-surface-variant rounded-full flex items-center justify-center overflow-hidden">
+<img alt="OAK Beauty Salon Logo" class="w-full h-full object-cover" data-alt="A sleek, minimalist logo for a high-end beauty salon named OAK, featuring delicate thin lines forming an abstract oak leaf in dark charcoal grey on a light cream background, editorial style." src="assets/images/img-b2591d901c.jpg"/>
+</div>
+<div>
+<h1 class="font-display-lg text-headline-sm text-primary dark:text-primary-fixed leading-tight">OAK Beauty</h1>
+<p class="font-caption text-caption text-on-surface-variant mt-1">Partner Dashboard</p>
+</div>
+</div>
+<a href="quan-ly-lich-hen.html" style="display:contents;color:inherit;text-decoration:none"><button class="w-full bg-primary text-on-primary py-3 rounded-DEFAULT font-label-md text-label-md uppercase tracking-wider mb-8 hover:bg-tertiary transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-lg">add</span>
+            Đặt lịch mới
+        </button></a>
+<ul class="flex flex-col gap-2 flex-1">
+<!-- Inactive -->
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="tong-quan-doi-tac.html">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body-md text-body-md">Tổng quan</span>
+</a>
+</li>
+<!-- Active: Lịch hẹn -->
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary dark:text-secondary-fixed-dim font-bold bg-surface-variant dark:bg-on-primary-fixed-variant rounded-lg scale-95 duration-150" href="quan-ly-lich-hen.html">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+<span class="font-body-md text-body-md">Lịch hẹn</span>
+</a>
+</li>
+<!-- Inactive -->
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-dich-vu.html">
+<span class="material-symbols-outlined">content_cut</span>
+<span class="font-body-md text-body-md">Dịch vụ</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-nhan-vien.html">
+<span class="material-symbols-outlined">group</span>
+<span class="font-body-md text-body-md">Nhân viên</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md text-body-md">Cài đặt</span>
+</a>
+</li>
+</ul>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 ml-64 flex flex-col h-full bg-background relative">
+<!-- Shared Component: TopNavBar -->
+<header class="docked full-width top-0 sticky bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl border-b border-outline-variant/30 dark:border-outline/20 flex justify-between items-center h-20 px-gutter z-40">
+<div class="flex items-center gap-4">
+<h2 class="font-headline-md text-headline-md text-primary">Lịch hẹn</h2>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100">
+<span class="material-symbols-outlined text-2xl">search</span>
+</button>
+<button class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative">
+<span class="material-symbols-outlined text-2xl">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-secondary rounded-full"></span>
+</button>
+<div class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 cursor-pointer">
+<img alt="Store Owner Avatar" class="w-full h-full object-cover" data-alt="A portrait of a confident salon manager, a woman in her 30s with styled brunette hair, wearing a minimalist cream silk blouse. Soft interior lighting, editorial style." src="assets/images/img-b1f10d0d07.jpg"/>
+</div>
+</div>
+</header>
+<!-- Calendar & Details Container -->
+<div class="flex-1 flex overflow-hidden">
+<!-- Main Calendar Area -->
+<main class="flex-1 flex flex-col overflow-hidden">
+<!-- Filters Bar -->
+<div class="px-gutter py-6 flex items-center justify-between border-b border-outline-variant/20 shrink-0">
+<div class="flex items-center gap-4">
+<div class="flex items-center bg-surface-container-low rounded-DEFAULT p-1 border border-outline-variant/30">
+<button class="px-4 py-1.5 font-label-md text-label-md bg-primary text-on-primary rounded-DEFAULT shadow-sm uppercase">Ngày</button>
+<button class="px-4 py-1.5 font-label-md text-label-md text-on-surface-variant hover:text-primary uppercase">Tuần</button>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-primary ml-4">Hôm nay, 24 Tháng 10</h3>
+</div>
+<div class="flex gap-3">
+<select class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8 relative">
+<option>Tất cả nhân viên</option>
+<option>Elena R.</option>
+<option>Marcus T.</option>
+</select>
+<select class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8">
+<option>Tất cả dịch vụ</option>
+<option>Hair Styling</option>
+<option>Coloring</option>
+</select>
+<select class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8">
+<option>Trạng thái</option>
+<option>Đã xác nhận</option>
+<option>Chờ xử lý</option>
+</select>
+</div>
+</div>
+<!-- Grid Calendar View -->
+<div class="flex-1 overflow-y-auto overflow-x-auto scrollbar-hide bg-surface-container-lowest p-gutter">
+<div class="min-w-[800px]">
+<!-- Staff Header Row -->
+<div class="time-grid border-b border-outline-variant/20 mb-4 sticky top-0 bg-surface-container-lowest z-10 pb-4">
+<div class="flex items-end justify-center pb-2 text-on-surface-variant font-caption text-caption uppercase tracking-widest border-r border-outline-variant/20 pr-4">GMT+7</div>
+<!-- Staff 1 -->
+<div class="flex flex-col items-center justify-center border-r border-outline-variant/10">
+<div class="w-12 h-12 rounded-full overflow-hidden mb-2">
+<img class="w-full h-full object-cover" data-alt="Professional headshot of a female hairstylist named Elena, early 30s, chic minimalist style, wearing a black top. Well-lit studio setting, editorial." src="assets/images/img-9cc6021eb5.jpg"/>
+</div>
+<span class="font-headline-sm text-headline-sm text-primary">Elena R.</span>
+<span class="font-caption text-caption text-on-surface-variant">Senior Stylist</span>
+</div>
+<!-- Staff 2 -->
+<div class="flex flex-col items-center justify-center border-r border-outline-variant/10">
+<div class="w-12 h-12 rounded-full overflow-hidden mb-2">
+<img class="w-full h-full object-cover" data-alt="Professional headshot of a male barber named Marcus, late 20s, modern grooming, wearing a crisp white shirt. Clean bright background, high-end style." src="assets/images/img-3f14f27dc1.jpg"/>
+</div>
+<span class="font-headline-sm text-headline-sm text-primary">Marcus T.</span>
+<span class="font-caption text-caption text-on-surface-variant">Color Specialist</span>
+</div>
+<!-- Staff 3 -->
+<div class="flex flex-col items-center justify-center">
+<div class="w-12 h-12 rounded-full overflow-hidden mb-2">
+<img class="w-full h-full object-cover" data-alt="Professional headshot of a female makeup artist named Sofia, minimal elegant makeup, wearing a neutral tone blazer. Soft glowing lighting, luxury aesthetic." src="assets/images/img-7ffd22c3c9.jpg"/>
+</div>
+<span class="font-headline-sm text-headline-sm text-primary">Sofia L.</span>
+<span class="font-caption text-caption text-on-surface-variant">Makeup Artist</span>
+</div>
+</div>
+<!-- Time Slots -->
+<div class="time-grid relative">
+<!-- Background Grid Lines -->
+<div class="col-start-2 col-end-5 row-start-1 row-end-10 grid grid-rows-9 gap-0 pointer-events-none absolute inset-0">
+<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
+<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
+<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
+<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
+<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
+<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
+<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
+<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
+<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
+</div>
+<!-- Time Labels -->
+<div class="flex justify-center items-start text-on-surface-variant font-caption text-caption border-r border-outline-variant/20 pr-4 mt-[-10px]">09:00</div>
+<div class="col-start-2 col-end-5"></div>
+<div class="flex justify-center items-start text-on-surface-variant font-caption text-caption border-r border-outline-variant/20 pr-4 mt-[-10px]">10:00</div>
+<div class="col-start-2 col-end-5"></div>
+<div class="flex justify-center items-start text-on-surface-variant font-caption text-caption border-r border-outline-variant/20 pr-4 mt-[-10px]">11:00</div>
+<div class="col-start-2 col-end-5"></div>
+<div class="flex justify-center items-start text-on-surface-variant font-caption text-caption border-r border-outline-variant/20 pr-4 mt-[-10px]">12:00</div>
+<div class="col-start-2 col-end-5"></div>
+<div class="flex justify-center items-start text-on-surface-variant font-caption text-caption border-r border-outline-variant/20 pr-4 mt-[-10px]">13:00</div>
+<div class="col-start-2 col-end-5"></div>
+<!-- Appointments (Absolute positioning within grid cells for overlapping/spanning) -->
+<!-- Appointment 1: Elena, 9:00 - 10:30 (Spans 1.5 slots) -->
+<div class="col-start-2 row-start-1 row-end-3 mx-2 mt-2 mb-[-30px] z-10">
+<div class="bg-surface-container-high border-l-4 border-secondary rounded-r-DEFAULT p-3 h-full shadow-sm hover:shadow-md cursor-pointer transition-shadow flex flex-col justify-between">
+<div>
+<p class="font-label-md text-label-md text-primary mb-1">Balayage &amp; Cut</p>
+<p class="font-caption text-caption text-on-surface-variant">09:00 - 10:30</p>
+</div>
+<div class="flex items-center gap-2 mt-2">
+<div class="w-6 h-6 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Portrait of a young woman with long wavy hair, client at a salon. Minimalist beauty shot, bright lighting." src="assets/images/img-5fe625521a.jpg"/>
+</div>
+<span class="font-caption text-caption text-on-surface font-medium">Nguyễn Thu A.</span>
+</div>
+</div>
+</div>
+<!-- Appointment 2: Marcus, 10:00 - 11:00 -->
+<div class="col-start-3 row-start-2 row-end-3 mx-2 mt-2 z-10">
+<div class="bg-surface-variant border-l-4 border-outline rounded-r-DEFAULT p-3 h-full shadow-sm opacity-80 cursor-pointer flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-1 mb-1">
+<span class="material-symbols-outlined text-[14px] text-outline">schedule</span>
+<span class="font-caption text-caption text-outline uppercase tracking-wider">Pending</span>
+</div>
+<p class="font-label-md text-label-md text-primary line-clamp-1">Root Touch-up</p>
+</div>
+<p class="font-caption text-caption text-on-surface-variant">Lê Văn B.</p>
+</div>
+</div>
+<!-- Appointment 3: Sofia, 11:30 - 13:00 (Active/Selected) -->
+<div class="col-start-4 row-start-3 row-end-5 mx-2 mt-[30px] mb-[-30px] z-20">
+<div class="bg-inverse-on-surface border-2 border-secondary rounded-DEFAULT p-3 h-full shadow-md cursor-pointer flex flex-col justify-between">
+<div>
+<p class="font-label-md text-label-md text-primary mb-1">Bridal Makeup Trial</p>
+<p class="font-caption text-caption text-on-surface-variant">11:30 - 13:00</p>
+</div>
+<div class="flex items-center gap-2 mt-2">
+<div class="w-6 h-6 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Portrait of a bride-to-be, fresh faced, soft natural light. Editorial beauty photography." src="assets/images/img-676e58158d.jpg"/>
+</div>
+<span class="font-caption text-caption text-on-surface font-medium">Trần Thị C.</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Appointment Details Sidebar (Right Panel) -->
+<aside class="w-[360px] bg-surface-container-low border-l border-outline-variant/20 flex flex-col shrink-0 shadow-[0_0_40px_rgba(0,0,0,0.02)] z-30 relative">
+<!-- Close Button (Visual only) -->
+<button class="absolute top-4 right-4 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+<div class="p-8 border-b border-outline-variant/20 flex flex-col items-center text-center mt-4">
+<div class="w-24 h-24 rounded-full overflow-hidden mb-4 border-2 border-surface-container-highest shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Portrait of a bride-to-be, fresh faced, soft natural light. Editorial beauty photography. Used for client profile." src="assets/images/img-eeeea754bb.jpg"/>
+</div>
+<h3 class="font-display-lg text-headline-sm text-primary mb-1">Trần Thị C.</h3>
+<p class="font-body-md text-body-md text-on-surface-variant flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-[16px]">call</span>
+                        +84 90 123 4567
+                    </p>
+<div class="mt-4 px-3 py-1 bg-surface-variant rounded-full text-secondary font-label-md text-caption uppercase tracking-wider">
+                        Khách hàng VIP
+                    </div>
+</div>
+<div class="p-8 flex-1 overflow-y-auto">
+<h4 class="font-label-md text-label-md text-primary uppercase tracking-widest mb-6">Chi tiết lịch hẹn</h4>
+<div class="space-y-6">
+<!-- Detail Item -->
+<div class="flex gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-secondary">content_cut</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Bridal Makeup Trial</p>
+<p class="font-caption text-caption text-on-surface-variant mt-1">Makeup • 90 phút</p>
+<p class="font-body-md text-body-md text-primary font-medium mt-1">1.500.000 ₫</p>
+</div>
+</div>
+<!-- Detail Item -->
+<div class="flex gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-secondary">schedule</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Thời gian</p>
+<p class="font-caption text-caption text-on-surface-variant mt-1">Hôm nay, 24 Tháng 10</p>
+<p class="font-body-md text-body-md text-primary mt-1">11:30 - 13:00</p>
+</div>
+</div>
+<!-- Detail Item -->
+<div class="flex gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Professional headshot of a female makeup artist named Sofia, minimal elegant makeup, wearing a neutral tone blazer. Soft glowing lighting, luxury aesthetic. Used as icon." src="assets/images/img-66c1c3331d.jpg"/>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Nhân viên phụ trách</p>
+<p class="font-body-md text-body-md text-primary mt-1">Sofia L.</p>
+</div>
+</div>
+</div>
+<div class="mt-8 pt-6 border-t border-outline-variant/20">
+<p class="font-label-md text-label-md text-primary uppercase tracking-widest mb-4">Ghi chú</p>
+<p class="font-body-md text-body-md text-on-surface-variant italic">"Khách hàng muốn thử tone makeup trong trẻo, tự nhiên phong cách Hàn Quốc."</p>
+</div>
+</div>
+<div class="p-gutter border-t border-outline-variant/20 bg-surface-container-lowest flex gap-3">
+<button class="flex-1 py-3 border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider rounded-DEFAULT hover:bg-surface-variant transition-colors">
+                        Sửa
+                    </button>
+<button class="flex-[2] py-3 bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-DEFAULT hover:bg-tertiary transition-colors shadow-sm">
+                        Hoàn thành
+                    </button>
+</div>
+</aside>
+</div>
+</div>
+</body></html>

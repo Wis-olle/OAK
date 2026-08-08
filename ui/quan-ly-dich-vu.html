@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OAK Beauty - Service Management</title>
+<script src="assets/js/tailwind-36d3755fef.js"></script>
+<link href="assets/css/gf-inter-f920ffd565.css" rel="stylesheet"/>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet"/>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#2c2c2c",
+                        "inverse-on-surface": "#ffeedc",
+                        "surface-container": "#ffebd3",
+                        "surface-variant": "#ffddb2",
+                        "outline-variant": "#c4c7c7",
+                        "inverse-primary": "#c8c6c5",
+                        "on-surface": "#291800",
+                        "on-secondary-fixed": "#2f1400",
+                        "on-surface-variant": "#444748",
+                        "secondary-fixed-dim": "#ffb781",
+                        "surface-container-low": "#fff1e4",
+                        "background": "#fff8f4",
+                        "on-primary-fixed": "#1b1c1c",
+                        "on-error-container": "#93000a",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#924c00",
+                        "surface-dim": "#f6d5aa",
+                        "surface-container-highest": "#ffddb2",
+                        "surface": "#fff8f4",
+                        "on-primary-fixed-variant": "#474747",
+                        "secondary-fixed": "#ffdcc4",
+                        "primary": "#171818",
+                        "on-secondary-container": "#703800",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#fff8f4",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#302c1a",
+                        "on-background": "#291800",
+                        "tertiary": "#1b1708",
+                        "error": "#ba1a1a",
+                        "surface-tint": "#5f5e5e",
+                        "on-tertiary-fixed": "#1f1c0b",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#949393",
+                        "on-primary": "#ffffff",
+                        "on-secondary-fixed-variant": "#6f3800",
+                        "surface-container-high": "#ffe4c3",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "on-tertiary-fixed-variant": "#4c4733",
+                        "inverse-surface": "#402d0f",
+                        "tertiary-fixed": "#ebe2c8",
+                        "on-tertiary-container": "#9a937c",
+                        "tertiary-fixed-dim": "#cec6ad",
+                        "on-tertiary": "#ffffff",
+                        "outline": "#747878",
+                        "secondary-container": "#fda055",
+                        "primary-fixed": "#e4e2e1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "container-max": "1280px",
+                        "base": "8px",
+                        "margin-desktop": "64px",
+                        "margin-mobile": "16px",
+                        "section-gap": "120px"
+                    },
+                    "fontFamily": {
+                        "display-lg": ["Playfair Display"],
+                        "body-lg": ["Inter"],
+                        "headline-sm": ["Playfair Display"],
+                        "body-md": ["Inter"],
+                        "headline-lg-mobile": ["Playfair Display"],
+                        "headline-lg": ["Playfair Display"],
+                        "caption": ["Inter"],
+                        "headline-md": ["Playfair Display"],
+                        "label-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "display-lg": ["64px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-sm": ["24px", { "lineHeight": "1.4", "fontWeight": "500" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["32px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "headline-lg": ["48px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "caption": ["12px", { "lineHeight": "1.4", "fontWeight": "400" }],
+                        "headline-md": ["32px", { "lineHeight": "1.3", "fontWeight": "500" }],
+                        "label-md": ["14px", { "lineHeight": "1.0", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #2c2c2c;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #2c2c2c;
+        }
+        .toggle-checkbox:checked + .toggle-label:after {
+            transform: translateX(100%);
+            border-color: white;
+        }
+        .toggle-label {
+            width: 40px;
+            height: 20px;
+            background-color: #c4c7c7;
+            border-radius: 9999px;
+            position: relative;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .toggle-label:after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            background-color: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen antialiased flex">
+<!-- SideNavBar -->
+<nav class="h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container z-50 flex flex-col h-full p-gutter">
+<div class="mb-12 flex flex-col gap-2">
+<h1 class="font-display-lg text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Partner Dashboard</p>
+</div>
+<ul class="flex flex-col gap-2 flex-grow">
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 group" href="tong-quan-doi-tac.html">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md uppercase tracking-wider group-hover:text-secondary transition-colors">Tổng quan</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 group" href="quan-ly-lich-hen.html">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-label-md text-label-md uppercase tracking-wider group-hover:text-secondary transition-colors">Lịch hẹn</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim font-bold bg-surface-variant dark:bg-on-primary-fixed-variant scale-95 duration-150" href="quan-ly-dich-vu.html">
+<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Dịch vụ</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 group" href="quan-ly-nhan-vien.html">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-md text-label-md uppercase tracking-wider group-hover:text-secondary transition-colors">Nhân viên</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150 group" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md uppercase tracking-wider group-hover:text-secondary transition-colors">Cài đặt</span>
+</a>
+</li>
+</ul>
+<div class="mt-auto pt-8 border-t border-outline-variant/30">
+<a href="quan-ly-lich-hen.html" style="display:contents;color:inherit;text-decoration:none"><button class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 hover:bg-opacity-90 transition-all rounded-DEFAULT flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+                Đặt lịch mới
+            </button></a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="ml-64 w-[calc(100%-16rem)] flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center h-20 px-gutter bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl docked full-width top-0 sticky border-b border-outline-variant/30 dark:border-outline/20 z-40">
+<div class="flex items-center gap-4 w-1/3">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
+<input class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Search services..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<div class="flex items-center gap-3 pl-6 border-l border-outline-variant/30">
+<img alt="Store Owner Avatar" class="w-10 h-10 rounded-full object-cover" data-alt="Close up portrait of a sophisticated salon owner in a modern, light-filled salon setting. Warm, natural lighting highlights professional demeanor. Editorial style photography, high end magazine look, soft focus background." src="assets/images/img-77a799e9a6.jpg"/>
+<span class="font-label-md text-label-md uppercase tracking-wider text-on-surface">Profile</span>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="p-margin-desktop max-w-container-max mx-auto w-full flex-grow">
+<div class="flex justify-between items-end mb-12">
+<div>
+<h2 class="font-headline-lg text-headline-lg font-display-lg text-on-surface mb-2">Service Management</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Curate and manage your high-end salon offerings.</p>
+</div>
+<button class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-3 px-6 hover:bg-opacity-90 transition-all rounded-DEFAULT flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                    Add New Service
+                </button>
+</div>
+<!-- Categories -->
+<div class="flex gap-4 mb-8 overflow-x-auto pb-2">
+<button class="bg-tertiary text-on-tertiary font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap">All Services</button>
+<button class="bg-surface-container text-on-surface font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap hover:bg-surface-variant transition-colors">Hair Styling</button>
+<button class="bg-surface-container text-on-surface font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap hover:bg-surface-variant transition-colors">Coloring</button>
+<button class="bg-surface-container text-on-surface font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap hover:bg-surface-variant transition-colors">Treatments</button>
+<button class="bg-surface-container text-on-surface font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap hover:bg-surface-variant transition-colors">Nails</button>
+</div>
+<!-- Services Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-section-gap">
+<!-- Service Card 1 -->
+<div class="group relative bg-surface-container-lowest hover:bg-surface-container-low transition-colors duration-300 rounded-lg overflow-hidden border border-transparent hover:border-outline-variant/30 flex flex-col h-full">
+<div class="aspect-[4/3] w-full overflow-hidden relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="A model with perfectly styled, voluminous blowout hair in a bright, modern salon setting. Soft, natural light filtering through large windows. Minimalist aesthetic, luxury vibe, high-fashion editorial styling, sharp focus on the hair texture." src="assets/images/img-054821048a.jpg"/>
+<div class="absolute top-4 right-4 bg-surface-container-lowest/90 backdrop-blur px-3 py-1 rounded-full flex items-center gap-2">
+<input checked="" class="hidden toggle-checkbox" id="toggle1" type="checkbox"/>
+<label class="toggle-label" for="toggle1"></label>
+<span class="font-caption text-caption text-on-surface">Active</span>
+</div>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline-sm text-headline-sm font-display-lg text-on-surface">Signature Blowout</h3>
+<span class="font-body-lg text-body-lg text-on-surface font-medium">$65</span>
+</div>
+<p class="font-caption text-caption text-on-surface-variant mb-6 uppercase tracking-widest">45 Minutes • Hair Styling</p>
+<div class="mt-auto flex gap-4 border-t border-outline-variant/20 pt-4">
+<button class="flex-1 text-center font-label-md text-label-md uppercase text-on-surface hover:text-secondary transition-colors">Edit</button>
+<div class="w-px bg-outline-variant/20"></div>
+<button class="flex-1 text-center font-label-md text-label-md uppercase text-error hover:text-on-error-container transition-colors">Hide</button>
+</div>
+</div>
+</div>
+<!-- Service Card 2 -->
+<div class="group relative bg-surface-container-lowest hover:bg-surface-container-low transition-colors duration-300 rounded-lg overflow-hidden border border-transparent hover:border-outline-variant/30 flex flex-col h-full">
+<div class="aspect-[4/3] w-full overflow-hidden relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Close up of a stylist applying balayage hair color to a client. Detailed view of the foil technique. Bright, sterile yet warm salon environment. High resolution, crisp details, luxurious and professional aesthetic, shallow depth of field." src="assets/images/img-02a07813e8.jpg"/>
+<div class="absolute top-4 right-4 bg-surface-container-lowest/90 backdrop-blur px-3 py-1 rounded-full flex items-center gap-2">
+<input checked="" class="hidden toggle-checkbox" id="toggle2" type="checkbox"/>
+<label class="toggle-label" for="toggle2"></label>
+<span class="font-caption text-caption text-on-surface">Active</span>
+</div>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline-sm text-headline-sm font-display-lg text-on-surface">Balayage &amp; Tone</h3>
+<span class="font-body-lg text-body-lg text-on-surface font-medium">$220</span>
+</div>
+<p class="font-caption text-caption text-on-surface-variant mb-6 uppercase tracking-widest">180 Minutes • Coloring</p>
+<div class="mt-auto flex gap-4 border-t border-outline-variant/20 pt-4">
+<button class="flex-1 text-center font-label-md text-label-md uppercase text-on-surface hover:text-secondary transition-colors">Edit</button>
+<div class="w-px bg-outline-variant/20"></div>
+<button class="flex-1 text-center font-label-md text-label-md uppercase text-error hover:text-on-error-container transition-colors">Hide</button>
+</div>
+</div>
+</div>
+<!-- Service Card 3 (Inactive) -->
+<div class="group relative bg-surface-container-lowest/50 hover:bg-surface-container-low transition-colors duration-300 rounded-lg overflow-hidden border border-transparent hover:border-outline-variant/30 flex flex-col h-full opacity-75">
+<div class="aspect-[4/3] w-full overflow-hidden relative">
+<img class="w-full h-full object-cover grayscale opacity-80 group-hover:scale-105 transition-transform duration-700 group-hover:grayscale-0" data-alt="A serene spa setup for a scalp treatment. Essential oil bottles, pristine white towels, and soft neutral tones. Minimalist, calming atmosphere. Soft, diffused lighting, editorial still life photography, luxury spa vibe." src="assets/images/img-0b813a4c94.jpg"/>
+<div class="absolute top-4 right-4 bg-surface-container-lowest/90 backdrop-blur px-3 py-1 rounded-full flex items-center gap-2">
+<input class="hidden toggle-checkbox" id="toggle3" type="checkbox"/>
+<label class="toggle-label" for="toggle3"></label>
+<span class="font-caption text-caption text-on-surface-variant">Inactive</span>
+</div>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline-sm text-headline-sm font-display-lg text-on-surface-variant">Keratin Smoothing</h3>
+<span class="font-body-lg text-body-lg text-on-surface-variant font-medium">$250</span>
+</div>
+<p class="font-caption text-caption text-on-surface-variant mb-6 uppercase tracking-widest">120 Minutes • Treatments</p>
+<div class="mt-auto flex gap-4 border-t border-outline-variant/20 pt-4">
+<button class="flex-1 text-center font-label-md text-label-md uppercase text-on-surface hover:text-secondary transition-colors">Edit</button>
+<div class="w-px bg-outline-variant/20"></div>
+<button class="flex-1 text-center font-label-md text-label-md uppercase text-on-surface hover:text-primary transition-colors">Show</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Special Offers Section (Bento Grid Style) -->
+<div class="mb-section-gap">
+<div class="flex justify-between items-end mb-8">
+<h2 class="font-headline-md text-headline-md font-display-lg text-on-surface">Special Offers &amp; Combos</h2>
+<button class="text-secondary font-label-md text-label-md uppercase hover:underline">Manage All Offers</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[250px]">
+<!-- Large Feature Combo -->
+<div class="md:col-span-2 bg-surface-container-high rounded-xl p-8 flex flex-col justify-between relative overflow-hidden group">
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-20 mix-blend-multiply transition-transform duration-1000 group-hover:scale-105" data-alt="Abstract soft focus background of salon interiors. Warm amber and neutral taupe tones blending together smoothly. Elegant, minimalist, luxury lifestyle aesthetic, high-key lighting." src="assets/images/img-62ca3b49cf.jpg"/>
+</div>
+<div class="relative z-10 flex justify-between items-start">
+<div>
+<span class="bg-primary text-on-primary font-caption text-caption uppercase px-3 py-1 rounded-full tracking-widest">Combo</span>
+<h3 class="font-headline-md text-headline-md font-display-lg text-on-surface mt-4 max-w-sm">Bridal Package: Hair &amp; Makeup Trial</h3>
+</div>
+<div class="text-right">
+<span class="block font-body-md text-body-md text-on-surface-variant line-through">$350</span>
+<span class="block font-headline-sm text-headline-sm font-display-lg text-primary">$295</span>
+</div>
+</div>
+<div class="relative z-10 flex justify-between items-end mt-auto">
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-widest">180 Minutes • Valid till Oct 31</p>
+<button class="border border-primary text-primary font-label-md text-label-md uppercase px-6 py-2 hover:bg-primary hover:text-on-primary transition-colors">Edit Combo</button>
+</div>
+</div>
+<!-- Smaller Offer -->
+<div class="bg-surface-container rounded-xl p-8 flex flex-col justify-between border border-outline-variant/20 hover:border-outline-variant transition-colors">
+<div>
+<span class="text-secondary font-label-md text-label-md uppercase tracking-widest">Flash Sale</span>
+<h3 class="font-headline-sm text-headline-sm font-display-lg text-on-surface mt-2">Free Olaplex with Color</h3>
+</div>
+<div class="mt-auto">
+<p class="font-body-md text-body-md text-on-surface-variant mb-4">Automatically applied to all balayage bookings.</p>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<input checked="" class="hidden toggle-checkbox" id="toggle-offer1" type="checkbox"/>
+<label class="toggle-label" for="toggle-offer1"></label>
+</div>
+<button class="text-on-surface font-label-md text-label-md uppercase hover:text-secondary">Edit</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script>
+        // Simple logic for custom toggle switches to look nice without external libraries
+        document.querySelectorAll('.toggle-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const statusText = this.closest('div').querySelector('span');
+                if(this.checked) {
+                    statusText.textContent = 'Active';
+                    statusText.className = 'font-caption text-caption text-on-surface';
+                    // Optional: logic to change card opacity if checking/unchecking
+                } else {
+                    statusText.textContent = 'Inactive';
+                    statusText.className = 'font-caption text-caption text-on-surface-variant';
+                }
+            });
+        });
+    </script>
+</body></html>

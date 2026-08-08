@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lala Nail Studio - Chi tiết Salon</title>
+<!-- Material Symbols -->
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet"/>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="assets/js/tailwind-36d3755fef.js"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-error": "#ffffff",
+                      "outline": "#747878",
+                      "error-container": "#ffdad6",
+                      "surface-variant": "#ffddb2",
+                      "on-secondary-container": "#703800",
+                      "inverse-on-surface": "#ffeedc",
+                      "background": "#fff8f4",
+                      "on-primary": "#ffffff",
+                      "primary-fixed": "#e4e2e1",
+                      "secondary-fixed-dim": "#ffb781",
+                      "on-secondary-fixed": "#2f1400",
+                      "primary-fixed-dim": "#c8c6c5",
+                      "on-primary-fixed-variant": "#474747",
+                      "on-tertiary": "#ffffff",
+                      "surface-tint": "#5f5e5e",
+                      "on-primary-container": "#949393",
+                      "tertiary-container": "#302c1a",
+                      "on-secondary": "#ffffff",
+                      "tertiary-fixed": "#ebe2c8",
+                      "on-surface-variant": "#444748",
+                      "surface-container-high": "#ffe4c3",
+                      "surface-container": "#ffebd3",
+                      "on-surface": "#291800",
+                      "on-error-container": "#93000a",
+                      "tertiary": "#1b1708",
+                      "inverse-primary": "#c8c6c5",
+                      "secondary": "#924c00",
+                      "on-primary-fixed": "#1b1c1c",
+                      "on-tertiary-container": "#9a937c",
+                      "primary": "#171818",
+                      "surface": "#fff8f4",
+                      "surface-container-lowest": "#ffffff",
+                      "secondary-fixed": "#ffdcc4",
+                      "on-secondary-fixed-variant": "#6f3800",
+                      "primary-container": "#2c2c2c",
+                      "on-background": "#291800",
+                      "on-tertiary-fixed-variant": "#4c4733",
+                      "surface-container-highest": "#ffddb2",
+                      "tertiary-fixed-dim": "#cec6ad",
+                      "error": "#ba1a1a",
+                      "surface-dim": "#f6d5aa",
+                      "surface-bright": "#fff8f4",
+                      "inverse-surface": "#402d0f",
+                      "on-tertiary-fixed": "#1f1c0b",
+                      "outline-variant": "#c4c7c7",
+                      "secondary-container": "#fda055",
+                      "surface-container-low": "#fff1e4"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "gutter": "24px",
+                      "margin-mobile": "16px",
+                      "margin-desktop": "64px",
+                      "base": "8px",
+                      "section-gap": "120px",
+                      "container-max": "1280px"
+              },
+              "fontFamily": {
+                      "headline-md": [
+                              "Playfair Display"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Playfair Display"
+                      ],
+                      "headline-lg-mobile": [
+                              "Playfair Display"
+                      ],
+                      "headline-lg": [
+                              "Playfair Display"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "caption": [
+                              "Inter"
+                      ],
+                      "headline-sm": [
+                              "Playfair Display"
+                      ]
+              },
+              "fontSize": {
+                      "headline-md": [
+                              "32px",
+                              {
+                                      "lineHeight": "1.3",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display-lg": [
+                              "64px",
+                              {
+                                      "lineHeight": "1.1",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "32px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "1.0",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "caption": [
+                              "12px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-sm": [
+                              "24px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "fontWeight": "500"
+                              }
+                      ]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        /* Base styles */
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        /* Font embedding */
+        @import url('assets/css/gf-inter-f920ffd565.css');
+    </style>
+</head>
+<body class="bg-background min-h-screen">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-surface/90 backdrop-blur-xl border-b border-outline-variant/30">
+<div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
+<div class="flex items-center gap-8">
+<a class="font-headline-md text-headline-md font-bold text-primary" href="index.html">OAK Beauty</a>
+<!-- Desktop Nav -->
+<div class="hidden md:flex items-center gap-6">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="kham-pha.html">Khám phá</a>
+<a class="font-body-md text-body-md text-primary font-bold border-b-2 border-primary" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Blog</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="hidden md:flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-variant/50 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">location_on</span>
+</button>
+<button class="hidden md:flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-variant/50 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+</button>
+<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-DEFAULT hover:bg-primary transition-colors active:scale-95 duration-200">
+                    Đặt lịch
+                </button></a>
+</div>
+</div>
+</nav>
+<!-- Main Content -->
+<main class="pt-24 pb-32">
+<!-- Gallery Header -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-16">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-4 h-[400px] md:h-[500px]">
+<div class="md:col-span-2 md:row-span-2 overflow-hidden rounded-lg">
+<img class="w-full h-full object-cover hover:scale-105 transition-transform duration-700" data-alt="A bright, airy, high-end nail salon interior with minimal beige walls, soft natural light streaming in through large windows, modern neutral-toned plush seating, and elegant brass accents. The aesthetic is clean, luxurious, and serene, perfect for an upscale beauty brand." src="assets/images/img-d469cbe2a5.jpg"/>
+</div>
+<div class="hidden md:block overflow-hidden rounded-lg">
+<img class="w-full h-full object-cover hover:scale-105 transition-transform duration-700" data-alt="Close-up of a professional nail technician's workspace in a luxury salon. Soft aesthetic lighting, minimalist tools neatly arranged on a clean white marble counter, delicate pastel nail polish bottles in the background. The mood is calm and professional." src="assets/images/img-d040a96059.jpg"/>
+</div>
+<div class="hidden md:block overflow-hidden rounded-lg">
+<img class="w-full h-full object-cover hover:scale-105 transition-transform duration-700" data-alt="Detail shot of a minimalist, modern waiting area in a premium beauty studio. A sleek linen sofa, a small marble side table with an abstract floral arrangement, and warm ambient lighting. The color palette features soft creams, tertiary taupes, and crisp whites." src="assets/images/img-1e3ee4ffd7.jpg"/>
+</div>
+<div class="hidden md:block overflow-hidden rounded-lg">
+<img class="w-full h-full object-cover hover:scale-105 transition-transform duration-700" data-alt="A beautifully manicured hand with an elegant, modern nail art design resting softly on a silky neutral fabric. High-key lighting, soft shadows, exuding luxury and meticulous care typical of a high-end nail studio." src="assets/images/img-01563fcc2d.jpg"/>
+</div>
+<div class="hidden md:block relative overflow-hidden rounded-lg cursor-pointer group">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Interior detail of a chic nail salon displaying rows of premium nail polish colors on an illuminated, minimalist floating shelf. The background is a soft beige tone, capturing a sense of refined beauty and extensive service options." src="assets/images/img-4195fa5c15.jpg"/>
+<div class="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors">
+<span class="font-label-md text-label-md text-white uppercase tracking-widest">+12 Ảnh</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Salon Info & Booking Grid -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Left Column: Info & Details -->
+<div class="md:col-span-8 space-y-12">
+<!-- Title & Badges -->
+<div>
+<div class="flex items-center gap-3 mb-4">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface">Lala Nail Studio</h1>
+<span class="material-symbols-outlined text-secondary-container" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
+                            Không gian thư giãn đẳng cấp mang phong cách tối giản hiện đại. Lala Nail Studio tập trung vào nghệ thuật chăm sóc móng chuyên sâu, sử dụng sản phẩm organic và kỹ thuật viên dày dặn kinh nghiệm, mang đến trải nghiệm làm đẹp hoàn hảo.
+                        </p>
+<div class="flex flex-wrap items-center gap-6 mt-6">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-secondary-container" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-body-md text-body-md font-bold">4.9</span>
+<span class="font-body-md text-body-md text-on-surface-variant">(128 đánh giá)</span>
+</div>
+<div class="w-1 h-1 bg-outline-variant rounded-full"></div>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span class="font-body-md text-body-md">Quận 1, TP. Hồ Chí Minh</span>
+</div>
+</div>
+</div>
+<hr class="border-t border-outline-variant/30"/>
+<!-- Amenities -->
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-6">Tiện ích</h3>
+<div class="flex flex-wrap gap-4">
+<div class="flex items-center gap-2 bg-tertiary-fixed py-2 px-4 rounded-full">
+<span class="material-symbols-outlined text-on-tertiary-fixed-variant text-[20px]">wifi</span>
+<span class="font-label-md text-label-md text-on-tertiary-fixed-variant">Wifi miễn phí</span>
+</div>
+<div class="flex items-center gap-2 bg-tertiary-fixed py-2 px-4 rounded-full">
+<span class="material-symbols-outlined text-on-tertiary-fixed-variant text-[20px]">local_cafe</span>
+<span class="font-label-md text-label-md text-on-tertiary-fixed-variant">Trà nước</span>
+</div>
+<div class="flex items-center gap-2 bg-tertiary-fixed py-2 px-4 rounded-full">
+<span class="material-symbols-outlined text-on-tertiary-fixed-variant text-[20px]">local_parking</span>
+<span class="font-label-md text-label-md text-on-tertiary-fixed-variant">Bãi đỗ xe</span>
+</div>
+<div class="flex items-center gap-2 bg-tertiary-fixed py-2 px-4 rounded-full">
+<span class="material-symbols-outlined text-on-tertiary-fixed-variant text-[20px]">ac_unit</span>
+<span class="font-label-md text-label-md text-on-tertiary-fixed-variant">Điều hòa</span>
+</div>
+</div>
+</div>
+<!-- Map & Hours -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-4">Địa điểm</h3>
+<div class="w-full h-48 rounded-lg overflow-hidden bg-surface-variant mb-3">
+<img class="w-full h-full object-cover" data-alt="A clean, minimalist digital map snippet showing a central location in District 1, Ho Chi Minh City, with a subtle pin marker. The style aligns with a high-end, modern lifestyle aesthetic, using soft neutral map colors." data-location="Ho Chi Minh City" src="assets/images/img-74ec6208c4.jpg"/>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant">123 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM</p>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-4">Giờ mở cửa</h3>
+<ul class="space-y-3 font-body-md text-body-md">
+<li class="flex justify-between items-center pb-2 border-b border-outline-variant/30">
+<span class="text-on-surface-variant">Thứ 2 - Thứ 6</span>
+<span class="font-medium">09:00 - 21:00</span>
+</li>
+<li class="flex justify-between items-center pb-2 border-b border-outline-variant/30">
+<span class="text-on-surface-variant">Thứ 7</span>
+<span class="font-medium">09:00 - 22:00</span>
+</li>
+<li class="flex justify-between items-center pb-2 border-b border-outline-variant/30">
+<span class="text-on-surface-variant">Chủ nhật</span>
+<span class="font-medium text-secondary-container">09:00 - 18:00</span>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<!-- Right Column: Menu & Booking Sticky -->
+<div class="md:col-span-4">
+<div class="sticky top-28 bg-surface-container-low p-6 md:p-8 rounded-xl shadow-sm border border-outline-variant/10">
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-6">Menu Dịch Vụ</h3>
+<!-- Tabs -->
+<div class="flex gap-4 mb-6 border-b border-outline-variant/30">
+<button class="pb-2 font-label-md text-label-md text-primary border-b-2 border-primary uppercase tracking-wide">Nails</button>
+<button class="pb-2 font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors uppercase tracking-wide">Spa</button>
+<button class="pb-2 font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors uppercase tracking-wide">Combo</button>
+</div>
+<!-- Service Items -->
+<div class="space-y-6">
+<!-- Item 1 -->
+<div class="group cursor-pointer"><a href="chi-tiet-dich-vu.html" style="display:contents;color:inherit;text-decoration:none">
+<div class="flex justify-between items-start mb-1">
+<h4 class="font-body-md text-body-md font-medium group-hover:text-secondary-container transition-colors">Cắt da &amp; Dưỡng móng cơ bản</h4>
+<span class="font-body-md text-body-md font-bold">150.000đ</span>
+</div>
+<p class="font-caption text-caption text-on-surface-variant line-clamp-2 mb-2">Làm sạch da chết, cắt dũa form móng và dưỡng dầu organic.</p>
+<div class="flex items-center gap-1 text-on-surface-variant opacity-70">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span class="font-caption text-caption">30 phút</span>
+</div>
+</a></div>
+<!-- Item 2 -->
+<div class="group cursor-pointer"><a href="chi-tiet-dich-vu.html" style="display:contents;color:inherit;text-decoration:none">
+<div class="flex justify-between items-start mb-1">
+<h4 class="font-body-md text-body-md font-medium group-hover:text-secondary-container transition-colors">Sơn Gel Hàn Quốc</h4>
+<span class="font-body-md text-body-md font-bold">250.000đ</span>
+</div>
+<p class="font-caption text-caption text-on-surface-variant line-clamp-2 mb-2">Bao gồm nhặt da, sơn gel màu trơn với dòng sơn cao cấp nhập khẩu.</p>
+<div class="flex items-center gap-1 text-on-surface-variant opacity-70">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span class="font-caption text-caption">45 phút</span>
+</div>
+</a></div>
+<!-- Item 3 -->
+<div class="group cursor-pointer"><a href="chi-tiet-dich-vu.html" style="display:contents;color:inherit;text-decoration:none">
+<div class="flex justify-between items-start mb-1">
+<h4 class="font-body-md text-body-md font-medium group-hover:text-secondary-container transition-colors">Đắp Gel Nối Móng</h4>
+<span class="font-body-md text-body-md font-bold">450.000đ</span>
+</div>
+<p class="font-caption text-caption text-on-surface-variant line-clamp-2 mb-2">Nối móng nghệ thuật, tạo form móng theo yêu cầu, giữ được 3-4 tuần.</p>
+<div class="flex items-center gap-1 text-on-surface-variant opacity-70">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span class="font-caption text-caption">90 phút</span>
+</div>
+</a></div>
+</div>
+<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="w-full mt-8 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 rounded-DEFAULT hover:bg-primary transition-colors active:scale-95 duration-200">
+                            Đặt Lịch Ngay
+                        </button></a>
+</div>
+</div>
+</div>
+</section>
+<!-- Staff Section (Bento Grid Style) -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
+<div class="flex justify-between items-end mb-10">
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface mb-2">Đội Ngũ Chuyên Gia</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Những đôi tay tài hoa tại Lala Studio</p>
+</div>
+<a href="ho-so-chuyen-gia.html" style="display:contents;color:inherit;text-decoration:none"><button class="hidden md:flex items-center gap-2 text-primary font-label-md text-label-md uppercase tracking-wide hover:opacity-70 transition-opacity">
+                    Xem tất cả <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button></a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Staff 1 -->
+<a href="ho-so-chuyen-gia.html" style="display:contents;color:inherit;text-decoration:none"><div class="bg-surface-container-low rounded-xl overflow-hidden group">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Professional portrait of a young female nail technician looking warm and welcoming, set against a soft minimal studio background. High editorial lighting, clear natural skin texture, emphasizing professionalism and high-end beauty services." src="assets/images/img-424ffbe687.jpg"/>
+</div>
+<div class="p-6">
+<div class="flex justify-between items-start mb-2">
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Minh Hằng</h4>
+<div class="flex items-center gap-1 text-secondary-container">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-label-md text-label-md">5.0</span>
+</div>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4">Senior Nail Artist</p>
+<p class="font-caption text-caption text-on-surface-variant line-clamp-2">Chuyên gia đắp gel và thiết kế nail art phức tạp. 5 năm kinh nghiệm.</p>
+</div>
+</div></a>
+<!-- Staff 2 -->
+<a href="ho-so-chuyen-gia.html" style="display:contents;color:inherit;text-decoration:none"><div class="bg-surface-container-low rounded-xl overflow-hidden group">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Portrait of a friendly, stylish nail artist in a clean, high-end salon environment. The lighting is soft and flattering, highlighting a clean uniform and a neat appearance suited for a premium luxury brand." src="assets/images/img-2121254c08.jpg"/>
+</div>
+<div class="p-6">
+<div class="flex justify-between items-start mb-2">
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Lan Khuê</h4>
+<div class="flex items-center gap-1 text-secondary-container">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-label-md text-label-md">4.9</span>
+</div>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4">Nail Technician</p>
+<p class="font-caption text-caption text-on-surface-variant line-clamp-2">Thế mạnh về chăm sóc móng hư tổn và sơn gel chuẩn form.</p>
+</div>
+</div></a>
+<!-- Staff 3 -->
+<a href="ho-so-chuyen-gia.html" style="display:contents;color:inherit;text-decoration:none"><div class="bg-surface-container-low rounded-xl overflow-hidden group">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Editorial-style portrait of a professional spa therapist or nail specialist with a calm demeanor. Shot in a bright, minimalist setting with warm cream tones, reflecting the high standards of a serene luxury salon." src="assets/images/img-5aceef7edc.jpg"/>
+</div>
+<div class="p-6">
+<div class="flex justify-between items-start mb-2">
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Phương Vy</h4>
+<div class="flex items-center gap-1 text-secondary-container">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-label-md text-label-md">4.8</span>
+</div>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4">Spa Specialist</p>
+<p class="font-caption text-caption text-on-surface-variant line-clamp-2">Chuyên viên massage tay chân và trị liệu spa chuyên sâu.</p>
+</div>
+</div></a>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-desktop max-w-container-max mx-auto">
+<div class="col-span-1 md:col-span-2">
+<a class="font-headline-sm text-headline-sm text-on-tertiary block mb-4" href="index.html">OAK Beauty</a>
+<p class="font-caption text-caption text-on-tertiary/70 max-w-sm mb-6">
+                    © 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.
+                </p>
+</div>
+<div class="flex flex-col gap-3">
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Bảo mật</a>
+</div>
+<div class="flex flex-col gap-3">
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+</div>
+</div>
+</footer>
+</body></html>

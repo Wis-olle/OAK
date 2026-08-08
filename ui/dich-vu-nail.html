@@ -1,0 +1,386 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>OAK Beauty - Dịch vụ Nail</title>
+<script src="assets/js/tailwind-36d3755fef.js"></script>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/gf-playfair-display-e098bee807.css" rel="stylesheet">
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary": "#ffffff",
+                        "inverse-on-surface": "#ffeedc",
+                        "secondary-container": "#fda055",
+                        "surface-container-highest": "#ffddb2",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#291800",
+                        "on-primary-fixed": "#1b1c1c",
+                        "tertiary-fixed-dim": "#cec6ad",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed-variant": "#4c4733",
+                        "tertiary-container": "#302c1a",
+                        "tertiary": "#1b1708",
+                        "on-secondary-container": "#703800",
+                        "on-tertiary-container": "#9a937c",
+                        "secondary-fixed": "#ffdcc4",
+                        "inverse-primary": "#c8c6c5",
+                        "primary-fixed": "#e4e2e1",
+                        "surface-tint": "#5f5e5e",
+                        "outline": "#747878",
+                        "primary-container": "#2c2c2c",
+                        "on-secondary-fixed-variant": "#6f3800",
+                        "surface-container-high": "#ffe4c3",
+                        "tertiary-fixed": "#ebe2c8",
+                        "primary": "#171818",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "on-secondary-fixed": "#2f1400",
+                        "secondary": "#924c00",
+                        "error": "#ba1a1a",
+                        "surface-variant": "#ffddb2",
+                        "background": "#fff8f4",
+                        "on-error-container": "#93000a",
+                        "on-primary": "#ffffff",
+                        "surface-container": "#ffebd3",
+                        "inverse-surface": "#402d0f",
+                        "secondary-fixed-dim": "#ffb781",
+                        "on-surface": "#291800",
+                        "surface-dim": "#f6d5aa",
+                        "on-surface-variant": "#444748",
+                        "surface-bright": "#fff8f4",
+                        "surface-container-low": "#fff1e4",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed-variant": "#474747",
+                        "error-container": "#ffdad6",
+                        "surface": "#fff8f4",
+                        "on-tertiary-fixed": "#1f1c0b",
+                        "outline-variant": "#c4c7c7",
+                        "on-primary-container": "#949393"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "base": "8px",
+                        "margin-mobile": "16px",
+                        "section-gap": "120px",
+                        "container-max": "1280px",
+                        "margin-desktop": "64px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "caption": ["Inter"],
+                        "headline-md": ["Playfair Display"],
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["Playfair Display"],
+                        "headline-lg": ["Playfair Display"],
+                        "body-md": ["Inter"],
+                        "display-lg": ["Playfair Display"],
+                        "headline-sm": ["Playfair Display"],
+                        "label-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "caption": ["12px", { "lineHeight": "1.4", "fontWeight": "400" }],
+                        "headline-md": ["32px", { "lineHeight": "1.3", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["32px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "headline-lg": ["48px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "display-lg": ["64px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-sm": ["24px", { "lineHeight": "1.4", "fontWeight": "500" }],
+                        "label-md": ["14px", { "lineHeight": "1.0", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background antialiased font-body-md overflow-x-hidden selection:bg-surface-variant selection:text-on-surface">
+<!-- TopNavBar JSON Component -->
+<nav class="fixed top-0 w-full z-50 bg-surface/90 dark:bg-surface/90 backdrop-blur-xl border-b border-outline-variant/30 flat no shadows">
+<div class="flex justify-between items-center px-margin-desktop py-4 max-w-container-max mx-auto">
+<div class="flex items-center gap-6">
+<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed active:scale-95 duration-200" href="index.html">OAK Beauty</a>
+</div>
+<div class="hidden md:flex gap-8 items-center font-body-md text-body-md">
+<a class="text-primary dark:text-primary-fixed font-bold border-b-2 border-primary hover:text-primary dark:hover:text-primary-fixed transition-colors active:scale-95 duration-200" href="kham-pha.html">Khám phá</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors active:scale-95 duration-200" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors active:scale-95 duration-200" href="#">Ưu đãi</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors active:scale-95 duration-200" href="#">Blog</a>
+</div>
+<div class="flex items-center gap-4">
+<a href="tim-kiem-thong-minh.html" style="display:contents;color:inherit;text-decoration:none"><button aria-label="Search" class="hidden md:flex text-on-surface-variant hover:text-primary transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[24px]">search</span>
+</button></a>
+<div class="hidden md:flex gap-4">
+<button aria-label="location_on" class="text-on-surface-variant hover:text-primary transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[24px]">location_on</span>
+</button>
+<button aria-label="notifications" class="text-on-surface-variant hover:text-primary transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[24px]">notifications</span>
+</button>
+</div>
+<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2.5 font-label-md text-label-md tracking-wider uppercase hover:bg-primary transition-colors active:scale-95 duration-200">
+                    Đặt lịch
+                </button></a>
+<a href="dang-nhap-nguoi-dung.html" style="display:contents;color:inherit;text-decoration:none"><img alt="User profile avatar" class="w-10 h-10 rounded-full cursor-pointer border border-outline-variant/30 hidden md:block" src="assets/images/img-66ef1a0fe9.jpg"></a>
+</div>
+</div>
+</nav>
+<!-- Main Content -->
+<main class="pt-[100px] md:pt-[120px] pb-section-gap min-h-screen">
+<!-- Breadcrumb -->
+<div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-12 mt-8">
+<nav class="flex text-caption font-caption text-on-surface-variant gap-2 items-center">
+<a class="hover:text-primary transition-colors" href="kham-pha.html">Khám phá</a>
+<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<span class="text-primary font-medium">Nail</span>
+</nav>
+</div>
+<!-- Hero Section -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter items-center">
+<div class="md:col-span-5 flex flex-col justify-center h-full gap-6 pr-0 md:pr-12">
+<h1 class="font-display-lg text-display-lg md:text-display-lg text-primary tracking-tight">
+                        Dịch vụ Nail
+                    </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-md">
+                        Trải nghiệm nghệ thuật chăm sóc móng đẳng cấp. Từ các thiết kế tối giản thanh lịch đến nghệ thuật vẽ móng tinh xảo, đội ngũ chuyên gia của chúng tôi mang đến vẻ đẹp hoàn mỹ cho đôi tay bạn.
+                    </p>
+<div class="flex flex-wrap gap-4 mt-4">
+<button class="bg-surface-container-low text-on-surface-variant px-6 py-2 rounded-full font-label-md text-label-md hover:bg-surface-container-high transition-colors">Sơn gel</button>
+<button class="bg-surface-container-low text-on-surface-variant px-6 py-2 rounded-full font-label-md text-label-md hover:bg-surface-container-high transition-colors">Đắp móng</button>
+<button class="bg-surface-container-low text-on-surface-variant px-6 py-2 rounded-full font-label-md text-label-md hover:bg-surface-container-high transition-colors">Chăm sóc móng</button>
+<button class="bg-surface-container-low text-on-surface-variant px-6 py-2 rounded-full font-label-md text-label-md hover:bg-surface-container-high transition-colors">Nail Art</button>
+</div>
+</div>
+<div class="md:col-span-7 mt-8 md:mt-0 relative h-[400px] md:h-[600px] w-full rounded-xl overflow-hidden group">
+<div class="absolute inset-0 bg-primary/10 group-hover:bg-transparent transition-colors duration-700 z-10 pointer-events-none"></div>
+<img alt="Nail Services Hero" class="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-1000 ease-out" data-alt="A close-up, high-fashion shot of beautifully manicured hands with an elegant minimalist nude gel polish, resting delicately on a piece of soft silk fabric. The lighting is soft, natural, and diffused, creating a serene and luxurious light-mode aesthetic. The color palette features creamy whites, soft neutral taupes, and subtle warm skin tones, perfectly matching a high-end modern beauty editorial." src="assets/images/img-b9e5f1c043.jpg">
+</div>
+</div>
+</section>
+<!-- Featured Salons Section (Bento Grid) -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
+<div class="flex justify-between items-end mb-12 border-b border-outline-variant/20 pb-4">
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">
+                    Salon Nail nổi bật
+                </h2>
+<a class="font-label-md text-label-md text-primary hover:text-secondary-container transition-colors uppercase tracking-wider flex items-center gap-1" href="ket-qua-tim-kiem.html">
+                    Xem tất cả <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter md:h-[600px]">
+<!-- Main Feature Card -->
+<a href="salon-profile-lala-nail-studio.html" style="display:contents;color:inherit;text-decoration:none"><div class="md:col-span-8 relative rounded-xl overflow-hidden group h-[400px] md:h-full cursor-pointer">
+<img alt="Premium Nail Salon" class="object-cover w-full h-full transition-transform duration-700 group-hover:scale-105" data-alt="A wide architectural shot of a minimalist, high-end nail salon interior. The space features curved arches, plush seating in cream and soft taupe, and subtle warm lighting reflecting off sleek marble surfaces. The aesthetic is extremely serene, modern, and high-fashion, emphasizing negative space and clean lines, perfectly fitting a premium light-mode UI." src="assets/images/img-8ec0e1ce77.jpg">
+<div class="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/20 to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-8 w-full">
+<div class="flex justify-between items-end">
+<div>
+<span class="bg-surface/90 backdrop-blur-sm text-primary px-3 py-1 rounded-full font-caption text-caption mb-3 inline-block">Đánh giá cao nhất</span>
+<h3 class="font-headline-md text-headline-md text-on-primary mb-2">L'Aura Nail Studio</h3>
+<p class="font-body-md text-body-md text-on-primary/80 flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">location_on</span> Quận 1, TP.HCM
+                                </p>
+</div>
+<div class="flex items-center gap-1 bg-surface/20 backdrop-blur-md px-4 py-2 rounded-full border border-on-primary/20">
+<span class="material-symbols-outlined text-[20px] text-surface-container-highest" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-label-md text-label-md text-on-primary">4.9</span>
+</div>
+</div>
+</div>
+</div></a>
+<!-- Secondary Cards Stack -->
+<div class="md:col-span-4 flex flex-col gap-gutter h-full">
+<a href="salon-profile-lala-nail-studio.html" style="display:contents;color:inherit;text-decoration:none"><div class="relative rounded-xl overflow-hidden group flex-1 h-[250px] md:h-auto cursor-pointer">
+<img alt="Nail Art Studio" class="object-cover w-full h-full transition-transform duration-700 group-hover:scale-105" data-alt="A detailed shot of nail polish bottles and minimalist tools neatly arranged on a terrazzo countertop in a bright, airy salon setting. The lighting is crisp and natural, highlighting the elegant packaging and neutral tones. The mood is professional, clean, and luxurious, complementing a light-mode beauty platform." src="assets/images/img-ecddc22897.jpg">
+<div class="absolute inset-0 bg-gradient-to-t from-primary/70 via-transparent to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-6 w-full">
+<h3 class="font-headline-sm text-headline-sm text-on-primary mb-1">Maison De Ongles</h3>
+<div class="flex justify-between items-center">
+<p class="font-caption text-caption text-on-primary/80">Quận 3, TP.HCM</p>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-surface-container-highest" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-caption text-caption text-on-primary">4.8</span>
+</div>
+</div>
+</div>
+</div></a>
+<a href="salon-profile-lala-nail-studio.html" style="display:contents;color:inherit;text-decoration:none"><div class="relative rounded-xl overflow-hidden group flex-1 h-[250px] md:h-auto cursor-pointer">
+<img alt="Nail Spa" class="object-cover w-full h-full transition-transform duration-700 group-hover:scale-105" data-alt="A soft, inviting image of a comfortable pedicure station with a modern ceramic basin and pale wood accents, bathed in warm, diffused morning light. The scene feels calming, high-end, and immaculately clean. The color scheme is dominated by cream, warm grey, and subtle earthy tones, aligning with a premium minimalist aesthetic." src="assets/images/img-6f4a0aaf3e.jpg">
+<div class="absolute inset-0 bg-gradient-to-t from-primary/70 via-transparent to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-6 w-full">
+<h3 class="font-headline-sm text-headline-sm text-on-primary mb-1">The Bare Studio</h3>
+<div class="flex justify-between items-center">
+<p class="font-caption text-caption text-on-primary/80">Quận 2, TP.HCM</p>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-surface-container-highest" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-caption text-caption text-on-primary">4.7</span>
+</div>
+</div>
+</div>
+</div></a>
+</div>
+</div>
+</section>
+<!-- Popular Services Section -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
+<div class="flex flex-col md:flex-row justify-between md:items-end mb-12 border-b border-outline-variant/20 pb-4 gap-4">
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">
+                    Dịch vụ phổ biến
+                </h2>
+<!-- Filters -->
+<div class="flex gap-4 items-center">
+<button class="flex items-center gap-2 font-caption text-caption text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                        Lọc
+                    </button>
+<div class="h-4 w-px bg-outline-variant/50"></div>
+<select class="bg-transparent border-none text-caption font-caption text-on-surface-variant focus:ring-0 cursor-pointer pr-8 py-0">
+<option>Sắp xếp: Phổ biến</option>
+<option>Giá: Thấp đến cao</option>
+<option>Giá: Cao đến thấp</option>
+<option>Đánh giá cao</option>
+</select>
+</div>
+</div>
+<!-- Service List -->
+<div class="flex flex-col">
+<!-- Service Item 1 -->
+<div class="group flex flex-col md:flex-row gap-8 py-8 border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors px-4 -mx-4 md:px-6 md:-mx-6 rounded-lg cursor-pointer">
+<div class="w-full md:w-48 h-48 md:h-32 rounded-lg overflow-hidden shrink-0">
+<img alt="Classic Gel Polish" class="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-500" data-alt="A close-up of a minimalist gel manicure featuring a subtle French tip in soft cream on a natural pink base. The lighting is bright and evenly diffused, creating a flawless, high-end editorial look. The color palette focuses on soft, warm neutrals, emphasizing professional, clean beauty." src="assets/images/img-93e56c2a14.jpg">
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary-container transition-colors">Sơn Gel Cơ Bản</h3>
+<span class="font-label-md text-label-md text-primary">250.000đ</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 max-w-2xl">
+                                Làm sạch da, cắt tỉa móng và sơn gel màu trơn với kỹ thuật sơn sát chân móng, độ bền màu cao.
+                            </p>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-4 text-caption font-caption text-on-surface-variant">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> 45 phút</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">storefront</span> L'Aura Nail Studio</span>
+</div>
+<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase hover:bg-primary transition-colors opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 duration-300 hidden md:block">
+                                Đặt lịch
+                            </button></a>
+<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase md:hidden">
+                                Đặt lịch
+                            </button></a>
+</div>
+</div>
+</div>
+<!-- Service Item 2 -->
+<div class="group flex flex-col md:flex-row gap-8 py-8 border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors px-4 -mx-4 md:px-6 md:-mx-6 rounded-lg cursor-pointer">
+<div class="w-full md:w-48 h-48 md:h-32 rounded-lg overflow-hidden shrink-0">
+<img alt="Nail Art Design" class="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-500" data-alt="A macro shot of intricately designed nail art featuring delicate, minimalist line work in metallic gold over a matte neutral taupe base. The lighting is precise, highlighting the texture and detail of the design. The aesthetic is ultra-modern, chic, and sophisticated, aligning perfectly with a premium beauty service." src="assets/images/img-c92fbe9a51.jpg">
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary-container transition-colors">Thiết Kế Nail Art Cầu Kỳ</h3>
+<span class="font-label-md text-label-md text-primary">450.000đ+</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 max-w-2xl">
+                                Dịch vụ vẽ nghệ thuật, đính đá, ẩn xà cừ hoặc các hiệu ứng đặc biệt theo yêu cầu cá nhân.
+                            </p>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-4 text-caption font-caption text-on-surface-variant">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> 90 phút</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">storefront</span> Maison De Ongles</span>
+</div>
+<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase hover:bg-primary transition-colors opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 duration-300 hidden md:block">
+                                Đặt lịch
+                            </button></a>
+<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase md:hidden">
+                                Đặt lịch
+                            </button></a>
+</div>
+</div>
+</div>
+<!-- Service Item 3 -->
+<div class="group flex flex-col md:flex-row gap-8 py-8 border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors px-4 -mx-4 md:px-6 md:-mx-6 rounded-lg cursor-pointer">
+<div class="w-full md:w-48 h-48 md:h-32 rounded-lg overflow-hidden shrink-0">
+<img alt="Spa Pedicure" class="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-500" data-alt="A serene image focusing on a relaxing pedicure treatment, with feet resting near a pristine white ceramic bowl filled with clear water, floating flower petals, and smooth stones. The light is soft and ambient, creating a spa-like, calming atmosphere. The color palette is minimal, focusing on soft whites, creams, and natural textures." src="assets/images/img-8f601b429a.jpg">
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary-container transition-colors">Chăm Sóc Chân Chuyên Sâu</h3>
+<span class="font-label-md text-label-md text-primary">350.000đ</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 max-w-2xl">
+                                Ngâm chân thảo dược, tẩy tế bào chết, massage thư giãn và chăm sóc vùng da quanh móng chân.
+                            </p>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-4 text-caption font-caption text-on-surface-variant">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> 60 phút</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">storefront</span> The Bare Studio</span>
+</div>
+<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase hover:bg-primary transition-colors opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 duration-300 hidden md:block">
+                                Đặt lịch
+                            </button></a>
+<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase md:hidden">
+                                Đặt lịch
+                            </button></a>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-12 text-center">
+<button class="border border-outline font-label-md text-label-md text-primary px-8 py-3 rounded-full hover:bg-surface-container-low transition-colors uppercase tracking-wider">
+                    Tải thêm dịch vụ
+                </button>
+</div>
+</section>
+</main>
+<!-- Footer JSON Component -->
+<footer class="w-full py-16 bg-tertiary dark:bg-tertiary-container border-t border-outline-variant/10 flat no shadows">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-desktop max-w-container-max mx-auto">
+<div class="col-span-1 md:col-span-2 flex flex-col gap-6">
+<div class="font-headline-sm text-headline-sm text-on-tertiary">OAK Beauty</div>
+<div class="font-caption text-caption text-on-tertiary/70 max-w-sm mt-4">
+                    © 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.
+                </div>
+</div>
+<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<div class="flex flex-col gap-4">
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary underline transition-all opacity-80 hover:opacity-100" href="#">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary underline transition-all opacity-80 hover:opacity-100" href="#">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary underline transition-all opacity-80 hover:opacity-100" href="#">Bảo mật</a>
+</div>
+<div class="flex flex-col gap-4">
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary underline transition-all opacity-80 hover:opacity-100" href="#">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+</div>
+</div>
+</div>
+</footer>
+<script>
+        // Simple script for sticky header shadow effect on scroll
+        window.addEventListener('scroll', () => {
+            const nav = document.querySelector('nav');
+            if (window.scrollY > 10) {
+                nav.classList.add('shadow-sm');
+                nav.classList.remove('no-shadows');
+            } else {
+                nav.classList.remove('shadow-sm');
+                nav.classList.add('no-shadows');
+            }
+        });
+    </script>
+</body></html>
