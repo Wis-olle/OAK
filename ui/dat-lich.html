@@ -221,7 +221,7 @@
 <!-- Payment Method -->
 <div class="space-y-8">
 <h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Phương thức thanh toán</h2>
-<label class="flex items-center justify-between p-6 border border-primary rounded-lg cursor-pointer bg-surface-container-low transition-all">
+<label class="flex items-center justify-between p-6 border border-primary rounded-lg bg-surface-container-low transition-all">
 <div class="flex items-center gap-4">
 <span class="material-symbols-outlined text-primary" data-icon="payments">payments</span>
 <span class="font-body-md text-body-md font-medium text-primary">Thanh toán tại salon</span>
@@ -244,7 +244,7 @@
 <button @click="loadQuote()" class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80 hover:text-on-tertiary transition-colors shrink-0" type="button">Áp dụng</button>
 </div>
 <p class="font-caption text-caption text-error-container mt-2" x-cloak="" x-show="promoError" x-text="promoError"></p>
-<p class="font-caption text-caption text-on-tertiary/60 mt-2" x-cloak="" x-show="!user">Đăng nhập để áp dụng mã ưu đãi.</p>
+<p class="font-caption text-caption text-on-tertiary/60 mt-2" x-cloak="" x-show="!user &amp;&amp; !promoError">Đăng nhập để áp dụng mã ưu đãi.</p>
 </div>
 <template :key="item.label" x-for="item in lineItems()">
 <div class="flex justify-between items-center font-body-md text-body-md">
@@ -290,15 +290,15 @@
 <div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Bảo mật</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 </div>
@@ -307,8 +307,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -327,6 +327,8 @@
         const pad = (value) => String(value).padStart(2, '0');
         return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
     }
+
+    const OAK_PROMO_LOGIN_MESSAGE = 'Vui lòng đăng nhập để áp dụng mã ưu đãi.';
 
     function oakBookingForm() {
         return {
@@ -427,11 +429,32 @@
                 }
             },
 
+            /** The sidebar total when the quote endpoint is out of reach. */
+            listPriceQuote() {
+                return {
+                    items: [{ label: this.service.name, amount: this.service.price }],
+                    total: this.service.price,
+                };
+            },
+
             async loadQuote() {
                 if (!this.service) {
+                    this.promoError = 'Vui lòng chọn dịch vụ trước khi áp dụng mã.';
                     return;
                 }
                 this.promoError = '';
+
+                // Guests cannot reach the quote endpoint, so the sidebar shows the list price
+                // rather than firing a request that can only 401. The server recomputes the
+                // real total when the booking is made.
+                if (!this.user) {
+                    if (this.promo.trim()) {
+                        this.promoError = OAK_PROMO_LOGIN_MESSAGE;
+                    }
+                    this.quote = this.listPriceQuote();
+                    return;
+                }
+
                 const params = new URLSearchParams({ service_id: this.service.id });
                 if (this.staffId) {
                     params.set('staff_id', this.staffId);
@@ -446,12 +469,11 @@
                     if (error.code === 'INVALID_PROMOTION') {
                         this.promoError = error.message;
                     }
-                    // Guests cannot reach the quote endpoint at all, so the sidebar falls back to
-                    // the list price. The server recomputes the real total when the booking is made.
-                    this.quote = {
-                        items: [{ label: this.service.name, amount: this.service.price }],
-                        total: this.service.price,
-                    };
+                    // A session that expired since the page loaded lands here.
+                    if (error.code === 'UNAUTHENTICATED') {
+                        this.promoError = OAK_PROMO_LOGIN_MESSAGE;
+                    }
+                    this.quote = this.listPriceQuote();
                 }
             },
 

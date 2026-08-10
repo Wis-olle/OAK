@@ -105,19 +105,19 @@
 <!-- Gallery Header -->
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-16">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-4 h-[400px] md:h-[500px]">
-<div class="md:col-span-2 md:row-span-2 overflow-hidden rounded-lg">
+<div @click="openLightbox(0)" class="md:col-span-2 md:row-span-2 overflow-hidden rounded-lg cursor-pointer">
 <img :alt="caption(0)" :src="photo(0)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
-<div class="hidden md:block overflow-hidden rounded-lg" x-show="photos[1]">
+<div @click="openLightbox(1)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer" x-show="photos[1]">
 <img :alt="caption(1)" :src="photo(1)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
-<div class="hidden md:block overflow-hidden rounded-lg" x-show="photos[2]">
+<div @click="openLightbox(2)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer" x-show="photos[2]">
 <img :alt="caption(2)" :src="photo(2)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
-<div class="hidden md:block overflow-hidden rounded-lg" x-show="photos[3]">
+<div @click="openLightbox(3)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer" x-show="photos[3]">
 <img :alt="caption(3)" :src="photo(3)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
-<div class="hidden md:block relative overflow-hidden rounded-lg group" x-show="photos[4]">
+<div @click="openLightbox(4)" class="hidden md:block relative overflow-hidden rounded-lg cursor-pointer group" x-show="photos[4]">
 <img :alt="caption(4)" :src="photo(4)" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
 <div class="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors" x-show="morePhotos() &gt; 0">
 <span class="font-label-md text-label-md text-white uppercase tracking-widest" x-text="'+' + morePhotos() + ' Ảnh'"></span>
@@ -125,6 +125,21 @@
 </div>
 </div>
 </section>
+<!-- Photo lightbox -->
+<div @click.self="lightbox = false" @keydown.arrow-left.window="lightbox &amp;&amp; stepLightbox(-1)" @keydown.arrow-right.window="lightbox &amp;&amp; stepLightbox(1)" @keydown.escape.window="lightbox = false" class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center gap-4 px-16 py-20" x-cloak="" x-show="lightbox">
+<button @click="lightbox = false" aria-label="Đóng" class="absolute top-6 right-6 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button">
+<span class="material-symbols-outlined">close</span>
+</button>
+<button @click="stepLightbox(-1)" aria-label="Ảnh trước" class="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="photos.length &gt; 1">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<img :alt="caption(lightboxIndex)" :src="photo(lightboxIndex)" class="max-h-[75vh] max-w-full object-contain rounded-lg"/>
+<p class="font-body-md text-body-md text-white text-center" x-text="caption(lightboxIndex)"></p>
+<p class="font-caption text-caption text-white/60" x-show="photos.length &gt; 1" x-text="(lightboxIndex + 1) + ' / ' + photos.length"></p>
+<button @click="stepLightbox(1)" aria-label="Ảnh sau" class="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="photos.length &gt; 1">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
 <!-- Salon Info & Booking Grid -->
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
 <div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
@@ -325,15 +340,15 @@
 <div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Bảo mật</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 </div>
@@ -342,8 +357,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -389,6 +404,8 @@
             reviewPage: 1,
             activeTab: '',
             showAllStaff: false,
+            lightbox: false,
+            lightboxIndex: 0,
             isFavorite: false,
             loading: true,
 
@@ -437,6 +454,18 @@
             /** How many photos the five gallery tiles are not showing. */
             morePhotos() {
                 return Math.max(0, this.photos.length - OAK_GALLERY_TILES);
+            },
+
+            /** The gallery tiles are the only way into the full-size viewer. */
+            openLightbox(index) {
+                this.lightboxIndex = index;
+                this.lightbox = true;
+            },
+
+            /** Wraps around, so prev/next always have somewhere to go. */
+            stepLightbox(step) {
+                const count = this.photos.length || 1;
+                this.lightboxIndex = (this.lightboxIndex + step + count) % count;
             },
 
             amenityIcon(label) {

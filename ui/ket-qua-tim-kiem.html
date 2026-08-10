@@ -148,7 +148,7 @@
 <p class="font-body-md text-body-md text-on-surface-variant">Không tìm thấy salon nào phù hợp. Bạn thử nới rộng bộ lọc nhé.</p>
 </template>
 <template :key="salon.id" x-for="salon in salons">
-<article :class="hovered === salon.id ? 'bg-surface-container-low border-outline-variant/20' : 'border-transparent'" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="flex flex-col sm:flex-row gap-6 p-4 rounded-full hover:bg-surface-container-low transition-colors group cursor-pointer border hover:border-outline-variant/20">
+<article :class="hovered === salon.id ? 'bg-surface-container-low border-outline-variant/20' : 'border-transparent'" @click="openSalon(salon)" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="flex flex-col sm:flex-row gap-6 p-4 rounded-full hover:bg-surface-container-low transition-colors group cursor-pointer border hover:border-outline-variant/20">
 <div class="w-full sm:w-48 h-48 sm:h-auto shrink-0 relative rounded-lg overflow-hidden">
 <img :alt="salon.name" :src="salon.image" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
 <div class="absolute top-2 left-2 bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs font-label-md text-primary flex items-center gap-1" x-show="salon.verified">
@@ -176,8 +176,8 @@
 </div>
 </div>
 <div class="flex gap-3 mt-4">
-<a :href="'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug)" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 border border-outline text-on-surface font-label-md uppercase tracking-wider rounded-full text-sm hover:border-primary hover:text-primary transition-colors">Xem chi tiết</button></a>
-<a :href="'dat-lich.html?salon_id=' + salon.id" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 bg-primary-container text-on-primary font-label-md uppercase tracking-wider rounded-full text-sm hover:bg-primary transition-colors">Đặt lịch ngay</button></a>
+<a :href="salonUrl(salon)" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 border border-outline text-on-surface font-label-md uppercase tracking-wider rounded-full text-sm hover:border-primary hover:text-primary transition-colors">Xem chi tiết</button></a>
+<a :href="'dat-lich.html?salon_id=' + salon.id" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 bg-primary-container text-on-primary font-label-md uppercase tracking-wider rounded-full text-sm hover:bg-primary transition-colors">Đặt lịch ngay</button></a>
 </div>
 </div>
 </article>
@@ -193,7 +193,7 @@
 <div class="relative w-full h-full max-w-2xl">
 <!-- Pins: laid out by result index over the static map backdrop, not by real projection. -->
 <template :key="salon.id" x-for="(salon, index) in salons">
-<div :style="pinStyle(index)" :title="pinTitle(salon)" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-auto cursor-pointer group">
+<div :style="pinStyle(index)" :title="pinTitle(salon)" @click="openSalon(salon)" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-auto cursor-pointer group">
 <div :class="hovered === salon.id ? 'bg-primary text-on-primary opacity-100' : 'bg-surface text-on-surface opacity-0'" class="px-3 py-1 rounded-full font-label-md text-xs mb-1 shadow-lg whitespace-nowrap group-hover:opacity-100 transition-opacity" x-text="salon.name"></div>
 <div :class="hovered === salon.id ? 'bg-primary border-surface' : 'bg-surface border-primary'" class="w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2">
 <span :class="hovered === salon.id ? 'text-on-primary' : 'text-primary'" class="material-symbols-outlined text-sm">spa</span>
@@ -205,21 +205,11 @@
 </div>
 <!-- Floating Map Controls -->
 <div class="absolute bottom-8 right-8 flex flex-col gap-2">
-<button class="w-10 h-10 bg-surface rounded-full shadow flex items-center justify-center text-on-surface hover:text-primary transition-colors">
-<span class="material-symbols-outlined">add</span>
-</button>
-<button class="w-10 h-10 bg-surface rounded-full shadow flex items-center justify-center text-on-surface hover:text-primary transition-colors">
-<span class="material-symbols-outlined">remove</span>
-</button>
-<button @click="locate()" aria-label="Tìm quanh vị trí của tôi" class="w-10 h-10 bg-surface rounded-full shadow flex items-center justify-center text-on-surface mt-2 hover:text-primary transition-colors" type="button">
+<button @click="locate()" aria-label="Tìm quanh vị trí của tôi" class="w-10 h-10 bg-surface rounded-full shadow flex items-center justify-center text-on-surface hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined">my_location</span>
 </button>
 </div>
 </section>
-<!-- Mobile Map Toggle Button -->
-<button class="md:hidden fixed bottom-6 right-6 bg-primary-container text-on-primary p-4 rounded-full shadow-lg z-40 flex items-center justify-center hover:bg-primary">
-<span class="material-symbols-outlined">map</span>
-</button>
 </main>
 <!-- Footer -->
 <footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
@@ -236,15 +226,15 @@
 <div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Bảo mật</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 </div>
@@ -253,8 +243,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -420,6 +410,24 @@
                         OAK.toast('Không lấy được vị trí của bạn.', 'error');
                     },
                 );
+            },
+
+            salonUrl(salon) {
+                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+            },
+
+            /* Dragging to select text inside a card ends in a click, which must not navigate. */
+            isSelecting() {
+                var selection = window.getSelection();
+                return Boolean(selection) && !selection.isCollapsed && String(selection).trim() !== '';
+            },
+
+            /* The whole result card and its map pin are clickable, so both share one destination. */
+            openSalon(salon) {
+                if (this.isSelecting()) {
+                    return;
+                }
+                location.href = this.salonUrl(salon);
             },
 
             ratingOf(salon) {

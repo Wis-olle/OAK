@@ -18,6 +18,7 @@
   var PROFILE_PAGE = 'ho-so-ca-nhan.html';
   var NOTIFICATIONS_PAGE = 'thong-bao.html';
   var HOME_PAGE = 'kham-pha.html';
+  var SEARCH_PAGE = 'ket-qua-tim-kiem.html';
 
   var WEEKDAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
 
@@ -76,6 +77,11 @@
 
   // One request per page load, shared by the header init and by page code.
   var mePromise = null;
+  // True once /api/auth/me failed to reach the server at all. A dead backend and a
+  // signed-out visitor both leave us without a user, but they need opposite treatment:
+  // bouncing to the login page when the server is down strands the visitor on a page whose
+  // own login call cannot work either, which reads as "every click does nothing".
+  var serverUnreachable = false;
 
   /** The signed-in user, or null. Never redirects — a guest page must still render. */
   function me() {
@@ -85,7 +91,11 @@
           // /api/auth/me is optional-auth: a guest resolves to {user:null}.
           return data ? data.user : null;
         },
-        function () {
+        function (error) {
+          // Still null, so public pages render as they always have — but the reason is
+          // remembered, and requireLogin/requirePartner below act on it instead of
+          // treating an unreachable server as a guest.
+          serverUnreachable = error.code === 'NETWORK_ERROR';
           return null;
         },
       );
@@ -102,13 +112,39 @@
     return new Promise(function () {});
   }
 
+  /**
+   * Say plainly that the backend is down, and stop the caller the same way a redirect
+   * does. A banner rather than a toast: the page behind it will never finish loading, so
+   * the explanation has to outlive three seconds.
+   */
+  function reportServerUnreachable() {
+    if (!document.getElementById('oak-server-down')) {
+      var banner = document.createElement('div');
+      banner.id = 'oak-server-down';
+      banner.setAttribute('role', 'alert');
+      banner.className =
+        'fixed inset-x-0 top-0 z-50 px-6 py-3 bg-error text-on-error ' +
+        'font-body-md text-body-md text-center';
+      banner.textContent =
+        'Không kết nối được máy chủ. Vui lòng kiểm tra server đang chạy rồi tải lại trang.';
+      document.body.appendChild(banner);
+    }
+    return new Promise(function () {});
+  }
+
   async function requireLogin() {
     var user = await me();
+    if (serverUnreachable) {
+      return reportServerUnreachable();
+    }
     return user || redirectToLogin(LOGIN_PAGE);
   }
 
   async function requirePartner() {
     var user = await me();
+    if (serverUnreachable) {
+      return reportServerUnreachable();
+    }
     return user && user.role === 'partner' ? user : redirectToLogin(PARTNER_LOGIN_PAGE);
   }
 
@@ -230,6 +266,165 @@
     }
   }
 
+  // Mirrors server/src/lib/locations.js (and the selects in ho-so-ca-nhan.html): PATCH
+  // /api/users/me rejects a district that does not belong to the stored city, so a pick
+  // from another city is navigated to but never saved.
+  var CITY_DISTRICTS = {
+    'TP.HCM': ['Quận 1', 'Quận 2', 'Quận 3', 'Quận 4', 'Quận 5', 'Quận 6', 'Quận 7', 'Quận 8',
+      'Quận 9', 'Quận 10', 'Quận 11', 'Quận 12', 'Quận Bình Thạnh', 'Quận Bình Tân',
+      'Quận Gò Vấp', 'Quận Phú Nhuận', 'Quận Tân Bình', 'Quận Tân Phú', 'Thủ Đức',
+      'Huyện Bình Chánh', 'Huyện Cần Giờ', 'Huyện Củ Chi', 'Huyện Hóc Môn', 'Huyện Nhà Bè'],
+    'Hà Nội': ['Quận Ba Đình', 'Quận Hoàn Kiếm', 'Quận Tây Hồ', 'Quận Long Biên',
+      'Quận Cầu Giấy', 'Quận Đống Đa', 'Quận Hai Bà Trưng', 'Quận Hoàng Mai',
+      'Quận Thanh Xuân', 'Quận Hà Đông', 'Quận Nam Từ Liêm', 'Quận Bắc Từ Liêm'],
+    'Đà Nẵng': ['Quận Hải Châu', 'Quận Thanh Khê', 'Quận Sơn Trà', 'Quận Ngũ Hành Sơn',
+      'Quận Liên Chiểu', 'Quận Cẩm Lệ', 'Huyện Hòa Vang'],
+  };
+
+  // Only reached when /api/salons cannot answer: an empty dropdown would be one more
+  // control that does nothing, so the picker always opens with somewhere to go.
+  var FALLBACK_DISTRICTS = ['Quận 1', 'Quận 3', 'Quận 7', 'Quận 10', 'Quận Bình Thạnh',
+    'Quận Phú Nhuận', 'Quận Tân Bình', 'Thủ Đức'];
+
+  /** Numbered districts in numeric order, then the named ones alphabetically. */
+  function compareDistricts(a, b) {
+    var left = Number((a.match(/^Quận (\d+)$/) || [])[1]);
+    var right = Number((b.match(/^Quận (\d+)$/) || [])[1]);
+    if (left && right) {
+      return left - right;
+    }
+    if (left || right) {
+      return left ? -1 : 1;
+    }
+    return a.localeCompare(b, 'vi');
+  }
+
+  // Resolved at most once per page load, and only from the first open: the header must not
+  // spend a request on a dropdown nobody has asked for.
+  var districtsPromise = null;
+
+  function loadDistricts() {
+    if (!districtsPromise) {
+      districtsPromise = api('/api/salons?limit=50').then(
+        function (salons) {
+          var names = salons
+            .map(function (salon) {
+              return salon.district;
+            })
+            .filter(function (name, index, all) {
+              return name && all.indexOf(name) === index;
+            });
+          return names.length ? names.sort(compareDistricts) : FALLBACK_DISTRICTS.slice();
+        },
+        function () {
+          return FALLBACK_DISTRICTS.slice();
+        },
+      );
+    }
+    return districtsPromise;
+  }
+
+  /**
+   * Go to the results page for a district — '' means every area. The page copies its whole
+   * query string into GET /api/search/salons, where `district` is an exact-match filter.
+   * A signed-in visitor also has the pick saved, so the header label and their profile
+   * agree from the next page on; that save is best-effort and never blocks the search.
+   */
+  async function chooseDistrict(district) {
+    var user = await me();
+    var districts = user && CITY_DISTRICTS[user.city];
+    if (user && district && (!districts || districts.indexOf(district) !== -1)) {
+      try {
+        await api('/api/users/me', { method: 'PATCH', body: { district: district } });
+      } catch (error) {
+        // Saving is a convenience; the search still has to happen.
+      }
+    }
+    location.href = district ? SEARCH_PAGE + '?district=' + encodeURIComponent(district) : SEARCH_PAGE;
+  }
+
+  // Same shape as the header's "Khám phá"/"Dịch vụ" menus, so the picker reads as native.
+  var MENU_ITEM_CLASS =
+    'block w-full text-left px-5 py-2.5 font-body-md text-body-md text-on-surface-variant ' +
+    'hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap';
+
+  /** A real <button>, so the option is tab-reachable and Enter/Space activate it. */
+  function districtOption(label, district) {
+    var option = document.createElement('button');
+    option.type = 'button';
+    option.className = MENU_ITEM_CLASS;
+    // textContent, not innerHTML: district names come from the API.
+    option.textContent = label;
+    option.addEventListener('click', function () {
+      chooseDistrict(district);
+    });
+    return option;
+  }
+
+  function initRegionPicker() {
+    var button = document.querySelector('button[aria-label="Chọn khu vực"]');
+    if (!button) {
+      return;
+    }
+
+    // The button sits in a plain flex row, so it needs its own positioning context. The
+    // wrapper repeats the button's breakpoint visibility so the row's gap is unchanged.
+    var wrapper = document.createElement('div');
+    wrapper.className = 'relative hidden xl:block';
+    button.replaceWith(wrapper);
+    wrapper.appendChild(button);
+
+    var panel = document.createElement('div');
+    panel.className =
+      'hidden absolute right-0 top-full mt-3 z-50 bg-surface rounded-2xl ' +
+      'border border-outline-variant/30 shadow-lg py-2 min-w-[220px] max-h-[70vh] overflow-y-auto';
+    wrapper.appendChild(panel);
+
+    button.setAttribute('aria-haspopup', 'true');
+    button.setAttribute('aria-expanded', 'false');
+
+    function close() {
+      panel.classList.add('hidden');
+      button.setAttribute('aria-expanded', 'false');
+    }
+
+    function open() {
+      panel.classList.remove('hidden');
+      button.setAttribute('aria-expanded', 'true');
+      // Filled once, on the first open; the panel is already visible while it loads.
+      if (!panel.childElementCount) {
+        panel.appendChild(districtOption('Tất cả khu vực', ''));
+        loadDistricts().then(function (districts) {
+          districts.forEach(function (district) {
+            panel.appendChild(districtOption(district, district));
+          });
+        });
+      }
+    }
+
+    button.addEventListener('click', function () {
+      if (panel.classList.contains('hidden')) {
+        open();
+      } else {
+        close();
+      }
+    });
+
+    document.addEventListener('click', function (event) {
+      if (!wrapper.contains(event.target)) {
+        close();
+      }
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !panel.classList.contains('hidden')) {
+        close();
+        // Focus may be on an option that just became display:none; hand it back.
+        button.focus();
+      }
+    });
+  }
+
   function initMobileMenu() {
     var link = document.querySelector('#mobile-menu a[href="' + LOGIN_PAGE + '"]');
     if (!link) {
@@ -253,6 +448,8 @@
   }
 
   async function initHeader() {
+    // Before the /api/auth/me await: the picker is for guests too.
+    initRegionPicker();
     var user = await me();
     if (!user) {
       return;

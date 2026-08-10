@@ -186,11 +186,6 @@
                 </h2>
 <!-- Filters -->
 <div class="flex gap-4 items-center">
-<button class="flex items-center gap-2 font-caption text-caption text-on-surface-variant hover:text-primary transition-colors">
-<span class="material-symbols-outlined text-[18px]">filter_list</span>
-                        Lọc
-                    </button>
-<div class="h-4 w-px bg-outline-variant/50"></div>
 <select @change="reload()" class="bg-transparent border-none text-caption font-caption text-on-surface-variant focus:ring-0 cursor-pointer pr-8 py-0" x-model="sort">
 <option value="popular">Sắp xếp: Phổ biến</option>
 <option value="price_asc">Giá: Thấp đến cao</option>
@@ -202,8 +197,8 @@
 <!-- Service List -->
 <div class="flex flex-col">
 <template :key="service.id" x-for="service in services">
-<div class="group flex flex-col md:flex-row gap-8 py-8 border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors px-4 -mx-4 md:px-6 md:-mx-6 rounded-lg cursor-pointer">
-<a :href="serviceUrl(service)" style="display:contents;color:inherit;text-decoration:none">
+<div @click="openService(service)" class="group flex flex-col md:flex-row gap-8 py-8 border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors px-4 -mx-4 md:px-6 md:-mx-6 rounded-lg cursor-pointer">
+<a :href="serviceUrl(service)" @click.stop="" style="display:contents;color:inherit;text-decoration:none">
 <div class="w-full md:w-48 h-48 md:h-32 rounded-lg overflow-hidden shrink-0">
 <img :alt="service.name" :src="service.image" class="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-500">
 </div>
@@ -211,7 +206,7 @@
 <div class="flex-1 flex flex-col justify-between">
 <div>
 <div class="flex justify-between items-start mb-2">
-<a :href="serviceUrl(service)" style="display:contents;color:inherit;text-decoration:none"><h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary-container transition-colors" x-text="service.name"></h3></a>
+<a :href="serviceUrl(service)" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary-container transition-colors" x-text="service.name"></h3></a>
 <span class="font-label-md text-label-md text-primary" x-text="price(service)"></span>
 </div>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 max-w-2xl" x-text="service.description"></p>
@@ -221,10 +216,10 @@
 <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> <span x-text="service.duration_min + ' phút'"></span></span>
 <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">storefront</span> <span x-text="service.salon.name"></span></span>
 </div>
-<a :href="bookingUrl(service)" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase hover:bg-primary transition-colors opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 duration-300 hidden md:block">
+<a :href="bookingUrl(service)" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase hover:bg-primary transition-colors opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 duration-300 hidden md:block">
                                 Đặt lịch
                             </button></a>
-<a :href="bookingUrl(service)" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase md:hidden hover:bg-primary">
+<a :href="bookingUrl(service)" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase md:hidden hover:bg-primary">
                                 Đặt lịch
                             </button></a>
 </div>
@@ -257,15 +252,15 @@
 <div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Bảo mật</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 </div>
@@ -274,8 +269,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -370,6 +365,24 @@
 
             serviceUrl(service) {
                 return 'chi-tiet-dich-vu.html?id=' + service.id;
+            },
+
+            /* Dragging to select text inside a row ends in a click, which must not navigate. */
+            isSelecting() {
+                const selection = window.getSelection();
+                return Boolean(selection) && !selection.isCollapsed && String(selection).trim() !== '';
+            },
+
+            /*
+             * The whole row carries the pointer cursor, so every part of it opens the service.
+             * The image and title are real links that navigate on their own, so they stop the
+             * click here and this only covers the rest of the row.
+             */
+            openService(service) {
+                if (this.isSelecting()) {
+                    return;
+                }
+                location.href = this.serviceUrl(service);
             },
 
             bookingUrl(service) {

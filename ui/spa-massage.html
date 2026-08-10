@@ -213,7 +213,7 @@
 <p class="font-body-md text-body-md text-on-surface-variant text-center max-w-2xl mx-auto mb-16">Dành trọn khoảnh khắc thư giãn bên những người thân yêu với các gói dịch vụ được thiết kế đặc biệt.</p>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
 <template :key="pkg.id" x-for="pkg in packages">
-<div class="bg-surface-container-highest p-8 md:p-12 flex flex-col justify-between group hover:bg-surface-variant transition-colors duration-500 cursor-pointer h-full">
+<a :href="bookingUrl(pkg)" style="display:contents;color:inherit;text-decoration:none"><div class="bg-surface-container-highest p-8 md:p-12 flex flex-col justify-between group hover:bg-surface-variant transition-colors duration-500 cursor-pointer h-full">
 <div>
 <div class="flex justify-between items-start mb-8">
 <span class="font-label-md text-label-md uppercase tracking-widest text-primary border border-primary px-3 py-1" x-text="pkg.subcategory"></span>
@@ -231,9 +231,9 @@
 <span class="font-caption text-caption text-on-surface-variant block mb-1">Giá trọn gói</span>
 <span class="font-headline-sm text-headline-sm text-primary" x-text="price(pkg)"></span>
 </div>
-<a :href="bookingUrl(pkg)" style="display:contents;color:inherit;text-decoration:none"><button class="font-label-md text-label-md uppercase tracking-widest text-primary hover:text-secondary transition-colors">Đặt ngay</button></a>
+<button class="font-label-md text-label-md uppercase tracking-widest text-primary hover:text-secondary transition-colors">Đặt ngay</button>
 </div>
-</div>
+</div></a>
 </template>
 <template x-if="!loading &amp;&amp; !packages.length">
 <p class="md:col-span-2 font-body-md text-body-md text-on-surface-variant text-center">Chưa có gói trải nghiệm nào.</p>
@@ -256,15 +256,15 @@
 <div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Bảo mật</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 </div>
@@ -273,8 +273,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>

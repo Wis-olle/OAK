@@ -209,7 +209,7 @@
 </thead>
 <tbody>
 <template :key="booking.id" x-for="booking in bookings">
-<tr class="border-b border-surface-variant/50 hover:bg-surface-container-low/30 transition-colors">
+<tr @click="openBooking(booking)" class="border-b border-surface-variant/50 hover:bg-surface-container-low/30 transition-colors cursor-pointer">
 <td class="p-4 font-body-md text-body-md text-on-background" x-text="timeRange(booking)"></td>
 <td class="p-4">
 <div class="flex items-center gap-3">
@@ -400,6 +400,20 @@
                 return this.overview && this.overview.review_count
                     ? 'Dựa trên ' + this.overview.review_count + ' đánh giá'
                     : 'Chưa có đánh giá';
+            },
+
+            /* Dragging to select text inside a row ends in a click, which must not navigate. */
+            isSelecting() {
+                var selection = window.getSelection();
+                return Boolean(selection) && !selection.isCollapsed && String(selection).trim() !== '';
+            },
+
+            /* The whole booking row is clickable. */
+            openBooking(booking) {
+                if (this.isSelecting()) {
+                    return;
+                }
+                location.href = 'quan-ly-lich-hen.html?booking_id=' + booking.id;
             },
 
             timeRange(booking) {

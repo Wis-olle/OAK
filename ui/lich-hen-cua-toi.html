@@ -102,29 +102,21 @@
 <div class="flex flex-col items-center mb-8 text-center">
 <img :src="user &amp;&amp; user.avatar ? user.avatar : 'assets/images/img-9c5bb8590d.jpg'" alt="User Profile" class="w-20 h-20 rounded-full object-cover border-2 border-surface mb-4 shadow-sm" data-alt="A close-up portrait of an elegant woman with glowing skin, subtle natural makeup, and hair neatly pulled back. The lighting is soft and flattering, creating a serene, modern editorial aesthetic. The background is a clean, neutral taupe." src="assets/images/img-9c5bb8590d.jpg">
 <h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="user ? user.name : ''"></h3>
-<p class="font-caption text-caption text-on-surface-variant mb-4">Thành viên Diamond</p>
-<button class="w-full border border-outline text-primary font-label-md text-label-md py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors">
-                    Nâng cấp hạng thẻ
-                </button>
 </div>
 <nav class="flex flex-col gap-2">
 <a class="flex items-center gap-4 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-full scale-98 transition-transform font-label-md text-label-md" href="lich-hen-cua-toi.html">
 <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
                     Lịch hẹn
                 </a>
-<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-full hover:bg-surface-container-high transition-all font-label-md text-label-md" href="#">
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-full hover:bg-surface-container-high transition-all font-label-md text-label-md" href="yeu-thich.html">
 <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">favorite</span>
                     Yêu thích
                 </a>
-<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-full hover:bg-surface-container-high transition-all font-label-md text-label-md" href="#">
-<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">account_balance_wallet</span>
-                    Ví OAK
-                </a>
-<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-full hover:bg-surface-container-high transition-all font-label-md text-label-md" href="#">
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-full hover:bg-surface-container-high transition-all font-label-md text-label-md" href="danh-gia-cua-toi.html">
 <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">star_rate</span>
                     Đánh giá
                 </a>
-<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-full hover:bg-surface-container-high transition-all font-label-md text-label-md" href="#">
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-full hover:bg-surface-container-high transition-all font-label-md text-label-md" href="ho-so-ca-nhan.html">
 <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">settings</span>
                     Cài đặt
                 </a>
@@ -181,7 +173,7 @@
 <button @click="cancel(booking)" class="flex-1 md:flex-none border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" type="button" x-show="tab === 'upcoming'">
                                     Hủy lịch
                                 </button>
-<a :href="'tel:' + (booking.salon.phone || '').replace(/\s/g, '')" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="booking.salon.phone">
+<a :href="'tel:' + (booking.salon.phone || '').replace(/\s/g, '')" @click="showPhone(booking.salon.phone)" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="booking.salon.phone">
                                     Liên hệ
                                 </a>
 <a :href="'danh-gia-cua-toi.html?booking_id=' + booking.id" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="canReview(booking)">
@@ -216,15 +208,15 @@
 <div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Bảo mật</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 </div>
@@ -233,8 +225,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -330,6 +322,14 @@
 
             timeLabel(booking) {
                 return booking.time + ' - ' + oakAddMinutes(booking.time, booking.service.duration_min);
+            },
+
+            /** tel: dials on a phone but is silent on a desktop, so the number is always shown. */
+            showPhone(phone) {
+                const number = String(phone || '').trim();
+                if (number) {
+                    OAK.toast('Số điện thoại salon: ' + number);
+                }
             },
 
             dateLabel(date) {

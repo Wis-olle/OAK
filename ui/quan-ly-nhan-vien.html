@@ -142,7 +142,7 @@
 <!-- Staff Grid -->
 <div :class="{ 'opacity-50': loading }" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 transition-opacity">
 <template :key="member.id" x-for="member in roster()">
-<div class="group bg-surface-container-lowest border border-outline-variant/20 hover:border-outline/40 transition-colors flex flex-col">
+<div @click="openStaffCard(member)" class="group bg-surface-container-lowest border border-outline-variant/20 hover:border-outline/40 transition-colors flex flex-col cursor-pointer">
 <div class="aspect-[4/3] w-full relative overflow-hidden bg-surface-container-low">
 <template x-if="member.image">
 <img :src="member.image" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-in-out"/>
@@ -170,7 +170,7 @@
 <span class="font-caption text-caption text-on-surface-variant mb-1" x-text="onShift(member) ? 'Ca hôm nay' : 'Ca kế tiếp'"></span>
 <span class="font-body-md text-label-md text-primary" x-text="shiftLabel(member)"></span>
 </div>
-<button @click="openStaff(member)" class="text-secondary font-label-md text-label-md uppercase tracking-wider hover:text-primary transition-colors flex items-center gap-1 shrink-0">
+<button @click.stop="openStaff(member)" class="text-secondary font-label-md text-label-md uppercase tracking-wider hover:text-primary transition-colors flex items-center gap-1 shrink-0">
                                 Sửa <span class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span>
 </button>
 </div>
@@ -183,7 +183,7 @@
 </main>
 
 <!-- Staff Edit Modal -->
-<div aria-labelledby="modal-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="staffModalOpen">
+<div @keydown.escape.window="staffModalOpen = false" aria-labelledby="modal-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="staffModalOpen">
 <!-- Backdrop -->
 <div @click="staffModalOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="staffModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
 <!-- Modal Panel -->
@@ -425,6 +425,20 @@
             },
 
             /* ---- modal ---- */
+
+            /* Dragging to select text inside a card ends in a click, which must not open the form. */
+            isSelecting() {
+                var selection = window.getSelection();
+                return Boolean(selection) && !selection.isCollapsed && String(selection).trim() !== '';
+            },
+
+            /* The card body opens the editor; the "Sửa" button calls openStaff directly. */
+            openStaffCard(member) {
+                if (this.isSelecting()) {
+                    return;
+                }
+                return this.openStaff(member);
+            },
 
             async openStaff(member) {
                 this.formError = '';

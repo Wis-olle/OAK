@@ -90,10 +90,6 @@
 <h2 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed truncate">Báo cáo doanh thu</h2>
 </div>
 <div class="flex items-center gap-4 md:gap-6 shrink-0">
-<div class="relative hidden lg:block w-72">
-<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
-<input aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm kiếm..." type="text"/>
-</div>
 <a aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
 </a>
@@ -220,7 +216,7 @@
 </thead>
 <tbody>
 <template x-for="row in byService" :key="row.service">
-<tr class="border-b border-surface-variant/50 last:border-0 hover:bg-surface-container-low/30 transition-colors">
+<tr class="border-b border-surface-variant/50 last:border-0">
 <td class="p-4">
 <p class="font-body-md text-body-md text-on-background" x-text="row.service"></p>
 <div class="mt-2 h-1.5 w-full bg-surface-variant rounded-full overflow-hidden">
@@ -250,7 +246,7 @@
 </thead>
 <tbody>
 <template x-for="row in byStaff" :key="row.staff">
-<tr class="border-b border-surface-variant/50 last:border-0 hover:bg-surface-container-low/30 transition-colors">
+<tr class="border-b border-surface-variant/50 last:border-0">
 <td class="p-4">
 <p class="font-body-md text-body-md text-on-background" x-text="row.staff"></p>
 <div class="mt-2 h-1.5 w-full bg-surface-variant rounded-full overflow-hidden">
