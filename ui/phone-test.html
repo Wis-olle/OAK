@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xem thử trên điện thoại</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #1b1c1f;
+    color: #e6e6e8;
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height: 100vh;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    background: #232428;
+    border-bottom: 1px solid #33343a;
+  }
+  .controls label { font-size: 13px; color: #9b9ca3; }
+  .controls select, .controls button {
+    background: #2e3036;
+    color: #e6e6e8;
+    border: 1px solid #43454d;
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .controls button { cursor: pointer; }
+  .controls button:hover { background: #3a3d45; }
+  .stage { padding: 24px 0; display: flex; justify-content: center; }
+  .frame-wrap { transform-origin: top center; }
+  .phone {
+    position: relative;
+    background: #0c0c0e;
+    border: 12px solid #0c0c0e;
+    border-radius: 44px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.65), 0 0 0 1px #3a3b41;
+  }
+  .phone iframe {
+    display: block;
+    border: 0;
+    border-radius: 32px;
+    background: #fff;
+  }
+  .island {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 34%;
+    height: 26px;
+    background: #0c0c0e;
+    border-radius: 999px;
+    z-index: 2;
+  }
+  .home-bar {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36%;
+    height: 5px;
+    background: rgba(0,0,0,.35);
+    border-radius: 999px;
+    z-index: 2;
+  }
+</style>
+</head>
+<body>
+  <div class="controls" id="controls">
+    <label for="screen">Màn hình</label>
+    <select id="screen">
+      <option value="kham-pha.html" selected>Khám phá</option>
+      <option value="tim-kiem-thong-minh.html">Tìm kiếm thông minh</option>
+      <option value="ket-qua-tim-kiem.html">Kết quả tìm kiếm</option>
+      <option value="cham-soc-da.html">Chăm sóc da</option>
+      <option value="spa-massage.html">Spa &amp; Massage</option>
+      <option value="dich-vu-nail.html">Dịch vụ Nail</option>
+      <option value="dich-vu-toc-chuyen-sau.html">Dịch vụ tóc chuyên sâu</option>
+      <option value="khong-gian-tien-ich.html">Không gian &amp; Tiện ích</option>
+      <option value="chi-tiet-dich-vu.html">Chi tiết dịch vụ</option>
+      <option value="salon-profile-lala-nail-studio.html">Salon: LaLa Nail Studio</option>
+      <option value="ho-so-chuyen-gia.html">Hồ sơ chuyên gia</option>
+      <option value="dat-lich.html">Đặt lịch</option>
+      <option value="xac-nhan-dat-lich.html">Xác nhận đặt lịch</option>
+      <option value="lich-hen-cua-toi.html">Lịch hẹn của tôi</option>
+      <option value="dang-nhap-nguoi-dung.html">Đăng nhập người dùng</option>
+      <option value="dang-nhap-doi-tac.html">Đăng nhập đối tác</option>
+      <option value="tong-quan-doi-tac.html">Tổng quan đối tác</option>
+      <option value="quan-ly-lich-hen.html">Quản lý lịch hẹn</option>
+      <option value="quan-ly-dich-vu.html">Quản lý dịch vụ</option>
+      <option value="quan-ly-nhan-vien.html">Quản lý nhân viên</option>
+      <option value="sitemap.html">Sơ đồ trang</option>
+    </select>
+
+    <label for="device">Thiết bị</label>
+    <select id="device">
+      <option value="375x667">iPhone SE (375×667)</option>
+      <option value="390x844" selected>iPhone 14/15 (390×844)</option>
+      <option value="430x932">iPhone Pro Max (430×932)</option>
+      <option value="360x800">Android nhỏ (360×800)</option>
+    </select>
+
+    <button id="open-tab" type="button">Mở tab mới</button>
+  </div>
+
+  <div class="stage">
+    <div class="frame-wrap" id="frame-wrap">
+      <div class="phone" id="phone">
+        <div class="island"></div>
+        <iframe id="screen-frame" src="kham-pha.html" title="Xem thử màn hình"></iframe>
+        <div class="home-bar"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  var screenSelect = document.getElementById('screen');
+  var deviceSelect = document.getElementById('device');
+  var openTabBtn = document.getElementById('open-tab');
+  var frame = document.getElementById('screen-frame');
+  var wrap = document.getElementById('frame-wrap');
+  var phone = document.getElementById('phone');
+  var controls = document.getElementById('controls');
+  var STAGE_PADDING = 48; // khớp padding 24px trên/dưới của .stage
+
+  function applyDevice() {
+    var parts = deviceSelect.value.split('x');
+    frame.width = parts[0];
+    frame.height = parts[1];
+    fit();
+  }
+
+  function fit() {
+    var phoneHeight = phone.offsetHeight;
+    var available = window.innerHeight - controls.offsetHeight - STAGE_PADDING;
+    var k = available / phoneHeight;
+    if (k > 1) { k = 1; }
+    wrap.style.transform = 'scale(' + k + ')';
+    wrap.style.height = (phoneHeight * k) + 'px';
+  }
+
+  screenSelect.addEventListener('change', function () {
+    frame.src = screenSelect.value;
+  });
+
+  deviceSelect.addEventListener('change', applyDevice);
+
+  openTabBtn.addEventListener('click', function () {
+    var href = screenSelect.value;
+    try {
+      href = frame.contentWindow.location.href;
+    } catch (e) {
+      /* không đọc được vị trí của iframe */
+    }
+    window.open(href, '_blank');
+  });
+
+  frame.addEventListener('load', function () {
+    try {
+      var path = frame.contentWindow.location.pathname;
+      var name = decodeURIComponent(path.substring(path.lastIndexOf('/') + 1));
+      for (var i = 0; i < screenSelect.options.length; i++) {
+        if (screenSelect.options[i].value === name) {
+          screenSelect.value = name;
+          break;
+        }
+      }
+    } catch (e) {
+      /* không đọc được vị trí của iframe */
+    }
+    fit();
+  });
+
+  window.addEventListener('resize', fit);
+
+  applyDevice();
+</script>
+</body>
+</html>
