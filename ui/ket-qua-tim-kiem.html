@@ -4,9 +4,13 @@
 <script src="assets/js/tailwind-36d3755fef.js"></script>
 <script src="assets/js/oak-tailwind-config.js"></script>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <style>
         .material-symbols-outlined[data-weight="fill"] { font-variation-settings: 'FILL' 1; }
     </style>
@@ -41,8 +45,8 @@
 </div>
 </div>
 </div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
 </nav>
 <div class="flex items-center gap-4">
 <a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
@@ -53,9 +57,9 @@
 <span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
-<button aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
+</a>
 <a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
@@ -75,15 +79,16 @@
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="kham-pha.html">Khám phá</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="index.html">Trang chủ</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-body-md text-body-md text-primary font-bold hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-nail.html">NAIL</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
@@ -91,93 +96,92 @@
 </div>
 </header>
 <!-- Main Content -->
-<main class="pt-24 flex-grow pb-section-gap flex flex-col md:flex-row h-screen">
+<main class="pt-24 flex-grow pb-section-gap flex flex-col md:flex-row h-screen" x-data="oakSearchResults()">
 <!-- Left Column: Search Results -->
 <section class="w-full md:w-1/2 flex flex-col h-full bg-surface border-r border-outline-variant/30 overflow-hidden">
 <!-- Header & Filters -->
 <div class="p-6 md:p-8 border-b border-outline-variant/10 shrink-0">
-<h1 class="font-headline-sm text-headline-sm text-on-surface mb-2">Tìm thấy 12 salon phù hợp với yêu cầu của bạn</h1>
-<p class="font-body-md text-body-md text-on-surface-variant mb-6">Kết quả dựa trên vị trí và dịch vụ yêu cầu</p>
+<h1 class="font-headline-sm text-headline-sm text-on-surface mb-2" x-text="headline"></h1>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-text="criteriaText"></p>
 <div class="flex flex-wrap gap-3">
-<button class="px-4 py-2 bg-surface-container-low text-on-surface font-label-md rounded-full border border-outline-variant/30 hover:bg-surface-variant transition-colors flex items-center gap-2">
+<div class="relative">
+<button :class="filters.price_max ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'price' ? null : 'price'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Giá <span class="material-symbols-outlined text-sm">expand_more</span>
 </button>
-<button class="px-4 py-2 bg-surface-container-low text-on-surface font-label-md rounded-full border border-outline-variant/30 hover:bg-surface-variant transition-colors flex items-center gap-2">
+<div @click.outside="if (openFilter === 'price') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'price'">
+<template :key="option.label" x-for="option in priceOptions">
+<button @click="setFilter('price_max', option.value)" class="block w-full text-left px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button" x-text="option.label"></button>
+</template>
+</div>
+</div>
+<div class="relative">
+<button :class="filters.radius_km ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'distance' ? null : 'distance'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Khoảng cách <span class="material-symbols-outlined text-sm">expand_more</span>
 </button>
-<button class="px-4 py-2 bg-surface-container-low text-on-surface font-label-md rounded-full border border-outline-variant/30 hover:bg-surface-variant transition-colors flex items-center gap-2">
+<div @click.outside="if (openFilter === 'distance') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'distance'">
+<template :key="option.label" x-for="option in distanceOptions">
+<button @click="setFilter('radius_km', option.value)" class="block w-full text-left px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button" x-text="option.label"></button>
+</template>
+</div>
+</div>
+<div class="relative">
+<button :class="filters.rating_min ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'rating' ? null : 'rating'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Đánh giá <span class="material-symbols-outlined text-sm">expand_more</span>
 </button>
-<button class="px-4 py-2 bg-tertiary text-on-tertiary font-label-md rounded-full hover:bg-tertiary/90 transition-colors flex items-center gap-2">
+<div @click.outside="if (openFilter === 'rating') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'rating'">
+<template :key="option.label" x-for="option in ratingOptions">
+<button @click="setFilter('rating_min', option.value)" class="block w-full text-left px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button" x-text="option.label"></button>
+</template>
+</div>
+</div>
+<button :class="filters.open_now ? 'bg-tertiary text-on-tertiary hover:bg-tertiary/90' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="toggleOpenNow()" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Đang mở cửa
                     </button>
 </div>
 </div>
 <!-- Salon List -->
 <div class="flex-grow overflow-y-auto p-6 md:p-8 space-y-6">
-<!-- Salon Card 1 -->
-<article class="flex flex-col sm:flex-row gap-6 p-4 rounded-full hover:bg-surface-container-low transition-colors group cursor-pointer border border-transparent hover:border-outline-variant/20">
+<template x-if="loading">
+<p class="font-body-md text-body-md text-on-surface-variant">Đang tải kết quả...</p>
+</template>
+<template x-if="!loading &amp;&amp; !salons.length">
+<p class="font-body-md text-body-md text-on-surface-variant">Không tìm thấy salon nào phù hợp. Bạn thử nới rộng bộ lọc nhé.</p>
+</template>
+<template :key="salon.id" x-for="salon in salons">
+<article :class="hovered === salon.id ? 'bg-surface-container-low border-outline-variant/20' : 'border-transparent'" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="flex flex-col sm:flex-row gap-6 p-4 rounded-full hover:bg-surface-container-low transition-colors group cursor-pointer border hover:border-outline-variant/20">
 <div class="w-full sm:w-48 h-48 sm:h-auto shrink-0 relative rounded-lg overflow-hidden">
-<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A bright, modern nail salon interior with minimalist white and beige decor. Comfortable seating, natural light streaming through large windows, clean and serene atmosphere." src="assets/images/img-bc22d45cb1.jpg">
-<div class="absolute top-2 left-2 bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs font-label-md text-primary flex items-center gap-1">
+<img :alt="salon.name" :src="salon.image" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+<div class="absolute top-2 left-2 bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs font-label-md text-primary flex items-center gap-1" x-show="salon.verified">
 <span class="material-symbols-outlined text-[14px]" data-weight="fill">verified</span> Đã xác minh
                         </div>
 </div>
 <div class="flex-grow flex flex-col justify-between py-2">
 <div>
 <div class="flex justify-between items-start mb-1">
-<h2 class="font-headline-sm text-headline-sm text-on-surface group-hover:text-primary transition-colors">Lala Nail Studio</h2>
-<div class="flex items-center gap-1 text-on-surface">
+<h2 class="font-headline-sm text-headline-sm text-on-surface group-hover:text-primary transition-colors" x-text="salon.name"></h2>
+<div class="flex items-center gap-1 text-on-surface" x-show="salon.review_count">
 <span class="material-symbols-outlined text-primary text-sm" data-weight="fill">star</span>
-<span class="font-label-md text-sm">4.8</span>
-<span class="font-caption text-caption text-on-surface-variant">(200+)</span>
+<span class="font-label-md text-sm" x-text="ratingOf(salon)"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="'(' + salon.review_count + ')'"></span>
 </div>
+<span class="font-caption text-caption text-on-surface-variant shrink-0" x-show="!salon.review_count">Chưa có đánh giá</span>
 </div>
 <p class="font-body-md text-sm text-on-surface-variant mb-3 flex items-center gap-1">
-<span class="material-symbols-outlined text-[16px]">location_on</span> Quận 1 • 1.2km
+<span class="material-symbols-outlined text-[16px]">location_on</span> <span x-text="locationOf(salon)"></span>
                             </p>
 <div class="bg-surface-container-low p-3 rounded-lg mb-4">
 <p class="font-caption text-caption text-on-surface-variant">
-<strong class="text-on-surface">Lý do phù hợp:</strong> Cách bạn 1.2 km, có dịch vụ nail Hàn Quốc, giá từ 350.000đ và còn lịch chiều mai.
+<strong class="text-on-surface">Lý do phù hợp:</strong> <span x-text="salon.match_reason"></span>
                                 </p>
 </div>
 </div>
 <div class="flex gap-3 mt-4">
-<a href="chi-tiet-dich-vu.html" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 border border-outline text-on-surface font-label-md uppercase tracking-wider rounded-full text-sm hover:border-primary hover:text-primary transition-colors">Xem chi tiết</button></a>
-<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 bg-primary-container text-on-primary font-label-md uppercase tracking-wider rounded-full text-sm hover:bg-primary transition-colors">Đặt lịch ngay</button></a>
+<a :href="'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug)" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 border border-outline text-on-surface font-label-md uppercase tracking-wider rounded-full text-sm hover:border-primary hover:text-primary transition-colors">Xem chi tiết</button></a>
+<a :href="'dat-lich.html?salon_id=' + salon.id" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 bg-primary-container text-on-primary font-label-md uppercase tracking-wider rounded-full text-sm hover:bg-primary transition-colors">Đặt lịch ngay</button></a>
 </div>
 </div>
 </article>
-<!-- Salon Card 2 -->
-<article class="flex flex-col sm:flex-row gap-6 p-4 rounded-full hover:bg-surface-container-low transition-colors group cursor-pointer border border-transparent hover:border-outline-variant/20">
-<div class="w-full sm:w-48 h-48 sm:h-auto shrink-0 relative rounded-lg overflow-hidden">
-<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A luxurious beauty spa room with soft ambient lighting, high-end organic skincare products displayed on a wooden shelf, calming aesthetic with muted earth tones." src="assets/images/img-83c65fdb78.jpg">
-</div>
-<div class="flex-grow flex flex-col justify-between py-2">
-<div>
-<div class="flex justify-between items-start mb-1">
-<h2 class="font-headline-sm text-headline-sm text-on-surface group-hover:text-primary transition-colors">The Muse Beauty Bar</h2>
-<div class="flex items-center gap-1 text-on-surface">
-<span class="material-symbols-outlined text-primary text-sm" data-weight="fill">star</span>
-<span class="font-label-md text-sm">4.9</span>
-<span class="font-caption text-caption text-on-surface-variant">(156)</span>
-</div>
-</div>
-<p class="font-body-md text-sm text-on-surface-variant mb-3 flex items-center gap-1">
-<span class="material-symbols-outlined text-[16px]">location_on</span> Quận 3 • 2.5km
-                            </p>
-<div class="bg-surface-container-low p-3 rounded-lg mb-4">
-<p class="font-caption text-caption text-on-surface-variant">
-<strong class="text-on-surface">Lý do phù hợp:</strong> Chuyên phục hồi da cơ bản, không gian riêng tư, giá từ 450.000đ.
-                                </p>
-</div>
-</div>
-<div class="flex gap-3 mt-4">
-<a href="chi-tiet-dich-vu.html" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 border border-outline text-on-surface font-label-md uppercase tracking-wider rounded-full text-sm hover:border-primary hover:text-primary transition-colors">Xem chi tiết</button></a>
-<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 bg-primary-container text-on-primary font-label-md uppercase tracking-wider rounded-full text-sm hover:bg-primary transition-colors">Đặt lịch ngay</button></a>
-</div>
-</div>
-</article>
+</template>
 </div>
 </section>
 <!-- Right Column: Map -->
@@ -187,20 +191,15 @@
 <!-- Map Overlay Elements (Simulated Pins) -->
 <div class="absolute inset-0 p-8 flex items-center justify-center pointer-events-none">
 <div class="relative w-full h-full max-w-2xl">
-<!-- Pin 1 -->
-<div class="absolute top-1/3 left-1/4 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-auto cursor-pointer group">
-<div class="bg-primary text-on-primary px-3 py-1 rounded-full font-label-md text-xs mb-1 shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">Lala Nail Studio</div>
-<div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center shadow-lg border-2 border-surface">
-<span class="material-symbols-outlined text-on-primary text-sm">spa</span>
+<!-- Pins: laid out by result index over the static map backdrop, not by real projection. -->
+<template :key="salon.id" x-for="(salon, index) in salons">
+<div :style="pinStyle(index)" :title="pinTitle(salon)" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-auto cursor-pointer group">
+<div :class="hovered === salon.id ? 'bg-primary text-on-primary opacity-100' : 'bg-surface text-on-surface opacity-0'" class="px-3 py-1 rounded-full font-label-md text-xs mb-1 shadow-lg whitespace-nowrap group-hover:opacity-100 transition-opacity" x-text="salon.name"></div>
+<div :class="hovered === salon.id ? 'bg-primary border-surface' : 'bg-surface border-primary'" class="w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2">
+<span :class="hovered === salon.id ? 'text-on-primary' : 'text-primary'" class="material-symbols-outlined text-sm">spa</span>
 </div>
 </div>
-<!-- Pin 2 -->
-<div class="absolute top-1/2 right-1/3 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-auto cursor-pointer group">
-<div class="bg-surface text-on-surface px-3 py-1 rounded-full font-label-md text-xs mb-1 shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">The Muse Beauty Bar</div>
-<div class="w-8 h-8 bg-surface rounded-full flex items-center justify-center shadow-lg border-2 border-primary">
-<span class="material-symbols-outlined text-primary text-sm">face_retouching_natural</span>
-</div>
-</div>
+</template>
 </div>
 </div>
 </div>
@@ -212,7 +211,7 @@
 <button class="w-10 h-10 bg-surface rounded-full shadow flex items-center justify-center text-on-surface hover:text-primary transition-colors">
 <span class="material-symbols-outlined">remove</span>
 </button>
-<button class="w-10 h-10 bg-surface rounded-full shadow flex items-center justify-center text-on-surface mt-2 hover:text-primary transition-colors">
+<button @click="locate()" aria-label="Tìm quanh vị trí của tôi" class="w-10 h-10 bg-surface rounded-full shadow flex items-center justify-center text-on-surface mt-2 hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined">my_location</span>
 </button>
 </div>
@@ -265,4 +264,190 @@
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+    function oakSearchResults() {
+        /* Same labels the backend uses in its replies; a Map so an odd key cannot reach Object.prototype. */
+        var CATEGORY_LABELS = new Map([
+            ['nail', 'Nail'],
+            ['hair', 'Tóc'],
+            ['skincare', 'Chăm sóc da'],
+            ['spa', 'Spa & Massage'],
+            ['eyelash', 'Nối mi'],
+        ]);
+        /* The map is a static backdrop, so pins sit on fixed spots cycled by result index. */
+        var PIN_POSITIONS = [
+            { top: '33%', left: '25%' },
+            { top: '50%', left: '62%' },
+            { top: '22%', left: '68%' },
+            { top: '68%', left: '38%' },
+            { top: '45%', left: '15%' },
+            { top: '72%', left: '74%' },
+        ];
+
+        return {
+            salons: [],
+            total: 0,
+            loading: true,
+            hovered: null,
+            openFilter: null,
+            /* The query string this page was opened with, kept as a plain object for the subtitle. */
+            incoming: {},
+            filters: { price_max: '', radius_km: '', rating_min: '', open_now: false },
+            coords: { lat: '', lng: '' },
+            priceOptions: [
+                { label: 'Tất cả mức giá', value: '' },
+                { label: 'Dưới 300.000đ', value: 300000 },
+                { label: 'Dưới 500.000đ', value: 500000 },
+                { label: 'Dưới 1.000.000đ', value: 1000000 },
+            ],
+            distanceOptions: [
+                { label: 'Không giới hạn', value: '' },
+                { label: 'Trong 1km', value: 1 },
+                { label: 'Trong 3km', value: 3 },
+                { label: 'Trong 5km', value: 5 },
+            ],
+            ratingOptions: [
+                { label: 'Tất cả đánh giá', value: '' },
+                { label: 'Từ 4.0 sao', value: 4 },
+                { label: 'Từ 4.5 sao', value: 4.5 },
+            ],
+
+            init() {
+                this.incoming = Object.fromEntries(new URLSearchParams(location.search));
+                this.filters.price_max = this.incoming.price_max || '';
+                this.filters.radius_km = this.incoming.radius_km || '';
+                this.filters.rating_min = this.incoming.rating_min || '';
+                this.filters.open_now = this.incoming.open_now === '1';
+                this.coords.lat = this.incoming.lat || '';
+                this.coords.lng = this.incoming.lng || '';
+                this.load();
+            },
+
+            get headline() {
+                return this.loading
+                    ? 'Đang tìm salon phù hợp...'
+                    : 'Tìm thấy ' + this.total + ' salon phù hợp với yêu cầu của bạn';
+            },
+
+            get criteriaText() {
+                var parts = [];
+                if (this.incoming.category) {
+                    parts.push(CATEGORY_LABELS.get(this.incoming.category) || this.incoming.category);
+                }
+                if (this.incoming.district) {
+                    parts.push(this.incoming.district);
+                }
+                if (this.incoming.date) {
+                    parts.push(OAK.fmtDate(this.incoming.date));
+                }
+                if (this.filters.price_max) {
+                    parts.push('dưới ' + OAK.fmtPrice(this.filters.price_max));
+                }
+                return parts.length
+                    ? 'Tiêu chí: ' + parts.join(' • ')
+                    : 'Kết quả dựa trên vị trí và dịch vụ yêu cầu';
+            },
+
+            /* Everything the page was opened with rides along; the filter chips override their own keys. */
+            query() {
+                var params = new URLSearchParams(location.search);
+                var filters = this.filters;
+                ['price_max', 'radius_km', 'rating_min'].forEach(function (key) {
+                    if (filters[key]) {
+                        params.set(key, filters[key]);
+                    } else {
+                        params.delete(key);
+                    }
+                });
+                if (filters.open_now) {
+                    params.set('open_now', '1');
+                } else {
+                    params.delete('open_now');
+                }
+                if (this.coords.lat && this.coords.lng) {
+                    params.set('lat', this.coords.lat);
+                    params.set('lng', this.coords.lng);
+                }
+                return params;
+            },
+
+            async load() {
+                this.loading = true;
+                try {
+                    var data = await OAK.api('/api/search/salons?' + this.query());
+                    this.total = data.meta.total;
+                    this.salons = data;
+                } catch (error) {
+                    this.salons = [];
+                    this.total = 0;
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            setFilter(key, value) {
+                this.openFilter = null;
+                if (key === 'radius_km' && value && !this.coords.lat) {
+                    this.locate(value);   // defer committing until coords arrive
+                    return;
+                }
+                this.filters[key] = value;
+                this.load();
+            },
+
+            toggleOpenNow() {
+                this.filters.open_now = !this.filters.open_now;
+                this.load();
+            },
+
+            locate(radius) {
+                if (!navigator.geolocation) {
+                    OAK.toast('Trình duyệt của bạn không hỗ trợ định vị.', 'error');
+                    return;
+                }
+                var self = this;
+                navigator.geolocation.getCurrentPosition(
+                    function (position) {
+                        self.coords.lat = position.coords.latitude;
+                        self.coords.lng = position.coords.longitude;
+                        if (radius) { self.filters.radius_km = radius; }
+                        self.load();
+                    },
+                    function () {
+                        self.filters.radius_km = '';
+                        OAK.toast('Không lấy được vị trí của bạn.', 'error');
+                    },
+                );
+            },
+
+            ratingOf(salon) {
+                return Number(salon.rating || 0).toFixed(1);
+            },
+
+            locationOf(salon) {
+                var parts = [salon.district];
+                if (salon.distance_km !== null && salon.distance_km !== undefined) {
+                    parts.push(salon.distance_km + 'km');
+                }
+                if (salon.price_from) {
+                    parts.push('từ ' + OAK.fmtPrice(salon.price_from));
+                }
+                return parts.filter(Boolean).join(' • ');
+            },
+
+            pinStyle(index) {
+                var position = PIN_POSITIONS[index % PIN_POSITIONS.length];
+                return 'top:' + position.top + ';left:' + position.left;
+            },
+
+            pinTitle(salon) {
+                return salon.lat && salon.lng
+                    ? salon.name + ' (' + salon.lat + ', ' + salon.lng + ')'
+                    : salon.name;
+            },
+        };
+    }
+</script>
 </body></html>

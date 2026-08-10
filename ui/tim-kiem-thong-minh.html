@@ -4,9 +4,13 @@
 <script src="assets/js/tailwind-36d3755fef.js"></script>
 <script src="assets/js/oak-tailwind-config.js"></script>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <title>Tìm kiếm thông minh - OAK Beauty</title>
 </head>
 <body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
@@ -16,7 +20,7 @@
 <a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed hover:opacity-80 transition-opacity shrink-0" href="index.html">OAK Beauty</a>
 <nav aria-label="Điều hướng chính" class="hidden md:flex items-center gap-8">
 <div class="relative group">
-<a class="flex items-center gap-1 font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="kham-pha.html">Khám phá<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
+<a class="flex items-center gap-1 font-body-md text-body-md text-primary dark:text-primary-fixed font-bold border-b-2 border-primary pb-1 active:scale-95 duration-200" href="kham-pha.html">Khám phá<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
 <div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
 <div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
 <a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="index.html">Trang chủ</a>
@@ -38,8 +42,8 @@
 </div>
 </div>
 </div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
 </nav>
 <div class="flex items-center gap-4">
 <a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
@@ -50,9 +54,9 @@
 <span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
-<button aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
+</a>
 <a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
@@ -79,8 +83,9 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
@@ -88,84 +93,94 @@
 </div>
 </header>
 <!-- Main Content Area -->
-<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full flex flex-col md:flex-row gap-gutter">
+<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full flex flex-col md:flex-row gap-gutter" x-data="oakSearchAssistant()">
 <!-- Chat Area (Left/Main) -->
 <section class="flex-1 flex flex-col gap-8 max-w-3xl">
 <header class="mb-4">
 <h1 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Trợ lý Tìm kiếm</h1>
 <p class="font-body-lg text-body-lg text-on-surface-variant">Tôi có thể giúp bạn tìm kiếm dịch vụ hoàn hảo hôm nay.</p>
 </header>
+<template :key="index" x-for="(msg, index) in messages">
+<div>
 <!-- User Message -->
+<template x-if="msg.role === 'user'">
 <div class="flex flex-col items-end gap-2">
 <div class="bg-surface-container-low border border-outline-variant/20 rounded-2xl rounded-tr-sm p-6 max-w-[85%] shadow-sm">
-<p class="font-body-md text-body-md text-on-surface">"Tôi muốn làm nail gel phong cách Hàn Quốc vào chiều mai, gần Quận 1, giá dưới 500.000 đồng."</p>
+<p class="font-body-md text-body-md text-on-surface" x-text="msg.text"></p>
 </div>
 <span class="font-caption text-caption text-on-surface-variant/70 mr-2">Bạn • Vừa xong</span>
 </div>
+</template>
 <!-- System Response -->
+<template x-if="msg.role === 'assistant'">
 <div class="flex flex-col items-start gap-2">
 <div class="flex items-end gap-3 max-w-full">
 <div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center shrink-0">
 <span class="material-symbols-outlined text-on-tertiary-container text-sm">auto_awesome</span>
 </div>
 <div class="glass-panel rounded-2xl rounded-tl-sm p-6 max-w-full md:max-w-[90%]">
-<p class="font-body-md text-body-md text-on-surface mb-6">
-                            Chào bạn! OAK đã ghi nhận yêu cầu của bạn. Đây là bản tóm tắt các tiêu chí:
-                        </p>
+<p :class="{ 'mb-6': index === messages.length - 1 }" class="font-body-md text-body-md text-on-surface" x-text="msg.text"></p>
+<template x-if="index === messages.length - 1">
+<div>
 <!-- Requirement Summary Bento Box -->
 <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
 <div class="bg-surface p-4 rounded-xl border border-outline-variant/10">
 <span class="block font-caption text-caption text-outline mb-1 uppercase tracking-wider">Dịch vụ</span>
 <span class="font-label-md text-label-md text-primary flex items-center gap-2">
-<span class="material-symbols-outlined text-lg">spa</span> Nail
+<span class="material-symbols-outlined text-lg">spa</span> <span x-text="summary.category"></span>
                                 </span>
 </div>
 <div class="bg-surface p-4 rounded-xl border border-outline-variant/10">
 <span class="block font-caption text-caption text-outline mb-1 uppercase tracking-wider">Phong cách</span>
 <span class="font-label-md text-label-md text-primary flex items-center gap-2">
-<span class="material-symbols-outlined text-lg">palette</span> Hàn Quốc
+<span class="material-symbols-outlined text-lg">palette</span> <span x-text="summary.style"></span>
                                 </span>
 </div>
 <div class="bg-surface p-4 rounded-xl border border-outline-variant/10 col-span-2 md:col-span-1">
 <span class="block font-caption text-caption text-outline mb-1 uppercase tracking-wider">Khu vực</span>
 <span class="font-label-md text-label-md text-primary flex items-center gap-2">
-<span class="material-symbols-outlined text-lg">location_on</span> Quận 1
+<span class="material-symbols-outlined text-lg">location_on</span> <span x-text="summary.district"></span>
                                 </span>
 </div>
 <div class="bg-surface p-4 rounded-xl border border-outline-variant/10 col-span-2 md:col-span-1">
 <span class="block font-caption text-caption text-outline mb-1 uppercase tracking-wider">Thời gian</span>
 <span class="font-label-md text-label-md text-primary flex items-center gap-2">
-<span class="material-symbols-outlined text-lg">schedule</span> Chiều mai (14:00 - 17:00)
+<span class="material-symbols-outlined text-lg">schedule</span> <span x-text="summary.time"></span>
                                 </span>
 </div>
 <div class="bg-surface p-4 rounded-xl border border-outline-variant/10 col-span-2">
 <span class="block font-caption text-caption text-outline mb-1 uppercase tracking-wider">Ngân sách</span>
 <span class="font-label-md text-label-md text-primary flex items-center gap-2">
-<span class="material-symbols-outlined text-lg">payments</span> &lt; 500.000đ
+<span class="material-symbols-outlined text-lg">payments</span> <span x-text="summary.budget"></span>
                                 </span>
 </div>
 </div>
 <!-- Actions -->
 <div class="flex flex-wrap gap-4 mt-6 border-t border-outline-variant/20 pt-6">
-<a href="ket-qua-tim-kiem.html" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary font-label-md text-label-md px-6 py-3 rounded-full uppercase tracking-wider hover:bg-primary transition-colors flex items-center gap-2">
+<button @click="startSearch()" class="bg-primary-container text-on-primary font-label-md text-label-md px-6 py-3 rounded-full uppercase tracking-wider hover:bg-primary transition-colors flex items-center gap-2" type="button">
 <span class="material-symbols-outlined text-sm">search</span>
                                 Bắt đầu tìm kiếm
-                            </button></a>
-<button class="bg-transparent border border-outline text-on-surface font-label-md text-label-md px-6 py-3 rounded-full uppercase tracking-wider hover:bg-surface-variant/30 transition-colors flex items-center gap-2">
+                            </button>
+<button @click="editCriteria()" class="bg-transparent border border-outline text-on-surface font-label-md text-label-md px-6 py-3 rounded-full uppercase tracking-wider hover:bg-surface-variant/30 transition-colors flex items-center gap-2" type="button">
 <span class="material-symbols-outlined text-sm">edit</span>
                                 Chỉnh sửa tiêu chí
                             </button>
 </div>
 </div>
+</template>
+</div>
 </div>
 <span class="font-caption text-caption text-on-surface-variant/70 ml-12">OAK Assistant • Vừa xong</span>
 </div>
+</template>
+</div>
+</template>
 <!-- Chat Input Area -->
 <div class="mt-8 relative group">
-<input class="w-full bg-surface-container-lowest border rounded-[9999px] border-outline-variant/50 focus:border-primary-container py-4 pl-5 pr-14 outline-none font-body-md text-body-md text-on-surface transition-colors" placeholder="Nhập thêm yêu cầu..." type="text">
-<a href="ket-qua-tim-kiem.html" style="display:contents;color:inherit;text-decoration:none"><button class="absolute right-3 top-1/2 -translate-y-1/2 p-2 flex items-center justify-center text-primary-container hover:text-primary transition-colors">
+<input :disabled="sending" @keydown.enter.prevent="send(input)" class="w-full bg-surface-container-lowest border rounded-[9999px] border-outline-variant/50 focus:border-primary-container py-4 pl-5 pr-14 outline-none font-body-md text-body-md text-on-surface transition-colors disabled:opacity-60" placeholder="Nhập thêm yêu cầu..." type="text" x-model="input" x-ref="input">
+<button :disabled="sending" @click="send(input)" aria-label="Gửi" class="absolute right-3 top-1/2 -translate-y-1/2 p-2 flex items-center justify-center text-primary-container hover:text-primary transition-colors disabled:opacity-60" type="button">
 <span class="material-symbols-outlined">send</span>
-</button></a>
+</button>
 </div>
 </section>
 <!-- Sidebar Suggestions (Right) -->
@@ -176,18 +191,15 @@
                 </h3>
 <p class="font-caption text-caption text-on-tertiary/80 mb-6">Chọn các tùy chọn dưới đây để thu hẹp kết quả tìm kiếm của bạn.</p>
 <div class="flex flex-col gap-3">
-<button class="text-left bg-surface/10 hover:bg-surface/20 text-on-tertiary font-body-md text-body-md py-3 px-4 rounded-full transition-colors border border-on-tertiary/10 flex justify-between items-center group">
-                        Bạn có ưu tiên thợ chính không?
-                        <span class="material-symbols-outlined text-on-tertiary/50 group-hover:text-on-tertiary transition-colors text-sm">add</span>
+<template :key="chip" x-for="chip in chips">
+<button :disabled="sending" @click="send(chip)" class="text-left bg-surface/10 hover:bg-surface/20 text-on-tertiary font-body-md text-body-md py-3 px-4 rounded-full transition-colors border border-on-tertiary/10 flex justify-between items-center group disabled:opacity-60" type="button">
+<span x-text="chip"></span>
+<span class="material-symbols-outlined text-on-tertiary/50 group-hover:text-on-tertiary transition-colors text-sm">add</span>
 </button>
-<button class="text-left bg-surface/10 hover:bg-surface/20 text-on-tertiary font-body-md text-body-md py-3 px-4 rounded-full transition-colors border border-on-tertiary/10 flex justify-between items-center group">
-                        Thêm dịch vụ chăm sóc da tay?
-                        <span class="material-symbols-outlined text-on-tertiary/50 group-hover:text-on-tertiary transition-colors text-sm">add</span>
-</button>
-<button class="text-left bg-surface/10 hover:bg-surface/20 text-on-tertiary font-body-md text-body-md py-3 px-4 rounded-full transition-colors border border-on-tertiary/10 flex justify-between items-center group">
-                        Bạn cần tư vấn màu hợp da?
-                        <span class="material-symbols-outlined text-on-tertiary/50 group-hover:text-on-tertiary transition-colors text-sm">add</span>
-</button>
+</template>
+<template x-if="!chips.length">
+<p class="font-caption text-caption text-on-tertiary/70">Hãy mô tả nhu cầu của bạn để OAK gợi ý thêm tiêu chí.</p>
+</template>
 </div>
 </div>
 <div class="bg-surface-container-high rounded-2xl overflow-hidden shadow-sm">
@@ -244,4 +256,94 @@
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+    function oakSearchAssistant() {
+        var DASH = '—';
+        /* Same labels the backend uses in its replies; a Map so an odd key cannot reach Object.prototype. */
+        var CATEGORY_LABELS = new Map([
+            ['nail', 'Nail'],
+            ['hair', 'Tóc'],
+            ['skincare', 'Chăm sóc da'],
+            ['spa', 'Spa & Massage'],
+            ['eyelash', 'Nối mi'],
+        ]);
+        /* The criteria keys ket-qua-tim-kiem.html understands as query params. The parser
+           never emits `q` or `style`, so neither normally reaches the results page — but a
+           criteria object carried in from elsewhere still passes them through. */
+        var SEARCH_KEYS = ['q', 'category', 'style', 'district', 'date', 'time_from', 'time_to', 'price_max'];
+
+        return {
+            messages: [],
+            criteria: {},
+            chips: [],
+            input: '',
+            sending: false,
+
+            init() {
+                var query = OAK.qs('q');
+                if (query) {
+                    this.send(query);
+                }
+            },
+
+            /* The five bento tiles; every criterion the assistant has not parsed reads "—". */
+            get summary() {
+                var criteria = this.criteria;
+                var timeWindow = criteria.time_from && criteria.time_to
+                    ? '(' + OAK.fmtTime(criteria.time_from) + ' - ' + OAK.fmtTime(criteria.time_to) + ')'
+                    : '';
+                var time = [criteria.date ? OAK.fmtDate(criteria.date) : '', timeWindow]
+                    .filter(Boolean)
+                    .join(' ');
+                return {
+                    category: CATEGORY_LABELS.get(criteria.category) || DASH,
+                    style: criteria.style || DASH,
+                    district: criteria.district || DASH,
+                    time: time || DASH,
+                    budget: criteria.price_max ? '< ' + OAK.fmtPrice(criteria.price_max) : DASH,
+                };
+            },
+
+            async send(text) {
+                var message = (text || '').trim();
+                if (!message || this.sending) {
+                    return;
+                }
+                this.sending = true;
+                this.input = '';
+                this.messages.push({ role: 'user', text: message });
+                try {
+                    var data = await OAK.api('/api/search/assistant', {
+                        method: 'POST',
+                        body: { message: message, criteria: this.criteria },
+                    });
+                    this.criteria = data.criteria;
+                    this.chips = data.chips;
+                    this.messages.push({ role: 'assistant', text: data.reply });
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.sending = false;
+                }
+            },
+
+            startSearch() {
+                var params = new URLSearchParams();
+                var criteria = this.criteria;
+                SEARCH_KEYS.forEach(function (key) {
+                    if (criteria[key] !== undefined && criteria[key] !== null && criteria[key] !== '') {
+                        params.set(key, criteria[key]);
+                    }
+                });
+                var query = params.toString();
+                location.href = 'ket-qua-tim-kiem.html' + (query ? '?' + query : '');
+            },
+
+            editCriteria() {
+                this.$refs.input.focus();
+            },
+        };
+    }
+</script>
 </body></html>

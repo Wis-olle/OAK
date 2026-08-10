@@ -1,0 +1,346 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<script src="assets/js/tailwind-36d3755fef.js"></script>
+<script src="assets/js/oak-tailwind-config.js"></script>
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
+<style>
+        /* Underlined inputs with floating labels (shared with the auth pages) */
+        .input-minimal {
+            border: none; border-bottom: 1px solid #c4c7c7; background-color: transparent;
+            padding: 12px 0; border-radius: 0; outline: none; box-shadow: none;
+            transition: border-color 0.3s ease; width: 100%;
+        }
+        .input-minimal:focus { border-bottom-color: #171818; box-shadow: none; }
+        .floating-label {
+            position: absolute; top: 12px; left: 0; pointer-events: none;
+            transition: 0.3s ease all; color: #747878;
+        }
+        .input-minimal:focus ~ .floating-label,
+        .input-minimal:not(:placeholder-shown) ~ .floating-label {
+            top: -12px; font-size: 12px; color: #171818;
+        }
+        /* Selects always hold a value, so their label sits in the raised position. */
+        .select-label { position: absolute; top: -12px; left: 0; font-size: 12px; color: #171818; }
+    </style>
+<title>Hồ sơ cá nhân - OAK Beauty</title>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
+<!-- TopNavBar -->
+<header @keydown.escape.window="menuOpen = false" class="glass-nav fixed top-0 w-full z-50 transition-colors" x-data="{ menuOpen: false }">
+<div class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed hover:opacity-80 transition-opacity shrink-0" href="index.html">OAK Beauty</a>
+<nav aria-label="Điều hướng chính" class="hidden md:flex items-center gap-8">
+<div class="relative group">
+<a class="flex items-center gap-1 font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="kham-pha.html">Khám phá<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
+<div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
+<div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
+<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="index.html">Trang chủ</a>
+<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
+</div>
+</div>
+</div>
+<div class="relative group">
+<a class="flex items-center gap-1 font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="ket-qua-tim-kiem.html">Dịch vụ<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
+<div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
+<div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-nail.html">NAIL</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="cham-soc-da.html">SKINCARE</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="spa-massage.html">SPA &amp; MASSAGE</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html">EYELASH</a>
+<div class="border-t border-outline-variant/30 my-1"></div>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+</div>
+</div>
+</div>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
+</nav>
+<div class="flex items-center gap-4">
+<a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</a>
+<button aria-label="Chọn khu vực" class="hidden xl:flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]" data-icon="location_on">location_on</span>
+<span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
+<span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</a>
+<a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+</a>
+<a class="hidden md:inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="dat-lich.html">Đặt lịch</a>
+<a aria-label="Tài khoản" class="block w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/30 shrink-0" href="dang-nhap-nguoi-dung.html">
+<img alt="Ảnh đại diện người dùng" class="w-full h-full object-cover" data-alt="A close up portrait of an elegant young Asian woman with glowing, flawless skin, subtle natural makeup, her dark hair pulled back neatly. The lighting is soft and high-key, creating a pristine, premium beauty aesthetic." src="assets/images/img-b79c0642dd.jpg">
+</a>
+<button :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen" aria-controls="mobile-menu" aria-expanded="false" aria-label="Menu" class="md:hidden flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined" data-icon="menu" x-show="!menuOpen">menu</span>
+<span class="material-symbols-outlined" data-icon="close" x-cloak="" x-show="menuOpen">close</span>
+</button>
+</div>
+</div>
+<!-- Mobile menu panel -->
+<div @click.outside="menuOpen = false" class="md:hidden bg-surface border-b border-outline-variant/30 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain" id="mobile-menu" x-cloak="" x-show="menuOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-end="opacity-100 translate-y-0" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:leave="transition ease-in duration-150" x-transition:leave-end="opacity-0 -translate-y-2" x-transition:leave-start="opacity-100 translate-y-0">
+<nav @click="menuOpen = false" aria-label="Điều hướng di động" class="flex flex-col px-margin-mobile py-2">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="kham-pha.html">Khám phá</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="index.html">Trang chủ</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-nail.html">NAIL</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
+<a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
+</nav>
+</div>
+</header>
+<!-- Main Content -->
+<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full" x-data="oakProfile()">
+<!-- x-if (not x-show): nothing inside may be evaluated until requireLogin has resolved. -->
+<template x-if="user">
+<div>
+<div class="mt-8 mb-8 border-b border-outline-variant/30 pb-4">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Hồ sơ cá nhân</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Cập nhật thông tin để chúng tôi phục vụ bạn tốt hơn.</p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left: Profile card -->
+<aside class="lg:col-span-4">
+<div class="bg-surface-container-low rounded-2xl p-8 flex flex-col items-center text-center">
+<div class="relative mb-6">
+<div class="w-28 h-28 rounded-full overflow-hidden bg-surface-variant border-2 border-surface shadow-sm">
+<img :src="avatarSrc()" alt="Ảnh đại diện" class="w-full h-full object-cover">
+</div>
+<button :disabled="uploading" @click="$refs.avatarInput.click()" aria-label="Đổi ảnh đại diện" class="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-primary-container text-on-primary flex items-center justify-center hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">
+<span class="material-symbols-outlined text-[20px]" data-icon="photo_camera">photo_camera</span>
+</button>
+<input @change="uploadAvatar($event)" accept="image/png, image/jpeg, image/webp" class="hidden" type="file" x-ref="avatarInput">
+</div>
+<p class="font-caption text-caption text-on-surface-variant mb-4" x-show="uploading">Đang tải ảnh lên...</p>
+<h2 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="user.name"></h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-1" x-text="user.email"></p>
+<p class="font-caption text-caption text-outline mb-6" x-text="'Thành viên từ ' + OAK.fmtDate(user.created_at)"></p>
+<span class="inline-flex items-center gap-1 bg-tertiary-fixed text-on-tertiary-fixed-variant font-caption text-caption px-3 py-1 rounded-full mb-8" x-text="user.role === 'partner' ? 'Tài khoản đối tác' : 'Thành viên OAK'"></span>
+<button @click="OAK.logout()" class="w-full border border-outline text-primary font-label-md text-label-md py-3 uppercase tracking-wider rounded-full hover:bg-surface-variant/50 transition-colors" type="button">
+                    Đăng xuất
+                </button>
+</div>
+</aside>
+<!-- Right: Editable form -->
+<section class="lg:col-span-8">
+<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-6 md:p-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-8">Thông tin của bạn</h2>
+<form @submit.prevent="save()" class="grid grid-cols-1 md:grid-cols-2 gap-x-gutter gap-y-8">
+<div class="relative pt-4">
+<input class="input-minimal font-body-md text-body-md text-primary" id="profile-name" name="name" placeholder=" " required="" type="text" x-model="form.name">
+<label class="floating-label font-label-md uppercase tracking-widest" for="profile-name">Họ và tên</label>
+</div>
+<div class="relative pt-4">
+<input class="input-minimal font-body-md text-body-md text-primary" id="profile-phone" name="phone" placeholder=" " type="tel" x-model="form.phone">
+<label class="floating-label font-label-md uppercase tracking-widest" for="profile-phone">Số điện thoại</label>
+</div>
+<div class="relative pt-4">
+<select class="input-minimal font-body-md text-body-md text-primary" id="profile-city" name="city" x-model="form.city" @change="form.district = (districts[$event.target.value] || [])[0]">
+<option value="TP.HCM">TP.HCM</option>
+<option value="Hà Nội">Hà Nội</option>
+<option value="Đà Nẵng">Đà Nẵng</option>
+</select>
+<label class="select-label font-label-md uppercase tracking-widest" for="profile-city">Thành phố</label>
+</div>
+<div class="relative pt-4">
+<select class="input-minimal font-body-md text-body-md text-primary" id="profile-district" name="district" x-model="form.district">
+<template x-for="d in (districts[form.city] || [])" :key="d">
+<option :value="d" x-text="d"></option>
+</template>
+</select>
+<label class="select-label font-label-md uppercase tracking-widest" for="profile-district">Quận / Huyện</label>
+</div>
+<div class="relative pt-4 md:col-span-2">
+<input class="input-minimal font-body-md text-body-md text-on-surface-variant cursor-not-allowed" disabled="" id="profile-email" name="email" placeholder=" " type="email" :value="user.email">
+<label class="select-label font-label-md uppercase tracking-widest" for="profile-email">Email</label>
+<p class="font-caption text-caption text-outline mt-2">Email đăng nhập không thể thay đổi.</p>
+</div>
+<div class="md:col-span-2 flex justify-end pt-2">
+<button :disabled="busy" class="bg-primary-container text-on-primary py-4 px-10 rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors duration-300 disabled:opacity-60" type="submit" x-text="busy ? 'Đang lưu...' : 'Lưu thay đổi'">
+                            Lưu thay đổi
+                        </button>
+</div>
+</form>
+</div>
+<!-- Account shortcuts -->
+<h2 class="font-headline-sm text-headline-sm text-primary mt-12 mb-6">Tài khoản của tôi</h2>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-gutter">
+<a class="flex flex-col items-center justify-center text-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="lich-hen-cua-toi.html">
+<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="calendar_month">calendar_month</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Lịch hẹn của tôi</span>
+</a>
+<a class="flex flex-col items-center justify-center text-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="yeu-thich.html">
+<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="favorite">favorite</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Yêu thích</span>
+</a>
+<a class="flex flex-col items-center justify-center text-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="danh-gia-cua-toi.html">
+<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="star_rate">star_rate</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Đánh giá của tôi</span>
+</a>
+<a class="flex flex-col items-center justify-center text-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="thong-bao.html">
+<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="notifications">notifications</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Thông báo</span>
+</a>
+<a class="flex flex-col items-center justify-center text-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="uu-dai.html">
+<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="local_offer">local_offer</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Ưu đãi</span>
+</a>
+<a class="flex flex-col items-center justify-center text-center p-6 bg-secondary-container text-on-secondary-container hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="tong-quan-doi-tac.html" x-show="user.role === 'partner'">
+<span class="material-symbols-outlined text-4xl mb-4 group-hover:text-on-tertiary transition-colors font-light" data-icon="storefront">storefront</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Trang đối tác</span>
+</a>
+</div>
+</section>
+</div>
+</div>
+</template>
+</main>
+<!-- Footer -->
+<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<!-- Brand Column -->
+<div class="col-span-1 md:col-span-1 flex flex-col gap-4">
+<span class="font-headline-sm text-headline-sm text-on-tertiary font-bold">OAK Beauty</span>
+<p class="font-caption text-caption text-on-tertiary/70 mt-4 max-w-xs">
+                    Nâng tầm vẻ đẹp Việt.<br>
+                    Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
+                </p>
+</div>
+<!-- Links Columns -->
+<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Ưu đãi</a>
+</div>
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
+</div>
+</div>
+<!-- Social/Contact -->
+<div class="col-span-1 flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
+<div class="flex gap-4">
+<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+</div>
+</div>
+</div>
+<!-- Copyright -->
+<div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
+</div>
+</footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+
+    var OAK_DEFAULT_AVATAR = 'assets/images/img-b79c0642dd.jpg';
+
+    function oakProfile() {
+        return {
+            user: null,
+            form: { name: '', phone: '', city: '', district: '' },
+            districts: {
+                'TP.HCM': ['Quận 1', 'Quận 2', 'Quận 3', 'Quận 4', 'Quận 5', 'Quận 6', 'Quận 7', 'Quận 8', 'Quận 9', 'Quận 10', 'Quận 11', 'Quận 12', 'Quận Bình Thạnh', 'Quận Bình Tân', 'Quận Gò Vấp', 'Quận Phú Nhuận', 'Quận Tân Bình', 'Quận Tân Phú', 'Thủ Đức', 'Huyện Bình Chánh', 'Huyện Cần Giờ', 'Huyện Củ Chi', 'Huyện Hóc Môn', 'Huyện Nhà Bè'],
+                'Hà Nội': ['Quận Ba Đình', 'Quận Hoàn Kiếm', 'Quận Tây Hồ', 'Quận Long Biên', 'Quận Cầu Giấy', 'Quận Đống Đa', 'Quận Hai Bà Trưng', 'Quận Hoàng Mai', 'Quận Thanh Xuân', 'Quận Hà Đông', 'Quận Nam Từ Liêm', 'Quận Bắc Từ Liêm'],
+                'Đà Nẵng': ['Quận Hải Châu', 'Quận Thanh Khê', 'Quận Sơn Trà', 'Quận Ngũ Hành Sơn', 'Quận Liên Chiểu', 'Quận Cẩm Lệ', 'Huyện Hòa Vang'],
+            },
+            busy: false,
+            uploading: false,
+
+            async init() {
+                const user = await OAK.requireLogin();
+                this.form = {
+                    name: user.name || '',
+                    phone: user.phone || '',
+                    city: user.city || 'TP.HCM',
+                    district: user.district || 'Quận 1',
+                };
+                // Set last: the form markup only renders once this is non-null, so the
+                // selects find their stored value already in state.
+                this.user = user;
+            },
+
+            avatarSrc() {
+                return (this.user && this.user.avatar) || OAK_DEFAULT_AVATAR;
+            },
+
+            async save() {
+                this.busy = true;
+                try {
+                    const data = await OAK.api('/api/users/me', { method: 'PATCH', body: this.form });
+                    this.user = data.user;
+                    OAK.toast('Đã cập nhật hồ sơ.');
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.busy = false;
+                }
+            },
+
+            /** Read the file as a data URL, store it, then point the profile at the saved copy. */
+            async uploadAvatar(event) {
+                const file = event.target.files[0];
+                event.target.value = '';
+                if (!file) {
+                    return;
+                }
+
+                this.uploading = true;
+                try {
+                    const dataUrl = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = () => reject(new Error('Không đọc được tệp ảnh.'));
+                        reader.readAsDataURL(file);
+                    });
+
+                    const upload = await OAK.api('/api/uploads', {
+                        method: 'POST',
+                        body: { filename: file.name, data: dataUrl },
+                    });
+                    const data = await OAK.api('/api/users/me', {
+                        method: 'PATCH',
+                        body: { avatar: upload.url },
+                    });
+                    this.user = data.user;
+                    OAK.toast('Đã cập nhật ảnh đại diện.');
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.uploading = false;
+                }
+            },
+        };
+    }
+</script>
+</body></html>

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="assets/js/tailwind-36d3755fef.js"></script>
+<script src="assets/js/oak-tailwind-config.js"></script>
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
+<style>
+        /* Same floating-label field as the login pages. */
+        .input-minimal {
+            border: none; border-bottom: 1px solid #c4c7c7; background-color: transparent;
+            padding: 12px 0; border-radius: 0; outline: none; box-shadow: none;
+            transition: border-color 0.3s ease; width: 100%;
+        }
+        .input-minimal:focus { border-bottom-color: #171818; box-shadow: none; }
+        .floating-label {
+            position: absolute; top: 12px; left: 0; pointer-events: none;
+            transition: 0.3s ease all; color: #747878;
+        }
+        .input-minimal:focus ~ .floating-label,
+        .input-minimal:not(:placeholder-shown) ~ .floating-label {
+            top: -12px; font-size: 12px; color: #171818;
+        }
+        /* Selects and textareas are never ":placeholder-shown", so their label stays raised. */
+        .input-minimal.always-raised ~ .floating-label { top: -12px; font-size: 12px; color: #171818; }
+    </style>
+<title>Cài đặt salon - OAK Beauty</title>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="salonSettings()">
+<h1 class="sr-only">OAK Beauty — Cài đặt salon</h1>
+<!-- SideNavBar -->
+<nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container p-gutter z-50">
+<div class="mb-12">
+<h2 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h2>
+<p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest" data-oak-salon-name x-text="original ? original.name : 'Partner Dashboard'">Partner Dashboard</p>
+</div>
+<ul class="flex flex-col gap-2 flex-grow">
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="tong-quan-doi-tac.html">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md text-body-md">Tổng quan</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-lich-hen.html">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-body-md text-body-md">Lịch hẹn</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-dich-vu.html">
+<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<span class="font-body-md text-body-md">Dịch vụ</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-nhan-vien.html">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-body-md text-body-md">Nhân viên</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span class="font-body-md text-body-md">Báo cáo</span>
+</a>
+</li>
+<li>
+<a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim font-bold bg-surface-variant dark:bg-on-primary-fixed-variant scale-95 duration-150" href="cai-dat-salon.html">
+<span class="material-symbols-outlined fill" data-icon="settings">settings</span>
+<span class="font-body-md text-body-md">Cài đặt</span>
+</a>
+</li>
+</ul>
+<div class="mt-auto pt-8 border-t border-outline-variant/30">
+<div class="flex flex-col gap-1 mb-4">
+<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="index.html">
+<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
+<span class="font-body-md text-body-md">Xem trang khách</span>
+</a>
+<a @click.prevent="OAK.logout()" class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="dang-nhap-doi-tac.html">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-body-md text-body-md">Đăng xuất</span>
+</a>
+</div>
+<a class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html?new=1">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                Đặt lịch mới
+            </a>
+</div>
+</nav>
+<!-- TopNavBar -->
+<header class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-gutter md:ml-64 md:w-[calc(100%-16rem)] bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl top-0 sticky border-b border-outline-variant/30 dark:border-outline/20 z-40">
+<div class="flex items-center gap-4 min-w-0">
+<h2 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed truncate">Cài đặt salon</h2>
+</div>
+<div class="flex items-center gap-4 md:gap-6 shrink-0">
+<div class="relative hidden lg:block w-72">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
+<input aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm kiếm..." type="text"/>
+</div>
+<a aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" href="thong-bao.html">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</a>
+<a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
+<span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 block">
+<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover" src="assets/images/img-77a799e9a6.jpg"/>
+</span>
+<span class="font-label-md text-label-md text-primary hover:text-secondary transition-colors hidden sm:inline" x-text="user ? user.name : 'Profile'">Profile</span>
+</a>
+<a aria-label="Xem trang khách" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="index.html">
+<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
+</a>
+<a @click.prevent="OAK.logout()" aria-label="Đăng xuất" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="dang-nhap-doi-tac.html">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+</a>
+</div>
+</header>
+
+<!-- Main Content -->
+<main class="md:ml-64 p-margin-mobile md:p-margin-desktop pb-24 md:pb-margin-desktop">
+<!-- Page Header -->
+<div class="mb-10 flex flex-wrap justify-between items-end gap-4">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-background">Cài đặt salon</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2">Thông tin này hiển thị trên trang salon công khai của bạn.</p>
+</div>
+<a :href="'salon-profile-lala-nail-studio.html?salon=' + slug" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" target="_blank" x-cloak x-show="slug">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">open_in_new</span>
+                Xem trang công khai
+            </a>
+</div>
+
+<p class="font-body-md text-body-md text-on-surface-variant" x-cloak x-show="loading">Đang tải thông tin salon…</p>
+<p class="font-body-md text-body-md text-error" x-cloak x-show="!loading && loadError" x-text="loadError"></p>
+
+<form @submit.prevent="save()" class="grid grid-cols-1 lg:grid-cols-3 gap-12" x-cloak x-show="!loading && !loadError">
+<!-- Left column: profile fields -->
+<div class="lg:col-span-2 space-y-12">
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-8">Thông tin cơ bản</h3>
+<div class="space-y-10">
+<div class="relative">
+<input class="input-minimal font-body-md text-body-md text-primary" id="salon-name" placeholder=" " required="" type="text" x-model="form.name"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-name">Tên salon</label>
+</div>
+<div class="relative">
+<textarea class="input-minimal always-raised font-body-md text-body-md text-primary resize-y" id="salon-description" placeholder=" " rows="4" x-model="form.description"></textarea>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-description">Mô tả</label>
+</div>
+<div class="relative">
+<input class="input-minimal font-body-md text-body-md text-primary" id="salon-address" placeholder=" " type="text" x-model="form.address"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-address">Địa chỉ</label>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+<div class="relative">
+<select class="input-minimal always-raised font-body-md text-body-md text-primary" id="salon-district" x-model="form.district">
+<template x-for="option in districtOptions" :key="option">
+<option :value="option" x-text="option"></option>
+</template>
+</select>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-district">Quận/Huyện</label>
+</div>
+<div class="relative">
+<input class="input-minimal font-body-md text-body-md text-primary" id="salon-city" placeholder=" " type="text" x-model="form.city"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-city">Tỉnh/Thành phố</label>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+<div class="relative">
+<input class="input-minimal font-body-md text-body-md text-primary" id="salon-phone" placeholder=" " type="tel" x-model="form.phone"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-phone">Số điện thoại</label>
+</div>
+<div class="relative">
+<input class="input-minimal always-raised font-body-md text-body-md text-primary" id="salon-open" required="" type="time" x-model="form.open_time"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-open">Giờ mở cửa</label>
+</div>
+<div class="relative">
+<input class="input-minimal always-raised font-body-md text-body-md text-primary" id="salon-close" required="" type="time" x-model="form.close_time"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-close">Giờ đóng cửa</label>
+</div>
+</div>
+<div class="relative">
+<input class="input-minimal font-body-md text-body-md text-primary" id="salon-tour" placeholder=" " type="url" x-model="form.tour_url"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-tour">Đường dẫn tour 360°</label>
+</div>
+</div>
+</section>
+
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Tiện ích</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Chọn những tiện ích salon của bạn đang có.</p>
+<div class="flex flex-wrap gap-2">
+<template x-for="amenity in amenityOptions" :key="amenity">
+<button :aria-pressed="form.amenities.includes(amenity) ? 'true' : 'false'"
+        :class="form.amenities.includes(amenity) ? 'bg-primary-container text-on-primary border-primary-container' : 'bg-transparent text-on-surface-variant border-outline-variant hover:border-primary'"
+        @click="toggleAmenity(amenity)"
+        class="px-4 py-2 rounded-full border font-body-md text-body-md transition-colors"
+        type="button"
+        x-text="amenity"></button>
+</template>
+</div>
+<div class="relative mt-10">
+<input class="input-minimal font-body-md text-body-md text-primary" id="salon-tags" placeholder=" " type="text" x-model="tagsText"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-tags">Thẻ phân loại (cách nhau bởi dấu phẩy)</label>
+</div>
+<p class="font-caption text-caption text-on-surface-variant mt-2">Ví dụ: Nail, Cao cấp, Gần trung tâm</p>
+</section>
+</div>
+
+<!-- Right column: cover image + save -->
+<div class="space-y-12">
+<section class="bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-6">Ảnh bìa</h3>
+<div class="aspect-[4/3] w-full rounded-xl overflow-hidden bg-surface-variant mb-4">
+<img alt="Ảnh bìa salon" class="w-full h-full object-cover" x-cloak x-show="form.image" :src="form.image"/>
+<div class="w-full h-full flex flex-col items-center justify-center text-on-surface-variant" x-cloak x-show="!form.image">
+<span aria-hidden="true" class="material-symbols-outlined text-[40px]">add_photo_alternate</span>
+<p class="font-caption text-caption mt-2">Chưa có ảnh bìa</p>
+</div>
+</div>
+<label class="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors cursor-pointer">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">upload</span>
+<span x-text="uploading ? 'Đang tải ảnh…' : 'Chọn ảnh mới'">Chọn ảnh mới</span>
+<input @change="uploadCover($event)" accept="image/jpeg,image/png,image/webp" class="sr-only" type="file"/>
+</label>
+</section>
+
+<section class="bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<p class="font-caption text-caption text-error mb-4" x-cloak x-show="error" x-text="error"></p>
+<button :disabled="saving || uploading" class="w-full bg-primary-container text-on-primary py-4 px-6 rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors disabled:opacity-60" type="submit" x-text="saving ? 'Đang lưu…' : 'Lưu thay đổi'">Lưu thay đổi</button>
+<button @click="fill(original)" class="w-full mt-3 py-4 px-6 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Hoàn tác</button>
+</section>
+</div>
+</form>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-1 py-2 flex justify-between items-center">
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="tong-quan-doi-tac.html">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Tổng quan</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-lich-hen.html">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Lịch hẹn</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-dich-vu.html">
+<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Dịch vụ</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-nhan-vien.html">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Nhân viên</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="bao-cao-doanh-thu.html">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Báo cáo</span>
+</a>
+<a aria-current="page" class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-secondary font-bold" href="cai-dat-salon.html">
+<span class="material-symbols-outlined fill" data-icon="settings">settings</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
+</a>
+</nav>
+<script>
+    /* Inline (not deferred) so the factory exists before Alpine boots. */
+
+    var HCMC_DISTRICTS = [
+        'Quận 1', 'Quận 3', 'Quận 4', 'Quận 5', 'Quận 6', 'Quận 7', 'Quận 8',
+        'Quận 10', 'Quận 11', 'Quận 12', 'Quận Bình Thạnh', 'Quận Gò Vấp',
+        'Quận Phú Nhuận', 'Quận Tân Bình', 'Quận Tân Phú', 'TP. Thủ Đức',
+        'Huyện Bình Chánh', 'Huyện Hóc Môn', 'Huyện Nhà Bè',
+    ];
+
+    var AMENITIES = [
+        'Wifi miễn phí', 'Chỗ đậu xe', 'Phòng VIP', 'Phòng riêng', 'Phòng đôi',
+        'Nước uống miễn phí', 'Trà thảo mộc', 'Trà & bánh ngọt', 'Gội massage đầu',
+        'Phòng xông hơi', 'Tư vấn soi da miễn phí', 'Thanh toán thẻ',
+    ];
+
+    /** Keep the salon's own value in the list even when it is not one of the presets. */
+    function withCurrent(options, current) {
+        return current && options.indexOf(current) === -1 ? [current].concat(options) : options;
+    }
+
+    function salonSettings() {
+        return {
+            loading: true,
+            loadError: '',
+            saving: false,
+            uploading: false,
+            error: '',
+            user: null,
+            slug: '',
+            tagsText: '',
+            original: null,
+            form: {
+                name: '', description: '', address: '', district: '', city: '',
+                phone: '', image: '', open_time: '', close_time: '', tour_url: '',
+                amenities: [],
+            },
+
+            async init() {
+                await OAK.requirePartner();
+                this.user = await OAK.me();
+                try {
+                    var salon = await OAK.api('/api/partner/salon');
+                    this.slug = salon.slug;
+                    this.original = salon;
+                    this.fill(salon);
+                } catch (error) {
+                    this.loadError = error.message;
+                }
+                this.loading = false;
+            },
+
+            get amenityOptions() {
+                var extra = this.form.amenities.filter(function (amenity) {
+                    return AMENITIES.indexOf(amenity) === -1;
+                });
+                return AMENITIES.concat(extra);
+            },
+
+            get districtOptions() {
+                return withCurrent(HCMC_DISTRICTS, this.form.district);
+            },
+
+            /** Null columns become empty strings so the inputs stay controlled. */
+            fill(salon) {
+                var self = this;
+                Object.keys(this.form).forEach(function (field) {
+                    if (field !== 'amenities') {
+                        self.form[field] = salon[field] || '';
+                    }
+                });
+                this.form.amenities = (salon.amenities || []).slice();
+                this.tagsText = (salon.tags || []).join(', ');
+                this.error = '';
+            },
+
+            toggleAmenity(amenity) {
+                var index = this.form.amenities.indexOf(amenity);
+                if (index === -1) {
+                    this.form.amenities.push(amenity);
+                } else {
+                    this.form.amenities.splice(index, 1);
+                }
+            },
+
+            async uploadCover(event) {
+                var file = event.target.files[0];
+                if (!file) {
+                    return;
+                }
+                this.uploading = true;
+                this.error = '';
+                try {
+                    var dataUrl = await new Promise(function (resolve, reject) {
+                        var reader = new FileReader();
+                        reader.onload = function () { resolve(reader.result); };
+                        reader.onerror = function () { reject(new Error('Không đọc được tệp ảnh.')); };
+                        reader.readAsDataURL(file);
+                    });
+                    var uploaded = await OAK.api('/api/uploads', {
+                        method: 'POST',
+                        body: { filename: file.name, data: dataUrl },
+                    });
+                    this.form.image = uploaded.url;
+                    OAK.toast('Đã tải ảnh lên, nhớ bấm Lưu thay đổi.');
+                } catch (uploadError) {
+                    this.error = uploadError.message;
+                }
+                this.uploading = false;
+                // Re-selecting the same file must still fire a change event.
+                event.target.value = '';
+            },
+
+            async save() {
+                if (!this.form.name.trim()) {
+                    this.error = 'Vui lòng nhập tên salon.';
+                    return;
+                }
+                if (!this.form.open_time || !this.form.close_time) {
+                    this.error = 'Vui lòng nhập giờ mở cửa và giờ đóng cửa.';
+                    return;
+                }
+
+                this.saving = true;
+                this.error = '';
+                try {
+                    var saved = await OAK.api('/api/partner/salon', {
+                        method: 'PATCH',
+                        body: {
+                            name: this.form.name.trim(),
+                            description: this.form.description,
+                            address: this.form.address,
+                            district: this.form.district,
+                            city: this.form.city,
+                            phone: this.form.phone,
+                            image: this.form.image,
+                            open_time: this.form.open_time,
+                            close_time: this.form.close_time,
+                            tour_url: this.form.tour_url,
+                            amenities: this.form.amenities,
+                            tags: this.tagsText.split(',').map(function (tag) {
+                                return tag.trim();
+                            }).filter(Boolean),
+                        },
+                    });
+                    this.slug = saved.slug;
+                    this.original = saved;
+                    this.fill(saved);
+                    OAK.toast('Đã lưu thông tin salon.');
+                } catch (saveError) {
+                    this.error = saveError.message;
+                    OAK.toast(saveError.message, 'error');
+                }
+                this.saving = false;
+            },
+        };
+    }
+</script>
+</body></html>

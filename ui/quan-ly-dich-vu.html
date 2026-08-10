@@ -8,6 +8,7 @@
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <style>
         /* Availability toggle (this page only) */
         .toggle-checkbox:checked { right: 0; border-color: #2c2c2c; }
@@ -22,15 +23,19 @@
             background-color: white; border-radius: 50%; transition: transform 0.3s;
         }
     </style>
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
 <title>Quản lý Dịch vụ - OAK Beauty</title>
 </head>
-<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface">
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="oakPartnerServices()">
 <h1 class="sr-only">OAK Beauty — Partner Dashboard</h1>
 <!-- SideNavBar -->
 <nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container p-gutter z-50">
 <div class="mb-12">
 <h1 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h1>
-<p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest">Partner Dashboard</p>
+<p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest" data-oak-salon-name>Partner Dashboard</p>
 </div>
 <ul class="flex flex-col gap-2 flex-grow">
 <li>
@@ -58,7 +63,13 @@
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="#">
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="font-body-md text-body-md">Báo cáo</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="cai-dat-salon.html">
 <span class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-body-md text-body-md">Cài đặt</span>
 </a>
@@ -70,12 +81,12 @@
 <span class="material-symbols-outlined" data-icon="storefront">storefront</span>
 <span class="font-body-md text-body-md">Xem trang khách</span>
 </a>
-<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="dang-nhap-doi-tac.html">
+<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" data-oak-logout href="dang-nhap-doi-tac.html">
 <span class="material-symbols-outlined" data-icon="logout">logout</span>
 <span class="font-body-md text-body-md">Đăng xuất</span>
 </a>
 </div>
-<a class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html">
+<a class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html?new=1">
 <span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
                 Đặt lịch mới
             </a>
@@ -89,22 +100,21 @@
 <div class="flex items-center gap-4 md:gap-6 shrink-0">
 <div class="relative hidden lg:block w-72">
 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
-<input aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm kiếm..." type="text"/>
+<input @input.debounce.300ms="loadServices()" aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm dịch vụ..." type="text" x-model="query"/>
 </div>
-<button aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" type="button">
+<a aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-<span class="absolute top-0 right-0 w-2 h-2 bg-secondary rounded-full"></span>
-</button>
-<div class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30">
-<div class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0">
-<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover" data-alt="Close up portrait of a sophisticated salon owner in a modern, light-filled salon setting. Warm, natural lighting highlights professional demeanor. Editorial style photography, high end magazine look, soft focus background." src="assets/images/img-77a799e9a6.jpg"/>
-</div>
-<span class="font-label-md text-label-md text-primary cursor-pointer hover:text-secondary transition-colors hidden sm:inline">Profile</span>
-</div>
+</a>
+<a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
+<span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 block">
+<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover" data-oak-user-avatar src="assets/images/img-77a799e9a6.jpg"/>
+</span>
+<span class="font-label-md text-label-md text-primary hidden sm:inline" data-oak-user-name>Đối tác</span>
+</a>
 <a aria-label="Xem trang khách" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="index.html">
 <span class="material-symbols-outlined" data-icon="storefront">storefront</span>
 </a>
-<a aria-label="Đăng xuất" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="dang-nhap-doi-tac.html">
+<a aria-label="Đăng xuất" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" data-oak-logout href="dang-nhap-doi-tac.html">
 <span class="material-symbols-outlined" data-icon="logout">logout</span>
 </a>
 </div>
@@ -117,158 +127,270 @@
 <div class="p-margin-desktop max-w-container-max mx-auto w-full flex-grow">
 <div class="flex flex-wrap justify-between items-end gap-4 mb-12">
 <div>
-<h2 class="font-headline-lg text-headline-lg text-on-surface mb-2">Service Management</h2>
-<p class="font-body-md text-body-md text-on-surface-variant">Curate and manage your high-end salon offerings.</p>
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-2">Quản lý dịch vụ</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Xây dựng và cập nhật bảng dịch vụ của salon.</p>
 </div>
-<button class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-3 px-6 hover:bg-primary transition-all rounded-full flex items-center gap-2">
+<button @click="openServiceForm(null)" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-3 px-6 hover:bg-primary transition-all rounded-full flex items-center gap-2">
 <span class="material-symbols-outlined" data-icon="add">add</span>
-                    Add New Service
+                    Thêm dịch vụ
                 </button>
 </div>
 <!-- Categories -->
 <div class="flex gap-4 mb-8 overflow-x-auto pb-2">
-<button class="bg-tertiary text-on-tertiary font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap">All Services</button>
-<button class="bg-surface-container text-on-surface font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap hover:bg-surface-variant transition-colors">Hair Styling</button>
-<button class="bg-surface-container text-on-surface font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap hover:bg-surface-variant transition-colors">Coloring</button>
-<button class="bg-surface-container text-on-surface font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap hover:bg-surface-variant transition-colors">Treatments</button>
-<button class="bg-surface-container text-on-surface font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap hover:bg-surface-variant transition-colors">Nails</button>
+<button :class="category === '' ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container text-on-surface hover:bg-surface-variant'" @click="setCategory('')" class="font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap transition-colors" x-text="'Tất cả (' + totalCount() + ')'"></button>
+<template :key="item.key" x-for="item in categoryChips()">
+<button :class="category === item.key ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container text-on-surface hover:bg-surface-variant'" @click="setCategory(item.key)" class="font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap transition-colors" x-text="item.label + ' (' + item.count + ')'"></button>
+</template>
 </div>
 <!-- Services Grid -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-section-gap">
-<!-- Service Card 1 -->
-<div class="group relative bg-surface-container-lowest hover:bg-surface-container-low transition-colors duration-300 rounded-lg overflow-hidden border border-transparent hover:border-outline-variant/30 flex flex-col h-full">
-<div class="aspect-[4/3] w-full overflow-hidden relative">
-<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="A model with perfectly styled, voluminous blowout hair in a bright, modern salon setting. Soft, natural light filtering through large windows. Minimalist aesthetic, luxury vibe, high-fashion editorial styling, sharp focus on the hair texture." src="assets/images/img-054821048a.jpg"/>
+<div :class="{ 'opacity-50': loading }" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-section-gap transition-opacity">
+<template :key="service.id" x-for="service in services">
+<div :class="service.active ? 'bg-surface-container-lowest' : 'bg-surface-container-lowest/50 opacity-75'" class="group relative hover:bg-surface-container-low transition-colors duration-300 rounded-lg overflow-hidden border border-transparent hover:border-outline-variant/30 flex flex-col h-full">
+<div class="aspect-[4/3] w-full overflow-hidden relative bg-surface-container-low">
+<template x-if="service.image">
+<img :class="service.active ? '' : 'grayscale opacity-80 group-hover:grayscale-0'" :src="service.image" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
+</template>
+<template x-if="!service.image">
+<div class="w-full h-full flex items-center justify-center text-outline-variant">
+<span class="material-symbols-outlined text-[40px]">image</span>
+</div>
+</template>
 <div class="absolute top-4 right-4 bg-surface-container-lowest/90 backdrop-blur px-3 py-1 rounded-full flex items-center gap-2">
-<input checked="" class="hidden toggle-checkbox" id="toggle1" type="checkbox"/>
-<label class="toggle-label" for="toggle1"></label>
-<span class="font-caption text-caption text-on-surface">Active</span>
+<input :checked="service.active === 1" :id="'toggle-service-' + service.id" @change="toggleService(service)" class="hidden toggle-checkbox" type="checkbox"/>
+<label :for="'toggle-service-' + service.id" class="toggle-label"></label>
+<span :class="service.active ? 'text-on-surface' : 'text-on-surface-variant'" class="font-caption text-caption" x-text="service.active ? 'Đang hiển thị' : 'Đang ẩn'"></span>
 </div>
 </div>
 <div class="p-6 flex flex-col flex-grow">
-<div class="flex justify-between items-start mb-2">
-<h3 class="font-headline-sm text-headline-sm text-on-surface">Signature Blowout</h3>
-<span class="font-body-lg text-body-lg text-on-surface font-medium">$65</span>
+<div class="flex justify-between items-start gap-3 mb-2">
+<h3 :class="service.active ? 'text-on-surface' : 'text-on-surface-variant'" class="font-headline-sm text-headline-sm" x-text="service.name"></h3>
+<span :class="service.active ? 'text-on-surface' : 'text-on-surface-variant'" class="font-body-lg text-body-lg font-medium whitespace-nowrap" x-text="OAK.fmtPrice(service.price)"></span>
 </div>
-<p class="font-caption text-caption text-on-surface-variant mb-6 uppercase tracking-widest">45 Minutes • Hair Styling</p>
+<p class="font-caption text-caption text-on-surface-variant mb-6 uppercase tracking-widest" x-text="service.duration_min + ' phút • ' + categoryLabel(service.category)"></p>
 <div class="mt-auto flex gap-4 border-t border-outline-variant/20 pt-4">
-<button class="flex-1 text-center font-label-md text-label-md uppercase text-on-surface hover:text-secondary transition-colors">Edit</button>
+<button @click="openServiceForm(service)" class="flex-1 text-center font-label-md text-label-md uppercase text-on-surface hover:text-secondary transition-colors">Sửa</button>
 <div class="w-px bg-outline-variant/20"></div>
-<button class="flex-1 text-center font-label-md text-label-md uppercase text-error hover:text-on-error-container transition-colors">Hide</button>
-</div>
-</div>
-</div>
-<!-- Service Card 2 -->
-<div class="group relative bg-surface-container-lowest hover:bg-surface-container-low transition-colors duration-300 rounded-lg overflow-hidden border border-transparent hover:border-outline-variant/30 flex flex-col h-full">
-<div class="aspect-[4/3] w-full overflow-hidden relative">
-<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Close up of a stylist applying balayage hair color to a client. Detailed view of the foil technique. Bright, sterile yet warm salon environment. High resolution, crisp details, luxurious and professional aesthetic, shallow depth of field." src="assets/images/img-02a07813e8.jpg"/>
-<div class="absolute top-4 right-4 bg-surface-container-lowest/90 backdrop-blur px-3 py-1 rounded-full flex items-center gap-2">
-<input checked="" class="hidden toggle-checkbox" id="toggle2" type="checkbox"/>
-<label class="toggle-label" for="toggle2"></label>
-<span class="font-caption text-caption text-on-surface">Active</span>
-</div>
-</div>
-<div class="p-6 flex flex-col flex-grow">
-<div class="flex justify-between items-start mb-2">
-<h3 class="font-headline-sm text-headline-sm text-on-surface">Balayage &amp; Tone</h3>
-<span class="font-body-lg text-body-lg text-on-surface font-medium">$220</span>
-</div>
-<p class="font-caption text-caption text-on-surface-variant mb-6 uppercase tracking-widest">180 Minutes • Coloring</p>
-<div class="mt-auto flex gap-4 border-t border-outline-variant/20 pt-4">
-<button class="flex-1 text-center font-label-md text-label-md uppercase text-on-surface hover:text-secondary transition-colors">Edit</button>
+<button @click="toggleService(service)" class="flex-1 text-center font-label-md text-label-md uppercase text-on-surface hover:text-primary transition-colors" x-text="service.active ? 'Ẩn' : 'Hiện'"></button>
 <div class="w-px bg-outline-variant/20"></div>
-<button class="flex-1 text-center font-label-md text-label-md uppercase text-error hover:text-on-error-container transition-colors">Hide</button>
+<button @click="removeService(service)" class="flex-1 text-center font-label-md text-label-md uppercase text-error hover:text-on-error-container transition-colors">Xoá</button>
 </div>
 </div>
 </div>
-<!-- Service Card 3 (Inactive) -->
-<div class="group relative bg-surface-container-lowest/50 hover:bg-surface-container-low transition-colors duration-300 rounded-lg overflow-hidden border border-transparent hover:border-outline-variant/30 flex flex-col h-full opacity-75">
-<div class="aspect-[4/3] w-full overflow-hidden relative">
-<img class="w-full h-full object-cover grayscale opacity-80 group-hover:scale-105 transition-transform duration-700 group-hover:grayscale-0" data-alt="A serene spa setup for a scalp treatment. Essential oil bottles, pristine white towels, and soft neutral tones. Minimalist, calming atmosphere. Soft, diffused lighting, editorial still life photography, luxury spa vibe." src="assets/images/img-0b813a4c94.jpg"/>
-<div class="absolute top-4 right-4 bg-surface-container-lowest/90 backdrop-blur px-3 py-1 rounded-full flex items-center gap-2">
-<input class="hidden toggle-checkbox" id="toggle3" type="checkbox"/>
-<label class="toggle-label" for="toggle3"></label>
-<span class="font-caption text-caption text-on-surface-variant">Inactive</span>
-</div>
-</div>
-<div class="p-6 flex flex-col flex-grow">
-<div class="flex justify-between items-start mb-2">
-<h3 class="font-headline-sm text-headline-sm text-on-surface-variant">Keratin Smoothing</h3>
-<span class="font-body-lg text-body-lg text-on-surface-variant font-medium">$250</span>
-</div>
-<p class="font-caption text-caption text-on-surface-variant mb-6 uppercase tracking-widest">120 Minutes • Treatments</p>
-<div class="mt-auto flex gap-4 border-t border-outline-variant/20 pt-4">
-<button class="flex-1 text-center font-label-md text-label-md uppercase text-on-surface hover:text-secondary transition-colors">Edit</button>
-<div class="w-px bg-outline-variant/20"></div>
-<button class="flex-1 text-center font-label-md text-label-md uppercase text-on-surface hover:text-primary transition-colors">Show</button>
-</div>
-</div>
-</div>
+</template>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading && services.length === 0">Chưa có dịch vụ nào phù hợp.</p>
 </div>
 <!-- Special Offers Section (Bento Grid Style) -->
 <div class="mb-section-gap">
 <div class="flex justify-between items-end mb-8">
-<h2 class="font-headline-md text-headline-md text-on-surface">Special Offers &amp; Combos</h2>
-<button class="text-secondary font-label-md text-label-md uppercase hover:underline">Manage All Offers</button>
+<h2 class="font-headline-md text-headline-md text-on-surface">Ưu đãi &amp; Combo</h2>
+<button @click="openPromotionForm(null)" class="text-secondary font-label-md text-label-md uppercase hover:underline">Thêm ưu đãi</button>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[250px]">
-<!-- Large Feature Combo -->
-<div class="md:col-span-2 bg-surface-container-high rounded-xl p-8 flex flex-col justify-between relative overflow-hidden group">
+<template :key="promotion.id" x-for="(promotion, index) in promotions">
+<div :class="index === 0 ? 'md:col-span-2 bg-surface-container-high' : 'bg-surface-container border border-outline-variant/20 hover:border-outline-variant'" class="rounded-xl p-8 flex flex-col justify-between relative overflow-hidden group transition-colors">
+<template x-if="index === 0 && promotion.image">
 <div class="absolute inset-0 z-0">
-<img class="w-full h-full object-cover opacity-20 mix-blend-multiply transition-transform duration-1000 group-hover:scale-105" data-alt="Abstract soft focus background of salon interiors. Warm amber and neutral taupe tones blending together smoothly. Elegant, minimalist, luxury lifestyle aesthetic, high-key lighting." src="assets/images/img-62ca3b49cf.jpg"/>
+<img :src="promotion.image" alt="" class="w-full h-full object-cover opacity-20 mix-blend-multiply transition-transform duration-1000 group-hover:scale-105"/>
 </div>
-<div class="relative z-10 flex justify-between items-start">
+</template>
+<div class="relative z-10 flex justify-between items-start gap-4">
 <div>
-<span class="bg-primary text-on-primary font-caption text-caption uppercase px-3 py-1 rounded-full tracking-widest">Combo</span>
-<h3 class="font-headline-md text-headline-md text-on-surface mt-4 max-w-sm">Bridal Package: Hair &amp; Makeup Trial</h3>
+<span :class="index === 0 ? 'bg-primary text-on-primary px-3 py-1 rounded-full' : 'text-secondary'" class="font-caption text-caption uppercase tracking-widest" x-text="typeLabel(promotion.type)"></span>
+<h3 :class="index === 0 ? 'font-headline-md text-headline-md mt-4 max-w-sm' : 'font-headline-sm text-headline-sm mt-2'" class="text-on-surface" x-text="promotion.title"></h3>
 </div>
-<div class="text-right">
-<span class="block font-body-md text-body-md text-on-surface-variant line-through">$350</span>
-<span class="block font-headline-sm text-headline-sm text-primary">$295</span>
-</div>
-</div>
-<div class="relative z-10 flex justify-between items-end mt-auto">
-<p class="font-caption text-caption text-on-surface-variant uppercase tracking-widest">180 Minutes • Valid till Oct 31</p>
-<button class="border border-primary text-primary font-label-md text-label-md uppercase px-6 py-2 hover:bg-primary hover:text-on-primary transition-colors">Edit Combo</button>
+<div class="text-right shrink-0" x-show="promotion.sale_price">
+<span class="block font-body-md text-body-md text-on-surface-variant line-through" x-text="OAK.fmtPrice(promotion.original_price)"></span>
+<span class="block font-headline-sm text-headline-sm text-primary" x-text="OAK.fmtPrice(promotion.sale_price)"></span>
 </div>
 </div>
-<!-- Smaller Offer -->
-<div class="bg-surface-container rounded-xl p-8 flex flex-col justify-between border border-outline-variant/20 hover:border-outline-variant transition-colors">
-<div>
-<span class="text-secondary font-label-md text-label-md uppercase tracking-widest">Flash Sale</span>
-<h3 class="font-headline-sm text-headline-sm text-on-surface mt-2">Free Olaplex with Color</h3>
+<div class="relative z-10 mt-auto">
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 line-clamp-2" x-show="promotion.description" x-text="promotion.description"></p>
+<div class="flex justify-between items-end gap-4">
+<div class="flex items-center gap-3">
+<input :checked="promotion.active === 1" :id="'toggle-promotion-' + promotion.id" @change="togglePromotion(promotion)" class="hidden toggle-checkbox" type="checkbox"/>
+<label :for="'toggle-promotion-' + promotion.id" class="toggle-label"></label>
+<span class="font-caption text-caption text-on-surface-variant uppercase tracking-widest" x-text="promotionMeta(promotion)"></span>
 </div>
-<div class="mt-auto">
-<p class="font-body-md text-body-md text-on-surface-variant mb-4">Automatically applied to all balayage bookings.</p>
-<div class="flex justify-between items-center">
-<div class="flex items-center gap-2">
-<input checked="" class="hidden toggle-checkbox" id="toggle-offer1" type="checkbox"/>
-<label class="toggle-label" for="toggle-offer1"></label>
-</div>
-<button class="text-on-surface font-label-md text-label-md uppercase hover:text-secondary">Edit</button>
+<button :class="index === 0 ? 'border border-primary text-primary px-6 py-2 hover:bg-primary hover:text-on-primary' : 'text-on-surface hover:text-secondary'" @click="openPromotionForm(promotion)" class="font-label-md text-label-md uppercase transition-colors shrink-0">Sửa</button>
 </div>
 </div>
 </div>
+</template>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading && promotions.length === 0">Chưa có ưu đãi nào.</p>
 </div>
 </div>
 </div>
 </main>
-<script>
-        // Simple logic for custom toggle switches to look nice without external libraries
-        document.querySelectorAll('.toggle-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                const statusText = this.closest('div').querySelector('span');
-                if(this.checked) {
-                    statusText.textContent = 'Active';
-                    statusText.className = 'font-caption text-caption text-on-surface';
-                    // Optional: logic to change card opacity if checking/unchecking
-                } else {
-                    statusText.textContent = 'Inactive';
-                    statusText.className = 'font-caption text-caption text-on-surface-variant';
-                }
-            });
-        });
-    </script>
+<!-- Service Form Modal -->
+<div aria-labelledby="service-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="serviceOpen">
+<div @click="serviceOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="serviceOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
+<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto border border-outline-variant/20 flex flex-col" x-show="serviceOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="px-6 py-6 border-b border-outline-variant/20 flex justify-between items-center sticky top-0 bg-surface-container-lowest z-10">
+<h3 class="font-headline-sm text-headline-sm text-primary" id="service-title" x-text="serviceForm.id ? 'Sửa dịch vụ' : 'Thêm dịch vụ'"></h3>
+<button @click="serviceOpen = false" class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+<div class="px-6 py-8">
+<form @submit.prevent="submitService()" class="space-y-6" id="service-form">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-name">Tên dịch vụ</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-name" required type="text" x-model="serviceForm.name"/>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-category">Danh mục</label>
+<select class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-category" required x-model="serviceForm.category">
+<template :key="item.key" x-for="item in allCategories()">
+<option :value="item.key" x-text="item.label"></option>
+</template>
+</select>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-price">Giá (đ)</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-price" min="0" required step="1000" type="number" x-model="serviceForm.price"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-duration">Thời lượng (phút)</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-duration" min="0" required step="5" type="number" x-model="serviceForm.duration_min"/>
+</div>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-description">Mô tả</label>
+<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-description" rows="3" x-model="serviceForm.description"></textarea>
+</div>
+<div class="space-y-2">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-image">Ảnh dịch vụ</label>
+<div class="flex items-center gap-4">
+<div class="w-24 h-20 bg-surface-container-low border border-outline-variant/30 overflow-hidden flex items-center justify-center shrink-0">
+<template x-if="serviceForm.image">
+<img :src="serviceForm.image" alt="" class="w-full h-full object-cover"/>
+</template>
+<template x-if="!serviceForm.image">
+<span class="material-symbols-outlined text-outline-variant">image</span>
+</template>
+</div>
+<input @change="uploadImage($event, serviceForm)" accept=".jpg,.jpeg,.png,.webp" class="font-body-md text-body-md text-on-surface-variant" id="service-image" type="file"/>
+</div>
+</div>
+<p class="font-body-md text-body-md text-error" x-show="serviceError" x-text="serviceError"></p>
+</form>
+</div>
+<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4 sticky bottom-0">
+<button @click="serviceOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+                    Huỷ
+                </button>
+<button :disabled="saving" class="px-8 py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors rounded-full disabled:opacity-50" form="service-form" type="submit">
+                    Lưu
+                </button>
+</div>
+</div>
+</div>
+<!-- Promotion Form Modal -->
+<div aria-labelledby="promotion-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="promotionOpen">
+<div @click="promotionOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="promotionOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
+<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto border border-outline-variant/20 flex flex-col" x-show="promotionOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="px-6 py-6 border-b border-outline-variant/20 flex justify-between items-center sticky top-0 bg-surface-container-lowest z-10">
+<h3 class="font-headline-sm text-headline-sm text-primary" id="promotion-title" x-text="promotionForm.id ? 'Sửa ưu đãi' : 'Thêm ưu đãi'"></h3>
+<button @click="promotionOpen = false" class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+<div class="px-6 py-8">
+<form @submit.prevent="submitPromotion()" class="space-y-6" id="promotion-form">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-name">Tên ưu đãi</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-name" required type="text" x-model="promotionForm.title"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-type">Loại ưu đãi</label>
+<select class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-type" required x-model="promotionForm.type">
+<template :key="item.key" x-for="item in promotionTypes()">
+<option :value="item.key" x-text="item.label"></option>
+</template>
+</select>
+</div>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-description">Mô tả</label>
+<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-description" rows="2" x-model="promotionForm.description"></textarea>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-start">Bắt đầu</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-start" required type="date" x-model="promotionForm.starts_at"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-end">Kết thúc</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-end" required type="date" x-model="promotionForm.ends_at"/>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-original">Giá gốc (đ)</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-original" min="0" step="1000" type="number" x-model="promotionForm.original_price"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-sale">Giá ưu đãi (đ)</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-sale" min="0" step="1000" type="number" x-model="promotionForm.sale_price"/>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-percent">Giảm (%)</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-percent" min="0" type="number" x-model="promotionForm.discount_percent"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-amount">Giảm (đ)</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-amount" min="0" step="1000" type="number" x-model="promotionForm.discount_amount"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-code">Mã ưu đãi</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-code" type="text" x-model="promotionForm.code"/>
+</div>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-services">Dịch vụ áp dụng</label>
+<select class="w-full bg-surface-container-low border border-outline-variant/30 px-3 py-2 font-body-md text-body-md text-primary" id="promotion-services" multiple size="4" x-model="promotionForm.service_ids">
+<template :key="service.id" x-for="service in services">
+<option :value="service.id" x-text="service.name"></option>
+</template>
+</select>
+<p class="font-caption text-caption text-on-surface-variant">Giữ Ctrl để chọn nhiều dịch vụ.</p>
+</div>
+<div class="space-y-2">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-image">Ảnh ưu đãi</label>
+<div class="flex items-center gap-4">
+<div class="w-24 h-20 bg-surface-container-low border border-outline-variant/30 overflow-hidden flex items-center justify-center shrink-0">
+<template x-if="promotionForm.image">
+<img :src="promotionForm.image" alt="" class="w-full h-full object-cover"/>
+</template>
+<template x-if="!promotionForm.image">
+<span class="material-symbols-outlined text-outline-variant">image</span>
+</template>
+</div>
+<input @change="uploadImage($event, promotionForm)" accept=".jpg,.jpeg,.png,.webp" class="font-body-md text-body-md text-on-surface-variant" id="promotion-image" type="file"/>
+</div>
+</div>
+<p class="font-body-md text-body-md text-error" x-show="promotionError" x-text="promotionError"></p>
+</form>
+</div>
+<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-between gap-4 sticky bottom-0">
+<button @click="removePromotion()" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-error hover:text-on-error-container transition-colors" type="button" x-show="promotionForm.id">
+                    Xoá
+                </button>
+<div class="flex gap-4 ml-auto">
+<button @click="promotionOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+                    Huỷ
+                </button>
+<button :disabled="saving" class="px-8 py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors rounded-full disabled:opacity-50" form="promotion-form" type="submit">
+                    Lưu
+                </button>
+</div>
+</div>
+</div>
+</div>
 <!-- BottomNavBar (Mobile Only) -->
 <nav class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-1 py-2 flex justify-between items-center">
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="tong-quan-doi-tac.html">
@@ -287,9 +409,400 @@
 <span class="material-symbols-outlined" data-icon="group">group</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Nhân viên</span>
 </a>
-<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="#">
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="bao-cao-doanh-thu.html">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Báo cáo</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="cai-dat-salon.html">
 <span class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
 </a>
 </nav>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+    var OAK_CATEGORY_LABELS = {
+        hair: 'Tóc',
+        nail: 'Nail',
+        skincare: 'Chăm sóc da',
+        spa: 'Spa',
+        eyelash: 'Nối mi',
+        amenity: 'Tiện ích',
+    };
+    var OAK_PROMOTION_LABELS = {
+        discount: 'Giảm giá',
+        combo: 'Combo',
+        flash_sale: 'Flash Sale',
+    };
+
+    /* Partner chrome shared by all four console pages: owner name/avatar, salon name, logout. */
+    function oakPartnerChrome() {
+        document.querySelectorAll('[data-oak-logout]').forEach(function (link) {
+            link.addEventListener('click', function (event) {
+                event.preventDefault();
+                OAK.logout();
+            });
+        });
+
+        OAK.me().then(function (user) {
+            if (!user) {
+                return;
+            }
+            var name = document.querySelector('[data-oak-user-name]');
+            if (name) {
+                name.textContent = user.name;
+            }
+            var avatar = document.querySelector('[data-oak-user-avatar]');
+            if (avatar && user.avatar) {
+                avatar.src = user.avatar;
+            }
+        });
+
+        OAK.api('/api/partner/salon').then(
+            function (salon) {
+                var label = document.querySelector('[data-oak-salon-name]');
+                if (label) {
+                    label.textContent = salon.name;
+                }
+            },
+            function () {},
+        );
+    }
+
+    /* Read a picked file as base64 for POST /api/uploads. */
+    function oakReadFile(file) {
+        return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onload = function () {
+                // The server strips the data: prefix too, but sending the bare payload
+                // keeps the request honest about what it carries.
+                resolve(String(reader.result).replace(/^data:[^;]+;base64,/, ''));
+            };
+            reader.onerror = function () {
+                reject(new Error('Không đọc được tệp ảnh.'));
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function oakPartnerServices() {
+        return {
+            services: [],
+            promotions: [],
+            categories: {},
+            loading: true,
+            saving: false,
+            category: '',
+            query: '',
+            serviceOpen: false,
+            serviceForm: {},
+            serviceError: '',
+            promotionOpen: false,
+            promotionForm: {},
+            promotionError: '',
+
+            async init() {
+                await OAK.requirePartner();
+                this.query = OAK.qs('q') || '';
+                await this.loadServices();
+                await this.loadPromotions();
+            },
+
+            /* ---- services ---- */
+
+            async loadServices() {
+                this.loading = true;
+                var params = new URLSearchParams();
+                if (this.category) {
+                    params.set('category', this.category);
+                }
+                if (this.query.trim()) {
+                    params.set('q', this.query.trim());
+                }
+                try {
+                    var result = await OAK.api('/api/partner/services?' + params.toString());
+                    this.services = result;
+                    this.categories = result.meta.categories;
+                } catch (error) {
+                    this.services = [];
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            setCategory(key) {
+                this.category = key;
+                this.loadServices();
+            },
+
+            categoryLabel(key) {
+                return OAK_CATEGORY_LABELS[key] || key;
+            },
+
+            allCategories() {
+                return Object.keys(OAK_CATEGORY_LABELS).map(function (key) {
+                    return { key: key, label: OAK_CATEGORY_LABELS[key] };
+                });
+            },
+
+            promotionTypes() {
+                return Object.keys(OAK_PROMOTION_LABELS).map(function (key) {
+                    return { key: key, label: OAK_PROMOTION_LABELS[key] };
+                });
+            },
+
+            categoryChips() {
+                var categories = this.categories;
+                return Object.keys(categories)
+                    .filter(function (key) {
+                        return categories[key] > 0;
+                    })
+                    .map(function (key) {
+                        return {
+                            key: key,
+                            label: OAK_CATEGORY_LABELS[key] || key,
+                            count: categories[key],
+                        };
+                    });
+            },
+
+            totalCount() {
+                var categories = this.categories;
+                return Object.keys(categories).reduce(function (sum, key) {
+                    return sum + categories[key];
+                }, 0);
+            },
+
+            openServiceForm(service) {
+                this.serviceError = '';
+                this.serviceForm = service
+                    ? {
+                          id: service.id,
+                          name: service.name,
+                          category: service.category,
+                          price: service.price,
+                          duration_min: service.duration_min,
+                          description: service.description || '',
+                          image: service.image || '',
+                      }
+                    : {
+                          id: null,
+                          name: '',
+                          category: 'nail',
+                          price: '',
+                          duration_min: '',
+                          description: '',
+                          image: '',
+                      };
+                this.serviceOpen = true;
+            },
+
+            async submitService() {
+                this.saving = true;
+                this.serviceError = '';
+                var body = {
+                    name: this.serviceForm.name,
+                    category: this.serviceForm.category,
+                    price: this.serviceForm.price,
+                    duration_min: this.serviceForm.duration_min,
+                    description: this.serviceForm.description || null,
+                    image: this.serviceForm.image || null,
+                };
+                try {
+                    if (this.serviceForm.id) {
+                        await OAK.api('/api/partner/services/' + this.serviceForm.id, {
+                            method: 'PATCH',
+                            body: body,
+                        });
+                    } else {
+                        await OAK.api('/api/partner/services', { method: 'POST', body: body });
+                    }
+                    this.serviceOpen = false;
+                    OAK.toast('Đã lưu dịch vụ.');
+                    await this.loadServices();
+                } catch (error) {
+                    this.serviceError = error.message;
+                } finally {
+                    this.saving = false;
+                }
+            },
+
+            async toggleService(service) {
+                try {
+                    await OAK.api('/api/partner/services/' + service.id, {
+                        method: 'PATCH',
+                        body: { active: service.active !== 1 },
+                    });
+                    await this.loadServices();
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                    await this.loadServices();
+                }
+            },
+
+            async removeService(service) {
+                if (!confirm('Xoá dịch vụ "' + service.name + '"?')) {
+                    return;
+                }
+                try {
+                    await OAK.api('/api/partner/services/' + service.id, { method: 'DELETE' });
+                    OAK.toast('Đã xoá dịch vụ.');
+                    await this.loadServices();
+                } catch (error) {
+                    // HAS_BOOKINGS carries the "tạm ẩn thay vì xoá" advice from the server.
+                    OAK.toast(error.message, 'error');
+                }
+            },
+
+            /* ---- promotions ---- */
+
+            async loadPromotions() {
+                try {
+                    this.promotions = await OAK.api('/api/partner/promotions');
+                } catch (error) {
+                    this.promotions = [];
+                    OAK.toast(error.message, 'error');
+                }
+            },
+
+            typeLabel(type) {
+                return OAK_PROMOTION_LABELS[type] || type;
+            },
+
+            promotionMeta(promotion) {
+                var parts = [];
+                if (promotion.discount_percent) {
+                    parts.push('Giảm ' + promotion.discount_percent + '%');
+                }
+                if (promotion.discount_amount) {
+                    parts.push('Giảm ' + OAK.fmtPrice(promotion.discount_amount));
+                }
+                parts.push('Đến ' + promotion.ends_at.split('-').reverse().join('/'));
+                return parts.join(' • ');
+            },
+
+            openPromotionForm(promotion) {
+                this.promotionError = '';
+                this.promotionForm = promotion
+                    ? {
+                          id: promotion.id,
+                          title: promotion.title,
+                          type: promotion.type,
+                          description: promotion.description || '',
+                          code: promotion.code || '',
+                          discount_percent: promotion.discount_percent || '',
+                          discount_amount: promotion.discount_amount || '',
+                          original_price: promotion.original_price || '',
+                          sale_price: promotion.sale_price || '',
+                          service_ids: promotion.service_ids.map(String),
+                          image: promotion.image || '',
+                          starts_at: promotion.starts_at,
+                          ends_at: promotion.ends_at,
+                      }
+                    : {
+                          id: null,
+                          title: '',
+                          type: 'discount',
+                          description: '',
+                          code: '',
+                          discount_percent: '',
+                          discount_amount: '',
+                          original_price: '',
+                          sale_price: '',
+                          service_ids: [],
+                          image: '',
+                          starts_at: '',
+                          ends_at: '',
+                      };
+                this.promotionOpen = true;
+            },
+
+            async submitPromotion() {
+                this.saving = true;
+                this.promotionError = '';
+                var form = this.promotionForm;
+                var body = {
+                    title: form.title,
+                    type: form.type,
+                    description: form.description || null,
+                    code: form.code || null,
+                    discount_percent: form.discount_percent,
+                    discount_amount: form.discount_amount,
+                    original_price: form.original_price,
+                    sale_price: form.sale_price,
+                    service_ids: form.service_ids.map(Number),
+                    image: form.image || null,
+                    starts_at: form.starts_at,
+                    ends_at: form.ends_at,
+                };
+                try {
+                    if (form.id) {
+                        await OAK.api('/api/partner/promotions/' + form.id, {
+                            method: 'PATCH',
+                            body: body,
+                        });
+                    } else {
+                        await OAK.api('/api/partner/promotions', { method: 'POST', body: body });
+                    }
+                    this.promotionOpen = false;
+                    OAK.toast('Đã lưu ưu đãi.');
+                    await this.loadPromotions();
+                } catch (error) {
+                    this.promotionError = error.message;
+                } finally {
+                    this.saving = false;
+                }
+            },
+
+            async togglePromotion(promotion) {
+                try {
+                    await OAK.api('/api/partner/promotions/' + promotion.id, {
+                        method: 'PATCH',
+                        body: { active: promotion.active !== 1 },
+                    });
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+                await this.loadPromotions();
+            },
+
+            async removePromotion() {
+                if (!confirm('Xoá ưu đãi "' + this.promotionForm.title + '"?')) {
+                    return;
+                }
+                try {
+                    await OAK.api('/api/partner/promotions/' + this.promotionForm.id, {
+                        method: 'DELETE',
+                    });
+                    this.promotionOpen = false;
+                    OAK.toast('Đã xoá ưu đãi.');
+                    await this.loadPromotions();
+                } catch (error) {
+                    this.promotionError = error.message;
+                }
+            },
+
+            /* ---- shared ---- */
+
+            async uploadImage(event, form) {
+                var file = event.target.files[0];
+                if (!file) {
+                    return;
+                }
+                try {
+                    var data = await oakReadFile(file);
+                    var result = await OAK.api('/api/uploads', {
+                        method: 'POST',
+                        body: { filename: file.name, data: data },
+                    });
+                    form.image = result.url;
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+            },
+        };
+    }
+
+    oakPartnerChrome();
+</script>
 </body></html>

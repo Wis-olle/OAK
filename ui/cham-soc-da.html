@@ -4,9 +4,13 @@
 <script src="assets/js/tailwind-36d3755fef.js"></script>
 <script src="assets/js/oak-tailwind-config.js"></script>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <title>Chăm sóc Da - OAK Beauty</title>
 <!-- Fonts -->
 
@@ -43,8 +47,8 @@
 </div>
 </div>
 </div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
 </nav>
 <div class="flex items-center gap-4">
 <a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
@@ -55,9 +59,9 @@
 <span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
-<button aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
+</a>
 <a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
@@ -77,22 +81,23 @@
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="kham-pha.html">Khám phá</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="index.html">Trang chủ</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-body-md text-body-md text-primary font-bold hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-nail.html">NAIL</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
 </nav>
 </div>
 </header>
-<main class="pt-24 min-h-screen">
+<main class="pt-24 min-h-screen" x-data="oakSkincarePage()">
 <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8">
 <div class="font-caption text-caption text-on-surface-variant/80 flex items-center gap-2">
 <span>Khám phá</span>
@@ -127,43 +132,24 @@
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
 <div class="flex justify-between items-end mb-12 border-b border-outline-variant/30 pb-6">
 <h2 class="font-headline-md text-headline-md text-primary">Liệu trình nổi bật</h2>
-<a class="hidden md:flex font-label-md text-label-md text-on-surface-variant uppercase tracking-widest hover:text-primary items-center gap-1 transition-colors" href="ket-qua-tim-kiem.html">
+<a class="hidden md:flex font-label-md text-label-md text-on-surface-variant uppercase tracking-widest hover:text-primary items-center gap-1 transition-colors" href="ket-qua-tim-kiem.html?category=skincare">
                     Xem tất cả <span class="material-symbols-outlined text-[16px]">arrow_outward</span>
 </a>
 </div>
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
-<a class="group cursor-pointer block" href="chi-tiet-dich-vu.html" style="color:inherit;text-decoration:none">
+<template :key="service.id" x-for="service in services">
+<a :href="'chi-tiet-dich-vu.html?id=' + service.id" class="group cursor-pointer block" style="color:inherit;text-decoration:none">
 <div class="aspect-[3/4] w-full overflow-hidden rounded-lg bg-surface-container mb-6 relative">
-<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="A close-up, highly detailed image of a professional facial treatment in progress. A gloved esthetician's hands delicately applying a glowing serum to a client's face. The lighting is bright, clean, and clinical yet luxurious. The aesthetic features expansive whitespace, soft textures, and a refined color palette of creams and subtle earthy tones, evoking feelings of serenity and professional mastery." src="assets/images/img-5b691ffccb.jpg">
+<img :alt="service.name" :src="service.image" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
 <div class="absolute inset-0 bg-gradient-to-t from-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 </div>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-2">Chăm sóc da mặt</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Làm sạch sâu, cấp ẩm và phục hồi sinh khí cho làn da hàng ngày.</p>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-2" x-text="service.name"></h3>
+<p class="font-body-md text-body-md text-on-surface-variant" x-text="service.description"></p>
 </a>
-<a class="group cursor-pointer block" href="chi-tiet-dich-vu.html" style="color:inherit;text-decoration:none">
-<div class="aspect-[3/4] w-full overflow-hidden rounded-lg bg-surface-container mb-6 relative">
-<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="An abstract, high-fidelity conceptual image representing advanced clinical skincare. Glowing, purely geometric shapes intersecting with soft, translucent fluid textures against a pristine white background. The scene feels highly technological yet elegant and safe. The lighting is soft and diffused, creating a serene, modern editorial minimalism vibe suitable for a high-end beauty platform." src="assets/images/img-bdddd609ce.jpg">
-<div class="absolute inset-0 bg-gradient-to-t from-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-</div>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-2">Trị liệu chuyên sâu</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Giải pháp đặc trị mụn, nám, tàn nhang với công nghệ y khoa tiên tiến.</p>
-</a>
-<a class="group cursor-pointer block" href="chi-tiet-dich-vu.html" style="color:inherit;text-decoration:none">
-<div class="aspect-[3/4] w-full overflow-hidden rounded-lg bg-surface-container mb-6 relative">
-<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="A beautifully composed flat lay of premium peeling acids and skincare tools resting on a slab of smooth, pale travertine stone. The lighting casts soft, directional shadows, enhancing the textures of the stone and the glossy liquid droplets. The overall mood is clinical, sophisticated, and pristine, utilizing a strict color palette of white, beige, and faint amber." src="assets/images/img-67d91cf90f.jpg">
-<div class="absolute inset-0 bg-gradient-to-t from-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-</div>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-2">Peel da</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Tái tạo màng tế bào, kích thích sản sinh collagen đem lại làn da sáng mịn.</p>
-</a>
-<a class="group cursor-pointer block" href="chi-tiet-dich-vu.html" style="color:inherit;text-decoration:none">
-<div class="aspect-[3/4] w-full overflow-hidden rounded-lg bg-surface-container mb-6 relative">
-<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="A tranquil, high-end editorial shot of a woman receiving a facial massage. Focus on the graceful movement of the therapist's hands. The background is a soft, out-of-focus expanse of warm white space. Lighting is ethereal and soft, creating a mood of absolute relaxation and exclusive luxury. The aesthetic adheres strictly to modern editorial minimalism." src="assets/images/img-8efa3099e2.jpg">
-<div class="absolute inset-0 bg-gradient-to-t from-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-</div>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-2">Massage mặt</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Thư giãn cơ mặt, tăng cường tuần hoàn máu và nâng cơ trẻ hóa tự nhiên.</p>
-</a>
+</template>
+<template x-if="!loading &amp;&amp; !services.length">
+<p class="sm:col-span-2 lg:col-span-4 font-body-md text-body-md text-on-surface-variant">Chưa có liệu trình nào.</p>
+</template>
 </div>
 </section>
 <section class="mb-section-gap bg-surface-container-low py-24">
@@ -176,34 +162,28 @@
                                 Khám phá mạng lưới đối tác được tuyển chọn khắt khe của OAK Beauty. Chúng tôi cam kết chất lượng dịch vụ và không gian đạt chuẩn quốc tế.
                             </p>
 </div>
-<a href="ket-qua-tim-kiem.html" style="display:contents;color:inherit;text-decoration:none"><button class="border border-outline-variant text-primary font-label-md text-label-md uppercase px-8 py-4 rounded-full w-fit hover:bg-surface-variant transition-colors tracking-widest flex items-center gap-2">
+<a href="ket-qua-tim-kiem.html?category=skincare" style="display:contents;color:inherit;text-decoration:none"><button class="border border-outline-variant text-primary font-label-md text-label-md uppercase px-8 py-4 rounded-full w-fit hover:bg-surface-variant transition-colors tracking-widest flex items-center gap-2">
                             Xem bản đồ đối tác
                             <span class="material-symbols-outlined">map</span>
 </button></a>
 </div>
 <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-gutter mt-12 lg:mt-0">
-<div class="bg-surface p-6 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300">
+<template :key="salon.id" x-for="salon in salons">
+<a :href="salonUrl(salon)" class="bg-surface p-6 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300 block" style="color:inherit;text-decoration:none">
 <div class="w-16 h-16 rounded-full bg-surface-variant mb-6 overflow-hidden">
-<img class="w-full h-full object-cover" data-alt="A minimalist logo mark for a high-end medical spa, embossed softly on a pristine white background. The aesthetic is clean, luxurious, and medical-grade." src="assets/images/img-24deb1d795.jpg">
+<img :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
 </div>
-<h4 class="font-headline-sm text-headline-sm text-primary mb-2">Aura Clinic &amp; Spa</h4>
-<p class="font-body-md text-body-md text-on-surface-variant mb-6">Chuyên gia hàng đầu trong điều trị da liễu công nghệ cao.</p>
+<h4 class="font-headline-sm text-headline-sm text-primary mb-2" x-text="salon.name"></h4>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-text="salon.tags.join(' • ')"></p>
 <div class="flex gap-2">
-<span class="bg-tertiary/10 text-tertiary-container font-caption text-caption px-3 py-1 rounded-full">Quận 1</span>
-<span class="bg-tertiary/10 text-tertiary-container font-caption text-caption px-3 py-1 rounded-full">5.0 ★</span>
+<span class="bg-tertiary/10 text-tertiary-container font-caption text-caption px-3 py-1 rounded-full" x-text="salon.district"></span>
+<span class="bg-tertiary/10 text-tertiary-container font-caption text-caption px-3 py-1 rounded-full" x-text="ratingLabel(salon)"></span>
 </div>
-</div>
-<div class="bg-surface p-6 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300">
-<div class="w-16 h-16 rounded-full bg-surface-variant mb-6 overflow-hidden">
-<img class="w-full h-full object-cover" data-alt="A minimalist, elegant logo mark for a boutique beauty clinic, featuring fine lines and soft earth tones on a white background." src="assets/images/img-9ddf835566.jpg">
-</div>
-<h4 class="font-headline-sm text-headline-sm text-primary mb-2">The Muse Aesthetics</h4>
-<p class="font-body-md text-body-md text-on-surface-variant mb-6">Không gian nghỉ dưỡng kết hợp trị liệu cá nhân hóa.</p>
-<div class="flex gap-2">
-<span class="bg-tertiary/10 text-tertiary-container font-caption text-caption px-3 py-1 rounded-full">Quận 2</span>
-<span class="bg-tertiary/10 text-tertiary-container font-caption text-caption px-3 py-1 rounded-full">4.9 ★</span>
-</div>
-</div>
+</a>
+</template>
+<template x-if="!loading &amp;&amp; !salons.length">
+<p class="sm:col-span-2 font-body-md text-body-md text-on-surface-variant">Chưa có đối tác nào trong khu vực.</p>
+</template>
 </div>
 </div>
 </div>
@@ -222,15 +202,18 @@
                     </div>
 <h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-8">Lắng nghe làn da từ góc nhìn chuyên gia</h2>
 <div class="space-y-8">
-<article class="group cursor-pointer">
-<h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-tertiary transition-colors mb-2">Quy trình Skincare chuẩn Y khoa: Đâu là sự thật?</h3>
-<p class="font-body-md text-body-md text-on-surface-variant line-clamp-2">Những lầm tưởng phổ biến trong việc sử dụng hoạt chất mạnh và cách xây dựng routine tối giản nhưng hiệu quả cao.</p>
-</article>
-<hr class="border-t-[0.5px] border-outline-variant/30">
-<article class="group cursor-pointer">
-<h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-tertiary transition-colors mb-2">Phục hồi da mỏng yếu sau Treatment</h3>
-<p class="font-body-md text-body-md text-on-surface-variant line-clamp-2">Hướng dẫn chi tiết giai đoạn 'vàng' để cấp ẩm và củng cố hàng rào bảo vệ tự nhiên của làn da.</p>
-</article>
+<template :key="post.slug" x-for="(post, index) in posts">
+<div>
+<hr class="border-t-[0.5px] border-outline-variant/30 mb-8" x-show="index">
+<a :href="'blog-chi-tiet.html?slug=' + encodeURIComponent(post.slug)" class="group cursor-pointer block" style="color:inherit;text-decoration:none">
+<h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-tertiary transition-colors mb-2" x-text="post.title"></h3>
+<p class="font-body-md text-body-md text-on-surface-variant line-clamp-2" x-text="post.excerpt"></p>
+</a>
+</div>
+</template>
+<template x-if="!loading &amp;&amp; !posts.length">
+<p class="font-body-md text-body-md text-on-surface-variant">Chưa có bài viết nào.</p>
+</template>
 </div>
 </div>
 </div>
@@ -279,4 +262,41 @@
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+    function oakSkincarePage() {
+        return {
+            services: [],
+            salons: [],
+            posts: [],
+            loading: true,
+
+            async init() {
+                try {
+                    const [services, salons, posts] = await Promise.all([
+                        OAK.api('/api/services?category=skincare&limit=4'),
+                        OAK.api('/api/salons?category=skincare&sort=rating&limit=2'),
+                        OAK.api('/api/posts?tag=da&limit=2'),
+                    ]);
+                    this.services = services;
+                    this.salons = salons;
+                    this.posts = posts;
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            salonUrl(salon) {
+                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+            },
+
+            // A salon nobody has reviewed yet would otherwise show a bare "0.0 ★".
+            ratingLabel(salon) {
+                return salon.review_count ? Number(salon.rating).toFixed(1) + ' ★' : 'Chưa có đánh giá';
+            },
+        };
+    }
+</script>
 </body></html>

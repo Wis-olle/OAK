@@ -8,16 +8,20 @@
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
 <title>Quản lý Nhân viên - OAK Beauty</title>
 </head>
-<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="{ staffModalOpen: false, selectedStaff: null }">
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="oakPartnerStaff()">
 <h1 class="sr-only">OAK Beauty — Partner Dashboard</h1>
 <!-- SideNavBar -->
 <nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container p-gutter z-50">
 <div class="mb-12">
 <h1 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h1>
-<p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest">Partner Dashboard</p>
+<p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest" data-oak-salon-name>Partner Dashboard</p>
 </div>
 <ul class="flex flex-col gap-2 flex-grow">
 <li>
@@ -45,7 +49,13 @@
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="#">
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="font-body-md text-body-md">Báo cáo</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="cai-dat-salon.html">
 <span class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-body-md text-body-md">Cài đặt</span>
 </a>
@@ -57,12 +67,12 @@
 <span class="material-symbols-outlined" data-icon="storefront">storefront</span>
 <span class="font-body-md text-body-md">Xem trang khách</span>
 </a>
-<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="dang-nhap-doi-tac.html">
+<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" data-oak-logout href="dang-nhap-doi-tac.html">
 <span class="material-symbols-outlined" data-icon="logout">logout</span>
 <span class="font-body-md text-body-md">Đăng xuất</span>
 </a>
 </div>
-<a class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html">
+<a class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html?new=1">
 <span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
                 Đặt lịch mới
             </a>
@@ -76,22 +86,21 @@
 <div class="flex items-center gap-4 md:gap-6 shrink-0">
 <div class="relative hidden lg:block w-72">
 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
-<input aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm kiếm..." type="text"/>
+<input @input.debounce.300ms="load()" aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm nhân viên..." type="text" x-model="query"/>
 </div>
-<button aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" type="button">
+<a aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-<span class="absolute top-0 right-0 w-2 h-2 bg-secondary rounded-full"></span>
-</button>
-<div class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30">
-<div class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0">
-<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover" data-alt="Close up portrait of a sophisticated salon owner in a modern, light-filled salon setting. Warm, natural lighting highlights professional demeanor. Editorial style photography, high end magazine look, soft focus background." src="assets/images/img-77a799e9a6.jpg"/>
-</div>
-<span class="font-label-md text-label-md text-primary cursor-pointer hover:text-secondary transition-colors hidden sm:inline">Profile</span>
-</div>
+</a>
+<a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
+<span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 block">
+<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover" data-oak-user-avatar src="assets/images/img-77a799e9a6.jpg"/>
+</span>
+<span class="font-label-md text-label-md text-primary hidden sm:inline" data-oak-user-name>Đối tác</span>
+</a>
 <a aria-label="Xem trang khách" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="index.html">
 <span class="material-symbols-outlined" data-icon="storefront">storefront</span>
 </a>
-<a aria-label="Đăng xuất" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="dang-nhap-doi-tac.html">
+<a aria-label="Đăng xuất" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" data-oak-logout href="dang-nhap-doi-tac.html">
 <span class="material-symbols-outlined" data-icon="logout">logout</span>
 </a>
 </div>
@@ -104,124 +113,71 @@
 <!-- Header Section -->
 <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6 border-b border-outline-variant/30 pb-6">
 <div>
-<h2 class="font-headline-lg-mobile text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Staff Management</h2>
-<p class="font-body-lg text-body-lg text-on-surface-variant">Manage your team, schedules, and performance metrics.</p>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Quản lý nhân viên</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Quản lý đội ngũ, lịch làm việc và dịch vụ phụ trách.</p>
 </div>
-<button @click="staffModalOpen = true" class="bg-primary-container text-on-primary px-8 py-4 font-label-md text-label-md uppercase tracking-wider flex items-center gap-2 hover:bg-primary transition-colors rounded-full">
+<button @click="openStaff(null)" class="bg-primary-container text-on-primary px-8 py-4 font-label-md text-label-md uppercase tracking-wider flex items-center gap-2 hover:bg-primary transition-colors rounded-full">
 <span class="material-symbols-outlined" data-icon="add">add</span>
-                    Add New Staff
+                    Thêm nhân viên
                 </button>
 </div>
 <!-- Stats Overview -->
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-section-gap">
 <div class="bg-surface-container-lowest p-6 border border-outline-variant/20 flex flex-col gap-2">
-<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Total Staff</span>
-<span class="font-headline-lg text-headline-lg text-primary">12</span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Tổng nhân viên</span>
+<span class="font-headline-lg text-headline-lg text-primary" x-text="stats.total"></span>
 </div>
 <div class="bg-surface-container-lowest p-6 border border-outline-variant/20 flex flex-col gap-2">
-<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">On Shift Today</span>
-<span class="font-headline-lg text-headline-lg text-primary">8</span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Đang làm ca hôm nay</span>
+<span class="font-headline-lg text-headline-lg text-primary" x-text="stats.on_shift"></span>
 </div>
 <div class="bg-surface-container-lowest p-6 border border-outline-variant/20 flex flex-col gap-2">
-<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Avg. Rating</span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Đánh giá trung bình</span>
 <div class="flex items-baseline gap-2">
-<span class="font-headline-lg text-headline-lg text-primary">4.8</span>
-<span class="material-symbols-outlined text-secondary fill text-[24px]" data-icon="star" data-weight="fill">star</span>
+<span class="font-headline-lg text-headline-lg text-primary" x-text="stats.rating_avg ? stats.rating_avg.toFixed(1) : 'Chưa có'"></span>
+<span class="material-symbols-outlined text-secondary fill text-[24px]" data-icon="star" data-weight="fill" x-show="stats.rating_avg">star</span>
 </div>
 </div>
 </div>
 <!-- Staff Grid -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-<!-- Staff Card 1 -->
+<div :class="{ 'opacity-50': loading }" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 transition-opacity">
+<template :key="member.id" x-for="member in roster()">
 <div class="group bg-surface-container-lowest border border-outline-variant/20 hover:border-outline/40 transition-colors flex flex-col">
 <div class="aspect-[4/3] w-full relative overflow-hidden bg-surface-container-low">
-<img alt="Staff Portrait" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-in-out" data-alt="A professional portrait of a stylish female hair stylist in her 30s, looking confidently at the camera, wearing an elegant black smock. Background is a bright, high-end minimalist salon environment with soft natural light and subtle luxurious details. Editorial style." src="assets/images/img-f6416b7517.jpg"/>
-<div class="absolute top-4 right-4 bg-surface-container-lowest px-3 py-1 font-label-md text-caption uppercase tracking-wider text-primary border border-outline-variant/20">
-                            On Shift
-                        </div>
+<template x-if="member.image">
+<img :src="member.image" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-in-out"/>
+</template>
+<template x-if="!member.image">
+<div class="w-full h-full flex items-center justify-center text-outline-variant">
+<span class="material-symbols-outlined text-[40px]">person</span>
+</div>
+</template>
+<div :class="onShift(member) ? 'text-primary' : 'text-on-surface-variant'" class="absolute top-4 right-4 bg-surface-container-lowest px-3 py-1 font-label-md text-caption uppercase tracking-wider border border-outline-variant/20" x-text="onShift(member) ? 'Đang làm ca' : 'Nghỉ hôm nay'"></div>
 </div>
 <div class="p-6 flex flex-col flex-grow">
-<div class="flex justify-between items-start mb-4">
+<div class="flex justify-between items-start gap-3 mb-4">
 <div>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-1">Elena Rostova</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Master Colorist</p>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="member.name"></h3>
+<p class="font-body-md text-body-md text-on-surface-variant" x-text="member.title || member.specialty || ''"></p>
 </div>
-<div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded">
+<div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded shrink-0" x-show="member.rating">
 <span class="material-symbols-outlined text-secondary fill text-[16px]" data-icon="star" data-weight="fill">star</span>
-<span class="font-label-md text-caption text-secondary">4.9</span>
+<span class="font-label-md text-caption text-secondary" x-text="member.rating"></span>
 </div>
 </div>
-<div class="mt-auto pt-6 border-t border-outline-variant/20 flex justify-between items-center">
+<div class="mt-auto pt-6 border-t border-outline-variant/20 flex justify-between items-center gap-3">
 <div class="flex flex-col">
-<span class="font-caption text-caption text-on-surface-variant mb-1">Today's Schedule</span>
-<span class="font-body-md text-label-md text-primary">09:00 - 18:00</span>
+<span class="font-caption text-caption text-on-surface-variant mb-1" x-text="onShift(member) ? 'Ca hôm nay' : 'Ca kế tiếp'"></span>
+<span class="font-body-md text-label-md text-primary" x-text="shiftLabel(member)"></span>
 </div>
-<button @click="staffModalOpen = true; selectedStaff = 'Elena'" class="text-secondary font-label-md text-label-md uppercase tracking-wider hover:text-primary transition-colors flex items-center gap-1">
-                                Edit <span class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span>
+<button @click="openStaff(member)" class="text-secondary font-label-md text-label-md uppercase tracking-wider hover:text-primary transition-colors flex items-center gap-1 shrink-0">
+                                Sửa <span class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span>
 </button>
 </div>
 </div>
 </div>
-<!-- Staff Card 2 -->
-<div class="group bg-surface-container-lowest border border-outline-variant/20 hover:border-outline/40 transition-colors flex flex-col">
-<div class="aspect-[4/3] w-full relative overflow-hidden bg-surface-container-low">
-<img alt="Staff Portrait" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-in-out" data-alt="A sophisticated portrait of a male skin care expert in his late 20s, with clear glowing skin, wearing a minimalist white uniform tunic. The background features blurred, high-end skincare products on clean shelves under bright, serene lighting. Modern aesthetic." src="assets/images/img-d646e50cc2.jpg"/>
-<div class="absolute top-4 right-4 bg-surface-container-lowest px-3 py-1 font-label-md text-caption uppercase tracking-wider text-on-surface-variant border border-outline-variant/20">
-                            Off Today
-                        </div>
-</div>
-<div class="p-6 flex flex-col flex-grow">
-<div class="flex justify-between items-start mb-4">
-<div>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-1">Marcus Chen</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Senior Esthetician</p>
-</div>
-<div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded">
-<span class="material-symbols-outlined text-secondary fill text-[16px]" data-icon="star" data-weight="fill">star</span>
-<span class="font-label-md text-caption text-secondary">4.7</span>
-</div>
-</div>
-<div class="mt-auto pt-6 border-t border-outline-variant/20 flex justify-between items-center">
-<div class="flex flex-col">
-<span class="font-caption text-caption text-on-surface-variant mb-1">Next Shift</span>
-<span class="font-body-md text-label-md text-primary">Tomorrow, 10:00</span>
-</div>
-<button @click="staffModalOpen = true; selectedStaff = 'Marcus'" class="text-secondary font-label-md text-label-md uppercase tracking-wider hover:text-primary transition-colors flex items-center gap-1">
-                                Edit <span class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span>
-</button>
-</div>
-</div>
-</div>
-<!-- Staff Card 3 -->
-<div class="group bg-surface-container-lowest border border-outline-variant/20 hover:border-outline/40 transition-colors flex flex-col">
-<div class="aspect-[4/3] w-full relative overflow-hidden bg-surface-container-low">
-<img alt="Staff Portrait" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-in-out" data-alt="A portrait of an artistic nail technician, a young woman with creatively styled hair, smiling gently. She is in a pristine, bright modern nail salon setting with minimalist decor. Soft, diffused lighting highlights the clean, premium atmosphere of the workspace." src="assets/images/img-5f82a3ff84.jpg"/>
-<div class="absolute top-4 right-4 bg-surface-container-lowest px-3 py-1 font-label-md text-caption uppercase tracking-wider text-primary border border-outline-variant/20">
-                            On Shift
-                        </div>
-</div>
-<div class="p-6 flex flex-col flex-grow">
-<div class="flex justify-between items-start mb-4">
-<div>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-1">Sarah Jenkins</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Nail Artist</p>
-</div>
-<div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded">
-<span class="material-symbols-outlined text-secondary fill text-[16px]" data-icon="star" data-weight="fill">star</span>
-<span class="font-label-md text-caption text-secondary">4.8</span>
-</div>
-</div>
-<div class="mt-auto pt-6 border-t border-outline-variant/20 flex justify-between items-center">
-<div class="flex flex-col">
-<span class="font-caption text-caption text-on-surface-variant mb-1">Today's Schedule</span>
-<span class="font-body-md text-label-md text-primary">11:00 - 20:00</span>
-</div>
-<button @click="staffModalOpen = true; selectedStaff = 'Sarah'" class="text-secondary font-label-md text-label-md uppercase tracking-wider hover:text-primary transition-colors flex items-center gap-1">
-                                Edit <span class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span>
-</button>
-</div>
-</div>
-</div>
+</template>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading && roster().length === 0">Chưa có nhân viên nào phù hợp.</p>
 </div>
 </div>
 </main>
@@ -233,69 +189,84 @@
 <!-- Modal Panel -->
 <div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-2xl max-h-[921px] overflow-y-auto border border-outline-variant/20 flex flex-col" x-show="staffModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <div class="px-6 py-6 border-b border-outline-variant/20 flex justify-between items-center sticky top-0 bg-surface-container-lowest z-10">
-<h3 class="font-headline-sm text-headline-sm text-primary" id="modal-title">Edit Staff Member</h3>
+<h3 class="font-headline-sm text-headline-sm text-primary" id="modal-title" x-text="form.id ? 'Sửa nhân viên' : 'Thêm nhân viên'"></h3>
 <button @click="staffModalOpen = false" class="text-on-surface-variant hover:text-primary transition-colors">
 <span class="material-symbols-outlined" data-icon="close">close</span>
 </button>
 </div>
 <div class="px-6 py-8">
-<form class="space-y-8">
+<form @submit.prevent="submitStaff()" class="space-y-8" id="staff-form">
 <!-- Basic Info -->
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
 <div class="space-y-1">
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block">Full Name</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" type="text" value="Elena Rostova"/>
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-name">Họ và tên</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-name" required type="text" x-model="form.name"/>
 </div>
 <div class="space-y-1">
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block">Role / Specialty</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" type="text" value="Master Colorist"/>
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-title">Chức danh</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-title" type="text" x-model="form.title"/>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-specialty">Chuyên môn</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-specialty" type="text" x-model="form.specialty"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-image">Ảnh đại diện</label>
+<div class="flex items-center gap-4">
+<div class="w-14 h-14 rounded-full bg-surface-container-low border border-outline-variant/30 overflow-hidden flex items-center justify-center shrink-0">
+<template x-if="form.image">
+<img :src="form.image" alt="" class="w-full h-full object-cover"/>
+</template>
+<template x-if="!form.image">
+<span class="material-symbols-outlined text-outline-variant">person</span>
+</template>
+</div>
+<input @change="uploadImage($event)" accept=".jpg,.jpeg,.png,.webp" class="font-body-md text-body-md text-on-surface-variant min-w-0" id="staff-image" type="file"/>
+</div>
 </div>
 </div>
 <!-- Schedule -->
 <div>
-<h4 class="font-headline-sm text-[18px] text-primary mb-4 border-b border-outline-variant/20 pb-2">Working Hours</h4>
+<h4 class="font-headline-sm text-[18px] text-primary mb-4 border-b border-outline-variant/20 pb-2">Giờ làm việc</h4>
 <div class="space-y-4">
-<!-- Mon -->
-<div class="flex items-center gap-4">
-<span class="w-16 font-label-md text-label-md text-on-surface-variant uppercase">Mon</span>
-<input class="bg-surface-container-low border border-outline-variant/30 px-3 py-1 font-body-md text-body-md rounded-none" type="time" value="09:00"/>
+<template :key="day.weekday" x-for="day in form.schedule">
+<div :class="{ 'opacity-50': day.is_off }" class="flex items-center gap-4 flex-wrap">
+<span class="w-16 font-label-md text-label-md text-on-surface-variant uppercase" x-text="weekdayLabel(day.weekday)"></span>
+<input :disabled="day.is_off" class="bg-surface-container-low border border-outline-variant/30 px-3 py-1 font-body-md text-body-md rounded-none" type="time" x-model="day.start"/>
 <span class="text-on-surface-variant">-</span>
-<input class="bg-surface-container-low border border-outline-variant/30 px-3 py-1 font-body-md text-body-md rounded-none" type="time" value="18:00"/>
+<input :disabled="day.is_off" class="bg-surface-container-low border border-outline-variant/30 px-3 py-1 font-body-md text-body-md rounded-none" type="time" x-model="day.end"/>
+<label class="flex items-center gap-2 font-caption text-caption text-on-surface-variant cursor-pointer">
+<input type="checkbox" x-model="day.is_off"/>
+                                    Nghỉ
+                                </label>
 </div>
-<!-- Tue -->
-<div class="flex items-center gap-4">
-<span class="w-16 font-label-md text-label-md text-on-surface-variant uppercase">Tue</span>
-<input class="bg-surface-container-low border border-outline-variant/30 px-3 py-1 font-body-md text-body-md rounded-none" type="time" value="09:00"/>
-<span class="text-on-surface-variant">-</span>
-<input class="bg-surface-container-low border border-outline-variant/30 px-3 py-1 font-body-md text-body-md rounded-none" type="time" value="18:00"/>
-</div>
-<!-- Wed -->
-<div class="flex items-center gap-4 opacity-50">
-<span class="w-16 font-label-md text-label-md text-on-surface-variant uppercase">Wed</span>
-<span class="font-body-md text-body-md italic text-on-surface-variant">Day Off</span>
-</div>
+</template>
 </div>
 </div>
 <!-- Services -->
 <div>
-<h4 class="font-headline-sm text-[18px] text-primary mb-4 border-b border-outline-variant/20 pb-2">Assigned Services</h4>
+<h4 class="font-headline-sm text-[18px] text-primary mb-4 border-b border-outline-variant/20 pb-2">Dịch vụ phụ trách</h4>
 <div class="flex flex-wrap gap-2">
-<span class="bg-tertiary-container text-on-tertiary-container px-3 py-1 font-body-md text-[14px]">Balayage</span>
-<span class="bg-tertiary-container text-on-tertiary-container px-3 py-1 font-body-md text-[14px]">Full Color</span>
-<span class="bg-tertiary-container text-on-tertiary-container px-3 py-1 font-body-md text-[14px]">Root Touch-up</span>
-<button class="border border-dashed border-outline-variant px-3 py-1 font-body-md text-[14px] text-on-surface-variant hover:text-primary hover:border-primary transition-colors flex items-center gap-1" type="button">
-<span class="material-symbols-outlined text-[16px]" data-icon="add">add</span> Add Service
-                            </button>
+<template :key="service.id" x-for="service in services">
+<button :class="hasService(service.id) ? 'bg-tertiary-container text-on-tertiary-container border border-transparent' : 'border border-dashed border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary'" @click="toggleService(service.id)" class="px-3 py-1 font-body-md text-[14px] transition-colors" type="button" x-text="service.name"></button>
+</template>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="services.length === 0">Salon chưa có dịch vụ nào.</p>
 </div>
 </div>
+<p class="font-body-md text-body-md text-error" x-show="formError" x-text="formError"></p>
 </form>
 </div>
 <div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4 sticky bottom-0">
-<button @click="staffModalOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors">
-                    Cancel
+<button @click="removeStaff()" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-error hover:text-on-error-container transition-colors mr-auto" type="button" x-show="form.id">
+                    Xoá
                 </button>
-<button @click="staffModalOpen = false" class="px-8 py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors rounded-full">
-                    Save Changes
+<button @click="staffModalOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+                    Huỷ
+                </button>
+<button :disabled="saving" class="px-8 py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors rounded-full disabled:opacity-50" form="staff-form" type="submit">
+                    Lưu thay đổi
                 </button>
 </div>
 </div>
@@ -318,9 +289,287 @@
 <span class="material-symbols-outlined fill" data-icon="group">group</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Nhân viên</span>
 </a>
-<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="#">
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="bao-cao-doanh-thu.html">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Báo cáo</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="cai-dat-salon.html">
 <span class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
 </a>
 </nav>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+    // Weekdays as the schema stores them: 0 = Sunday. Rendered Monday-first.
+    var OAK_WEEKDAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    var OAK_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+    var OAK_DEFAULT_SHIFT = { start: '09:00', end: '18:00' };
+
+    /* Partner chrome shared by all four console pages: owner name/avatar, salon name, logout. */
+    function oakPartnerChrome() {
+        document.querySelectorAll('[data-oak-logout]').forEach(function (link) {
+            link.addEventListener('click', function (event) {
+                event.preventDefault();
+                OAK.logout();
+            });
+        });
+
+        OAK.me().then(function (user) {
+            if (!user) {
+                return;
+            }
+            var name = document.querySelector('[data-oak-user-name]');
+            if (name) {
+                name.textContent = user.name;
+            }
+            var avatar = document.querySelector('[data-oak-user-avatar]');
+            if (avatar && user.avatar) {
+                avatar.src = user.avatar;
+            }
+        });
+
+        OAK.api('/api/partner/salon').then(
+            function (salon) {
+                var label = document.querySelector('[data-oak-salon-name]');
+                if (label) {
+                    label.textContent = salon.name;
+                }
+            },
+            function () {},
+        );
+    }
+
+    /* Read a picked file as base64 for POST /api/uploads. */
+    function oakReadFile(file) {
+        return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onload = function () {
+                // The server strips the data: prefix too, but sending the bare payload
+                // keeps the request honest about what it carries.
+                resolve(String(reader.result).replace(/^data:[^;]+;base64,/, ''));
+            };
+            reader.onerror = function () {
+                reject(new Error('Không đọc được tệp ảnh.'));
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function oakPartnerStaff() {
+        return {
+            staff: [],
+            services: [],
+            stats: { total: 0, on_shift: 0, rating_avg: 0 },
+            loading: true,
+            saving: false,
+            query: '',
+            staffModalOpen: false,
+            // The service chips render before the modal is ever opened, so both fields
+            // the template reads must exist from the start.
+            form: { schedule: [], service_ids: [] },
+            formError: '',
+
+            async init() {
+                await OAK.requirePartner();
+                this.query = OAK.qs('q') || '';
+                try {
+                    this.services = await OAK.api('/api/partner/services');
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+                await this.load();
+            },
+
+            async load() {
+                this.loading = true;
+                var path = '/api/partner/staff';
+                if (this.query.trim()) {
+                    path += '?q=' + encodeURIComponent(this.query.trim());
+                }
+                try {
+                    var result = await OAK.api(path);
+                    this.staff = result;
+                    this.stats = result.meta;
+                } catch (error) {
+                    this.staff = [];
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            /* Removal is a soft delete, so the roster shows only the people still working. */
+            roster() {
+                return this.staff.filter(function (member) {
+                    return member.active === 1;
+                });
+            },
+
+            onShift(member) {
+                return Boolean(member.shift) && !member.shift.is_off;
+            },
+
+            shiftLabel(member) {
+                if (this.onShift(member)) {
+                    return member.shift.start + ' - ' + member.shift.end;
+                }
+                if (!member.next_shift) {
+                    return 'Chưa xếp lịch';
+                }
+                var parts = member.next_shift.date.split('-');
+                return parts[2] + '/' + parts[1] + ', ' + member.next_shift.start;
+            },
+
+            weekdayLabel(weekday) {
+                return OAK_WEEKDAY_LABELS[weekday];
+            },
+
+            /* ---- modal ---- */
+
+            async openStaff(member) {
+                this.formError = '';
+                if (!member) {
+                    this.form = {
+                        id: null,
+                        name: '',
+                        title: '',
+                        specialty: '',
+                        image: '',
+                        service_ids: [],
+                        schedule: this.buildSchedule([]),
+                    };
+                    this.staffModalOpen = true;
+                    return;
+                }
+
+                try {
+                    var detail = await OAK.api('/api/partner/staff/' + member.id);
+                    this.form = {
+                        id: detail.id,
+                        name: detail.name,
+                        title: detail.title || '',
+                        specialty: detail.specialty || '',
+                        image: detail.image || '',
+                        service_ids: detail.service_ids.slice(),
+                        schedule: this.buildSchedule(detail.schedule),
+                    };
+                    this.staffModalOpen = true;
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+            },
+
+            /* One editable row per weekday; days with no stored shift start as days off. */
+            buildSchedule(rows) {
+                return OAK_WEEKDAY_ORDER.map(function (weekday) {
+                    var stored = rows.find(function (row) {
+                        return row.weekday === weekday;
+                    });
+                    return {
+                        weekday: weekday,
+                        start: stored ? stored.start : OAK_DEFAULT_SHIFT.start,
+                        end: stored ? stored.end : OAK_DEFAULT_SHIFT.end,
+                        is_off: stored ? stored.is_off === 1 : true,
+                    };
+                });
+            },
+
+            hasService(id) {
+                return (this.form.service_ids || []).indexOf(id) !== -1;
+            },
+
+            toggleService(id) {
+                var index = this.form.service_ids.indexOf(id);
+                if (index === -1) {
+                    this.form.service_ids.push(id);
+                } else {
+                    this.form.service_ids.splice(index, 1);
+                }
+            },
+
+            async uploadImage(event) {
+                var file = event.target.files[0];
+                if (!file) {
+                    return;
+                }
+                try {
+                    var data = await oakReadFile(file);
+                    var result = await OAK.api('/api/uploads', {
+                        method: 'POST',
+                        body: { filename: file.name, data: data },
+                    });
+                    this.form.image = result.url;
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+            },
+
+            /* The schedule endpoint validates start < end on every row, day off or not. */
+            schedulePayload() {
+                return this.form.schedule.map(function (day) {
+                    return {
+                        weekday: day.weekday,
+                        start: day.start,
+                        end: day.end,
+                        is_off: day.is_off ? 1 : 0,
+                    };
+                });
+            },
+
+            async submitStaff() {
+                this.saving = true;
+                this.formError = '';
+                var profile = {
+                    name: this.form.name,
+                    title: this.form.title || null,
+                    specialty: this.form.specialty || null,
+                    image: this.form.image || null,
+                };
+                try {
+                    if (this.form.id) {
+                        await OAK.api('/api/partner/staff/' + this.form.id, {
+                            method: 'PATCH',
+                            body: profile,
+                        });
+                        await OAK.api('/api/partner/staff/' + this.form.id + '/schedule', {
+                            method: 'PUT',
+                            body: { schedule: this.schedulePayload() },
+                        });
+                        await OAK.api('/api/partner/staff/' + this.form.id + '/services', {
+                            method: 'PUT',
+                            body: { service_ids: this.form.service_ids },
+                        });
+                    } else {
+                        profile.schedule = this.schedulePayload();
+                        profile.service_ids = this.form.service_ids;
+                        await OAK.api('/api/partner/staff', { method: 'POST', body: profile });
+                    }
+                    this.staffModalOpen = false;
+                    OAK.toast('Đã lưu thông tin nhân viên.');
+                    await this.load();
+                } catch (error) {
+                    this.formError = error.message;
+                } finally {
+                    this.saving = false;
+                }
+            },
+
+            async removeStaff() {
+                if (!confirm('Xoá nhân viên "' + this.form.name + '" khỏi danh sách?')) {
+                    return;
+                }
+                try {
+                    await OAK.api('/api/partner/staff/' + this.form.id, { method: 'DELETE' });
+                    this.staffModalOpen = false;
+                    OAK.toast('Đã xoá nhân viên.');
+                    await this.load();
+                } catch (error) {
+                    this.formError = error.message;
+                }
+            },
+        };
+    }
+
+    oakPartnerChrome();
+</script>
 </body></html>

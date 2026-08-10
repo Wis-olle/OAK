@@ -46,3 +46,8 @@ app.*.map.json
 
 # Local Netlify folder
 .netlify
+
+# Backend server
+server/node_modules/
+server/data/
+server/uploads/

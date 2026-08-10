@@ -4,9 +4,22 @@
 <script src="assets/js/tailwind-36d3755fef.js"></script>
 <script src="assets/js/oak-tailwind-config.js"></script>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
+<style>
+        /* Partner auth form fields (this page only) */
+        .oak-field {
+            width: 100%; padding: 12px 16px; border: 1px solid #c4c7c7; border-radius: 0.5rem;
+            background-color: #ffffff; color: #171818; font-size: 16px; line-height: 1.6;
+            outline: none; box-shadow: none; transition: border-color 0.3s ease;
+        }
+        .oak-field:focus { border-color: #171818; box-shadow: none; }
+    </style>
 <title>Trở thành đối tác - OAK Beauty</title>
 
 
@@ -40,8 +53,8 @@
 </div>
 </div>
 </div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
 </nav>
 <div class="flex items-center gap-4">
 <a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
@@ -52,9 +65,9 @@
 <span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
-<button aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
+</a>
 <a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
@@ -81,8 +94,9 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
@@ -113,20 +127,20 @@
 </div>
 </div>
 <!-- Right Side: Login / Registration Form -->
-<div class="w-full max-w-md mx-auto lg:ml-auto lg:mr-0 mt-8 lg:mt-0 glass-panel rounded-xl p-8 ambient-shadow">
+<div class="w-full max-w-md mx-auto lg:ml-auto lg:mr-0 mt-8 lg:mt-0 glass-panel rounded-xl p-8 ambient-shadow" x-data="oakPartnerAuth()">
 <div class="mb-8 text-center">
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Trở thành đối tác</h1>
 <p class="font-body-md text-body-md text-on-surface-variant">Phát triển doanh nghiệp làm đẹp của bạn cùng OAK Beauty.</p>
 </div>
 <!-- Action Buttons -->
-<div class="space-y-6">
+<div class="space-y-6" x-show="mode === 'menu'">
 <!-- Registration CTA (Prominent) -->
 <div class="p-6 bg-tertiary rounded-xl text-center">
 <h3 class="font-headline-sm text-headline-sm text-on-tertiary mb-2">Chưa có tài khoản?</h3>
 <p class="font-body-md text-body-md text-on-tertiary/80 mb-6">Đăng ký ngay để tạo gian hàng và bắt đầu tiếp nhận lịch đặt từ khách hàng.</p>
-<a class="block w-full py-4 bg-on-tertiary text-tertiary font-label-md text-label-md uppercase tracking-wider text-center rounded hover:bg-surface-container-high transition-colors" href="tong-quan-doi-tac.html">
+<button @click="show('register')" class="block w-full py-4 bg-on-tertiary text-tertiary font-label-md text-label-md uppercase tracking-wider text-center rounded hover:bg-surface-container-high transition-colors" type="button">
                         Đăng ký tạo cửa hàng mới
-                    </a>
+                    </button>
 </div>
 <div class="relative flex py-4 items-center">
 <div class="flex-grow border-t border-outline-variant/30"></div>
@@ -136,11 +150,53 @@
 <!-- Login CTA -->
 <div class="text-center">
 <h3 class="font-headline-sm text-headline-sm text-primary mb-4">Đã là đối tác?</h3>
-<a class="block w-full py-4 border border-primary text-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary hover:text-white transition-colors" href="tong-quan-doi-tac.html">
+<button @click="show('login')" class="block w-full py-4 border border-primary text-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary hover:text-white transition-colors" type="button">
                         Đăng nhập dành cho chủ salon
-                    </a>
+                    </button>
 </div>
 </div>
+<!-- Partner login -->
+<form @submit.prevent="login()" class="space-y-4" x-cloak="" x-show="mode === 'login'">
+<h3 class="font-headline-sm text-headline-sm text-primary text-center mb-2">Đăng nhập chủ salon</h3>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="partner-email">Email</label>
+<input class="oak-field" id="partner-email" required="" type="email" x-model="form.email">
+</div>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="partner-password">Mật khẩu</label>
+<input class="oak-field" id="partner-password" required="" type="password" x-model="form.password">
+</div>
+<p class="font-caption text-caption text-error" x-cloak="" x-show="error" x-text="error"></p>
+<button :disabled="busy" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="submit" x-text="busy ? 'Đang xử lý...' : 'Đăng nhập'">Đăng nhập</button>
+<button @click="show('menu')" class="w-full font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors" type="button">Quay lại</button>
+</form>
+<!-- Partner registration -->
+<form @submit.prevent="register()" class="space-y-4" x-cloak="" x-show="mode === 'register'">
+<h3 class="font-headline-sm text-headline-sm text-primary text-center mb-2">Đăng ký tạo cửa hàng mới</h3>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-name">Họ và tên chủ salon</label>
+<input class="oak-field" id="register-name" required="" type="text" x-model="form.name">
+</div>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-salon">Tên salon</label>
+<input class="oak-field" id="register-salon" required="" type="text" x-model="form.salon_name">
+</div>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-email">Email</label>
+<input class="oak-field" id="register-email" required="" type="email" x-model="form.email">
+</div>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-phone">Số điện thoại</label>
+<input class="oak-field" id="register-phone" type="tel" x-model="form.phone">
+</div>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-password">Mật khẩu (tối thiểu 8 ký tự)</label>
+<input class="oak-field" id="register-password" minlength="8" required="" type="password" x-model="form.password">
+</div>
+<p class="font-caption text-caption text-error" x-cloak="" x-show="error" x-text="error"></p>
+<button :disabled="busy" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="submit" x-text="busy ? 'Đang xử lý...' : 'Tạo tài khoản đối tác'">Tạo tài khoản đối tác</button>
+<button @click="show('menu')" class="w-full font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors" type="button">Quay lại</button>
+</form>
 <div class="mt-8 text-center">
 <p class="font-caption text-caption text-on-surface-variant">Bằng việc tiếp tục, bạn đồng ý với <a class="underline hover:text-primary transition-colors" href="#">Điều khoản dịch vụ</a> và <a class="underline hover:text-primary transition-colors" href="#">Chính sách bảo mật</a> của chúng tôi.</p>
 </div>
@@ -189,4 +245,77 @@
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+
+    /** requirePartner() sends the page the partner wanted as ?next=; honour it when it names
+        a page of this site, otherwise fall back to the dashboard. */
+    function oakPartnerDestination() {
+        const next = OAK.qs('next');
+        return next && /^[\w-]+\.html(\?.*)?$/.test(next) ? next : 'tong-quan-doi-tac.html';
+    }
+
+    function oakPartnerAuth() {
+        return {
+            mode: 'menu',
+            error: '',
+            busy: false,
+            form: { name: '', salon_name: '', email: '', phone: '', password: '' },
+
+            async init() {
+                const user = await OAK.me();
+                if (user && user.role === 'partner') location.href = oakPartnerDestination();
+            },
+
+            show(mode) {
+                this.mode = mode;
+                this.error = '';
+            },
+
+            async login() {
+                this.error = '';
+                this.busy = true;
+                try {
+                    const data = await OAK.api('/api/auth/login', {
+                        method: 'POST',
+                        body: { email: this.form.email, password: this.form.password },
+                    });
+                    if (data.user.role !== 'partner') {
+                        // The credentials were valid, so a session cookie now exists. Drop it
+                        // rather than leave a customer signed in from the partner gateway.
+                        await OAK.api('/api/auth/logout', { method: 'POST' });
+                        this.error = 'Tài khoản này không phải đối tác.';
+                        this.busy = false;
+                        return;
+                    }
+                    location.href = oakPartnerDestination();
+                } catch (error) {
+                    this.error = error.message;
+                    this.busy = false;
+                }
+            },
+
+            async register() {
+                this.error = '';
+                this.busy = true;
+                try {
+                    await OAK.api('/api/auth/partner/register', {
+                        method: 'POST',
+                        body: {
+                            name: this.form.name,
+                            email: this.form.email,
+                            phone: this.form.phone,
+                            password: this.form.password,
+                            salon_name: this.form.salon_name,
+                        },
+                    });
+                    location.href = oakPartnerDestination();
+                } catch (error) {
+                    this.error = error.message;
+                    this.busy = false;
+                }
+            },
+        };
+    }
+</script>
 </body></html>

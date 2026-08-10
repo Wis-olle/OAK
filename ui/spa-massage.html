@@ -4,9 +4,13 @@
 <script src="assets/js/tailwind-36d3755fef.js"></script>
 <script src="assets/js/oak-tailwind-config.js"></script>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <title>Spa &amp; Massage - OAK Beauty</title>
 
 
@@ -40,8 +44,8 @@
 </div>
 </div>
 </div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
 </nav>
 <div class="flex items-center gap-4">
 <a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
@@ -52,9 +56,9 @@
 <span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
-<button aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
+</a>
 <a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
@@ -74,15 +78,16 @@
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="kham-pha.html">Khám phá</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="index.html">Trang chủ</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-body-md text-body-md text-primary font-bold hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-nail.html">NAIL</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
@@ -90,7 +95,7 @@
 </div>
 </header>
 <!-- Main Content -->
-<main class="pt-24 pb-section-gap">
+<main class="pt-24 pb-section-gap" x-data="oakSpaPage()">
 <!-- Breadcrumb & Hero Header -->
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-12">
 <nav aria-label="Breadcrumb" class="mb-8">
@@ -119,53 +124,48 @@
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
 <div class="flex flex-nowrap md:flex-wrap gap-4 overflow-x-auto pb-4 md:pb-0 hide-scrollbar" style="scrollbar-width: none;">
 <!-- Hide scrollbar utility for webkit can be added in CSS if needed, using inline style for simplicity -->
-<button class="shrink-0 bg-primary-container text-on-primary px-6 py-3 font-label-md text-label-md uppercase tracking-wider transition-colors rounded-full hover:bg-primary">Tất cả dịch vụ</button>
-<button class="shrink-0 bg-surface-container-low text-on-surface hover:bg-surface-variant px-6 py-3 font-label-md text-label-md uppercase tracking-widest transition-colors">Massage body</button>
-<button class="shrink-0 bg-surface-container-low text-on-surface hover:bg-surface-variant px-6 py-3 font-label-md text-label-md uppercase tracking-widest transition-colors">Xông hơi</button>
-<button class="shrink-0 bg-surface-container-low text-on-surface hover:bg-surface-variant px-6 py-3 font-label-md text-label-md uppercase tracking-widest transition-colors">Trị liệu thảo mộc</button>
-<button class="shrink-0 bg-surface-container-low text-on-surface hover:bg-surface-variant px-6 py-3 font-label-md text-label-md uppercase tracking-widest transition-colors">Tẩy tế bào chết</button>
+<button :class="subcategory ? 'bg-surface-container-low text-on-surface hover:bg-surface-variant' : 'bg-primary-container text-on-primary hover:bg-primary'" @click="select('')" class="shrink-0 px-6 py-3 font-label-md text-label-md uppercase tracking-wider transition-colors rounded-full">Tất cả dịch vụ</button>
+<template :key="sub" x-for="sub in subcategories">
+<button :class="subcategory === sub ? 'bg-primary-container text-on-primary hover:bg-primary' : 'bg-surface-container-low text-on-surface hover:bg-surface-variant'" @click="select(sub)" class="shrink-0 px-6 py-3 font-label-md text-label-md uppercase tracking-widest transition-colors" x-text="sub"></button>
+</template>
 </div>
 </section>
 <!-- Featured Services (Asymmetrical Layout) -->
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
 <div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
 <!-- Large Item -->
-<a class="md:col-span-7 group cursor-pointer block" href="chi-tiet-dich-vu.html" style="color:inherit;text-decoration:none">
+<template x-if="services.length">
+<a :href="serviceUrl(services[0])" class="md:col-span-7 group cursor-pointer block" style="color:inherit;text-decoration:none">
 <div class="aspect-[3/4] bg-surface-container overflow-hidden mb-6">
-<img alt="Massage Body Service" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" data-alt="A close-up, editorial shot of a woman receiving a back massage in a softly lit spa room. Neutral earth tones, warm ambient lighting. The focus is on the skilled hands of the therapist applying fragrant oils. High-end lifestyle imagery conveying deep relaxation and professional care." src="assets/images/img-432c4666c7.jpg">
+<img :alt="services[0].name" :src="services[0].image" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out">
 </div>
 <div class="flex justify-between items-start">
 <div>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-2">Trị liệu OAK Signature</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Liệu pháp kết hợp đá nóng và tinh dầu nguyên chất.</p>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-2" x-text="services[0].name"></h3>
+<p class="font-body-md text-body-md text-on-surface-variant" x-text="services[0].description"></p>
 </div>
-<span class="font-label-md text-label-md text-primary">Từ 950.000đ</span>
+<span class="font-label-md text-label-md text-primary" x-text="price(services[0])"></span>
 </div>
 </a>
+</template>
+<template x-if="!loading &amp;&amp; !services.length">
+<p class="md:col-span-12 font-body-md text-body-md text-on-surface-variant">Chưa có dịch vụ nào phù hợp.</p>
+</template>
 <!-- Smaller Stacked Items -->
 <div class="md:col-span-5 flex flex-col gap-12 mt-12 md:mt-24">
-<a class="group cursor-pointer block" href="chi-tiet-dich-vu.html" style="color:inherit;text-decoration:none">
+<template :key="service.id" x-for="service in services.slice(1, 3)">
+<a :href="serviceUrl(service)" class="group cursor-pointer block" style="color:inherit;text-decoration:none">
 <div class="aspect-[4/3] bg-surface-container overflow-hidden mb-6">
-<img alt="Herbal Therapy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" data-alt="A serene visual of natural herbs, dried flowers, and smooth river stones arranged elegantly on a wooden surface against a clean, light background. Representing holistic herbal therapy in a luxury spa setting. Soft, natural lighting." src="assets/images/img-35e4838903.jpg">
+<img :alt="service.name" :src="service.image" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out">
 </div>
 <div class="flex justify-between items-start">
 <div>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-2">Trị liệu thảo mộc</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Thanh lọc cơ thể với nguyên liệu tự nhiên.</p>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-2" x-text="service.name"></h3>
+<p class="font-body-md text-body-md text-on-surface-variant" x-text="service.description"></p>
 </div>
 </div>
 </a>
-<a class="group cursor-pointer block" href="chi-tiet-dich-vu.html" style="color:inherit;text-decoration:none">
-<div class="aspect-[4/3] bg-surface-container overflow-hidden mb-6">
-<img alt="Body Scrub" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" data-alt="A detail shot of organic body scrub texture in an artisan ceramic bowl, placed next to a soft natural sponge. Minimalist aesthetic, soft shadows, communicating purity and rejuvenation for a body exfoliation service." src="assets/images/img-5491553dbe.jpg">
-</div>
-<div class="flex justify-between items-start">
-<div>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-2">Tẩy tế bào chết hữu cơ</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Làm mới làn da với tinh chất thiên nhiên.</p>
-</div>
-</div>
-</a>
+</template>
 </div>
 </div>
 </section>
@@ -178,22 +178,26 @@
 </div>
 <div class="grid grid-cols-1 md:grid-cols-3 grid-rows-[auto_auto] md:grid-rows-[400px_300px] gap-gutter">
 <!-- Bento 1 (Large left) -->
+<template x-if="flagship">
 <div class="md:col-span-2 md:row-span-2 relative overflow-hidden group">
-<img alt="Premium spa lounge" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" data-alt="A wide, sweeping view of an exclusive luxury spa lounge area. Minimalist modern design, featuring curved plaster walls, ambient cove lighting, and plush neutral-toned seating. Large windows reveal a serene bamboo garden. High-end, relaxing atmosphere." src="assets/images/img-f0ab77fc38.jpg">
+<img :alt="flagship.name" :src="photos.length ? photos[0].image : flagship.image" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000">
 <div class="absolute inset-0 bg-gradient-to-t from-primary/60 to-transparent"></div>
 <div class="absolute bottom-0 left-0 p-8">
 <span class="font-caption text-caption text-on-primary/80 uppercase tracking-widest mb-2 block">Chi nhánh Flagship</span>
-<h3 class="font-headline-md text-headline-md text-on-primary">OAK Central Park</h3>
+<h3 class="font-headline-md text-headline-md text-on-primary" x-text="flagship.name"></h3>
 </div>
 </div>
+</template>
 <!-- Bento 2 (Top right) -->
+<template x-if="photos.length > 1">
 <div class="relative overflow-hidden group h-[300px] md:h-auto">
-<img alt="Private massage room" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" data-alt="An intimate, softly lit private massage suite. Features a premium treatment bed adorned with pristine white linens, warm wood paneling, and a delicate floral arrangement. The lighting is low and tranquil, perfect for deep relaxation." src="assets/images/img-4a99dc40ce.jpg">
+<img :alt="photos[1].caption" :src="photos[1].image" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000">
 <div class="absolute inset-0 bg-gradient-to-t from-primary/50 to-transparent"></div>
 <div class="absolute bottom-0 left-0 p-6">
-<h3 class="font-headline-sm text-headline-sm text-on-primary">Phòng trị liệu Private</h3>
+<h3 class="font-headline-sm text-headline-sm text-on-primary" x-text="photos[1].caption"></h3>
 </div>
 </div>
+</template>
 <!-- Bento 3 (Bottom right) -->
 <div class="relative overflow-hidden group bg-surface-container-highest flex flex-col justify-center p-8 h-[300px] md:h-auto">
 <span class="material-symbols-outlined text-primary mb-6 text-[32px]" style="font-variation-settings: 'wght' 200;">spa</span>
@@ -208,52 +212,32 @@
 <h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-4 text-center">Gói trải nghiệm</h2>
 <p class="font-body-md text-body-md text-on-surface-variant text-center max-w-2xl mx-auto mb-16">Dành trọn khoảnh khắc thư giãn bên những người thân yêu với các gói dịch vụ được thiết kế đặc biệt.</p>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
-<!-- Card 1 -->
+<template :key="pkg.id" x-for="pkg in packages">
 <div class="bg-surface-container-highest p-8 md:p-12 flex flex-col justify-between group hover:bg-surface-variant transition-colors duration-500 cursor-pointer h-full">
 <div>
 <div class="flex justify-between items-start mb-8">
-<span class="font-label-md text-label-md uppercase tracking-widest text-primary border border-primary px-3 py-1">Dành cho cặp đôi</span>
+<span class="font-label-md text-label-md uppercase tracking-widest text-primary border border-primary px-3 py-1" x-text="pkg.subcategory"></span>
 <span class="material-symbols-outlined text-primary opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-[-10px] group-hover:translate-x-0 duration-300">arrow_forward</span>
 </div>
-<h3 class="font-headline-md text-headline-md text-primary mb-4">Trọn Vẹn Yêu Thương</h3>
-<p class="font-body-md text-body-md text-on-surface-variant mb-6">Trải nghiệm 120 phút thư giãn trong không gian phòng đôi riêng tư. Bao gồm ngâm bồn thảo mộc, tẩy tế bào chết và massage body thư giãn.</p>
+<h3 class="font-headline-md text-headline-md text-primary mb-4" x-text="pkg.name"></h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-text="pkg.description"></p>
 <ul class="flex flex-col gap-3 font-caption text-caption text-on-surface-variant mb-12">
-<li class="flex items-center gap-3"><span class="w-1 h-1 bg-primary rounded-full"></span> 30' Ngâm bồn thảo mộc hoàng cung</li>
-<li class="flex items-center gap-3"><span class="w-1 h-1 bg-primary rounded-full"></span> 30' Tẩy tế bào chết ngọc trai</li>
-<li class="flex items-center gap-3"><span class="w-1 h-1 bg-primary rounded-full"></span> 60' Massage body tinh dầu OAK</li>
+<li class="flex items-center gap-3"><span class="w-1 h-1 bg-primary rounded-full"></span> <span x-text="pkg.duration_min + ' phút trải nghiệm'"></span></li>
+<li class="flex items-center gap-3"><span class="w-1 h-1 bg-primary rounded-full"></span> <span x-text="'Tại ' + pkg.salon.name + ', ' + pkg.salon.district"></span></li>
 </ul>
 </div>
 <div class="pt-6 border-t border-outline-variant/30 flex justify-between items-end">
 <div>
-<span class="font-caption text-caption text-on-surface-variant block mb-1">Giá cho 2 người</span>
-<span class="font-headline-sm text-headline-sm text-primary">2.800.000đ</span>
+<span class="font-caption text-caption text-on-surface-variant block mb-1">Giá trọn gói</span>
+<span class="font-headline-sm text-headline-sm text-primary" x-text="price(pkg)"></span>
 </div>
-<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="font-label-md text-label-md uppercase tracking-widest text-primary hover:text-secondary transition-colors">Đặt ngay</button></a>
-</div>
-</div>
-<!-- Card 2 -->
-<div class="bg-surface-container-highest p-8 md:p-12 flex flex-col justify-between group hover:bg-surface-variant transition-colors duration-500 cursor-pointer h-full">
-<div>
-<div class="flex justify-between items-start mb-8">
-<span class="font-label-md text-label-md uppercase tracking-widest text-primary border border-primary px-3 py-1">Nhóm bạn / Gia đình</span>
-<span class="material-symbols-outlined text-primary opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-[-10px] group-hover:translate-x-0 duration-300">arrow_forward</span>
-</div>
-<h3 class="font-headline-md text-headline-md text-primary mb-4">Ngày Thư Thái</h3>
-<p class="font-body-md text-body-md text-on-surface-variant mb-6">Gói dịch vụ thiết kế cho nhóm từ 3-4 người. Bao gồm xông hơi đá muối, massage cổ vai gáy và thưởng thức tiệc trà chiều thượng hạng.</p>
-<ul class="flex flex-col gap-3 font-caption text-caption text-on-surface-variant mb-12">
-<li class="flex items-center gap-3"><span class="w-1 h-1 bg-primary rounded-full"></span> 45' Xông hơi đá muối Himalaya</li>
-<li class="flex items-center gap-3"><span class="w-1 h-1 bg-primary rounded-full"></span> 45' Massage ấn huyệt cổ vai gáy</li>
-<li class="flex items-center gap-3"><span class="w-1 h-1 bg-primary rounded-full"></span> Tiệc trà chiều (trà thảo mộc &amp; bánh ngọt)</li>
-</ul>
-</div>
-<div class="pt-6 border-t border-outline-variant/30 flex justify-between items-end">
-<div>
-<span class="font-caption text-caption text-on-surface-variant block mb-1">Giá / người (từ 3 người)</span>
-<span class="font-headline-sm text-headline-sm text-primary">850.000đ</span>
-</div>
-<a href="dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="font-label-md text-label-md uppercase tracking-widest text-primary hover:text-secondary transition-colors">Đặt ngay</button></a>
+<a :href="bookingUrl(pkg)" style="display:contents;color:inherit;text-decoration:none"><button class="font-label-md text-label-md uppercase tracking-widest text-primary hover:text-secondary transition-colors">Đặt ngay</button></a>
 </div>
 </div>
+</template>
+<template x-if="!loading &amp;&amp; !packages.length">
+<p class="md:col-span-2 font-body-md text-body-md text-on-surface-variant text-center">Chưa có gói trải nghiệm nào.</p>
+</template>
 </div>
 </section>
 </main>
@@ -300,4 +284,73 @@
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+    function oakSpaPage() {
+        const FEATURED = 3;
+
+        return {
+            services: [],
+            packages: [],
+            subcategories: [],
+            subcategory: '',
+            flagship: null,
+            photos: [],
+            loading: true,
+
+            async init() {
+                try {
+                    const [packages, flagships] = await Promise.all([
+                        OAK.api('/api/services?category=spa&is_package=1&limit=2'),
+                        OAK.api('/api/salons?flagship=1&limit=1'),
+                    ]);
+                    this.packages = packages;
+                    this.flagship = flagships[0] || null;
+                    if (this.flagship) {
+                        this.photos = await OAK.api('/api/salons/' + this.flagship.id + '/photos');
+                    }
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+                // The chips are the sub-categories the spa catalogue actually has.
+                const catalogue = await this.load();
+                this.subcategories = [...new Set(catalogue.map((service) => service.subcategory).filter(Boolean))];
+            },
+
+            async load() {
+                this.loading = true;
+                try {
+                    const catalogue = await OAK.api(
+                        '/api/services?category=spa&limit=50' +
+                        (this.subcategory ? '&subcategory=' + encodeURIComponent(this.subcategory) : ''),
+                    );
+                    this.services = catalogue.slice(0, FEATURED);
+                    return catalogue;
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                    return [];
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            select(subcategory) {
+                this.subcategory = this.subcategory === subcategory ? '' : subcategory;
+                this.load();
+            },
+
+            serviceUrl(service) {
+                return 'chi-tiet-dich-vu.html?id=' + service.id;
+            },
+
+            bookingUrl(service) {
+                return 'dat-lich.html?service_id=' + service.id + '&salon_id=' + service.salon.id;
+            },
+
+            price(service) {
+                return (service.price_is_from ? 'Từ ' : '') + OAK.fmtPrice(service.price);
+            },
+        };
+    }
+</script>
 </body></html>

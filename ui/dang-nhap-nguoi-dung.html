@@ -4,9 +4,13 @@
 <script src="assets/js/tailwind-36d3755fef.js"></script>
 <script src="assets/js/oak-tailwind-config.js"></script>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <style>
         /* Underlined inputs with floating labels (this page only) */
         .input-minimal {
@@ -55,8 +59,8 @@
 </div>
 </div>
 </div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
 </nav>
 <div class="flex items-center gap-4">
 <a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
@@ -67,9 +71,9 @@
 <span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
-<button aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
+</a>
 <a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
@@ -96,8 +100,9 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
@@ -114,18 +119,18 @@
 <!-- Right side: Form -->
 <div class="w-full lg:w-1/2 flex flex-col justify-center px-margin-mobile md:px-margin-desktop py-12 max-w-2xl mx-auto">
 <div class="mb-12">
-<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Đăng nhập</h2>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Đăng nhập</h1>
 <p class="font-body-md text-body-md text-on-surface-variant">Chào mừng bạn quay trở lại với không gian làm đẹp tinh tế.</p>
 </div>
-<form action="#" class="space-y-8" method="POST">
-<!-- Email / Phone Input -->
+<form @submit.prevent="submit()" class="space-y-8" method="POST" novalidate x-data="oakCustomerLogin()">
+<!-- Email Input -->
 <div class="relative pt-4">
-<input class="input-minimal font-body-md text-body-md text-primary" id="identifier" name="identifier" placeholder=" " required="" type="text">
-<label class="floating-label font-label-md uppercase tracking-widest" for="identifier">Email hoặc Số điện thoại</label>
+<input class="input-minimal font-body-md text-body-md text-primary" id="identifier" name="identifier" placeholder=" " required="" type="text" x-model="email">
+<label class="floating-label font-label-md uppercase tracking-widest" for="identifier">Email</label>
 </div>
 <!-- Password Input -->
 <div class="relative pt-4">
-<input class="input-minimal font-body-md text-body-md text-primary" id="password" name="password" placeholder=" " required="" type="password">
+<input class="input-minimal font-body-md text-body-md text-primary" id="password" name="password" placeholder=" " required="" type="password" x-model="password">
 <label class="floating-label font-label-md uppercase tracking-widest" for="password">Mật khẩu</label>
 </div>
 <!-- Options -->
@@ -134,13 +139,15 @@
 <input class="form-checkbox h-4 w-4 text-primary border-outline-variant rounded focus:ring-primary focus:ring-opacity-50 transition-colors" type="checkbox">
 <span class="font-caption text-caption text-on-surface-variant group-hover:text-primary transition-colors">Ghi nhớ đăng nhập</span>
 </label>
-<a class="font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors" href="#">Quên mật khẩu?</a>
+<a @click.prevent="forgotPassword()" class="font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors" href="#">Quên mật khẩu?</a>
 </div>
+<!-- Inline error -->
+<p class="font-caption text-caption text-error" x-cloak="" x-show="error" x-text="error"></p>
 <!-- Submit Button -->
 <div class="pt-6">
-<a href="kham-pha.html" style="display:contents;color:inherit;text-decoration:none"><button class="w-full bg-primary-container text-on-primary py-4 px-6 rounded-full flex items-center justify-center font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors duration-300" type="button">
+<button :disabled="busy" class="w-full bg-primary-container text-on-primary py-4 px-6 rounded-full flex items-center justify-center font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors duration-300 disabled:opacity-60" type="submit" x-text="busy ? 'Đang đăng nhập...' : 'Đăng nhập'">
                     Đăng nhập
-                </button></a>
+                </button>
 </div>
 </form>
 <!-- Divider -->
@@ -164,7 +171,7 @@
 <div class="mt-12 text-center">
 <p class="font-body-md text-body-md text-on-surface-variant">
                 Chưa có tài khoản? 
-                <a class="font-label-md text-label-md text-primary underline ml-1 hover:text-secondary transition-colors uppercase tracking-widest" href="#">Đăng ký tài khoản mới</a>
+                <a class="font-label-md text-label-md text-primary underline ml-1 hover:text-secondary transition-colors uppercase tracking-widest" href="dang-ky.html">Đăng ký tài khoản mới</a>
 </p>
 </div>
 </div>
@@ -214,4 +221,55 @@
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+
+    /** Partners always land on their dashboard; everyone else on ?next= when it names a page here. */
+    function oakLoginDestination(role) {
+        if (role === 'partner') return 'tong-quan-doi-tac.html';
+        const next = OAK.qs('next');
+        return next && /^[\w-]+\.html(\?.*)?$/.test(next) ? next : 'kham-pha.html';
+    }
+
+    function oakCustomerLogin() {
+        return {
+            email: '',
+            password: '',
+            error: '',
+            busy: false,
+
+            async init() {
+                const user = await OAK.me();
+                if (user) location.href = oakLoginDestination(user.role);
+            },
+
+            async submit() {
+                this.error = '';
+                this.busy = true;
+                try {
+                    const data = await OAK.api('/api/auth/login', {
+                        method: 'POST',
+                        body: { email: this.email, password: this.password },
+                    });
+                    location.href = oakLoginDestination(data.user.role);
+                } catch (error) {
+                    this.error = error.message;
+                    this.busy = false;
+                }
+            },
+
+            async forgotPassword() {
+                try {
+                    const data = await OAK.api('/api/auth/forgot-password', {
+                        method: 'POST',
+                        body: { email: this.email },
+                    });
+                    OAK.toast(data.message);
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+            },
+        };
+    }
+</script>
 </body></html>

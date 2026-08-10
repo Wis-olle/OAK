@@ -1,0 +1,373 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<script src="assets/js/tailwind-36d3755fef.js"></script>
+<script src="assets/js/oak-tailwind-config.js"></script>
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
+<style>
+        /* Underlined inputs with floating labels (comment form) */
+        .input-minimal {
+            border: none; border-bottom: 1px solid #c4c7c7; background-color: transparent;
+            padding: 12px 0; border-radius: 0; outline: none; box-shadow: none;
+            transition: border-color 0.3s ease; width: 100%;
+        }
+        .input-minimal:focus { border-bottom-color: #171818; box-shadow: none; }
+        .floating-label {
+            position: absolute; top: 12px; left: 0; pointer-events: none;
+            transition: 0.3s ease all; color: #747878;
+        }
+        .input-minimal:focus ~ .floating-label,
+        .input-minimal:not(:placeholder-shown) ~ .floating-label {
+            top: -12px; font-size: 12px; color: #171818;
+        }
+    </style>
+<title>Bài viết - OAK Beauty</title>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
+<!-- TopNavBar -->
+<header @keydown.escape.window="menuOpen = false" class="glass-nav fixed top-0 w-full z-50 transition-colors" x-data="{ menuOpen: false }">
+<div class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed hover:opacity-80 transition-opacity shrink-0" href="index.html">OAK Beauty</a>
+<nav aria-label="Điều hướng chính" class="hidden md:flex items-center gap-8">
+<div class="relative group">
+<a class="flex items-center gap-1 font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="kham-pha.html">Khám phá<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
+<div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
+<div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
+<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="index.html">Trang chủ</a>
+<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
+</div>
+</div>
+</div>
+<div class="relative group">
+<a class="flex items-center gap-1 font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="ket-qua-tim-kiem.html">Dịch vụ<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
+<div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
+<div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-nail.html">NAIL</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="cham-soc-da.html">SKINCARE</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="spa-massage.html">SPA &amp; MASSAGE</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html">EYELASH</a>
+<div class="border-t border-outline-variant/30 my-1"></div>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+</div>
+</div>
+</div>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-primary dark:text-primary-fixed font-bold border-b-2 border-primary pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
+</nav>
+<div class="flex items-center gap-4">
+<a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</a>
+<button aria-label="Chọn khu vực" class="hidden xl:flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]" data-icon="location_on">location_on</span>
+<span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
+<span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</a>
+<a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+</a>
+<a class="hidden md:inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="dat-lich.html">Đặt lịch</a>
+<a aria-label="Tài khoản" class="block w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/30 shrink-0" href="dang-nhap-nguoi-dung.html">
+<img alt="Ảnh đại diện người dùng" class="w-full h-full object-cover" src="assets/images/img-b79c0642dd.jpg">
+</a>
+<button :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen" aria-controls="mobile-menu" aria-expanded="false" aria-label="Menu" class="md:hidden flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined" data-icon="menu" x-show="!menuOpen">menu</span>
+<span class="material-symbols-outlined" data-icon="close" x-cloak="" x-show="menuOpen">close</span>
+</button>
+</div>
+</div>
+<!-- Mobile menu panel -->
+<div @click.outside="menuOpen = false" class="md:hidden bg-surface border-b border-outline-variant/30 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain" id="mobile-menu" x-cloak="" x-show="menuOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-end="opacity-100 translate-y-0" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:leave="transition ease-in duration-150" x-transition:leave-end="opacity-0 -translate-y-2" x-transition:leave-start="opacity-100 translate-y-0">
+<nav @click="menuOpen = false" aria-label="Điều hướng di động" class="flex flex-col px-margin-mobile py-2">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="kham-pha.html">Khám phá</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="index.html">Trang chủ</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-nail.html">NAIL</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-primary font-bold hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
+<a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
+</nav>
+</div>
+</header>
+<!-- Main Content -->
+<main class="pt-20 flex-grow pb-section-gap" x-data="oakPostDetail()">
+<div class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto pt-8 md:pt-12">
+<!-- Back to blog -->
+<a class="inline-flex items-center gap-2 font-label-md text-label-md text-on-surface-variant hover:text-primary uppercase tracking-wider transition-colors mb-8" href="blog.html">
+<span class="material-symbols-outlined text-[18px]" data-icon="arrow_back">arrow_back</span>
+            Quay lại Blog
+        </a>
+<!-- Not found -->
+<template x-if="!loading &amp;&amp; !post">
+<div class="text-center py-16">
+<span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-4 block" data-icon="search_off">search_off</span>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-text="error || 'Không tìm thấy bài viết này.'"></p>
+<a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="blog.html">Xem các bài viết khác</a>
+</div>
+</template>
+<template x-if="post">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter lg:gap-12">
+<!-- Article / video column -->
+<article class="lg:col-span-8 min-w-0">
+<span class="font-caption text-caption uppercase tracking-widest text-on-surface-variant mb-4 block" x-text="post.type === 'video' ? 'Video' : 'Bài viết'"></span>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-6" x-text="post.title"></h1>
+<!-- Byline -->
+<div class="flex items-center gap-3 pb-8 mb-8 border-b border-outline-variant/30">
+<img :alt="post.author.name || 'Tác giả'" :src="avatarOf(post.author)" class="w-11 h-11 rounded-full object-cover bg-surface-variant shrink-0">
+<div>
+<p class="font-label-md text-label-md text-primary" x-text="post.author.name || 'Cộng đồng OAK'"></p>
+<p class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(post.created_at)"></p>
+</div>
+</div>
+<!-- Video player -->
+<template x-if="post.type === 'video' &amp;&amp; embedUrl">
+<div class="aspect-[16/9] w-full rounded-lg overflow-hidden bg-primary mb-8">
+<iframe :src="embedUrl" :title="post.title" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen="" class="w-full h-full" frameborder="0" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
+</div>
+</template>
+<!-- Article hero image -->
+<template x-if="post.type !== 'video' &amp;&amp; post.image">
+<div class="aspect-[16/9] w-full rounded-lg overflow-hidden bg-surface-container mb-8">
+<img :alt="post.title" :src="post.image" class="w-full h-full object-cover">
+</div>
+</template>
+<!-- Body copy -->
+<div class="space-y-6">
+<template :key="index" x-for="(paragraph, index) in paragraphs">
+<p class="font-body-lg text-body-lg text-on-surface-variant" x-text="paragraph"></p>
+</template>
+</div>
+<!-- Comments -->
+<section class="mt-16 pt-8 border-t border-outline-variant/30">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-8" x-text="'Bình luận (' + post.comments.length + ')'"></h2>
+<div class="space-y-8 mb-10">
+<template :key="comment.id" x-for="comment in post.comments">
+<div class="flex gap-4">
+<img :alt="comment.user.name || 'Người dùng'" :src="avatarOf(comment.user)" class="w-10 h-10 rounded-full object-cover bg-surface-variant shrink-0">
+<div class="min-w-0">
+<div class="flex flex-wrap items-baseline gap-x-3">
+<p class="font-label-md text-label-md text-primary" x-text="comment.user.name || 'Người dùng OAK'"></p>
+<p class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(comment.created_at)"></p>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2" x-text="comment.content"></p>
+</div>
+</div>
+</template>
+<template x-if="!post.comments.length">
+<p class="font-body-md text-body-md text-on-surface-variant">Chưa có bình luận nào. Hãy chia sẻ cảm nhận của bạn về bài viết này.</p>
+</template>
+</div>
+<!-- Comment form (members) -->
+<form @submit.prevent="submitComment()" class="bg-surface-container-low rounded-2xl p-6" x-cloak="" x-show="user">
+<div class="relative mb-6">
+<textarea class="input-minimal font-body-md text-body-md text-primary resize-y" id="comment-content" placeholder=" " rows="3" x-model="commentText"></textarea>
+<label class="floating-label font-body-md text-body-md" for="comment-content">Viết bình luận của bạn</label>
+</div>
+<p class="font-body-md text-body-md text-error mb-4" x-cloak="" x-show="commentError" x-text="commentError"></p>
+<div class="flex justify-end">
+<button :disabled="posting" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-50" type="submit" x-text="posting ? 'Đang gửi…' : 'Gửi bình luận'"></button>
+</div>
+</form>
+<!-- Comment CTA (guests) -->
+<div class="bg-surface-container-low rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between" x-cloak="" x-show="!user">
+<p class="font-body-md text-body-md text-on-surface-variant">Bạn cần đăng nhập để tham gia bình luận.</p>
+<a :href="loginUrl" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 shrink-0">Đăng nhập để bình luận</a>
+</div>
+</section>
+</article>
+<!-- Sidebar -->
+<aside class="lg:col-span-4 min-w-0">
+<div class="lg:sticky lg:top-28">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6 border-b border-outline-variant/30 pb-4">Bài viết khác</h2>
+<div class="space-y-6">
+<template :key="item.id" x-for="item in related">
+<a :href="'blog-chi-tiet.html?slug=' + encodeURIComponent(item.slug)" class="group flex gap-4" style="color:inherit;text-decoration:none">
+<div class="relative w-24 h-20 rounded-lg overflow-hidden img-hover-zoom bg-surface-container shrink-0">
+<template x-if="item.image">
+<img :alt="item.title" :src="item.image" class="w-full h-full object-cover">
+</template>
+<template x-if="!item.image">
+<div class="w-full h-full flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl text-on-surface-variant/40" x-text="item.type === 'video' ? 'movie' : 'article'"></span>
+</div>
+</template>
+<template x-if="item.type === 'video'">
+<span aria-label="Video" class="absolute inset-0 flex items-center justify-center">
+<span class="w-8 h-8 rounded-full bg-primary/70 text-on-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]" data-icon="play_arrow">play_arrow</span>
+</span>
+</span>
+</template>
+</div>
+<div class="min-w-0">
+<h3 class="font-label-md text-label-md text-primary group-hover:text-secondary transition-colors line-clamp-2 leading-snug" x-text="item.title"></h3>
+<p class="font-caption text-caption text-on-surface-variant mt-2" x-text="OAK.fmtDate(item.created_at)"></p>
+</div>
+</a>
+</template>
+<template x-if="!related.length">
+<p class="font-body-md text-body-md text-on-surface-variant">Chưa có bài viết nào khác.</p>
+</template>
+</div>
+</div>
+</aside>
+</div>
+</template>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<!-- Brand Column -->
+<div class="col-span-1 md:col-span-1 flex flex-col gap-4">
+<span class="font-headline-sm text-headline-sm text-on-tertiary font-bold">OAK Beauty</span>
+<p class="font-caption text-caption text-on-tertiary/70 mt-4 max-w-xs">
+                    Nâng tầm vẻ đẹp Việt.<br>
+                    Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
+                </p>
+</div>
+<!-- Links Columns -->
+<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Ưu đãi</a>
+</div>
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="#">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
+</div>
+</div>
+<!-- Social/Contact -->
+<div class="col-span-1 flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
+<div class="flex gap-4">
+<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="#"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+</div>
+</div>
+</div>
+<!-- Copyright -->
+<div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
+</div>
+</footer>
+<script>
+    /* Inline scripts run before deferred ones, so these factories exist by the time Alpine boots. */
+    const OAK_DEFAULT_AVATAR = 'assets/images/img-b79c0642dd.jpg';
+    const OAK_RELATED_LIMIT = 4;
+
+    function oakPostDetail() {
+        return {
+            post: null,
+            related: [],
+            user: null,
+            loading: true,
+            error: '',
+            commentText: '',
+            commentError: '',
+            posting: false,
+            /* ?next= only accepts an internal "<page>.html?..." value. */
+            loginUrl: 'dang-nhap-nguoi-dung.html?next=' +
+                encodeURIComponent('blog-chi-tiet.html' + location.search),
+
+            async init() {
+                this.user = await OAK.me();
+
+                const slug = OAK.qs('slug');
+                if (!slug) {
+                    this.error = 'Không tìm thấy bài viết này.';
+                    this.loading = false;
+                    return;
+                }
+
+                try {
+                    this.post = await OAK.api('/api/posts/' + encodeURIComponent(slug));
+                    document.title = this.post.title + ' - OAK Beauty';
+                } catch (error) {
+                    this.error = error.message;
+                } finally {
+                    this.loading = false;
+                }
+
+                this.loadRelated();
+            },
+
+            async loadRelated() {
+                try {
+                    const rows = await OAK.api('/api/posts?limit=' + OAK_RELATED_LIMIT);
+                    this.related = rows.filter((item) => !this.post || item.id !== this.post.id);
+                } catch (error) {
+                    this.related = [];
+                }
+            },
+
+            /* Articles store their body in `content`; a video's blurb may live in either field. */
+            get paragraphs() {
+                const text = (this.post && (this.post.content || this.post.excerpt)) || '';
+                return text.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+            },
+
+            /* Only an https:// embed reaches the iframe; anything else renders no player. */
+            get embedUrl() {
+                const url = (this.post && this.post.video_url) || '';
+                return url.startsWith('https://') ? url : '';
+            },
+
+            avatarOf(person) {
+                return (person && person.avatar) || OAK_DEFAULT_AVATAR;
+            },
+
+            async submitComment() {
+                const content = this.commentText.trim();
+                if (!content) {
+                    this.commentError = 'Vui lòng nhập nội dung bình luận.';
+                    return;
+                }
+
+                this.commentError = '';
+                this.posting = true;
+                try {
+                    const comment = await OAK.api('/api/posts/' + this.post.id + '/comments', {
+                        method: 'POST',
+                        body: { content: content },
+                    });
+                    this.post.comments.push(comment);
+                    this.commentText = '';
+                    OAK.toast('Đã gửi bình luận của bạn.');
+                } catch (error) {
+                    this.commentError = error.message;
+                } finally {
+                    this.posting = false;
+                }
+            },
+        };
+    }
+</script>
+</body></html>

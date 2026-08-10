@@ -4,9 +4,13 @@
 <script src="assets/js/tailwind-36d3755fef.js"></script>
 <script src="assets/js/oak-tailwind-config.js"></script>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <title>Không gian &amp; Tiện ích - OAK Beauty</title>
 </head>
 <body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
@@ -38,8 +42,8 @@
 </div>
 </div>
 </div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
 </nav>
 <div class="flex items-center gap-4">
 <a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
@@ -50,9 +54,9 @@
 <span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
-<button aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
+</a>
 <a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
@@ -69,7 +73,7 @@
 <!-- Mobile menu panel -->
 <div @click.outside="menuOpen = false" class="md:hidden bg-surface border-b border-outline-variant/30 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain" id="mobile-menu" x-cloak="" x-show="menuOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-end="opacity-100 translate-y-0" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:leave="transition ease-in duration-150" x-transition:leave-end="opacity-0 -translate-y-2" x-transition:leave-start="opacity-100 translate-y-0">
 <nav @click="menuOpen = false" aria-label="Điều hướng di động" class="flex flex-col px-margin-mobile py-2">
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="kham-pha.html">Khám phá</a>
+<a class="font-body-md text-body-md text-primary font-bold hover:text-primary transition-colors py-3" href="kham-pha.html">Khám phá</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="index.html">Trang chủ</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
@@ -79,15 +83,16 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
 </nav>
 </div>
 </header>
-<main class="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pb-section-gap">
+<main class="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pb-section-gap" x-data="oakSpacesPage()">
 <!-- Header Section -->
 <header class="py-16 md:py-24 text-center max-w-3xl mx-auto">
 <h1 class="font-headline-lg-mobile text-headline-lg-mobile md:text-display-lg text-primary mb-6">Không gian &amp; Tiện ích</h1>
@@ -95,20 +100,24 @@
 </header>
 <!-- Large Hero Gallery Bento Grid -->
 <section class="grid grid-cols-1 md:grid-cols-12 gap-gutter mb-section-gap">
+<template x-if="photos.length">
 <div class="md:col-span-8 h-[614px] md:h-[819px] relative group overflow-hidden rounded">
-<img alt="Main Salon Space" class="w-full h-full object-cover smooth-hover group-hover:scale-105" data-alt="A tranquil, high-end beauty salon interior bathed in soft, diffused natural light, conveying a sense of serenity and exclusivity. Modern minimalist design with organic textures, creamy off-whites, and subtle warm neutral tones. Large architectural scale, serene mood." src="assets/images/img-7195fe71cc.jpg">
+<img :alt="photos[0].caption" :src="photos[0].image" class="w-full h-full object-cover smooth-hover group-hover:scale-105">
 <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent flex items-end p-8">
-<span class="text-on-primary font-label-md text-label-md tracking-wider uppercase">Sảnh Lễ Tân</span>
+<span class="text-on-primary font-label-md text-label-md tracking-wider uppercase" x-text="photos[0].caption"></span>
 </div>
 </div>
+</template>
 <div class="md:col-span-4 flex flex-col gap-gutter h-[614px] md:h-[819px]">
+<template :key="photo.id" x-for="photo in photos.slice(1, 3)">
 <div class="flex-1 relative group overflow-hidden rounded">
-<img alt="Styling Station" class="w-full h-full object-cover smooth-hover group-hover:scale-105" data-alt="A close-up of a luxurious, minimalist styling station in a high-end beauty salon. Soft, diffused natural light highlights organic textures, a sleek mirror, and subtle warm neutral tones against a creamy off-white wall. Serene, exclusive mood." src="assets/images/img-1008033a72.jpg">
+<img :alt="photo.caption" :src="photo.image" class="w-full h-full object-cover smooth-hover group-hover:scale-105">
 </div>
-<div class="flex-1 relative group overflow-hidden rounded">
-<img alt="Treatment Room" class="w-full h-full object-cover smooth-hover group-hover:scale-105" data-alt="A tranquil private spa room in a luxury beauty salon. Bathed in soft, diffused light, featuring a comfortable treatment bed, modern minimalist design, organic textures, creamy off-whites, and subtle warm neutral tones. Conveying serenity and exclusivity." src="assets/images/img-eb41a65ca9.jpg">
+</template>
 </div>
-</div>
+<template x-if="!loading &amp;&amp; !photos.length">
+<p class="md:col-span-12 font-body-md text-body-md text-on-surface-variant">Chưa có hình ảnh không gian.</p>
+</template>
 </section>
 <!-- About Architecture -->
 <section class="grid grid-cols-1 md:grid-cols-12 gap-gutter items-center mb-section-gap bg-surface-container-low p-8 md:p-16 rounded">
@@ -123,12 +132,12 @@
 </div>
 </section>
 <!-- Interactive Tour -->
-<section class="mb-section-gap text-center">
+<section class="mb-section-gap text-center" x-cloak="" x-show="salon &amp;&amp; salon.tour_url">
 <h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary mb-12">Tham quan thực tế</h2>
 <div class="relative w-full aspect-[21/9] rounded overflow-hidden cursor-pointer group">
 <img alt="360 Virtual Tour" class="w-full h-full object-cover smooth-hover group-hover:scale-105 group-hover:blur-sm" data-alt="A wide panoramic view of a high-end, modern minimalist beauty salon interior. Designed to look like a 360-degree virtual tour thumbnail. Soft natural light, organic textures, creamy off-whites, serene atmosphere, high architectural fidelity." src="assets/images/img-11f369ef67.jpg">
 <div class="absolute inset-0 bg-black/20 flex items-center justify-center transition-all duration-300 group-hover:bg-black/40">
-<button class="bg-surface/90 text-primary p-6 rounded-full ambient-shadow flex items-center justify-center transform transition-transform group-hover:scale-110">
+<button @click="window.open(salon.tour_url, '_blank', 'noopener')" aria-label="Mở tour 360 độ" class="bg-surface/90 text-primary p-6 rounded-full ambient-shadow flex items-center justify-center transform transition-transform group-hover:scale-110" type="button">
 <span class="material-symbols-outlined text-4xl">360</span>
 </button>
 </div>
@@ -137,26 +146,15 @@
 <!-- Amenities Grid -->
 <section class="mb-section-gap">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter border-t border-outline-variant/30 pt-16">
+<template :key="amenity" x-for="amenity in amenities">
 <div class="flex flex-col items-start gap-4">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">meeting_room</span>
-<h3 class="font-label-md text-label-md text-primary uppercase">Phòng VIP riêng tư</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Không gian tách biệt hoàn toàn, đảm bảo sự riêng tư tuyệt đối cho trải nghiệm cá nhân hóa.</p>
+<span class="material-symbols-outlined text-4xl text-on-surface-variant" style="font-variation-settings: 'FILL' 0;" x-text="icon(amenity)"></span>
+<h3 class="font-label-md text-label-md text-primary uppercase" x-text="amenity"></h3>
 </div>
-<div class="flex flex-col items-start gap-4">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">emoji_food_beverage</span>
-<h3 class="font-label-md text-label-md text-primary uppercase">Trà thảo mộc</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Thưởng thức các loại trà thảo mộc organic độc quyền, thanh lọc cơ thể từ bên trong.</p>
-</div>
-<div class="flex flex-col items-start gap-4">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">spa</span>
-<h3 class="font-label-md text-label-md text-primary uppercase">Tinh dầu organic</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Sử dụng 100% tinh dầu chiết xuất từ thiên nhiên, an toàn và mang lại hương thơm thư thái.</p>
-</div>
-<div class="flex flex-col items-start gap-4">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">music_note</span>
-<h3 class="font-label-md text-label-md text-primary uppercase">Âm nhạc thư giãn</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Danh sách phát được giám tuyển chuyên biệt, tần số âm thanh xoa dịu hệ thần kinh.</p>
-</div>
+</template>
+<template x-if="!loading &amp;&amp; !amenities.length">
+<p class="md:col-span-4 font-body-md text-body-md text-on-surface-variant">Chưa có thông tin tiện ích.</p>
+</template>
 </div>
 </section>
 </main>
@@ -203,4 +201,46 @@
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+    function oakSpacesPage() {
+        // The API stores amenities as free text, so the grid picks its icon by name.
+        const ICONS = {
+            'Wifi miễn phí': 'wifi',
+            'Chỗ đậu xe': 'local_parking',
+            'Phòng VIP': 'meeting_room',
+            'Nước uống miễn phí': 'local_cafe',
+        };
+
+        return {
+            salon: null,
+            photos: [],
+            amenities: [],
+            loading: true,
+
+            async init() {
+                try {
+                    const flagships = await OAK.api('/api/salons?flagship=1&limit=1');
+                    if (flagships.length) {
+                        const [salon, photos] = await Promise.all([
+                            OAK.api('/api/salons/' + flagships[0].id),
+                            OAK.api('/api/salons/' + flagships[0].id + '/photos'),
+                        ]);
+                        this.salon = salon;
+                        this.amenities = salon.amenities;
+                        this.photos = photos;
+                    }
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            icon(amenity) {
+                return ICONS[amenity] || 'spa';
+            },
+        };
+    }
+</script>
 </body></html>

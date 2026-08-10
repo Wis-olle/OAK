@@ -1,0 +1,132 @@
+// Customer favourites: salons and services.
+import express from 'express';
+import { db } from '../db.js';
+import {
+  SALON_CARD_COLUMNS,
+  SERVICE_CARD_COLUMNS,
+  toSalonCard,
+  toServiceCard,
+} from '../lib/cards.js';
+import { httpError, requireAuth } from '../middleware/auth.js';
+
+const router = express.Router();
+
+// A favourite only means anything in the context of one account.
+router.use(requireAuth);
+
+const selectFavoriteSalons = db.prepare(`
+  SELECT ${SALON_CARD_COLUMNS}
+  FROM favorites f
+  JOIN salons s ON s.id = f.salon_id
+  WHERE f.user_id = ?
+  ORDER BY f.id DESC
+`);
+// A service the salon has hidden ("Tạm ẩn dịch vụ") is gone from every customer-facing
+// listing, so it must drop out of the favourites list too — the row itself is kept, and
+// comes back if the salon un-hides the service.
+const selectFavoriteServices = db.prepare(`
+  SELECT ${SERVICE_CARD_COLUMNS}
+  FROM favorites f
+  JOIN services sv ON sv.id = f.service_id
+  JOIN salons s ON s.id = sv.salon_id
+  WHERE f.user_id = ? AND sv.active = 1
+  ORDER BY f.id DESC
+`);
+const selectSalon = db.prepare('SELECT 1 FROM salons WHERE id = ?');
+// Same 404 the public service endpoints give: a hidden service does not exist for a customer.
+const selectService = db.prepare('SELECT 1 FROM services WHERE id = ? AND active = 1');
+const selectFavoriteSalon = db.prepare(
+  'SELECT id FROM favorites WHERE user_id = ? AND salon_id = ?',
+);
+const selectFavoriteService = db.prepare(
+  'SELECT id FROM favorites WHERE user_id = ? AND service_id = ?',
+);
+const insertFavorite = db.prepare(
+  'INSERT INTO favorites (user_id, salon_id, service_id, created_at) VALUES (?, ?, ?, ?)',
+);
+const deleteFavoriteSalon = db.prepare('DELETE FROM favorites WHERE user_id = ? AND salon_id = ?');
+const deleteFavoriteService = db.prepare(
+  'DELETE FROM favorites WHERE user_id = ? AND service_id = ?',
+);
+
+/**
+ * One favourite row points at a salon or a service, never both and never neither.
+ * The table CHECKs the same rule; this is the first line of defence, so a bad request
+ * gets a 400 with a Vietnamese message instead of a constraint failure.
+ */
+function parseTarget(source) {
+  const hasSalon = source.salon_id != null && source.salon_id !== '';
+  const hasService = source.service_id != null && source.service_id !== '';
+  if (hasSalon === hasService) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Vui lòng chọn một salon hoặc một dịch vụ.');
+  }
+
+  const id = Number.parseInt(hasSalon ? source.salon_id : source.service_id, 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Mã salon hoặc dịch vụ không hợp lệ.');
+  }
+  return { isSalon: hasSalon, id };
+}
+
+router.get('/', (req, res, next) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        salons: selectFavoriteSalons.all(req.user.id).map(toSalonCard),
+        services: selectFavoriteServices.all(req.user.id).map(toServiceCard),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/', (req, res, next) => {
+  try {
+    const { isSalon, id } = parseTarget(req.body ?? {});
+
+    const exists = isSalon ? selectSalon.get(id) : selectService.get(id);
+    if (!exists) {
+      throw httpError(404, 'NOT_FOUND', 'Không tìm thấy salon hoặc dịch vụ.');
+    }
+
+    // Idempotent: tapping the heart twice is a UI race, not a client error, so an
+    // existing row is reported as success instead of a UNIQUE constraint failure.
+    const existing = isSalon
+      ? selectFavoriteSalon.get(req.user.id, id)
+      : selectFavoriteService.get(req.user.id, id);
+    if (!existing) {
+      insertFavorite.run(
+        req.user.id,
+        isSalon ? id : null,
+        isSalon ? null : id,
+        new Date().toISOString(),
+      );
+    }
+
+    res.json({ success: true, data: { ok: true } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/', (req, res, next) => {
+  try {
+    const { isSalon, id } = parseTarget(req.query);
+
+    // Also idempotent: removing something already gone leaves the client in the state it
+    // asked for, so a zero-row delete is still a success.
+    if (isSalon) {
+      deleteFavoriteSalon.run(req.user.id, id);
+    } else {
+      deleteFavoriteService.run(req.user.id, id);
+    }
+
+    res.json({ success: true, data: { ok: true } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;

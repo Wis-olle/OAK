@@ -4,9 +4,11 @@
 <script src="assets/js/tailwind-36d3755fef.js"></script>
 <script src="assets/js/oak-tailwind-config.js"></script>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<script src="assets/js/oak-api.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <style>
         .letter-spacing-btn { letter-spacing: 0.05em; }
     </style>
@@ -43,8 +45,8 @@
 </div>
 </div>
 </div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
 </nav>
 <div class="flex items-center gap-4">
 <a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
@@ -55,9 +57,9 @@
 <span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
-<button aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
+</a>
 <a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
@@ -84,8 +86,9 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
@@ -93,9 +96,14 @@
 </div>
 </header>
 <!-- Main Content Canvas -->
-<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop w-full max-w-container-max mx-auto flex flex-col items-center justify-center min-h-[90vh]">
+<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop w-full max-w-container-max mx-auto flex flex-col items-center justify-center min-h-[90vh]" x-data="oakBookingConfirmation()">
+<!-- Load failure: the booking is gone, or the url carries no id -->
+<div class="w-full max-w-3xl bg-surface-container-lowest rounded-xl ambient-shadow p-8 text-center" x-cloak="" x-show="error">
+<p class="font-body-lg text-body-lg text-on-surface mb-6" x-text="error"></p>
+<a class="font-label-md text-label-md uppercase tracking-wider text-primary hover:underline" href="lich-hen-cua-toi.html">Xem lịch hẹn của tôi</a>
+</div>
 <!-- Confirmation Bento Box -->
-<div class="w-full max-w-3xl bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden flex flex-col md:flex-row">
+<div class="w-full max-w-3xl bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden flex flex-col md:flex-row" x-show="!error">
 <!-- Left Side: Visual & Status -->
 <div class="md:w-5/12 bg-tertiary relative overflow-hidden min-h-[300px] flex flex-col justify-between p-8 text-on-tertiary z-10">
 <!-- Background Image Layer with tonal overlay -->
@@ -112,7 +120,7 @@
 </div>
 <div class="mt-8 pt-6 border-t border-surface-container-lowest/20">
 <p class="font-caption text-caption text-surface-container-lowest/60 uppercase tracking-[0.05em] mb-1">Mã đặt chỗ</p>
-<p class="font-headline-sm text-headline-sm font-medium tracking-wide">OAK-123456</p>
+<p class="font-headline-sm text-headline-sm font-medium tracking-wide" x-text="booking ? booking.code : '…'">…</p>
 </div>
 </div>
 </div>
@@ -125,39 +133,39 @@
 <li class="flex items-start gap-4 pb-5 border-b border-outline-variant/30">
 <span class="material-symbols-outlined text-outline mt-1">spa</span>
 <div>
-<p class="font-body-md text-body-md font-medium text-on-surface">Liệu trình Phục hồi Chuyên sâu</p>
-<p class="font-caption text-caption text-on-surface-variant mt-1">Dịch vụ • 90 phút</p>
+<p class="font-body-md text-body-md font-medium text-on-surface" x-text="booking ? booking.service.name : ''"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1" x-text="booking ? 'Dịch vụ • ' + booking.service.duration_min + ' phút' : ''"></p>
 </div>
 </li>
 <!-- Detail Item 2 -->
 <li class="flex items-start gap-4 pb-5 border-b border-outline-variant/30">
 <span class="material-symbols-outlined text-outline mt-1">calendar_today</span>
 <div>
-<p class="font-body-md text-body-md font-medium text-on-surface">14:30 - 16:00, Thứ Bảy</p>
-<p class="font-caption text-caption text-on-surface-variant mt-1">24 Tháng 10, 2024</p>
+<p class="font-body-md text-body-md font-medium text-on-surface" x-text="timeLabel()"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1" x-text="dateLabel()"></p>
 </div>
 </li>
 <!-- Detail Item 3 -->
 <li class="flex items-start gap-4 pb-5 border-b border-outline-variant/30">
 <span class="material-symbols-outlined text-outline mt-1">location_on</span>
 <div>
-<p class="font-body-md text-body-md font-medium text-on-surface">OAK Flagship Quận 1</p>
-<p class="font-caption text-caption text-on-surface-variant mt-1">123 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM</p>
+<p class="font-body-md text-body-md font-medium text-on-surface" x-text="booking ? booking.salon.name : ''"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1" x-text="booking ? booking.salon.address : ''"></p>
 </div>
 </li>
 </ul>
 </div>
 <!-- Secondary Actions Group -->
 <div class="flex flex-wrap gap-x-6 gap-y-3 mt-8">
-<button class="flex items-center gap-2 font-caption text-caption text-on-surface-variant hover:text-primary transition-colors group">
+<button @click="addToCalendar()" class="flex items-center gap-2 font-caption text-caption text-on-surface-variant hover:text-primary transition-colors group">
 <span class="material-symbols-outlined text-[18px] group-hover:scale-110 transition-transform">event_available</span>
                         Thêm vào lịch
                     </button>
-<button class="flex items-center gap-2 font-caption text-caption text-on-surface-variant hover:text-primary transition-colors group">
+<button @click="openDirections()" class="flex items-center gap-2 font-caption text-caption text-on-surface-variant hover:text-primary transition-colors group">
 <span class="material-symbols-outlined text-[18px] group-hover:scale-110 transition-transform">directions</span>
                         Xem chỉ dẫn đường
                     </button>
-<button class="flex items-center gap-2 font-caption text-caption text-on-surface-variant hover:text-primary transition-colors group">
+<button @click="callSalon()" class="flex items-center gap-2 font-caption text-caption text-on-surface-variant hover:text-primary transition-colors group">
 <span class="material-symbols-outlined text-[18px] group-hover:scale-110 transition-transform">call</span>
                         Liên hệ salon
                     </button>
@@ -232,4 +240,94 @@
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+
+    /** 'HH:MM' + minutes -> 'HH:MM', wrapping at midnight the way a clock does. */
+    function oakAddMinutes(time, minutes) {
+        const [hours, mins] = time.split(':').map(Number);
+        const total = (hours * 60 + mins + (minutes || 0)) % 1440;
+        const pad = (value) => String(value).padStart(2, '0');
+        return pad(Math.floor(total / 60)) + ':' + pad(total % 60);
+    }
+
+    function oakBookingConfirmation() {
+        return {
+            booking: null,
+            error: '',
+
+            async init() {
+                await OAK.requireLogin();
+                const id = Number(OAK.qs('id')) || 0;
+                if (!id) {
+                    this.error = 'Đường dẫn không có mã lịch hẹn.';
+                    return;
+                }
+                try {
+                    this.booking = await OAK.api('/api/bookings/' + id);
+                } catch (error) {
+                    this.error = error.message;
+                }
+            },
+
+            endTime() {
+                return oakAddMinutes(this.booking.time, this.booking.service.duration_min);
+            },
+
+            timeLabel() {
+                if (!this.booking) {
+                    return '';
+                }
+                const weekday = OAK.fmtDate(this.booking.date).split(',')[0];
+                return this.booking.time + ' - ' + this.endTime() + ', ' + weekday;
+            },
+
+            dateLabel() {
+                if (!this.booking) {
+                    return '';
+                }
+                const [year, month, day] = this.booking.date.split('-').map(Number);
+                return day + ' Tháng ' + month + ', ' + year;
+            },
+
+            /** 'YYYY-MM-DD' + 'HH:MM' -> the floating local stamp Google Calendar expects. */
+            stamp(time) {
+                return this.booking.date.replace(/-/g, '') + 'T' + time.replace(':', '') + '00';
+            },
+
+            addToCalendar() {
+                if (!this.booking) {
+                    return;
+                }
+                const params = new URLSearchParams({
+                    action: 'TEMPLATE',
+                    text: this.booking.service.name + ' - ' + this.booking.salon.name,
+                    dates: this.stamp(this.booking.time) + '/' + this.stamp(this.endTime()),
+                    location: this.booking.salon.address || '',
+                    details: 'Mã đặt chỗ: ' + this.booking.code,
+                });
+                window.open('https://calendar.google.com/calendar/render?' + params, '_blank');
+            },
+
+            openDirections() {
+                if (!this.booking) {
+                    return;
+                }
+                const salon = this.booking.salon;
+                const destination = salon.lat && salon.lng ? salon.lat + ',' + salon.lng : salon.address;
+                window.open(
+                    'https://www.google.com/maps/dir/?api=1&destination=' +
+                        encodeURIComponent(destination || ''),
+                    '_blank',
+                );
+            },
+
+            callSalon() {
+                if (this.booking && this.booking.salon.phone) {
+                    location.href = 'tel:' + this.booking.salon.phone.replace(/\s/g, '');
+                }
+            },
+        };
+    }
+</script>
 </body></html>

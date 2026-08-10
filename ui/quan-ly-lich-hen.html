@@ -8,22 +8,27 @@
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <style>
         /* Lighter icon stroke + calendar grid (this page only) */
         .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
         .time-grid { display: grid; grid-template-columns: 80px repeat(3, minmax(200px, 1fr)); grid-auto-rows: 60px; }
     </style>
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
 <title>Quản lý Lịch hẹn - OAK Beauty</title>
 
 
 </head>
-<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface">
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="oakPartnerBookings()">
 <h1 class="sr-only">OAK Beauty — Partner Dashboard</h1>
 <!-- SideNavBar -->
 <nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container p-gutter z-50">
 <div class="mb-12">
 <h1 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h1>
-<p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest">Partner Dashboard</p>
+<p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest" data-oak-salon-name>Partner Dashboard</p>
 </div>
 <ul class="flex flex-col gap-2 flex-grow">
 <li>
@@ -51,7 +56,13 @@
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="#">
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="font-body-md text-body-md">Báo cáo</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="cai-dat-salon.html">
 <span class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-body-md text-body-md">Cài đặt</span>
 </a>
@@ -63,12 +74,12 @@
 <span class="material-symbols-outlined" data-icon="storefront">storefront</span>
 <span class="font-body-md text-body-md">Xem trang khách</span>
 </a>
-<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="dang-nhap-doi-tac.html">
+<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" data-oak-logout href="dang-nhap-doi-tac.html">
 <span class="material-symbols-outlined" data-icon="logout">logout</span>
 <span class="font-body-md text-body-md">Đăng xuất</span>
 </a>
 </div>
-<a class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html">
+<a @click.prevent="openCreate()" class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html">
 <span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
                 Đặt lịch mới
             </a>
@@ -82,22 +93,21 @@
 <div class="flex items-center gap-4 md:gap-6 shrink-0">
 <div class="relative hidden lg:block w-72">
 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
-<input aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm kiếm..." type="text"/>
+<input @input.debounce.300ms="load()" aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm mã lịch hẹn, tên khách..." type="text" x-model="query"/>
 </div>
-<button aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" type="button">
+<a aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-<span class="absolute top-0 right-0 w-2 h-2 bg-secondary rounded-full"></span>
-</button>
-<div class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30">
-<div class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0">
-<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover" data-alt="Close up portrait of a sophisticated salon owner in a modern, light-filled salon setting. Warm, natural lighting highlights professional demeanor. Editorial style photography, high end magazine look, soft focus background." src="assets/images/img-77a799e9a6.jpg"/>
-</div>
-<span class="font-label-md text-label-md text-primary cursor-pointer hover:text-secondary transition-colors hidden sm:inline">Profile</span>
-</div>
+</a>
+<a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
+<span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 block">
+<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover" data-oak-user-avatar src="assets/images/img-77a799e9a6.jpg"/>
+</span>
+<span class="font-label-md text-label-md text-primary hidden sm:inline" data-oak-user-name>Đối tác</span>
+</a>
 <a aria-label="Xem trang khách" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="index.html">
 <span class="material-symbols-outlined" data-icon="storefront">storefront</span>
 </a>
-<a aria-label="Đăng xuất" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="dang-nhap-doi-tac.html">
+<a aria-label="Đăng xuất" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" data-oak-logout href="dang-nhap-doi-tac.html">
 <span class="material-symbols-outlined" data-icon="logout">logout</span>
 </a>
 </div>
@@ -111,204 +121,188 @@
 <!-- Main Calendar Area -->
 <main class="flex-1 flex flex-col overflow-hidden">
 <!-- Filters Bar -->
-<div class="px-gutter py-6 flex items-center justify-between border-b border-outline-variant/20 shrink-0">
+<div class="px-gutter py-6 flex flex-wrap items-center justify-between gap-4 border-b border-outline-variant/20 shrink-0">
 <div class="flex items-center gap-4">
 <div class="flex items-center bg-surface-container-low rounded-DEFAULT p-1 border border-outline-variant/30">
-<button class="px-4 py-1.5 font-label-md text-label-md bg-primary-container text-on-primary rounded-full shadow-sm uppercase hover:bg-primary">Ngày</button>
-<button class="px-4 py-1.5 font-label-md text-label-md text-on-surface-variant hover:text-primary uppercase">Tuần</button>
+<button :class="view === 'day' ? 'bg-primary-container text-on-primary rounded-full shadow-sm hover:bg-primary' : 'text-on-surface-variant hover:text-primary'" @click="setView('day')" class="px-4 py-1.5 font-label-md text-label-md uppercase">Ngày</button>
+<button :class="view === 'week' ? 'bg-primary-container text-on-primary rounded-full shadow-sm hover:bg-primary' : 'text-on-surface-variant hover:text-primary'" @click="setView('week')" class="px-4 py-1.5 font-label-md text-label-md uppercase">Tuần</button>
 </div>
-<h3 class="font-headline-sm text-headline-sm text-primary ml-4">Hôm nay, 24 Tháng 10</h3>
+<h3 class="font-headline-sm text-headline-sm text-primary ml-4" x-text="rangeLabel()"></h3>
 </div>
-<div class="flex gap-3">
-<select class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8 relative">
-<option>Tất cả nhân viên</option>
-<option>Elena R.</option>
-<option>Marcus T.</option>
+<div class="flex flex-wrap gap-3">
+<input @change="load()" aria-label="Ngày" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none" type="date" x-model="date"/>
+<select @change="load()" aria-label="Lọc theo nhân viên" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8 relative" x-model="staffId">
+<option value="">Tất cả nhân viên</option>
+<template :key="member.id" x-for="member in activeStaff()">
+<option :value="member.id" x-text="member.name"></option>
+</template>
 </select>
-<select class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8">
-<option>Tất cả dịch vụ</option>
-<option>Hair Styling</option>
-<option>Coloring</option>
+<select @change="load()" aria-label="Lọc theo dịch vụ" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8" x-model="serviceId">
+<option value="">Tất cả dịch vụ</option>
+<template :key="service.id" x-for="service in services">
+<option :value="service.id" x-text="service.name"></option>
+</template>
 </select>
-<select class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8">
-<option>Trạng thái</option>
-<option>Đã xác nhận</option>
-<option>Chờ xử lý</option>
+<select @change="load()" aria-label="Lọc theo trạng thái" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8" x-model="status">
+<option value="">Tất cả trạng thái</option>
+<option value="pending">Chờ xác nhận</option>
+<option value="confirmed">Đã xác nhận</option>
+<option value="completed">Hoàn thành</option>
+<option value="cancelled">Đã huỷ</option>
 </select>
 </div>
 </div>
 <!-- Grid Calendar View -->
 <div class="flex-1 overflow-y-auto overflow-x-auto hide-scrollbar bg-surface-container-lowest p-gutter">
-<div class="min-w-[800px]">
-<!-- Staff Header Row -->
-<div class="time-grid border-b border-outline-variant/20 mb-4 sticky top-0 bg-surface-container-lowest z-10 pb-4">
+<div class="min-w-[800px]" :class="{ 'opacity-50': loading }">
+<!-- Staff / Day Header Row -->
+<div :style="gridStyle()" class="time-grid border-b border-outline-variant/20 mb-4 sticky top-0 bg-surface-container-lowest z-10 pb-4">
 <div class="flex items-end justify-center pb-2 text-on-surface-variant font-caption text-caption uppercase tracking-widest border-r border-outline-variant/20 pr-4">GMT+7</div>
-<!-- Staff 1 -->
+<template :key="column.key" x-for="column in columns">
 <div class="flex flex-col items-center justify-center border-r border-outline-variant/10">
+<template x-if="view === 'day' && column.image">
 <div class="w-12 h-12 rounded-full overflow-hidden mb-2">
-<img class="w-full h-full object-cover" data-alt="Professional headshot of a female hairstylist named Elena, early 30s, chic minimalist style, wearing a black top. Well-lit studio setting, editorial." src="assets/images/img-9cc6021eb5.jpg"/>
+<img :src="column.image" alt="" class="w-full h-full object-cover"/>
 </div>
-<span class="font-headline-sm text-headline-sm text-primary">Elena R.</span>
-<span class="font-caption text-caption text-on-surface-variant">Senior Stylist</span>
+</template>
+<span class="font-headline-sm text-headline-sm text-primary" x-text="column.name"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="column.subtitle"></span>
 </div>
-<!-- Staff 2 -->
-<div class="flex flex-col items-center justify-center border-r border-outline-variant/10">
-<div class="w-12 h-12 rounded-full overflow-hidden mb-2">
-<img class="w-full h-full object-cover" data-alt="Professional headshot of a male barber named Marcus, late 20s, modern grooming, wearing a crisp white shirt. Clean bright background, high-end style." src="assets/images/img-3f14f27dc1.jpg"/>
-</div>
-<span class="font-headline-sm text-headline-sm text-primary">Marcus T.</span>
-<span class="font-caption text-caption text-on-surface-variant">Color Specialist</span>
-</div>
-<!-- Staff 3 -->
-<div class="flex flex-col items-center justify-center">
-<div class="w-12 h-12 rounded-full overflow-hidden mb-2">
-<img class="w-full h-full object-cover" data-alt="Professional headshot of a female makeup artist named Sofia, minimal elegant makeup, wearing a neutral tone blazer. Soft glowing lighting, luxury aesthetic." src="assets/images/img-7ffd22c3c9.jpg"/>
-</div>
-<span class="font-headline-sm text-headline-sm text-primary">Sofia L.</span>
-<span class="font-caption text-caption text-on-surface-variant">Makeup Artist</span>
-</div>
+</template>
 </div>
 <!-- Time Slots -->
-<div class="time-grid relative">
+<div :style="slotGridStyle()" class="time-grid relative">
 <!-- Background Grid Lines -->
-<div class="col-start-2 col-end-5 row-start-1 row-end-10 grid grid-rows-9 gap-0 pointer-events-none absolute inset-0">
-<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
-<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
-<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
-<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
-<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
-<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
-<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
-<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
-<div class="border-b border-outline-variant/10 border-dashed w-full h-[60px]"></div>
+<div :style="linesStyle()" class="grid gap-0 pointer-events-none">
+<template :key="'line-' + index" x-for="(row, index) in rows">
+<div class="border-b border-outline-variant/10 border-dashed w-full"></div>
+</template>
 </div>
 <!-- Time Labels -->
-<div class="flex justify-center items-start text-on-surface-variant font-caption text-caption border-r border-outline-variant/20 pr-4 mt-[-10px]">09:00</div>
-<div class="col-start-2 col-end-5"></div>
-<div class="flex justify-center items-start text-on-surface-variant font-caption text-caption border-r border-outline-variant/20 pr-4 mt-[-10px]">10:00</div>
-<div class="col-start-2 col-end-5"></div>
-<div class="flex justify-center items-start text-on-surface-variant font-caption text-caption border-r border-outline-variant/20 pr-4 mt-[-10px]">11:00</div>
-<div class="col-start-2 col-end-5"></div>
-<div class="flex justify-center items-start text-on-surface-variant font-caption text-caption border-r border-outline-variant/20 pr-4 mt-[-10px]">12:00</div>
-<div class="col-start-2 col-end-5"></div>
-<div class="flex justify-center items-start text-on-surface-variant font-caption text-caption border-r border-outline-variant/20 pr-4 mt-[-10px]">13:00</div>
-<div class="col-start-2 col-end-5"></div>
-<!-- Appointments (Absolute positioning within grid cells for overlapping/spanning) -->
-<!-- Appointment 1: Elena, 9:00 - 10:30 (Spans 1.5 slots) -->
-<div class="col-start-2 row-start-1 row-end-3 mx-2 mt-2 mb-[-30px] z-10">
-<div class="bg-surface-container-high border-l-4 border-secondary rounded-r-DEFAULT p-3 h-full shadow-sm hover:shadow-md cursor-pointer transition-shadow flex flex-col justify-between">
+<template :key="'label-' + index" x-for="(row, index) in rows">
+<div :style="labelStyle(index)" class="flex justify-center items-start text-on-surface-variant font-caption text-caption border-r border-outline-variant/20 pr-4 mt-[-10px]" x-text="row.label"></div>
+</template>
+<!-- Appointments -->
+<template :key="booking.id" x-for="booking in placedBookings()">
+<div :style="bookingStyle(booking)" class="mx-2 my-1">
+<div :class="bookingClass(booking)" @click="open(booking.id)" class="rounded-r-DEFAULT p-3 h-full shadow-sm hover:shadow-md cursor-pointer transition-shadow flex flex-col justify-between overflow-hidden">
 <div>
-<p class="font-label-md text-label-md text-primary mb-1">Balayage &amp; Cut</p>
-<p class="font-caption text-caption text-on-surface-variant">09:00 - 10:30</p>
+<div class="flex items-center gap-1 mb-1" x-show="booking.status !== 'confirmed'">
+<span class="material-symbols-outlined text-[14px] text-outline" x-text="statusIcon(booking.status)"></span>
+<span class="font-caption text-caption text-outline uppercase tracking-wider" x-text="statusLabel(booking.status)"></span>
+</div>
+<p class="font-label-md text-label-md text-primary mb-1 line-clamp-1" x-text="booking.service ? booking.service.name : 'Dịch vụ đã xoá'"></p>
+<p class="font-caption text-caption text-on-surface-variant" x-text="timeRange(booking)"></p>
 </div>
 <div class="flex items-center gap-2 mt-2">
-<div class="w-6 h-6 rounded-full overflow-hidden">
-<img class="w-full h-full object-cover" data-alt="Portrait of a young woman with long wavy hair, client at a salon. Minimalist beauty shot, bright lighting." src="assets/images/img-5fe625521a.jpg"/>
+<template x-if="booking.customer.avatar">
+<div class="w-6 h-6 rounded-full overflow-hidden shrink-0">
+<img :src="booking.customer.avatar" alt="" class="w-full h-full object-cover"/>
 </div>
-<span class="font-caption text-caption text-on-surface font-medium">Nguyễn Thu A.</span>
-</div>
-</div>
-</div>
-<!-- Appointment 2: Marcus, 10:00 - 11:00 -->
-<div class="col-start-3 row-start-2 row-end-3 mx-2 mt-2 z-10">
-<div class="bg-surface-variant border-l-4 border-outline rounded-r-DEFAULT p-3 h-full shadow-sm opacity-80 cursor-pointer flex flex-col justify-between">
-<div>
-<div class="flex items-center gap-1 mb-1">
-<span class="material-symbols-outlined text-[14px] text-outline">schedule</span>
-<span class="font-caption text-caption text-outline uppercase tracking-wider">Pending</span>
-</div>
-<p class="font-label-md text-label-md text-primary line-clamp-1">Root Touch-up</p>
-</div>
-<p class="font-caption text-caption text-on-surface-variant">Lê Văn B.</p>
-</div>
-</div>
-<!-- Appointment 3: Sofia, 11:30 - 13:00 (Active/Selected) -->
-<div class="col-start-4 row-start-3 row-end-5 mx-2 mt-[30px] mb-[-30px] z-20">
-<div class="bg-inverse-on-surface border-2 border-secondary rounded-DEFAULT p-3 h-full shadow-md cursor-pointer flex flex-col justify-between">
-<div>
-<p class="font-label-md text-label-md text-primary mb-1">Bridal Makeup Trial</p>
-<p class="font-caption text-caption text-on-surface-variant">11:30 - 13:00</p>
-</div>
-<div class="flex items-center gap-2 mt-2">
-<div class="w-6 h-6 rounded-full overflow-hidden">
-<img class="w-full h-full object-cover" data-alt="Portrait of a bride-to-be, fresh faced, soft natural light. Editorial beauty photography." src="assets/images/img-676e58158d.jpg"/>
-</div>
-<span class="font-caption text-caption text-on-surface font-medium">Trần Thị C.</span>
+</template>
+<span class="font-caption text-caption text-on-surface font-medium truncate" x-text="booking.customer.name"></span>
 </div>
 </div>
 </div>
+</template>
 </div>
+<p class="py-12 text-center font-body-md text-body-md text-on-surface-variant" x-show="!loading && placedBookings().length === 0">Không có lịch hẹn nào trong khoảng thời gian này.</p>
 </div>
 </div>
 </main>
 <!-- Appointment Details Sidebar (Right Panel) -->
 <aside class="w-[360px] bg-surface-container-low border-l border-outline-variant/20 flex flex-col shrink-0 shadow-[0_0_40px_rgba(0,0,0,0.02)] z-30 relative">
-<!-- Close Button (Visual only) -->
-<button class="absolute top-4 right-4 text-on-surface-variant hover:text-primary transition-colors">
+<!-- Close Button -->
+<button @click="detail = null" class="absolute top-4 right-4 text-on-surface-variant hover:text-primary transition-colors" x-show="detail">
 <span class="material-symbols-outlined">close</span>
 </button>
-<div class="p-8 border-b border-outline-variant/20 flex flex-col items-center text-center mt-4">
-<div class="w-24 h-24 rounded-full overflow-hidden mb-4 border-2 border-surface-container-highest shadow-sm">
-<img class="w-full h-full object-cover" data-alt="Portrait of a bride-to-be, fresh faced, soft natural light. Editorial beauty photography. Used for client profile." src="assets/images/img-eeeea754bb.jpg"/>
+<div class="p-8 flex-1 flex flex-col items-center justify-center text-center" x-show="!detail">
+<span class="material-symbols-outlined text-[40px] text-outline-variant mb-4">calendar_today</span>
+<p class="font-body-md text-body-md text-on-surface-variant">Chọn một lịch hẹn trên lịch để xem chi tiết.</p>
 </div>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-1">Trần Thị C.</h3>
-<p class="font-body-md text-body-md text-on-surface-variant flex items-center justify-center gap-1">
+<template x-if="detail">
+<div class="flex flex-col flex-1 overflow-hidden">
+<div class="p-8 border-b border-outline-variant/20 flex flex-col items-center text-center mt-4">
+<template x-if="detail.customer.avatar">
+<div class="w-24 h-24 rounded-full overflow-hidden mb-4 border-2 border-surface-container-highest shadow-sm">
+<img :src="detail.customer.avatar" alt="" class="w-full h-full object-cover"/>
+</div>
+</template>
+<template x-if="!detail.customer.avatar">
+<div class="w-24 h-24 rounded-full mb-4 border-2 border-surface-container-highest shadow-sm bg-surface-variant flex items-center justify-center font-headline-sm text-headline-sm text-secondary" x-text="initial(detail.customer.name)"></div>
+</template>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="detail.customer.name"></h3>
+<a :href="'tel:' + (detail.customer.phone || '')" class="font-body-md text-body-md text-on-surface-variant flex items-center justify-center gap-1 hover:text-secondary transition-colors">
 <span class="material-symbols-outlined text-[16px]">call</span>
-                        +84 90 123 4567
-                    </p>
-<div class="mt-4 px-3 py-1 bg-surface-variant rounded-full text-secondary font-label-md text-caption uppercase tracking-wider">
+<span x-text="detail.customer.phone || 'Chưa có số điện thoại'"></span>
+</a>
+<div class="mt-4 px-3 py-1 bg-surface-variant rounded-full text-secondary font-label-md text-caption uppercase tracking-wider" x-show="detail.customer.vip">
                         Khách hàng VIP
                     </div>
 </div>
 <div class="p-8 flex-1 overflow-y-auto">
-<h4 class="font-label-md text-label-md text-primary uppercase tracking-widest mb-6">Chi tiết lịch hẹn</h4>
+<div class="flex items-center justify-between mb-6 gap-3">
+<h4 class="font-label-md text-label-md text-primary uppercase tracking-widest">Chi tiết lịch hẹn</h4>
+<span class="font-caption text-caption text-on-surface-variant" x-text="detail.code"></span>
+</div>
 <div class="space-y-6">
-<!-- Detail Item -->
+<!-- Service -->
 <div class="flex gap-4">
 <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0">
 <span class="material-symbols-outlined text-secondary">content_cut</span>
 </div>
 <div>
-<p class="font-label-md text-label-md text-on-surface">Bridal Makeup Trial</p>
-<p class="font-caption text-caption text-on-surface-variant mt-1">Makeup • 90 phút</p>
-<p class="font-body-md text-body-md text-primary font-medium mt-1">1.500.000 ₫</p>
+<p class="font-label-md text-label-md text-on-surface" x-text="detail.service ? detail.service.name : 'Dịch vụ đã xoá'"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1" x-text="serviceMeta(detail)"></p>
+<p class="font-body-md text-body-md text-primary font-medium mt-1" x-text="OAK.fmtPrice(detail.total_price)"></p>
 </div>
 </div>
-<!-- Detail Item -->
+<!-- Time -->
 <div class="flex gap-4">
 <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0">
 <span class="material-symbols-outlined text-secondary">schedule</span>
 </div>
 <div>
 <p class="font-label-md text-label-md text-on-surface">Thời gian</p>
-<p class="font-caption text-caption text-on-surface-variant mt-1">Hôm nay, 24 Tháng 10</p>
-<p class="font-body-md text-body-md text-primary mt-1">11:30 - 13:00</p>
+<p class="font-caption text-caption text-on-surface-variant mt-1" x-text="OAK.fmtDate(detail.date)"></p>
+<p class="font-body-md text-body-md text-primary mt-1" x-text="timeRange(detail)"></p>
 </div>
 </div>
-<!-- Detail Item -->
+<!-- Staff -->
 <div class="flex gap-4">
 <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0 overflow-hidden">
-<img class="w-full h-full object-cover" data-alt="Professional headshot of a female makeup artist named Sofia, minimal elegant makeup, wearing a neutral tone blazer. Soft glowing lighting, luxury aesthetic. Used as icon." src="assets/images/img-66c1c3331d.jpg"/>
+<template x-if="staffImage(detail)">
+<img :src="staffImage(detail)" alt="" class="w-full h-full object-cover"/>
+</template>
+<template x-if="!staffImage(detail)">
+<span class="material-symbols-outlined text-secondary">group</span>
+</template>
 </div>
 <div>
 <p class="font-label-md text-label-md text-on-surface">Nhân viên phụ trách</p>
-<p class="font-body-md text-body-md text-primary mt-1">Sofia L.</p>
+<p class="font-body-md text-body-md text-primary mt-1" x-text="detail.staff ? detail.staff.name : 'Chưa phân công'"></p>
 </div>
 </div>
 </div>
 <div class="mt-8 pt-6 border-t border-outline-variant/20">
 <p class="font-label-md text-label-md text-primary uppercase tracking-widest mb-4">Ghi chú</p>
-<p class="font-body-md text-body-md text-on-surface-variant italic">"Khách hàng muốn thử tone makeup trong trẻo, tự nhiên phong cách Hàn Quốc."</p>
+<p class="font-body-md text-body-md text-on-surface-variant italic" x-text="detail.note || 'Không có ghi chú.'"></p>
 </div>
 </div>
 <div class="p-gutter border-t border-outline-variant/20 bg-surface-container-lowest flex gap-3">
-<button class="flex-1 py-3 border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-surface-variant transition-colors">
-                        Sửa
+<button @click="setStatus('cancelled')" class="flex-1 py-3 border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-surface-variant transition-colors" x-show="canSet('cancelled')">
+                        Huỷ lịch
                     </button>
-<button class="flex-[2] py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors shadow-sm">
+<button @click="setStatus('confirmed')" class="flex-[2] py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors shadow-sm" x-show="canSet('confirmed')">
+                        Xác nhận
+                    </button>
+<button @click="setStatus('completed')" class="flex-[2] py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors shadow-sm" x-show="canSet('completed')">
                         Hoàn thành
                     </button>
+<p class="flex-1 py-3 text-center font-label-md text-label-md uppercase tracking-wider text-on-surface-variant" x-show="!canSet('cancelled')" x-text="statusLabel(detail.status)"></p>
 </div>
+</div>
+</template>
 </aside>
 </div>
 </main>
@@ -330,9 +324,572 @@
 <span class="material-symbols-outlined" data-icon="group">group</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Nhân viên</span>
 </a>
-<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="#">
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="bao-cao-doanh-thu.html">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Báo cáo</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="cai-dat-salon.html">
 <span class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
 </a>
 </nav>
+<!-- New Booking Modal -->
+<div aria-labelledby="create-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="createOpen">
+<div @click="createOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="createOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
+<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-lg max-h-[90vh] overflow-y-auto border border-outline-variant/20 flex flex-col" x-show="createOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="px-6 py-6 border-b border-outline-variant/20 flex justify-between items-center sticky top-0 bg-surface-container-lowest z-10">
+<h3 class="font-headline-sm text-headline-sm text-primary" id="create-title">Đặt lịch mới</h3>
+<button @click="createOpen = false" class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+<div class="px-6 py-8">
+<form @submit.prevent="submitBooking()" class="space-y-6" id="create-booking-form">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-name">Tên khách hàng</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-name" required type="text" x-model="form.customer_name"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-phone">Số điện thoại</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-phone" required type="tel" x-model="form.customer_phone"/>
+</div>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-service">Dịch vụ</label>
+<select class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-service" required x-model="form.service_id">
+<option value="">Chọn dịch vụ</option>
+<template :key="service.id" x-for="service in services">
+<option :value="service.id" x-text="service.name + ' — ' + OAK.fmtPrice(service.price)"></option>
+</template>
+</select>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-staff">Nhân viên</label>
+<select class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-staff" x-model="form.staff_id">
+<option value="">Chưa phân công</option>
+<template :key="member.id" x-for="member in activeStaff()">
+<option :value="member.id" x-text="member.name"></option>
+</template>
+</select>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-date">Ngày hẹn</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-date" required type="date" x-model="form.date"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-time">Giờ hẹn</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-time" required type="time" x-model="form.time"/>
+</div>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-note">Ghi chú</label>
+<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-note" rows="2" x-model="form.note"></textarea>
+</div>
+<p class="font-body-md text-body-md text-error" x-show="formError" x-text="formError"></p>
+</form>
+</div>
+<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4 sticky bottom-0">
+<button @click="createOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+                    Huỷ
+                </button>
+<button :disabled="saving" class="px-8 py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors rounded-full disabled:opacity-50" form="create-booking-form" type="submit">
+                    Tạo lịch hẹn
+                </button>
+</div>
+</div>
+</div>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+    var OAK_STATUS_LABELS = {
+        pending: 'Chờ xác nhận',
+        confirmed: 'Đã xác nhận',
+        completed: 'Hoàn thành',
+        cancelled: 'Đã huỷ',
+    };
+    var OAK_STATUS_ICONS = {
+        pending: 'schedule',
+        confirmed: 'check_circle',
+        completed: 'task_alt',
+        cancelled: 'cancel',
+    };
+    var OAK_BOOKING_CLASSES = {
+        pending: 'bg-surface-variant border-l-4 border-outline opacity-80',
+        confirmed: 'bg-surface-container-high border-l-4 border-secondary',
+        completed: 'bg-surface-container-low border-l-4 border-primary',
+        cancelled: 'bg-surface-container-low border-l-4 border-error opacity-60',
+    };
+    var OAK_CATEGORY_LABELS = {
+        hair: 'Tóc',
+        nail: 'Nail',
+        skincare: 'Chăm sóc da',
+        spa: 'Spa',
+        eyelash: 'Nối mi',
+        amenity: 'Tiện ích',
+    };
+    // The only transitions the backend accepts; terminal states list nothing.
+    var OAK_TRANSITIONS = {
+        pending: ['confirmed', 'cancelled'],
+        confirmed: ['completed', 'cancelled'],
+        completed: [],
+        cancelled: [],
+    };
+    var OAK_WEEKDAY_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    var OAK_SLOT_MINUTES = 30;
+
+    /* Partner chrome shared by all four console pages: owner name/avatar, salon name, logout. */
+    function oakPartnerChrome() {
+        document.querySelectorAll('[data-oak-logout]').forEach(function (link) {
+            link.addEventListener('click', function (event) {
+                event.preventDefault();
+                OAK.logout();
+            });
+        });
+
+        OAK.me().then(function (user) {
+            if (!user) {
+                return;
+            }
+            var name = document.querySelector('[data-oak-user-name]');
+            if (name) {
+                name.textContent = user.name;
+            }
+            var avatar = document.querySelector('[data-oak-user-avatar]');
+            if (avatar && user.avatar) {
+                avatar.src = user.avatar;
+            }
+        });
+
+        OAK.api('/api/partner/salon').then(
+            function (salon) {
+                var label = document.querySelector('[data-oak-salon-name]');
+                if (label) {
+                    label.textContent = salon.name;
+                }
+            },
+            function () {},
+        );
+    }
+
+    function oakToMinutes(time) {
+        var match = /^(\d{1,2}):(\d{2})/.exec(time || '');
+        return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+    }
+
+    function oakPad(value) {
+        return String(value).padStart(2, '0');
+    }
+
+    function oakShiftDate(iso, days) {
+        var parts = String(iso).split('-');
+        var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + days);
+        return (
+            date.getFullYear() +
+            '-' +
+            oakPad(date.getMonth() + 1) +
+            '-' +
+            oakPad(date.getDate())
+        );
+    }
+
+    function oakWeekday(iso) {
+        var parts = String(iso).split('-');
+        return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getDay();
+    }
+
+    function oakTodayISO() {
+        var now = new Date();
+        return now.getFullYear() + '-' + oakPad(now.getMonth() + 1) + '-' + oakPad(now.getDate());
+    }
+
+    function oakPartnerBookings() {
+        return {
+            bookings: [],
+            staff: [],
+            services: [],
+            salon: null,
+            detail: null,
+            loading: true,
+            saving: false,
+            view: 'day',
+            date: oakTodayISO(),
+            staffId: '',
+            serviceId: '',
+            status: '',
+            query: '',
+            createOpen: false,
+            formError: '',
+            form: {},
+
+            async init() {
+                await OAK.requirePartner();
+                this.resetForm();
+                try {
+                    this.salon = await OAK.api('/api/partner/salon');
+                    this.staff = await OAK.api('/api/partner/staff');
+                    this.services = await OAK.api('/api/partner/services');
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+
+                var bookingId = OAK.qs('booking_id');
+                if (bookingId) {
+                    await this.open(bookingId);
+                    if (this.detail) {
+                        this.date = this.detail.date;
+                    }
+                }
+                await this.load();
+                if (OAK.qs('new')) {
+                    this.openCreate();
+                }
+            },
+
+            /* ---- data ---- */
+
+            async load() {
+                this.loading = true;
+                var params = new URLSearchParams();
+                if (this.view === 'week') {
+                    params.set('from', this.weekStart());
+                    params.set('to', oakShiftDate(this.weekStart(), 6));
+                } else {
+                    params.set('date', this.date);
+                }
+                if (this.staffId) {
+                    params.set('staff_id', this.staffId);
+                }
+                if (this.serviceId) {
+                    params.set('service_id', this.serviceId);
+                }
+                if (this.status) {
+                    params.set('status', this.status);
+                }
+                if (this.query.trim()) {
+                    params.set('q', this.query.trim());
+                }
+                // 50 is the server's MAX_LIMIT; anything larger is silently clamped.
+                params.set('limit', '50');
+
+                try {
+                    this.bookings = await OAK.api('/api/partner/bookings?' + params.toString());
+                } catch (error) {
+                    this.bookings = [];
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async open(id) {
+                try {
+                    this.detail = await OAK.api('/api/partner/bookings/' + id);
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+            },
+
+            setView(view) {
+                this.view = view;
+                this.load();
+            },
+
+            async setStatus(status) {
+                try {
+                    this.detail = await OAK.api('/api/partner/bookings/' + this.detail.id, {
+                        method: 'PATCH',
+                        body: { status: status },
+                    });
+                    OAK.toast('Đã cập nhật lịch hẹn ' + this.detail.code + '.');
+                    await this.load();
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+            },
+
+            canSet(status) {
+                return Boolean(this.detail) && OAK_TRANSITIONS[this.detail.status].includes(status);
+            },
+
+            /* ---- create ---- */
+
+            resetForm() {
+                this.form = {
+                    customer_name: '',
+                    customer_phone: '',
+                    service_id: '',
+                    staff_id: '',
+                    date: this.date,
+                    time: '',
+                    note: '',
+                };
+                this.formError = '';
+            },
+
+            openCreate() {
+                this.resetForm();
+                this.createOpen = true;
+            },
+
+            async submitBooking() {
+                this.saving = true;
+                this.formError = '';
+                var body = {
+                    customer_name: this.form.customer_name,
+                    customer_phone: this.form.customer_phone,
+                    service_id: Number(this.form.service_id),
+                    date: this.form.date,
+                    time: this.form.time,
+                    note: this.form.note || null,
+                };
+                if (this.form.staff_id) {
+                    body.staff_id = Number(this.form.staff_id);
+                }
+                try {
+                    var created = await OAK.api('/api/partner/bookings', {
+                        method: 'POST',
+                        body: body,
+                    });
+                    this.createOpen = false;
+                    this.date = created.date;
+                    this.view = 'day';
+                    await this.load();
+                    this.detail = created;
+                    OAK.toast('Đã tạo lịch hẹn ' + created.code + '.');
+                } catch (error) {
+                    this.formError = error.message;
+                } finally {
+                    this.saving = false;
+                }
+            },
+
+            /* ---- calendar geometry ---- */
+
+            openMinutes() {
+                return oakToMinutes(this.salon && this.salon.open_time) || 9 * 60;
+            },
+
+            closeMinutes() {
+                return oakToMinutes(this.salon && this.salon.close_time) || 21 * 60;
+            },
+
+            get rows() {
+                var rows = [];
+                for (
+                    var minutes = this.openMinutes();
+                    minutes < this.closeMinutes();
+                    minutes += OAK_SLOT_MINUTES
+                ) {
+                    rows.push({
+                        minutes: minutes,
+                        label:
+                            minutes % 60 === 0
+                                ? oakPad(Math.floor(minutes / 60)) + ':00'
+                                : '',
+                    });
+                }
+                return rows;
+            },
+
+            /* Removed technicians stay in `staff` for lookups, but nobody may be assigned
+               to them any more: the selects and the calendar columns show only the roster. */
+            activeStaff() {
+                return this.staff.filter(function (member) {
+                    return member.active === 1;
+                });
+            },
+
+            weekStart() {
+                // Monday-first week containing the selected date.
+                var weekday = oakWeekday(this.date);
+                return oakShiftDate(this.date, weekday === 0 ? -6 : 1 - weekday);
+            },
+
+            get columns() {
+                if (this.view === 'week') {
+                    var start = this.weekStart();
+                    return [0, 1, 2, 3, 4, 5, 6].map(function (offset) {
+                        var date = oakShiftDate(start, offset);
+                        var parts = date.split('-');
+                        return {
+                            key: date,
+                            name: OAK_WEEKDAY_SHORT[oakWeekday(date)],
+                            subtitle: parts[2] + '/' + parts[1],
+                            image: null,
+                        };
+                    });
+                }
+
+                var self = this;
+                var columns = this.activeStaff().map(function (member) {
+                    return {
+                        key: String(member.id),
+                        name: member.name,
+                        subtitle: member.title || '',
+                        image: member.image,
+                    };
+                });
+                // A booking left behind by a removed technician still belongs on the day:
+                // give it a column of its own instead of dropping the card.
+                this.bookings.forEach(function (booking) {
+                    if (!booking.staff) {
+                        return;
+                    }
+                    var key = String(booking.staff.id);
+                    var known = columns.some(function (column) {
+                        return column.key === key;
+                    });
+                    if (known) {
+                        return;
+                    }
+                    var member = self.staff.find(function (item) {
+                        return item.id === booking.staff.id;
+                    });
+                    columns.push({
+                        key: key,
+                        name: booking.staff.name + ' (đã nghỉ)',
+                        subtitle: member ? member.title || '' : '',
+                        image: member ? member.image : null,
+                    });
+                });
+                var unassigned = this.bookings.some(function (booking) {
+                    return !booking.staff;
+                });
+                if (unassigned) {
+                    columns.push({
+                        key: 'none',
+                        name: 'Chưa phân công',
+                        subtitle: '',
+                        image: null,
+                    });
+                }
+                return columns;
+            },
+
+            columnKey(booking) {
+                if (this.view === 'week') {
+                    return booking.date;
+                }
+                return booking.staff ? String(booking.staff.id) : 'none';
+            },
+
+            placedBookings() {
+                var self = this;
+                var keys = this.columns.map(function (column) {
+                    return column.key;
+                });
+                return this.bookings.filter(function (booking) {
+                    return keys.indexOf(self.columnKey(booking)) !== -1;
+                });
+            },
+
+            gridStyle() {
+                var count = Math.max(this.columns.length, 1);
+                return 'grid-template-columns: 80px repeat(' + count + ', minmax(200px, 1fr))';
+            },
+
+            // The slot grid needs EXPLICIT rows: `grid-row: 1 / -1` on the background lines
+            // counts back from the end of the explicit grid, and implicit rows would leave
+            // that at a single line.
+            slotGridStyle() {
+                return this.gridStyle() + '; grid-template-rows: repeat(' + this.rows.length + ', 60px)';
+            },
+
+            linesStyle() {
+                return (
+                    'grid-column: 2 / -1; grid-row: 1 / -1; grid-template-rows: repeat(' +
+                    this.rows.length +
+                    ', 60px)'
+                );
+            },
+
+            labelStyle(index) {
+                return 'grid-column: 1; grid-row: ' + (index + 1);
+            },
+
+            bookingStyle(booking) {
+                var total = this.rows.length;
+                var start = oakToMinutes(booking.time);
+                var offset = Math.floor((start - this.openMinutes()) / OAK_SLOT_MINUTES);
+                var rowStart = Math.min(Math.max(offset, 0), total - 1) + 1;
+                var duration = booking.service ? booking.service.duration_min : OAK_SLOT_MINUTES;
+                var span = Math.max(Math.ceil(duration / OAK_SLOT_MINUTES), 1);
+                var rowEnd = Math.min(rowStart + span, total + 1);
+                var key = this.columnKey(booking);
+                var column = this.columns.findIndex(function (item) {
+                    return item.key === key;
+                });
+                return (
+                    'grid-column: ' +
+                    (column + 2) +
+                    '; grid-row: ' +
+                    rowStart +
+                    ' / ' +
+                    rowEnd +
+                    '; z-index: 10'
+                );
+            },
+
+            bookingClass(booking) {
+                var classes = OAK_BOOKING_CLASSES[booking.status] || OAK_BOOKING_CLASSES.pending;
+                var selected = this.detail && this.detail.id === booking.id;
+                return selected ? classes + ' ring-2 ring-secondary' : classes;
+            },
+
+            /* ---- formatting ---- */
+
+            rangeLabel() {
+                if (this.view === 'week') {
+                    var start = this.weekStart();
+                    var end = oakShiftDate(start, 6);
+                    return (
+                        'Tuần ' +
+                        start.split('-').reverse().join('/') +
+                        ' – ' +
+                        end.split('-').reverse().join('/')
+                    );
+                }
+                return OAK.fmtDate(this.date);
+            },
+
+            timeRange(booking) {
+                return booking.end_time ? booking.time + ' - ' + booking.end_time : booking.time;
+            },
+
+            serviceMeta(booking) {
+                if (!booking.service) {
+                    return '';
+                }
+                var category =
+                    OAK_CATEGORY_LABELS[booking.service.category] || booking.service.category;
+                return category + ' • ' + booking.service.duration_min + ' phút';
+            },
+
+            staffImage(booking) {
+                if (!booking.staff) {
+                    return null;
+                }
+                var member = this.staff.find(function (item) {
+                    return item.id === booking.staff.id;
+                });
+                return member ? member.image : null;
+            },
+
+            initial(name) {
+                return (name || '?').trim().charAt(0).toUpperCase();
+            },
+
+            statusLabel(status) {
+                return OAK_STATUS_LABELS[status] || status;
+            },
+
+            statusIcon(status) {
+                return OAK_STATUS_ICONS[status] || 'schedule';
+            },
+        };
+    }
+
+    oakPartnerChrome();
+</script>
 </body></html>

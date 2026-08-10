@@ -4,9 +4,11 @@
 <script src="assets/js/tailwind-36d3755fef.js"></script>
 <script src="assets/js/oak-tailwind-config.js"></script>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<script src="assets/js/oak-api.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <style>
         /* Appointment tabs (this page only) */
         .tab-button { color: #444748; padding-bottom: 0.5rem; transition: all 0.2s ease-in-out; }
@@ -44,8 +46,8 @@
 </div>
 </div>
 </div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
 </nav>
 <div class="flex items-center gap-4">
 <a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
@@ -56,9 +58,9 @@
 <span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
-<button aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
+</a>
 <a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
@@ -85,20 +87,21 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
 </nav>
 </div>
 </header>
-<div class="pt-24 flex-1 flex max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop gap-gutter pb-section-gap">
+<div class="pt-24 flex-1 flex max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop gap-gutter pb-section-gap" x-data="oakMyBookings()">
 <!-- SideNavBar -->
 <aside class="hidden md:flex bg-surface-container-low h-[calc(100vh-120px)] w-80 sticky top-28 shadow-sm flex-col gap-base p-6 rounded-lg">
 <div class="flex flex-col items-center mb-8 text-center">
-<img alt="User Profile" class="w-20 h-20 rounded-full object-cover border-2 border-surface mb-4 shadow-sm" data-alt="A close-up portrait of an elegant woman with glowing skin, subtle natural makeup, and hair neatly pulled back. The lighting is soft and flattering, creating a serene, modern editorial aesthetic. The background is a clean, neutral taupe." src="assets/images/img-9c5bb8590d.jpg">
-<h3 class="font-headline-sm text-headline-sm text-primary mb-1">Nguyễn An</h3>
+<img :src="user &amp;&amp; user.avatar ? user.avatar : 'assets/images/img-9c5bb8590d.jpg'" alt="User Profile" class="w-20 h-20 rounded-full object-cover border-2 border-surface mb-4 shadow-sm" data-alt="A close-up portrait of an elegant woman with glowing skin, subtle natural makeup, and hair neatly pulled back. The lighting is soft and flattering, creating a serene, modern editorial aesthetic. The background is a clean, neutral taupe." src="assets/images/img-9c5bb8590d.jpg">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="user ? user.name : ''"></h3>
 <p class="font-caption text-caption text-on-surface-variant mb-4">Thành viên Diamond</p>
 <button class="w-full border border-outline text-primary font-label-md text-label-md py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors">
                     Nâng cấp hạng thẻ
@@ -137,90 +140,64 @@
 </div>
 <!-- Tabs -->
 <div class="flex gap-8 border-b border-outline-variant/30 mt-4">
-<button class="tab-button active font-label-md text-label-md uppercase tracking-wider">Sắp tới</button>
-<button class="tab-button font-label-md text-label-md uppercase tracking-wider">Đã hoàn thành</button>
-<button class="tab-button font-label-md text-label-md uppercase tracking-wider">Đã hủy</button>
+<button :class="tab === 'upcoming' ? 'active' : ''" @click="show('upcoming')" class="tab-button font-label-md text-label-md uppercase tracking-wider" type="button">Sắp tới</button>
+<button :class="tab === 'completed' ? 'active' : ''" @click="show('completed')" class="tab-button font-label-md text-label-md uppercase tracking-wider" type="button">Đã hoàn thành</button>
+<button :class="tab === 'cancelled' ? 'active' : ''" @click="show('cancelled')" class="tab-button font-label-md text-label-md uppercase tracking-wider" type="button">Đã hủy</button>
 </div>
 <!-- Bookings List -->
-<div class="flex flex-col gap-6 mt-4">
-<!-- Booking Card 1 -->
+<p class="font-body-md text-body-md text-error mt-4" x-cloak="" x-show="error" x-text="error"></p>
+<p class="font-body-md text-body-md text-on-surface-variant mt-4" x-cloak="" x-show="!loading &amp;&amp; !bookings.length" x-text="emptyMessage()"></p>
+<div class="flex flex-col gap-6 mt-4" :class="loading ? 'opacity-50' : ''">
+<template :key="booking.id" x-for="booking in bookings">
 <div class="group bg-surface-container-lowest p-4 md:p-6 flex flex-col md:flex-row gap-6 hover:bg-surface-container-low transition-colors rounded-lg border border-outline-variant/20">
 <div class="w-full md:w-48 h-48 md:h-32 shrink-0 rounded-md overflow-hidden bg-surface-variant">
-<img alt="Salon interior" class="w-full h-full object-cover" data-alt="A serene, high-end spa treatment room featuring soft ambient lighting, a pristine white massage bed with rolled towels, and minimalist wooden accents. A sprig of fresh eucalyptus rests on the bed. The atmosphere is calm, luxurious, and clean, perfectly fitting a modern editorial beauty aesthetic." src="assets/images/img-f627ab4665.jpg">
+<img :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
 </div>
 <div class="flex-1 flex flex-col justify-between">
 <div class="flex justify-between items-start mb-2">
 <div>
 <span class="inline-flex items-center gap-1 bg-tertiary-fixed text-on-tertiary-fixed font-caption text-caption px-2 py-1 rounded-sm mb-2">
-<span class="material-symbols-outlined text-[14px]">check_circle</span> Đã xác nhận
-                                </span>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-1">Trị liệu da chuyên sâu &amp; Massage Cổ Vai Gáy</h3>
+<span class="material-symbols-outlined text-[14px]" x-text="statusIcon(booking.status)"></span> <span x-text="statusLabel(booking.status)"></span>
+</span>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="booking.service.name"></h3>
 <p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-2">
-<span class="material-symbols-outlined text-[18px]">store</span> OAK Beauty Flagship - Q1
-                                </p>
+<span class="material-symbols-outlined text-[18px]">store</span> <span x-text="booking.salon.name"></span>
+</p>
+<p class="font-caption text-caption text-outline mt-1" x-text="'Mã đặt chỗ: ' + booking.code"></p>
 </div>
 </div>
 <div class="flex flex-col md:flex-row justify-between items-start md:items-end mt-4 md:mt-0 gap-4 md:gap-0">
 <div class="flex gap-6">
 <div class="flex flex-col">
 <span class="font-caption text-caption text-outline mb-1">Thời gian</span>
-<span class="font-label-md text-label-md text-on-surface">14:00 - 15:30</span>
+<span class="font-label-md text-label-md text-on-surface" x-text="timeLabel(booking)"></span>
 </div>
 <div class="flex flex-col border-l border-outline-variant/30 pl-6">
 <span class="font-caption text-caption text-outline mb-1">Ngày</span>
-<span class="font-label-md text-label-md text-on-surface">24 Tháng 10, 2024</span>
+<span class="font-label-md text-label-md text-on-surface" x-text="dateLabel(booking.date)"></span>
 </div>
 </div>
-<div class="flex gap-3 w-full md:w-auto">
-<button class="flex-1 md:flex-none border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors">
+<div class="flex flex-wrap gap-3 w-full md:w-auto">
+<button @click="cancel(booking)" class="flex-1 md:flex-none border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" type="button" x-show="tab === 'upcoming'">
                                     Hủy lịch
                                 </button>
-<a href="chi-tiet-dich-vu.html" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 md:flex-none bg-primary-container text-on-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-primary transition-opacity rounded-full">
-                                    Xem chi tiết
-                                </button></a>
-</div>
-</div>
-</div>
-</div>
-<!-- Booking Card 2 -->
-<div class="group bg-surface-container-lowest p-4 md:p-6 flex flex-col md:flex-row gap-6 hover:bg-surface-container-low transition-colors rounded-lg border border-outline-variant/20">
-<div class="w-full md:w-48 h-48 md:h-32 shrink-0 rounded-md overflow-hidden bg-surface-variant">
-<img alt="Salon interior" class="w-full h-full object-cover" data-alt="A minimalist, modern hair salon station with a large round mirror illuminated by soft backlight. A sleek styling chair sits in front, surrounded by clean white walls and subtle beige tones. The space feels exclusive, bright, and meticulously organized." src="assets/images/img-9093700132.jpg">
-</div>
-<div class="flex-1 flex flex-col justify-between">
-<div class="flex justify-between items-start mb-2">
-<div>
-<span class="inline-flex items-center gap-1 bg-tertiary-fixed text-on-tertiary-fixed font-caption text-caption px-2 py-1 rounded-sm mb-2">
-<span class="material-symbols-outlined text-[14px]">check_circle</span> Đã xác nhận
-                                </span>
-<h3 class="font-headline-sm text-headline-sm text-primary mb-1">Cắt tóc thiết kế &amp; Phục hồi Keratin</h3>
-<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-2">
-<span class="material-symbols-outlined text-[18px]">store</span> OAK Beauty Studio - Q3
-                                </p>
-</div>
-</div>
-<div class="flex flex-col md:flex-row justify-between items-start md:items-end mt-4 md:mt-0 gap-4 md:gap-0">
-<div class="flex gap-6">
-<div class="flex flex-col">
-<span class="font-caption text-caption text-outline mb-1">Thời gian</span>
-<span class="font-label-md text-label-md text-on-surface">09:30 - 11:30</span>
-</div>
-<div class="flex flex-col border-l border-outline-variant/30 pl-6">
-<span class="font-caption text-caption text-outline mb-1">Ngày</span>
-<span class="font-label-md text-label-md text-on-surface">28 Tháng 10, 2024</span>
-</div>
-</div>
-<div class="flex gap-3 w-full md:w-auto">
-<button class="flex-1 md:flex-none border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors">
+<a :href="'tel:' + (booking.salon.phone || '').replace(/\s/g, '')" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="booking.salon.phone">
                                     Liên hệ
-                                </button>
-<a href="chi-tiet-dich-vu.html" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 md:flex-none bg-primary-container text-on-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-primary transition-opacity rounded-full">
+                                </a>
+<a :href="'danh-gia-cua-toi.html?booking_id=' + booking.id" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="canReview(booking)">
+                                    Đánh giá
+                                </a>
+<a :href="rebookUrl(booking)" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="tab !== 'upcoming'">
+                                    Đặt lại
+                                </a>
+<a :href="'xac-nhan-dat-lich.html?id=' + booking.id" class="flex-1 md:flex-none inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-primary transition-opacity rounded-full">
                                     Xem chi tiết
-                                </button></a>
+                                </a>
 </div>
 </div>
 </div>
 </div>
+</template>
 </div>
 </main>
 </div>
@@ -268,12 +245,122 @@
 </div>
 </footer>
 <script>
-        // Simple tab switching logic for visual purposes
-        document.querySelectorAll('.tab-button').forEach(button => {
-            button.addEventListener('click', () => {
-                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-                button.classList.add('active');
-            });
-        });
-    </script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+
+    const OAK_BOOKING_STATUS = {
+        pending: { label: 'Chờ xác nhận', icon: 'schedule' },
+        confirmed: { label: 'Đã xác nhận', icon: 'check_circle' },
+        completed: { label: 'Đã hoàn thành', icon: 'task_alt' },
+        cancelled: { label: 'Đã hủy', icon: 'cancel' },
+    };
+
+    const OAK_EMPTY_MESSAGE = {
+        upcoming: 'Bạn chưa có lịch hẹn nào sắp tới.',
+        completed: 'Bạn chưa có lịch hẹn nào đã hoàn thành.',
+        cancelled: 'Bạn chưa hủy lịch hẹn nào.',
+    };
+
+    /** 'HH:MM' + minutes -> 'HH:MM', wrapping at midnight the way a clock does. */
+    function oakAddMinutes(time, minutes) {
+        const [hours, mins] = time.split(':').map(Number);
+        const total = (hours * 60 + mins + (minutes || 0)) % 1440;
+        const pad = (value) => String(value).padStart(2, '0');
+        return pad(Math.floor(total / 60)) + ':' + pad(total % 60);
+    }
+
+    function oakMyBookings() {
+        return {
+            user: null,
+            tab: 'upcoming',
+            bookings: [],
+            reviewedIds: [],
+            loading: true,
+            error: '',
+            cache: {},
+
+            async init() {
+                this.user = await OAK.requireLogin();
+                await this.show('upcoming');
+            },
+
+            /** Each tab is fetched the first time it is opened, then served from the cache. */
+            async show(tab) {
+                this.tab = tab;
+                this.error = '';
+                if (this.cache[tab]) {
+                    this.bookings = this.cache[tab];
+                    return;
+                }
+
+                this.loading = true;
+                try {
+                    this.bookings = await OAK.api('/api/bookings/mine?status=' + tab + '&limit=50');
+                    this.cache[tab] = this.bookings;
+                    if (tab === 'completed') {
+                        await this.loadReviewed();
+                    }
+                } catch (error) {
+                    this.bookings = [];
+                    this.error = error.message;
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async loadReviewed() {
+                try {
+                    const reviews = await OAK.api('/api/reviews/mine');
+                    this.reviewedIds = reviews.map((review) => review.booking_id);
+                } catch (error) {
+                    this.reviewedIds = [];
+                }
+            },
+
+            canReview(booking) {
+                return booking.status === 'completed' && !this.reviewedIds.includes(booking.id);
+            },
+
+            statusLabel(status) {
+                return OAK_BOOKING_STATUS[status] ? OAK_BOOKING_STATUS[status].label : status;
+            },
+
+            statusIcon(status) {
+                return OAK_BOOKING_STATUS[status] ? OAK_BOOKING_STATUS[status].icon : 'event';
+            },
+
+            timeLabel(booking) {
+                return booking.time + ' - ' + oakAddMinutes(booking.time, booking.service.duration_min);
+            },
+
+            dateLabel(date) {
+                const [year, month, day] = date.split('-').map(Number);
+                return day + ' Tháng ' + month + ', ' + year;
+            },
+
+            rebookUrl(booking) {
+                return 'dat-lich.html?service_id=' + booking.service.id + '&salon_id=' + booking.salon.id;
+            },
+
+            emptyMessage() {
+                return OAK_EMPTY_MESSAGE[this.tab] || '';
+            },
+
+            async cancel(booking) {
+                if (!confirm('Bạn chắc chắn muốn hủy lịch hẹn ' + booking.code + '?')) {
+                    return;
+                }
+                this.error = '';
+                try {
+                    await OAK.api('/api/bookings/' + booking.id + '/cancel', { method: 'PATCH' });
+                    OAK.toast('Đã hủy lịch hẹn ' + booking.code + '.');
+                    // The booking just moved between tabs, so every cached list is stale.
+                    this.cache = {};
+                    await this.show(this.tab);
+                } catch (error) {
+                    this.error = error.message;
+                }
+            },
+        };
+    }
+</script>
 </body></html>

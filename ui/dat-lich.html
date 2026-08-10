@@ -6,9 +6,11 @@
 <script src="assets/js/tailwind-36d3755fef.js"></script>
 <script src="assets/js/oak-tailwind-config.js"></script>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<script src="assets/js/oak-api.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
 <title>Đặt lịch - OAK Beauty</title>
 
 
@@ -42,8 +44,8 @@
 </div>
 </div>
 </div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
 </nav>
 <div class="flex items-center gap-4">
 <a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
@@ -54,9 +56,9 @@
 <span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
-<button aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</button>
+</a>
 <a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
@@ -83,8 +85,9 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="#">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
@@ -116,7 +119,7 @@
 </div>
 </div>
 <!-- Layout Grid -->
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start" x-data="oakBookingForm()">
 <!-- Left Column: Form -->
 <div class="lg:col-span-8 flex flex-col gap-12">
 <div class="space-y-6">
@@ -131,30 +134,70 @@
 <span class="material-symbols-outlined text-outline mt-1" data-icon="storefront">storefront</span>
 <div>
 <p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Salon</p>
-<p class="font-body-md text-body-md font-medium">Lala Nail Studio</p>
+<p class="font-body-md text-body-md font-medium" x-text="salon ? salon.name : 'Chưa chọn'">Đang tải…</p>
 </div>
 </div>
 <div class="flex gap-4">
 <span class="material-symbols-outlined text-outline mt-1" data-icon="spa">spa</span>
 <div>
 <p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Dịch vụ</p>
-<p class="font-body-md text-body-md font-medium">Nail Gel Hàn Quốc</p>
+<p class="font-body-md text-body-md font-medium" x-text="service ? service.name : 'Chưa chọn'">Đang tải…</p>
 </div>
 </div>
 <div class="flex gap-4">
 <span class="material-symbols-outlined text-outline mt-1" data-icon="person">person</span>
 <div>
 <p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Nhân viên</p>
-<p class="font-body-md text-body-md font-medium">Minh Anh</p>
+<p class="font-body-md text-body-md font-medium" x-text="staffLabel()">Đang tải…</p>
 </div>
 </div>
 <div class="flex gap-4">
 <span class="material-symbols-outlined text-outline mt-1" data-icon="event">event</span>
 <div>
 <p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Thời gian</p>
-<p class="font-body-md text-body-md font-medium">14:00, Thứ Tư, 24/10</p>
+<p class="font-body-md text-body-md font-medium" x-text="whenLabel()">Đang tải…</p>
 </div>
 </div>
+</div>
+</div>
+<!-- Service picker: only needed when the visitor arrives without ?service_id= -->
+<div class="space-y-8" x-cloak="" x-show="!service">
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn dịch vụ</h2>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading &amp;&amp; !options.length">Chưa có dịch vụ nào để đặt lịch.</p>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4" :class="loading ? 'opacity-50' : ''">
+<template :key="option.id" x-for="option in options">
+<button @click="chooseService(option)" class="flex items-start justify-between gap-4 text-left p-4 border border-outline-variant rounded-lg hover:border-primary transition-colors" type="button">
+<span>
+<span class="block font-body-md text-body-md font-medium" x-text="option.name"></span>
+<span class="block font-caption text-caption text-on-surface-variant mt-1" x-text="option.duration_min + ' phút'"></span>
+</span>
+<span class="font-label-md text-label-md text-primary shrink-0" x-text="OAK.fmtPrice(option.price)"></span>
+</button>
+</template>
+</div>
+</div>
+<!-- Staff picker -->
+<div class="space-y-8" x-cloak="" x-show="service &amp;&amp; staffList.length">
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn kỹ thuật viên</h2>
+<div class="flex flex-wrap gap-3">
+<button :class="staffId ? 'border-outline-variant text-on-surface-variant' : 'border-primary text-primary'" @click="setStaff(null)" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button">Bất kỳ</button>
+<template :key="member.id" x-for="member in staffList">
+<button :class="staffId === member.id ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" @click="setStaff(member.id)" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button" x-text="member.name"></button>
+</template>
+</div>
+</div>
+<!-- Date + slot picker -->
+<div class="space-y-8" x-cloak="" x-show="service">
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn thời gian</h2>
+<div class="relative md:max-w-xs">
+<label class="font-label-md text-label-md text-outline block mb-2">Ngày hẹn *</label>
+<input :min="today" @change="loadSlots()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors" type="date" x-model="date"/>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!slotsLoading &amp;&amp; !slots.length">Ngày này chưa có khung giờ nào, vui lòng chọn ngày khác.</p>
+<div class="flex flex-wrap gap-3" :class="slotsLoading ? 'opacity-50' : ''">
+<template :key="slot.time" x-for="slot in slots">
+<button :class="time === slot.time ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" :disabled="!slot.available" @click="time = slot.time" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors disabled:opacity-40 disabled:line-through disabled:hover:border-outline-variant" type="button" x-text="slot.time"></button>
+</template>
 </div>
 </div>
 <!-- Customer Info Form -->
@@ -163,16 +206,16 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="relative">
 <label class="font-label-md text-label-md text-outline block mb-2">Họ và tên *</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" placeholder="Nhập họ tên của bạn" type="text"/>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
 </div>
 <div class="relative">
 <label class="font-label-md text-label-md text-outline block mb-2">Số điện thoại *</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" placeholder="Nhập số điện thoại" type="tel"/>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
 </div>
 </div>
 <div class="relative">
 <label class="font-label-md text-label-md text-outline block mb-2">Ghi chú đặc biệt (Không bắt buộc)</label>
-<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50 resize-none" placeholder="Ví dụ: Da tay mỏng, cần làm nhẹ nhàng..." rows="3"></textarea>
+<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50 resize-none" placeholder="Ví dụ: Da tay mỏng, cần làm nhẹ nhàng..." rows="3" x-model="form.note"></textarea>
 </div>
 </div>
 <!-- Payment Method -->
@@ -194,21 +237,31 @@
 <div class="bg-tertiary sticky top-[120px] p-8 rounded-lg text-on-tertiary flex flex-col gap-8 shadow-sm">
 <h3 class="font-headline-sm text-headline-sm border-b border-outline-variant/20 pb-4">Tổng chi phí</h3>
 <div class="space-y-4">
-<div class="flex justify-between items-center font-body-md text-body-md">
-<span class="text-on-tertiary/80">Nail Gel Hàn Quốc</span>
-<span>350,000 ₫</span>
+<div>
+<label class="font-caption text-caption uppercase tracking-wider text-on-tertiary/80 block mb-2">Mã ưu đãi</label>
+<div class="flex items-end gap-3">
+<input @change="loadQuote()" class="flex-1 min-w-0 bg-transparent border-0 border-b border-on-tertiary/30 focus:border-on-tertiary focus:ring-0 px-0 py-2 font-body-md text-body-md text-on-tertiary placeholder:text-on-tertiary/40" placeholder="Nhập mã" type="text" x-model="promo"/>
+<button @click="loadQuote()" class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80 hover:text-on-tertiary transition-colors shrink-0" type="button">Áp dụng</button>
 </div>
-<div class="flex justify-between items-center font-body-md text-body-md">
-<span class="text-on-tertiary/80">Phụ thu nhân viên Master</span>
-<span>50,000 ₫</span>
+<p class="font-caption text-caption text-error-container mt-2" x-cloak="" x-show="promoError" x-text="promoError"></p>
+<p class="font-caption text-caption text-on-tertiary/60 mt-2" x-cloak="" x-show="!user">Đăng nhập để áp dụng mã ưu đãi.</p>
 </div>
+<template :key="item.label" x-for="item in lineItems()">
+<div class="flex justify-between items-center font-body-md text-body-md">
+<span class="text-on-tertiary/80" x-text="item.label"></span>
+<span x-text="OAK.fmtPrice(item.amount)"></span>
+</div>
+</template>
 <div class="w-full h-[1px] bg-outline-variant/20 my-4"></div>
 <div class="flex justify-between items-end">
 <span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80">Tổng cộng</span>
-<span class="font-headline-md text-headline-md font-bold text-on-tertiary">400,000 ₫</span>
+<span class="font-headline-md text-headline-md font-bold text-on-tertiary" x-text="quote ? OAK.fmtPrice(quote.total) : '—'">—</span>
 </div>
 </div>
-<a href="xac-nhan-dat-lich.html" style="display:contents;color:inherit;text-decoration:none"><button class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors">Xác nhận đặt lịch</button></a>
+<div class="flex flex-col gap-3">
+<p class="font-caption text-caption text-error-container" x-cloak="" x-show="formError" x-text="formError"></p>
+<button :disabled="busy" @click="submit()" class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : 'Xác nhận đặt lịch'">Xác nhận đặt lịch</button>
+</div>
 <div class="bg-on-tertiary/5 p-4 rounded-DEFAULT space-y-2">
 <div class="flex items-start gap-2">
 <span class="material-symbols-outlined text-[18px] mt-0.5 text-on-tertiary/80" data-icon="info">info</span>
@@ -265,4 +318,229 @@
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+
+    /** Today as a local 'YYYY-MM-DD', matching the dates the API validates against. */
+    function oakToday() {
+        const now = new Date();
+        const pad = (value) => String(value).padStart(2, '0');
+        return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+    }
+
+    function oakBookingForm() {
+        return {
+            user: null,
+            loading: true,
+            busy: false,
+            today: oakToday(),
+
+            salon: null,
+            service: null,
+            options: [],        // services offered when the visitor still has to pick one
+            staffList: [],
+            staffId: null,
+            date: '',
+            time: '',
+            slots: [],
+            slotsLoading: false,
+
+            promo: '',
+            promoError: '',
+            quote: null,
+            formError: '',
+            form: { name: '', phone: '', note: '' },
+
+            async init() {
+                this.user = await OAK.me();
+                if (this.user) {
+                    this.form.name = this.user.name || '';
+                    this.form.phone = this.user.phone || '';
+                }
+
+                this.promo = OAK.qs('promo') || '';
+                this.date = OAK.qs('date') || this.today;
+                this.time = OAK.qs('time') || '';
+                this.staffId = Number(OAK.qs('staff_id')) || null;
+
+                const serviceId = Number(OAK.qs('service_id')) || 0;
+                const salonId = Number(OAK.qs('salon_id')) || 0;
+                try {
+                    if (serviceId) {
+                        await this.chooseService(await OAK.api('/api/services/' + serviceId));
+                    } else if (salonId) {
+                        this.salon = await OAK.api('/api/salons/' + salonId);
+                        this.options = await OAK.api('/api/salons/' + salonId + '/services');
+                    } else {
+                        this.options = await OAK.api('/api/services?sort=popular&limit=6');
+                    }
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+                this.loading = false;
+            },
+
+            /** Pick a service and reload everything that depends on it. */
+            async chooseService(service) {
+                this.service = service;
+                this.salon = service.salon;
+                try {
+                    this.staffList = await OAK.api('/api/services/' + service.id + '/staff');
+                } catch (error) {
+                    this.staffList = [];
+                }
+                // A technician carried over in the url may not perform this service.
+                if (!this.staffList.some((member) => member.id === this.staffId)) {
+                    this.staffId = null;
+                }
+                await this.loadSlots();
+                await this.loadQuote();
+            },
+
+            setStaff(id) {
+                this.staffId = id;
+                this.loadSlots();
+                this.loadQuote();
+            },
+
+            async loadSlots() {
+                if (!this.service || !this.date) {
+                    this.slots = [];
+                    return;
+                }
+                this.slotsLoading = true;
+                // A chosen technician has their own calendar. The service endpoint ORs across
+                // everyone who performs it, so it would offer slots this one person cannot take.
+                const path = this.staffId
+                    ? '/api/staff/' + this.staffId + '/availability?days=1&from=' + this.date + '&service_id=' + this.service.id
+                    : '/api/services/' + this.service.id + '/availability?date=' + this.date;
+                try {
+                    const data = await OAK.api(path);
+                    this.slots = this.staffId ? data.week[0].slots : data.slots;
+                } catch (error) {
+                    this.slots = [];
+                } finally {
+                    this.slotsLoading = false;
+                }
+                if (!this.slots.some((slot) => slot.time === this.time && slot.available)) {
+                    this.time = '';
+                }
+            },
+
+            async loadQuote() {
+                if (!this.service) {
+                    return;
+                }
+                this.promoError = '';
+                const params = new URLSearchParams({ service_id: this.service.id });
+                if (this.staffId) {
+                    params.set('staff_id', this.staffId);
+                }
+                if (this.promo.trim()) {
+                    params.set('promotion_code', this.promo.trim());
+                }
+
+                try {
+                    this.quote = await OAK.api('/api/bookings/quote?' + params);
+                } catch (error) {
+                    if (error.code === 'INVALID_PROMOTION') {
+                        this.promoError = error.message;
+                    }
+                    // Guests cannot reach the quote endpoint at all, so the sidebar falls back to
+                    // the list price. The server recomputes the real total when the booking is made.
+                    this.quote = {
+                        items: [{ label: this.service.name, amount: this.service.price }],
+                        total: this.service.price,
+                    };
+                }
+            },
+
+            lineItems() {
+                return this.quote ? this.quote.items : [];
+            },
+
+            staffLabel() {
+                const member = this.staffList.find((candidate) => candidate.id === this.staffId);
+                return member ? member.name : 'Bất kỳ';
+            },
+
+            whenLabel() {
+                return this.date && this.time ? this.time + ', ' + OAK.fmtDate(this.date) : 'Chưa chọn';
+            },
+
+            /** The current selection as a url, so a login round trip comes back to it. */
+            selectionUrl() {
+                const params = new URLSearchParams();
+                if (this.service) {
+                    params.set('service_id', this.service.id);
+                }
+                if (this.salon) {
+                    params.set('salon_id', this.salon.id);
+                }
+                if (this.staffId) {
+                    params.set('staff_id', this.staffId);
+                }
+                if (this.date) {
+                    params.set('date', this.date);
+                }
+                if (this.time) {
+                    params.set('time', this.time);
+                }
+                if (this.promo.trim()) {
+                    params.set('promo', this.promo.trim());
+                }
+                return 'dat-lich.html?' + params;
+            },
+
+            async submit() {
+                this.formError = '';
+                if (!this.service) {
+                    this.formError = 'Vui lòng chọn dịch vụ.';
+                    return;
+                }
+                if (!this.date || !this.time) {
+                    this.formError = 'Vui lòng chọn ngày và giờ hẹn.';
+                    return;
+                }
+                if (!this.form.name.trim() || !this.form.phone.trim()) {
+                    this.formError = 'Vui lòng nhập họ tên và số điện thoại.';
+                    return;
+                }
+
+                if (!this.user) {
+                    history.replaceState(null, '', this.selectionUrl());
+                    await OAK.requireLogin();
+                    return;
+                }
+
+                this.busy = true;
+                try {
+                    const booking = await OAK.api('/api/bookings', {
+                        method: 'POST',
+                        body: {
+                            salon_id: this.salon.id,
+                            service_id: this.service.id,
+                            staff_id: this.staffId,
+                            date: this.date,
+                            time: this.time,
+                            note: this.form.note.trim() || null,
+                            payment_method: 'at_salon',
+                            promotion_code: this.promo.trim() || null,
+                            customer_name: this.form.name.trim(),
+                            customer_phone: this.form.phone.trim(),
+                        },
+                    });
+                    location.href = 'xac-nhan-dat-lich.html?id=' + booking.id;
+                } catch (error) {
+                    this.formError = error.message;
+                    // Somebody took the slot between loading it and confirming: show what is left.
+                    if (error.code === 'SLOT_TAKEN') {
+                        this.loadSlots();
+                    }
+                    this.busy = false;
+                }
+            },
+        };
+    }
+</script>
 </body></html>
