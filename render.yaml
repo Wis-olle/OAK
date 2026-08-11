@@ -4,6 +4,12 @@ services:
     runtime: node
     plan: free
     rootDir: server
+    # rootDir makes Render ignore commits outside server/ — but the app serves ../ui
+    # statically, so UI-only commits must trigger deploys too.
+    buildFilter:
+      paths:
+        - server/**
+        - ui/**
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
