@@ -43,11 +43,11 @@ const insertComment = db.prepare(
 );
 
 /** Append -2, -3, ... until the slug is free, like uniqueSalonSlug in routes/auth.js. */
-function uniquePostSlug(title) {
+async function uniquePostSlug(title) {
   const base = slugify(title) || 'bai-viet';
   let slug = base;
   let suffix = 1;
-  while (selectSlugTaken.get(slug)) {
+  while (await selectSlugTaken.get(slug)) {
     suffix += 1;
     slug = `${base}-${suffix}`;
   }
@@ -69,8 +69,8 @@ function toComment(row) {
 }
 
 /** The full post shape, shared by the detail route and the create response. */
-function loadPost(slug) {
-  const row = selectPostBySlug.get(slug);
+async function loadPost(slug) {
+  const row = await selectPostBySlug.get(slug);
   if (!row) {
     return null;
   }
@@ -85,11 +85,11 @@ function loadPost(slug) {
     image: row.image,
     created_at: row.created_at,
     author: { name: row.author_name, avatar: row.author_avatar },
-    comments: selectComments.all(row.id).map(toComment),
+    comments: (await selectComments.all(row.id)).map(toComment),
   };
 }
 
-router.get('/', (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const { page, limit, offset } = parsePagination(req.query, DEFAULT_LIMIT);
     const conditions = [];
@@ -103,14 +103,16 @@ router.get('/', (req, res, next) => {
     // Posts have no tags column, so a tag is matched as free text over title and excerpt.
     const tag = textField(req.query.tag);
     if (tag) {
-      conditions.push('(p.title LIKE ? OR p.excerpt LIKE ?)');
+      conditions.push('(p.title ILIKE ? OR p.excerpt ILIKE ?)');
       params.push(`%${tag}%`, `%${tag}%`);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const { total } = db.prepare(`SELECT COUNT(*) AS total FROM posts p ${where}`).get(...params);
-    const rows = db
+    const { total } = await db
+      .prepare(`SELECT COUNT(*) AS total FROM posts p ${where}`)
+      .get(...params);
+    const rows = await db
       .prepare(
         `SELECT p.id, p.slug, p.type, p.title, p.excerpt, p.image, p.video_url, p.created_at,
                 u.name AS author_name, u.avatar AS author_avatar,
@@ -144,7 +146,7 @@ router.get('/', (req, res, next) => {
   }
 });
 
-router.post('/', requireAuth, (req, res, next) => {
+router.post('/', requireAuth, async (req, res, next) => {
   try {
     const { type, title, content, video_url: videoUrl, excerpt, image } = req.body ?? {};
 
@@ -175,8 +177,8 @@ router.post('/', requireAuth, (req, res, next) => {
       throw httpError(400, 'VALIDATION_ERROR', 'Đường dẫn ảnh không hợp lệ.');
     }
 
-    const slug = uniquePostSlug(cleanTitle);
-    insertPost.run(
+    const slug = await uniquePostSlug(cleanTitle);
+    await insertPost.run(
       req.user.id,
       type,
       cleanTitle,
@@ -188,16 +190,16 @@ router.post('/', requireAuth, (req, res, next) => {
       new Date().toISOString(),
     );
 
-    res.json({ success: true, data: loadPost(slug) });
+    res.json({ success: true, data: await loadPost(slug) });
   } catch (error) {
     next(error);
   }
 });
 
-router.post('/:id/comments', requireAuth, (req, res, next) => {
+router.post('/:id/comments', requireAuth, async (req, res, next) => {
   try {
     const postId = Number.parseInt(req.params.id, 10);
-    if (!Number.isInteger(postId) || !selectPostExists.get(postId)) {
+    if (!Number.isInteger(postId) || !(await selectPostExists.get(postId))) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy bài viết này.');
     }
 
@@ -207,7 +209,7 @@ router.post('/:id/comments', requireAuth, (req, res, next) => {
     }
 
     const createdAt = new Date().toISOString();
-    const { lastInsertRowid } = insertComment.run(postId, req.user.id, content, createdAt);
+    const { lastInsertRowid } = await insertComment.run(postId, req.user.id, content, createdAt);
 
     res.json({
       success: true,
@@ -224,9 +226,9 @@ router.post('/:id/comments', requireAuth, (req, res, next) => {
   }
 });
 
-router.get('/:slug', (req, res, next) => {
+router.get('/:slug', async (req, res, next) => {
   try {
-    const post = loadPost(req.params.slug);
+    const post = await loadPost(req.params.slug);
     if (!post) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy bài viết này.');
     }

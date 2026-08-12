@@ -11,7 +11,7 @@ const router = express.Router();
 // deliberately absent: changing those is not a profile edit.
 const EDITABLE_COLUMNS = ['name', 'phone', 'avatar', 'city', 'district'];
 
-router.patch('/me', requireAuth, (req, res, next) => {
+router.patch('/me', requireAuth, async (req, res, next) => {
   try {
     const body = req.body ?? {};
     const assignments = [];
@@ -45,12 +45,12 @@ router.patch('/me', requireAuth, (req, res, next) => {
       throw httpError(400, 'VALIDATION_ERROR', 'Không có thông tin nào để cập nhật.');
     }
 
-    db.prepare(`UPDATE users SET ${assignments.join(', ')} WHERE id = ?`).run(
+    await db.prepare(`UPDATE users SET ${assignments.join(', ')} WHERE id = ?`).run(
       ...values,
       req.user.id,
     );
 
-    res.json({ success: true, data: { user: selectPublicUser.get(req.user.id) } });
+    res.json({ success: true, data: { user: await selectPublicUser.get(req.user.id) } });
   } catch (error) {
     next(error);
   }

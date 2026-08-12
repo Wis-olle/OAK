@@ -40,9 +40,9 @@ const selectStaffReviewSummary = db.prepare(
 );
 
 /** Resolve a :id path segment to an existing active staff id, or 404. */
-function staffIdOrThrow(value) {
+async function staffIdOrThrow(value) {
   const id = Number.parseInt(value, 10);
-  if (!Number.isInteger(id) || !selectStaffExists.get(id)) {
+  if (!Number.isInteger(id) || !(await selectStaffExists.get(id))) {
     throw httpError(404, 'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này.');
   }
   return id;
@@ -53,18 +53,18 @@ function staffIdOrThrow(value) {
  * Sized by the chosen service's duration — the same calculation POST /api/bookings
  * validates against — so the picker never hides a start time the API would accept.
  */
-function getServiceWeek(staffId, serviceId, from, days) {
+async function getServiceWeek(staffId, serviceId, from, days) {
   const week = [];
   for (let offset = 0; offset < days; offset += 1) {
     const date = addDaysISO(from, offset);
-    week.push({ date, slots: getStaffSlots(staffId, serviceId, date) });
+    week.push({ date, slots: await getStaffSlots(staffId, serviceId, date) });
   }
   return week;
 }
 
-router.get('/:id/availability', (req, res, next) => {
+router.get('/:id/availability', async (req, res, next) => {
   try {
-    const staffId = staffIdOrThrow(req.params.id);
+    const staffId = await staffIdOrThrow(req.params.id);
 
     const from = req.query.from === undefined ? todayISO() : req.query.from;
     if (!isISODate(from)) {
@@ -88,8 +88,8 @@ router.get('/:id/availability', (req, res, next) => {
 
     const week =
       serviceId === null
-        ? getStaffWeek(staffId, from, days)
-        : getServiceWeek(staffId, serviceId, from, days);
+        ? await getStaffWeek(staffId, from, days)
+        : await getServiceWeek(staffId, serviceId, from, days);
 
     res.json({ success: true, data: { from, week } });
   } catch (error) {
@@ -97,12 +97,12 @@ router.get('/:id/availability', (req, res, next) => {
   }
 });
 
-router.get('/:id/reviews', (req, res, next) => {
+router.get('/:id/reviews', async (req, res, next) => {
   try {
-    const staffId = staffIdOrThrow(req.params.id);
+    const staffId = await staffIdOrThrow(req.params.id);
     const { page, limit, offset } = parsePagination(req.query, REVIEW_LIMIT);
-    const summary = selectStaffReviewSummary.get(staffId);
-    const rows = selectStaffReviews.all(staffId, limit, offset);
+    const summary = await selectStaffReviewSummary.get(staffId);
+    const rows = await selectStaffReviews.all(staffId, limit, offset);
 
     res.json({
       success: true,
@@ -120,9 +120,11 @@ router.get('/:id/reviews', (req, res, next) => {
   }
 });
 
-router.get('/:id', (req, res, next) => {
+router.get('/:id', async (req, res, next) => {
   try {
-    const row = /^\d+$/.test(req.params.id) ? selectStaffProfile.get(Number(req.params.id)) : null;
+    const row = /^\d+$/.test(req.params.id)
+      ? await selectStaffProfile.get(Number(req.params.id))
+      : null;
     if (!row) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này.');
     }

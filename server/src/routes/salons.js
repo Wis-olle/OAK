@@ -17,8 +17,10 @@ const REVIEW_LIMIT = 10;
 const RATING_VALUES = [5, 4, 3, 2, 1];
 
 // Sort keys are looked up in this table, never concatenated from the query string.
+// NULLS LAST: a salon with no reviews has a NULL rating, and Postgres would otherwise
+// put NULLs first on DESC (SQLite put them last).
 const SORTS = {
-  rating: 'rating DESC, review_count DESC, s.id',
+  rating: 'rating DESC NULLS LAST, review_count DESC, s.id',
   popular: '(SELECT COUNT(*) FROM bookings b WHERE b.salon_id = s.id) DESC, s.id',
 };
 const DEFAULT_SORT = 's.featured DESC, s.flagship DESC, s.id';
@@ -72,9 +74,9 @@ function filterValue(value) {
 }
 
 /** Resolve a :id path segment to an existing salon id, or 404. */
-function salonIdOrThrow(value) {
+async function salonIdOrThrow(value) {
   const id = Number.parseInt(value, 10);
-  if (!Number.isInteger(id) || !selectSalonExists.get(id)) {
+  if (!Number.isInteger(id) || !(await selectSalonExists.get(id))) {
     throw httpError(404, 'NOT_FOUND', 'Không tìm thấy salon này.');
   }
   return id;
@@ -95,7 +97,7 @@ function toSalonProfile(row) {
   };
 }
 
-router.get('/', (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const { page, limit, offset } = parsePagination(req.query, DEFAULT_LIMIT);
     // verified is a gate, not a badge: anyone can create a salon by signing up as a
@@ -105,7 +107,7 @@ router.get('/', (req, res, next) => {
 
     const q = filterValue(req.query.q);
     if (q) {
-      conditions.push('s.name LIKE ?');
+      conditions.push('s.name ILIKE ?');
       params.push(`%${q}%`);
     }
 
@@ -139,8 +141,10 @@ router.get('/', (req, res, next) => {
     const where = `WHERE ${conditions.join(' AND ')}`;
     const order = Object.hasOwn(SORTS, req.query.sort) ? SORTS[req.query.sort] : DEFAULT_SORT;
 
-    const { total } = db.prepare(`SELECT COUNT(*) AS total FROM salons s ${where}`).get(...params);
-    const rows = db
+    const { total } = await db
+      .prepare(`SELECT COUNT(*) AS total FROM salons s ${where}`)
+      .get(...params);
+    const rows = await db
       .prepare(
         `SELECT ${SALON_CARD_COLUMNS} FROM salons s ${where} ORDER BY ${order} LIMIT ? OFFSET ?`,
       )
@@ -154,19 +158,19 @@ router.get('/', (req, res, next) => {
 
 // The /:id/... routes are declared before /:idOrSlug so the slug route can never
 // swallow a more specific path.
-router.get('/:id/photos', (req, res, next) => {
+router.get('/:id/photos', async (req, res, next) => {
   try {
-    const photos = selectPhotos.all(salonIdOrThrow(req.params.id));
+    const photos = await selectPhotos.all(await salonIdOrThrow(req.params.id));
     res.json({ success: true, data: photos, meta: { total: photos.length } });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/:id/services', (req, res, next) => {
+router.get('/:id/services', async (req, res, next) => {
   try {
     const conditions = ['sv.salon_id = ?', 'sv.active = 1'];
-    const params = [salonIdOrThrow(req.params.id)];
+    const params = [await salonIdOrThrow(req.params.id)];
 
     const category = filterValue(req.query.category);
     if (category) {
@@ -174,7 +178,7 @@ router.get('/:id/services', (req, res, next) => {
       params.push(category);
     }
 
-    const rows = db
+    const rows = await db
       .prepare(
         `SELECT ${SERVICE_CARD_COLUMNS}
          FROM services sv
@@ -190,27 +194,29 @@ router.get('/:id/services', (req, res, next) => {
   }
 });
 
-router.get('/:id/staff', (req, res, next) => {
+router.get('/:id/staff', async (req, res, next) => {
   try {
-    const rows = selectSalonStaff.all(salonIdOrThrow(req.params.id));
+    const rows = await selectSalonStaff.all(await salonIdOrThrow(req.params.id));
     res.json({ success: true, data: rows, meta: { total: rows.length } });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/:id/reviews', (req, res, next) => {
+router.get('/:id/reviews', async (req, res, next) => {
   try {
-    const salonId = salonIdOrThrow(req.params.id);
+    const salonId = await salonIdOrThrow(req.params.id);
     const { page, limit, offset } = parsePagination(req.query, REVIEW_LIMIT);
 
-    const summary = selectReviewSummary.get(salonId);
-    const counts = new Map(selectReviewBreakdown.all(salonId).map((row) => [row.rating, row.count]));
+    const summary = await selectReviewSummary.get(salonId);
+    const counts = new Map(
+      (await selectReviewBreakdown.all(salonId)).map((row) => [row.rating, row.count]),
+    );
     const breakdown = Object.fromEntries(
       RATING_VALUES.map((value) => [value, counts.get(value) ?? 0]),
     );
 
-    const rows = selectReviews.all(salonId, limit, offset);
+    const rows = await selectReviews.all(salonId, limit, offset);
 
     res.json({
       success: true,
@@ -235,12 +241,12 @@ router.get('/:id/reviews', (req, res, next) => {
   }
 });
 
-router.get('/:idOrSlug', (req, res, next) => {
+router.get('/:idOrSlug', async (req, res, next) => {
   try {
     const { idOrSlug } = req.params;
     const row = /^\d+$/.test(idOrSlug)
-      ? selectSalonById.get(Number(idOrSlug))
-      : selectSalonBySlug.get(idOrSlug);
+      ? await selectSalonById.get(Number(idOrSlug))
+      : await selectSalonBySlug.get(idOrSlug);
 
     if (!row) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy salon này.');

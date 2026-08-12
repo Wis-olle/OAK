@@ -26,7 +26,7 @@ export const selectPublicUser = db.prepare(
 );
 
 /** Load the user named by the auth cookie onto req.user, or reject with 401. */
-export function requireAuth(req, res, next) {
+export async function requireAuth(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) {
     return next(httpError(401, 'UNAUTHENTICATED', 'Bạn cần đăng nhập để tiếp tục.'));
@@ -39,7 +39,7 @@ export function requireAuth(req, res, next) {
     return next(httpError(401, 'UNAUTHENTICATED', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.'));
   }
 
-  const user = selectPublicUser.get(payload.id);
+  const user = await selectPublicUser.get(payload.id);
   if (!user) {
     return next(httpError(401, 'UNAUTHENTICATED', 'Tài khoản không còn tồn tại.'));
   }

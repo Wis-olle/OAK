@@ -20,3 +20,11 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
+      # Set these three in the Render dashboard (sync: false keeps secrets out of git).
+      # Values come from the Supabase project — see DEPLOY.md.
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

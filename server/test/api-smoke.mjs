@@ -1,17 +1,18 @@
 /*
- * OAK Beauty — API smoke suite (zero dependencies, built-in fetch only).
+ * OAK Beauty — API smoke suite (built-in fetch; pg for the test-database reset).
  *
  * Two run modes:
  *
  *   npm test
- *     Spawns `node src/index.js` itself on port 3199 with OAK_DB_FILE pointing at a
- *     throwaway database under the OS temp dir, waits for /api/health, runs every
- *     group, then kills the child and deletes the database. Nothing in server/data
- *     is touched.
+ *     Resets the Postgres test database named by OAK_TEST_DATABASE_URL (default
+ *     postgres://postgres:postgres@localhost:5432/oak_test) — schema dropped and
+ *     recreated, citext reinstalled — then spawns `node src/index.js` on port 3199
+ *     with DATABASE_URL pointing at it, waits for /api/health, runs every group,
+ *     then kills the child. The dev database is never touched.
  *
  *   OAK_TEST_BASE_URL=http://127.0.0.1:3000 node test/api-smoke.mjs
- *     Skips the spawn and runs against an already-running server. The database is
- *     that server's own, so a re-run reuses whatever the previous one wrote.
+ *     Skips the reset and the spawn and runs against an already-running server. The
+ *     database is that server's own, so a re-run reuses whatever the previous one wrote.
  *
  * Every date is derived from the SERVER's notion of today (probed through the
  * assistant parser), never hardcoded.
@@ -19,15 +20,16 @@
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 
 const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TEST_PORT = 3199;
 const EXTERNAL_URL = process.env.OAK_TEST_BASE_URL;
 const BASE_URL = EXTERNAL_URL ?? `http://127.0.0.1:${TEST_PORT}`;
-const TEMP_DB = path.join(os.tmpdir(), `oak-smoke-${process.pid}-${Date.now()}.db`);
+const TEST_DATABASE_URL =
+  process.env.OAK_TEST_DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/oak_test';
 
 const HEALTH_TIMEOUT_MS = 15000;
 const HEALTH_INTERVAL_MS = 200;
@@ -189,19 +191,27 @@ function hhmm(minutes) {
  * Server lifecycle
  * ========================================================================= */
 
-function removeDatabase() {
-  for (const suffix of ['', '-wal', '-shm']) {
-    fs.rmSync(`${TEMP_DB}${suffix}`, { force: true });
+/** Drop and recreate the public schema so the server boots into an empty database.
+ * The CASCADE also takes the citext extension's objects with it, so it is reinstalled. */
+async function resetDatabase() {
+  const client = new pg.Client({ connectionString: TEST_DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(
+      'DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;',
+    );
+    await client.query('CREATE EXTENSION IF NOT EXISTS citext SCHEMA public;');
+  } finally {
+    await client.end();
   }
 }
 
 const childOutput = [];
 
 function spawnServer() {
-  removeDatabase();
   const child = spawn(process.execPath, ['src/index.js'], {
     cwd: serverRoot,
-    env: { ...process.env, PORT: String(TEST_PORT), OAK_DB_FILE: TEMP_DB },
+    env: { ...process.env, PORT: String(TEST_PORT), DATABASE_URL: TEST_DATABASE_URL },
   });
   child.stdout.on('data', (chunk) => childOutput.push(String(chunk)));
   child.stderr.on('data', (chunk) => childOutput.push(String(chunk)));
@@ -1820,6 +1830,7 @@ let exitCode = 0;
 
 try {
   if (!EXTERNAL_URL) {
+    await resetDatabase();
     child = spawnServer();
   }
   await waitForHealth();
@@ -1843,9 +1854,7 @@ try {
   if (child) {
     const stopped = new Promise((resolve) => child.once('exit', resolve));
     child.kill();
-    // Windows keeps the database file locked until the process is really gone.
     await stopped;
-    removeDatabase();
   }
 }
 

@@ -56,8 +56,8 @@ const selectOwnedSalon = db.prepare('SELECT * FROM salons WHERE owner_id = ? ORD
  * LIMIT stays as the defined reading of "the owner's salon" — the lowest id, the first
  * they registered — should an account ever end up with two.
  */
-function ownedSalon(req) {
-  const salon = selectOwnedSalon.get(req.user.id);
+async function ownedSalon(req) {
+  const salon = await selectOwnedSalon.get(req.user.id);
   if (!salon) {
     throw httpError(404, 'PARTNER_NO_SALON', 'Tài khoản của bạn chưa có salon nào.');
   }
@@ -70,8 +70,8 @@ function ownedSalon(req) {
  * A row that exists but belongs to someone else answers exactly like one that does
  * not exist: 404, never 403. A 403 would confirm the id is real.
  */
-function ownedRow(statement, id, salonId, message) {
-  const row = statement.get(id, salonId);
+async function ownedRow(statement, id, salonId, message) {
+  const row = await statement.get(id, salonId);
   if (!row) {
     throw httpError(404, 'NOT_FOUND', message);
   }
@@ -189,14 +189,15 @@ function requireJsonStringArray(value, label) {
  *
  * Only a column named in the whitelist can reach the SQL, so no request body can
  * ever reassign salon_id, id or any other column the endpoint does not own.
+ * Async because some parsers (booking service/staff) verify ownership in the database.
  */
-function buildPatch(body, columns) {
+async function buildPatch(body, columns) {
   const assignments = [];
   const values = [];
   for (const [column, parse] of Object.entries(columns)) {
     if (Object.hasOwn(body, column)) {
       assignments.push(`"${column}" = ?`);
-      values.push(parse(body[column]));
+      values.push(await parse(body[column]));
     }
   }
   if (assignments.length === 0) {
@@ -350,9 +351,9 @@ const selectDayBookingWindows = db.prepare(`
 `);
 
 /** staff_id -> that day's booking windows in minutes, already in time order. */
-function bookingWindowsByStaff(salonId, date) {
+async function bookingWindowsByStaff(salonId, date) {
   const windows = new Map();
-  for (const row of selectDayBookingWindows.all(salonId, date)) {
+  for (const row of await selectDayBookingWindows.all(salonId, date)) {
     const start = toMinutes(row.time);
     if (start === null) {
       continue;
@@ -392,13 +393,14 @@ const selectUpcomingCount = db.prepare(`
   WHERE salon_id = ? AND date >= ? AND status IN ('pending','confirmed')
 `);
 // A customer is "new" on the day of their very first booking with this salon.
+// Postgres requires the derived table to carry an alias.
 const selectNewCustomerCount = db.prepare(`
   SELECT COUNT(*) AS count FROM (
     SELECT user_id, MIN(date) AS first_date
     FROM bookings
     WHERE salon_id = ? AND user_id IS NOT NULL
     GROUP BY user_id
-  )
+  ) AS first_bookings
   WHERE first_date = ?
 `);
 const selectSalonRating = db.prepare(
@@ -408,19 +410,19 @@ const selectActiveStaff = db.prepare(
   'SELECT id, name, image FROM staff WHERE salon_id = ? AND active = 1 ORDER BY id',
 );
 
-router.get('/overview', (req, res, next) => {
+router.get('/overview', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const date = req.query.date ? requireDate(req.query.date, 'Ngày') : todayISO();
     const previousDate = addDaysISO(date, -1);
 
-    const revenueToday = selectDayRevenue.get(salon.id, date).revenue;
-    const revenueYesterday = selectDayRevenue.get(salon.id, previousDate).revenue;
-    const rating = selectSalonRating.get(salon.id);
+    const revenueToday = (await selectDayRevenue.get(salon.id, date)).revenue;
+    const revenueYesterday = (await selectDayRevenue.get(salon.id, previousDate)).revenue;
+    const rating = await selectSalonRating.get(salon.id);
 
-    const windows = bookingWindowsByStaff(salon.id, date);
+    const windows = await bookingWindowsByStaff(salon.id, date);
     const minutes = nowMinutes();
-    const staffStatus = selectActiveStaff.all(salon.id).map((member) => ({
+    const staffStatus = (await selectActiveStaff.all(salon.id)).map((member) => ({
       id: member.id,
       name: member.name,
       image: member.image,
@@ -437,10 +439,10 @@ router.get('/overview', (req, res, next) => {
           revenueYesterday === 0
             ? null
             : Math.round(((revenueToday - revenueYesterday) / revenueYesterday) * 1000) / 10,
-        bookings_today: selectDayBookingCount.get(salon.id, date).count,
+        bookings_today: (await selectDayBookingCount.get(salon.id, date)).count,
         // Counted from the requested day, so the whole card stays about that day.
-        upcoming_count: selectUpcomingCount.get(salon.id, date).count,
-        new_customers: selectNewCustomerCount.get(salon.id, date).count,
+        upcoming_count: (await selectUpcomingCount.get(salon.id, date)).count,
+        new_customers: (await selectNewCustomerCount.get(salon.id, date)).count,
         rating_avg: roundRating(rating.average),
         review_count: rating.count,
         staff_status: staffStatus,
@@ -458,9 +460,9 @@ router.get('/overview', (req, res, next) => {
 const selectOwnedBooking = db.prepare(
   `SELECT ${BOOKING_COLUMNS} ${BOOKING_SOURCE} WHERE b.id = ? AND b.salon_id = ?`,
 );
-const selectOwnedBookingRow = db.prepare(
-  'SELECT * FROM bookings WHERE id = ? AND salon_id = ?',
-);
+// Also read inside the status-change transaction, so the text is kept alongside.
+const SELECT_OWNED_BOOKING_ROW = 'SELECT * FROM bookings WHERE id = ? AND salon_id = ?';
+const selectOwnedBookingRow = db.prepare(SELECT_OWNED_BOOKING_ROW);
 const selectOwnedService = db.prepare('SELECT * FROM services WHERE id = ? AND salon_id = ?');
 const selectOwnedStaff = db.prepare('SELECT * FROM staff WHERE id = ? AND salon_id = ?');
 const insertWalkInBooking = db.prepare(`
@@ -488,9 +490,9 @@ const BOOKING_NOTIFICATIONS = {
   }),
 };
 
-router.get('/bookings', (req, res, next) => {
+router.get('/bookings', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const { page, limit, offset } = parsePagination(req.query, 20);
 
     // Every clause is a literal; only the values are bound.
@@ -525,13 +527,15 @@ router.get('/bookings', (req, res, next) => {
     }
     if (req.query.q) {
       const term = `%${String(req.query.q).trim()}%`;
-      conditions.push('(b.code LIKE ? OR b.customer_name LIKE ?)');
+      conditions.push('(b.code ILIKE ? OR b.customer_name ILIKE ?)');
       params.push(term, term);
     }
 
     const where = `WHERE ${conditions.join(' AND ')}`;
-    const { total } = db.prepare(`SELECT COUNT(*) AS total FROM bookings b ${where}`).get(...params);
-    const rows = db
+    const { total } = await db
+      .prepare(`SELECT COUNT(*) AS total FROM bookings b ${where}`)
+      .get(...params);
+    const rows = await db
       .prepare(
         `SELECT ${BOOKING_COLUMNS} ${BOOKING_SOURCE} ${where}
          ORDER BY b.date DESC, b.time DESC, b.id DESC LIMIT ? OFFSET ?`,
@@ -549,8 +553,8 @@ router.get('/bookings', (req, res, next) => {
  * technician (active = 0) still exists for history but can take no new work, so assigning
  * one is a client error, not a 404.
  */
-function activeStaffIdForBooking(value, salonId) {
-  const staff = ownedRow(
+async function activeStaffIdForBooking(value, salonId) {
+  const staff = await ownedRow(
     selectOwnedStaff,
     requireId(value, 'Mã kỹ thuật viên không hợp lệ.'),
     salonId,
@@ -562,9 +566,9 @@ function activeStaffIdForBooking(value, salonId) {
   return staff.id;
 }
 
-router.post('/bookings', (req, res, next) => {
+router.post('/bookings', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const body = req.body ?? {};
 
     const customerName = requireText(body.customer_name, 'tên khách hàng');
@@ -578,7 +582,7 @@ router.post('/bookings', (req, res, next) => {
     const time = requireTime(body.time, 'Giờ hẹn');
     const note = optionalText(body.note, 'Ghi chú');
 
-    const service = ownedRow(
+    const service = await ownedRow(
       selectOwnedService,
       requireId(body.service_id, 'Mã dịch vụ không hợp lệ.'),
       salon.id,
@@ -587,39 +591,57 @@ router.post('/bookings', (req, res, next) => {
     const staffId =
       body.staff_id === null || body.staff_id === undefined
         ? null
-        : activeStaffIdForBooking(body.staff_id, salon.id);
+        : await activeStaffIdForBooking(body.staff_id, salon.id);
 
     // Price comes from the service row, never from the request: the counter must not
     // be able to post an arbitrary total.
     let bookingId;
-    withBookingCode((code) => {
-      bookingId = Number(
-        insertWalkInBooking.run(
-          salon.id,
-          service.id,
-          staffId,
-          code,
-          date,
-          time,
-          note,
-          service.price,
-          customerName,
-          customerPhone,
-          new Date().toISOString(),
-        ).lastInsertRowid,
-      );
-    });
+    try {
+      await withBookingCode(async (code) => {
+        bookingId = Number(
+          (
+            await insertWalkInBooking.run(
+              salon.id,
+              service.id,
+              staffId,
+              code,
+              date,
+              time,
+              note,
+              service.price,
+              customerName,
+              customerPhone,
+              new Date().toISOString(),
+            )
+          ).lastInsertRowid,
+        );
+      });
+    } catch (error) {
+      // idx_bookings_slot: the named technician already has a live booking at this
+      // slot. This route has no availability pre-check, so the index is the only gate.
+      if (error.code === '23505' && error.constraint === 'idx_bookings_slot') {
+        throw httpError(
+          409,
+          'SLOT_TAKEN',
+          'Khung giờ này đã có lịch hẹn khác của kỹ thuật viên, vui lòng chọn giờ khác.',
+        );
+      }
+      throw error;
+    }
 
-    res.json({ success: true, data: bookingShape(selectOwnedBooking.get(bookingId, salon.id)) });
+    res.json({
+      success: true,
+      data: bookingShape(await selectOwnedBooking.get(bookingId, salon.id)),
+    });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/bookings/:id', (req, res, next) => {
+router.get('/bookings/:id', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
-    const booking = ownedRow(
+    const salon = await ownedSalon(req);
+    const booking = await ownedRow(
       selectOwnedBooking,
       requireId(req.params.id, 'Mã lịch hẹn không hợp lệ.'),
       salon.id,
@@ -631,12 +653,12 @@ router.get('/bookings/:id', (req, res, next) => {
   }
 });
 
-router.patch('/bookings/:id', (req, res, next) => {
+router.patch('/bookings/:id', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const body = req.body ?? {};
     const bookingId = requireId(req.params.id, 'Mã lịch hẹn không hợp lệ.');
-    const booking = ownedRow(
+    const booking = await ownedRow(
       selectOwnedBookingRow,
       bookingId,
       salon.id,
@@ -645,13 +667,15 @@ router.patch('/bookings/:id', (req, res, next) => {
 
     // Built per request because the parsers need the owner's salon and the current
     // status, but the column names are still a fixed whitelist.
-    const { assignments, values } = buildPatch(body, {
-      service_id: (value) =>
-        ownedRow(
-          selectOwnedService,
-          requireId(value, 'Mã dịch vụ không hợp lệ.'),
-          salon.id,
-          'Không tìm thấy dịch vụ này tại salon của bạn.',
+    const { assignments, values } = await buildPatch(body, {
+      service_id: async (value) =>
+        (
+          await ownedRow(
+            selectOwnedService,
+            requireId(value, 'Mã dịch vụ không hợp lệ.'),
+            salon.id,
+            'Không tìm thấy dịch vụ này tại salon của bạn.',
+          )
         ).id,
       staff_id: (value) => (value === null ? null : activeStaffIdForBooking(value, salon.id)),
       date: (value) => requireDate(value, 'Ngày hẹn'),
@@ -672,25 +696,39 @@ router.patch('/bookings/:id', (req, res, next) => {
 
     const notification = BOOKING_NOTIFICATIONS[body.status];
 
-    db.exec('BEGIN');
     try {
-      db.prepare(
-        `UPDATE bookings SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`,
-      ).run(...values, bookingId, salon.id);
+      await db.withTransaction(async (tx) => {
+        await tx.run(
+          `UPDATE bookings SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`,
+          ...values,
+          bookingId,
+          salon.id,
+        );
 
-      if (notification) {
-        const updated = selectOwnedBookingRow.get(bookingId, salon.id);
-        const { title, body: message, type } = notification(salon, updated);
-        // No-op for walk-ins (user_id NULL), so this needs no guard of its own.
-        notifyUser(booking.user_id, title, message, type);
-      }
-      db.exec('COMMIT');
+        if (notification) {
+          const updated = await tx.get(SELECT_OWNED_BOOKING_ROW, bookingId, salon.id);
+          const { title, body: message, type } = notification(salon, updated);
+          // No-op for walk-ins (user_id NULL), so this needs no guard of its own.
+          await notifyUser(tx, booking.user_id, title, message, type);
+        }
+      });
     } catch (error) {
-      db.exec('ROLLBACK');
+      // idx_bookings_slot: rescheduling (time/date/technician) landed on a slot where
+      // the technician already has a live booking.
+      if (error.code === '23505' && error.constraint === 'idx_bookings_slot') {
+        throw httpError(
+          409,
+          'SLOT_TAKEN',
+          'Khung giờ này đã có lịch hẹn khác của kỹ thuật viên, vui lòng chọn giờ khác.',
+        );
+      }
       throw error;
     }
 
-    res.json({ success: true, data: bookingShape(selectOwnedBooking.get(bookingId, salon.id)) });
+    res.json({
+      success: true,
+      data: bookingShape(await selectOwnedBooking.get(bookingId, salon.id)),
+    });
   } catch (error) {
     next(error);
   }
@@ -714,8 +752,9 @@ const insertService = db.prepare(`
 const selectServiceBookingCount = db.prepare(
   'SELECT COUNT(*) AS count FROM bookings WHERE salon_id = ? AND service_id = ?',
 );
-const deleteServiceLinks = db.prepare('DELETE FROM staff_services WHERE service_id = ?');
-const deleteService = db.prepare('DELETE FROM services WHERE id = ? AND salon_id = ?');
+// Run only inside the delete transaction.
+const DELETE_SERVICE_LINKS = 'DELETE FROM staff_services WHERE service_id = ?';
+const DELETE_SERVICE = 'DELETE FROM services WHERE id = ? AND salon_id = ?';
 
 const SERVICE_COLUMNS = {
   name: (value) => requireText(value, 'tên dịch vụ'),
@@ -728,9 +767,9 @@ const SERVICE_COLUMNS = {
   active: (value) => requireFlag(value, 'Trạng thái hiển thị'),
 };
 
-router.get('/services', (req, res, next) => {
+router.get('/services', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const { page, limit, offset } = parsePagination(req.query, 50);
 
     const conditions = ['salon_id = ?'];
@@ -742,20 +781,22 @@ router.get('/services', (req, res, next) => {
       );
     }
     if (req.query.q) {
-      conditions.push('name LIKE ?');
+      conditions.push('name ILIKE ?');
       params.push(`%${String(req.query.q).trim()}%`);
     }
 
     const where = `WHERE ${conditions.join(' AND ')}`;
-    const { total } = db.prepare(`SELECT COUNT(*) AS total FROM services ${where}`).get(...params);
-    const rows = db
+    const { total } = await db
+      .prepare(`SELECT COUNT(*) AS total FROM services ${where}`)
+      .get(...params);
+    const rows = await db
       .prepare(`SELECT * FROM services ${where} ORDER BY category, name LIMIT ? OFFSET ?`)
       .all(...params, limit, offset);
 
     // Counts cover the whole salon, not the filtered page, so the category tabs keep
     // their numbers while a filter is applied. Zero-filled for a stable shape.
     const categories = Object.fromEntries(SERVICE_CATEGORIES.map((key) => [key, 0]));
-    for (const row of selectServiceCategoryCounts.all(salon.id)) {
+    for (const row of await selectServiceCategoryCounts.all(salon.id)) {
       categories[row.category] = row.count;
     }
 
@@ -769,34 +810,39 @@ router.get('/services', (req, res, next) => {
   }
 });
 
-router.post('/services', (req, res, next) => {
+router.post('/services', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const body = req.body ?? {};
 
     const serviceId = Number(
-      insertService.run(
-        salon.id,
-        SERVICE_COLUMNS.category(body.category),
-        SERVICE_COLUMNS.subcategory(body.subcategory),
-        SERVICE_COLUMNS.name(body.name),
-        SERVICE_COLUMNS.description(body.description),
-        SERVICE_COLUMNS.price(body.price),
-        SERVICE_COLUMNS.duration_min(body.duration_min),
-        SERVICE_COLUMNS.image(body.image),
+      (
+        await insertService.run(
+          salon.id,
+          SERVICE_COLUMNS.category(body.category),
+          SERVICE_COLUMNS.subcategory(body.subcategory),
+          SERVICE_COLUMNS.name(body.name),
+          SERVICE_COLUMNS.description(body.description),
+          SERVICE_COLUMNS.price(body.price),
+          SERVICE_COLUMNS.duration_min(body.duration_min),
+          SERVICE_COLUMNS.image(body.image),
+        )
       ).lastInsertRowid,
     );
 
-    res.json({ success: true, data: serviceShape(selectOwnedService.get(serviceId, salon.id)) });
+    res.json({
+      success: true,
+      data: serviceShape(await selectOwnedService.get(serviceId, salon.id)),
+    });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/services/:id', (req, res, next) => {
+router.get('/services/:id', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
-    const service = ownedRow(
+    const salon = await ownedSalon(req);
+    const service = await ownedRow(
       selectOwnedService,
       requireId(req.params.id, 'Mã dịch vụ không hợp lệ.'),
       salon.id,
@@ -808,32 +854,33 @@ router.get('/services/:id', (req, res, next) => {
   }
 });
 
-router.patch('/services/:id', (req, res, next) => {
+router.patch('/services/:id', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const serviceId = requireId(req.params.id, 'Mã dịch vụ không hợp lệ.');
-    ownedRow(selectOwnedService, serviceId, salon.id, 'Không tìm thấy dịch vụ này.');
+    await ownedRow(selectOwnedService, serviceId, salon.id, 'Không tìm thấy dịch vụ này.');
 
-    const { assignments, values } = buildPatch(req.body ?? {}, SERVICE_COLUMNS);
-    db.prepare(`UPDATE services SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`).run(
-      ...values,
-      serviceId,
-      salon.id,
-    );
+    const { assignments, values } = await buildPatch(req.body ?? {}, SERVICE_COLUMNS);
+    await db
+      .prepare(`UPDATE services SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`)
+      .run(...values, serviceId, salon.id);
 
-    res.json({ success: true, data: serviceShape(selectOwnedService.get(serviceId, salon.id)) });
+    res.json({
+      success: true,
+      data: serviceShape(await selectOwnedService.get(serviceId, salon.id)),
+    });
   } catch (error) {
     next(error);
   }
 });
 
-router.delete('/services/:id', (req, res, next) => {
+router.delete('/services/:id', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const serviceId = requireId(req.params.id, 'Mã dịch vụ không hợp lệ.');
-    ownedRow(selectOwnedService, serviceId, salon.id, 'Không tìm thấy dịch vụ này.');
+    await ownedRow(selectOwnedService, serviceId, salon.id, 'Không tìm thấy dịch vụ này.');
 
-    const { count } = selectServiceBookingCount.get(salon.id, serviceId);
+    const { count } = await selectServiceBookingCount.get(salon.id, serviceId);
     if (count > 0) {
       throw httpError(
         409,
@@ -842,16 +889,15 @@ router.delete('/services/:id', (req, res, next) => {
       );
     }
 
-    db.exec('BEGIN');
     try {
-      // The staff links belong to this service, so they go with it; bookings and
-      // reviews do not, and their foreign keys are what stops the delete below.
-      deleteServiceLinks.run(serviceId);
-      deleteService.run(serviceId, salon.id);
-      db.exec('COMMIT');
+      await db.withTransaction(async (tx) => {
+        // The staff links belong to this service, so they go with it; bookings and
+        // reviews do not, and their foreign keys are what stops the delete below.
+        await tx.run(DELETE_SERVICE_LINKS, serviceId);
+        await tx.run(DELETE_SERVICE, serviceId, salon.id);
+      });
     } catch (error) {
-      db.exec('ROLLBACK');
-      if (String(error.message).includes('FOREIGN KEY constraint failed')) {
+      if (error.code === '23503') {
         throw httpError(
           409,
           'HAS_BOOKINGS',
@@ -891,17 +937,14 @@ const selectStaffServiceIds = db.prepare(
 const selectActiveStaffRating = db.prepare(
   'SELECT AVG(rating) AS average FROM staff WHERE salon_id = ? AND active = 1 AND rating > 0',
 );
-const insertStaff = db.prepare(
-  'INSERT INTO staff (salon_id, name, title, specialty, image, active) VALUES (?, ?, ?, ?, ?, 1)',
-);
-const insertStaffSchedule = db.prepare(
-  'INSERT INTO staff_schedule (staff_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)',
-);
-const deleteStaffSchedule = db.prepare('DELETE FROM staff_schedule WHERE staff_id = ?');
-const insertStaffService = db.prepare(
-  'INSERT INTO staff_services (staff_id, service_id) VALUES (?, ?)',
-);
-const deleteStaffServices = db.prepare('DELETE FROM staff_services WHERE staff_id = ?');
+// The staff writes all happen inside transactions, so these are kept as SQL text.
+const INSERT_STAFF =
+  'INSERT INTO staff (salon_id, name, title, specialty, image, active) VALUES (?, ?, ?, ?, ?, 1)';
+const INSERT_STAFF_SCHEDULE =
+  'INSERT INTO staff_schedule (staff_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)';
+const DELETE_STAFF_SCHEDULE = 'DELETE FROM staff_schedule WHERE staff_id = ?';
+const INSERT_STAFF_SERVICE = 'INSERT INTO staff_services (staff_id, service_id) VALUES (?, ?)';
+const DELETE_STAFF_SERVICES = 'DELETE FROM staff_services WHERE staff_id = ?';
 const deactivateStaff = db.prepare('UPDATE staff SET active = 0 WHERE id = ? AND salon_id = ?');
 
 const STAFF_COLUMNS = {
@@ -945,7 +988,7 @@ function listPayload(body, key) {
 }
 
 /** Validate a full-replace service list: unique ids, all inside the owner's salon. */
-function parseStaffServiceIds(value, salonId) {
+async function parseStaffServiceIds(value, salonId) {
   const ids = [
     ...new Set(
       requireArray(value, 'Danh sách dịch vụ').map((id) =>
@@ -954,14 +997,14 @@ function parseStaffServiceIds(value, salonId) {
     ),
   ];
   for (const id of ids) {
-    if (!selectOwnedService.get(id, salonId)) {
+    if (!(await selectOwnedService.get(id, salonId))) {
       throw httpError(400, 'VALIDATION_ERROR', 'Dịch vụ được chọn không thuộc salon của bạn.');
     }
   }
   return ids;
 }
 
-function staffDetail(staff) {
+async function staffDetail(staff) {
   return {
     id: staff.id,
     name: staff.name,
@@ -973,8 +1016,8 @@ function staffDetail(staff) {
     years_experience: staff.years_experience,
     portfolio: parseJsonArray(staff.portfolio),
     active: staff.active,
-    schedule: selectStaffSchedule.all(staff.id),
-    service_ids: selectStaffServiceIds.all(staff.id).map((row) => row.service_id),
+    schedule: await selectStaffSchedule.all(staff.id),
+    service_ids: (await selectStaffServiceIds.all(staff.id)).map((row) => row.service_id),
   };
 }
 
@@ -990,23 +1033,23 @@ function nextShift(scheduleByWeekday, fromDate) {
   return null;
 }
 
-router.get('/staff', (req, res, next) => {
+router.get('/staff', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const term = req.query.q ? `%${String(req.query.q).trim()}%` : null;
     const rows = term
-      ? db
-          .prepare('SELECT * FROM staff WHERE salon_id = ? AND name LIKE ? ORDER BY id')
+      ? await db
+          .prepare('SELECT * FROM staff WHERE salon_id = ? AND name ILIKE ? ORDER BY id')
           .all(salon.id, term)
-      : selectSalonStaff.all(salon.id);
+      : await selectSalonStaff.all(salon.id);
 
     const today = todayISO();
     const weekday = weekdayOf(today);
     const minutes = nowMinutes();
-    const windows = bookingWindowsByStaff(salon.id, today);
+    const windows = await bookingWindowsByStaff(salon.id, today);
 
     const schedules = new Map();
-    for (const row of selectSalonSchedules.all(salon.id)) {
+    for (const row of await selectSalonSchedules.all(salon.id)) {
       if (!schedules.has(row.staff_id)) {
         schedules.set(row.staff_id, new Map());
       }
@@ -1047,7 +1090,7 @@ router.get('/staff', (req, res, next) => {
         total: data.filter((member) => member.active === 1).length,
         on_shift: onShift,
         // Averaged over active staff only: the roster figure should reflect who works.
-        rating_avg: roundRating(selectActiveStaffRating.get(salon.id).average),
+        rating_avg: roundRating((await selectActiveStaffRating.get(salon.id)).average),
       },
     });
   } catch (error) {
@@ -1055,9 +1098,9 @@ router.get('/staff', (req, res, next) => {
   }
 });
 
-router.post('/staff', (req, res, next) => {
+router.post('/staff', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const body = req.body ?? {};
 
     const name = STAFF_COLUMNS.name(body.name);
@@ -1066,124 +1109,123 @@ router.post('/staff', (req, res, next) => {
     const image = STAFF_COLUMNS.image(body.image);
     const schedule = body.schedule === undefined ? [] : parseSchedule(body.schedule);
     const serviceIds =
-      body.service_ids === undefined ? [] : parseStaffServiceIds(body.service_ids, salon.id);
+      body.service_ids === undefined
+        ? []
+        : await parseStaffServiceIds(body.service_ids, salon.id);
 
-    db.exec('BEGIN');
     let staffId;
-    try {
-      staffId = Number(insertStaff.run(salon.id, name, title, specialty, image).lastInsertRowid);
+    await db.withTransaction(async (tx) => {
+      staffId = Number(
+        (await tx.run(INSERT_STAFF, salon.id, name, title, specialty, image)).lastInsertRowid,
+      );
       for (const shift of schedule) {
-        insertStaffSchedule.run(staffId, shift.weekday, shift.start, shift.end, shift.is_off);
+        await tx.run(INSERT_STAFF_SCHEDULE, staffId, shift.weekday, shift.start, shift.end, shift.is_off);
       }
       for (const serviceId of serviceIds) {
-        insertStaffService.run(staffId, serviceId);
+        await tx.run(INSERT_STAFF_SERVICE, staffId, serviceId);
       }
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    });
 
-    res.json({ success: true, data: staffDetail(selectOwnedStaff.get(staffId, salon.id)) });
+    res.json({
+      success: true,
+      data: await staffDetail(await selectOwnedStaff.get(staffId, salon.id)),
+    });
   } catch (error) {
     next(error);
   }
 });
 
 // Registered before /staff/:id so the literal sub-paths always win the match.
-router.put('/staff/:id/schedule', (req, res, next) => {
+router.put('/staff/:id/schedule', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const staffId = requireId(req.params.id, 'Mã kỹ thuật viên không hợp lệ.');
-    ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
+    await ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
     const schedule = parseSchedule(listPayload(req.body, 'schedule'));
 
     // Full replace: the payload is the whole week, so the old rows go first.
-    db.exec('BEGIN');
-    try {
-      deleteStaffSchedule.run(staffId);
+    await db.withTransaction(async (tx) => {
+      await tx.run(DELETE_STAFF_SCHEDULE, staffId);
       for (const shift of schedule) {
-        insertStaffSchedule.run(staffId, shift.weekday, shift.start, shift.end, shift.is_off);
+        await tx.run(INSERT_STAFF_SCHEDULE, staffId, shift.weekday, shift.start, shift.end, shift.is_off);
       }
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    });
 
-    res.json({ success: true, data: staffDetail(selectOwnedStaff.get(staffId, salon.id)) });
+    res.json({
+      success: true,
+      data: await staffDetail(await selectOwnedStaff.get(staffId, salon.id)),
+    });
   } catch (error) {
     next(error);
   }
 });
 
-router.put('/staff/:id/services', (req, res, next) => {
+router.put('/staff/:id/services', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const staffId = requireId(req.params.id, 'Mã kỹ thuật viên không hợp lệ.');
-    ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
-    const serviceIds = parseStaffServiceIds(listPayload(req.body, 'service_ids'), salon.id);
+    await ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
+    const serviceIds = await parseStaffServiceIds(listPayload(req.body, 'service_ids'), salon.id);
 
-    db.exec('BEGIN');
-    try {
-      deleteStaffServices.run(staffId);
+    await db.withTransaction(async (tx) => {
+      await tx.run(DELETE_STAFF_SERVICES, staffId);
       for (const serviceId of serviceIds) {
-        insertStaffService.run(staffId, serviceId);
+        await tx.run(INSERT_STAFF_SERVICE, staffId, serviceId);
       }
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    });
 
-    res.json({ success: true, data: staffDetail(selectOwnedStaff.get(staffId, salon.id)) });
+    res.json({
+      success: true,
+      data: await staffDetail(await selectOwnedStaff.get(staffId, salon.id)),
+    });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/staff/:id', (req, res, next) => {
+router.get('/staff/:id', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
-    const staff = ownedRow(
+    const salon = await ownedSalon(req);
+    const staff = await ownedRow(
       selectOwnedStaff,
       requireId(req.params.id, 'Mã kỹ thuật viên không hợp lệ.'),
       salon.id,
       'Không tìm thấy kỹ thuật viên này.',
     );
-    res.json({ success: true, data: staffDetail(staff) });
+    res.json({ success: true, data: await staffDetail(staff) });
   } catch (error) {
     next(error);
   }
 });
 
-router.patch('/staff/:id', (req, res, next) => {
+router.patch('/staff/:id', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const staffId = requireId(req.params.id, 'Mã kỹ thuật viên không hợp lệ.');
-    ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
+    await ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
 
-    const { assignments, values } = buildPatch(req.body ?? {}, STAFF_COLUMNS);
-    db.prepare(`UPDATE staff SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`).run(
-      ...values,
-      staffId,
-      salon.id,
-    );
+    const { assignments, values } = await buildPatch(req.body ?? {}, STAFF_COLUMNS);
+    await db
+      .prepare(`UPDATE staff SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`)
+      .run(...values, staffId, salon.id);
 
-    res.json({ success: true, data: staffDetail(selectOwnedStaff.get(staffId, salon.id)) });
+    res.json({
+      success: true,
+      data: await staffDetail(await selectOwnedStaff.get(staffId, salon.id)),
+    });
   } catch (error) {
     next(error);
   }
 });
 
-router.delete('/staff/:id', (req, res, next) => {
+router.delete('/staff/:id', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const staffId = requireId(req.params.id, 'Mã kỹ thuật viên không hợp lệ.');
-    ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
+    await ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
 
     // Soft delete: past bookings and reviews still point at this row.
-    deactivateStaff.run(staffId, salon.id);
+    await deactivateStaff.run(staffId, salon.id);
     res.json({ success: true, data: { ok: true } });
   } catch (error) {
     next(error);
@@ -1237,44 +1279,49 @@ const PROMOTION_COLUMNS = {
  * way registration does — a SELECT-then-INSERT would still lose the race.
  */
 function asCodeTaken(error) {
-  if (String(error.message).includes('UNIQUE constraint failed: promotions.code')) {
+  if (error.code === '23505' && error.constraint === 'promotions_code_key') {
     return httpError(409, 'CODE_TAKEN', 'Mã ưu đãi này đã được sử dụng.');
   }
   return error;
 }
 
-router.get('/promotions', (req, res, next) => {
+router.get('/promotions', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     // Inactive and expired ones included: this is the owner's own management list.
-    res.json({ success: true, data: selectSalonPromotions.all(salon.id).map(promotionShape) });
+    res.json({
+      success: true,
+      data: (await selectSalonPromotions.all(salon.id)).map(promotionShape),
+    });
   } catch (error) {
     next(error);
   }
 });
 
-router.post('/promotions', (req, res, next) => {
+router.post('/promotions', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const body = req.body ?? {};
 
     let promotionId;
     try {
       promotionId = Number(
-        insertPromotion.run(
-          salon.id,
-          PROMOTION_COLUMNS.code(body.code),
-          PROMOTION_COLUMNS.type(body.type),
-          PROMOTION_COLUMNS.title(body.title),
-          PROMOTION_COLUMNS.description(body.description),
-          PROMOTION_COLUMNS.discount_percent(body.discount_percent),
-          PROMOTION_COLUMNS.discount_amount(body.discount_amount),
-          PROMOTION_COLUMNS.original_price(body.original_price),
-          PROMOTION_COLUMNS.sale_price(body.sale_price),
-          PROMOTION_COLUMNS.service_ids(body.service_ids),
-          PROMOTION_COLUMNS.image(body.image),
-          PROMOTION_COLUMNS.starts_at(body.starts_at),
-          PROMOTION_COLUMNS.ends_at(body.ends_at),
+        (
+          await insertPromotion.run(
+            salon.id,
+            PROMOTION_COLUMNS.code(body.code),
+            PROMOTION_COLUMNS.type(body.type),
+            PROMOTION_COLUMNS.title(body.title),
+            PROMOTION_COLUMNS.description(body.description),
+            PROMOTION_COLUMNS.discount_percent(body.discount_percent),
+            PROMOTION_COLUMNS.discount_amount(body.discount_amount),
+            PROMOTION_COLUMNS.original_price(body.original_price),
+            PROMOTION_COLUMNS.sale_price(body.sale_price),
+            PROMOTION_COLUMNS.service_ids(body.service_ids),
+            PROMOTION_COLUMNS.image(body.image),
+            PROMOTION_COLUMNS.starts_at(body.starts_at),
+            PROMOTION_COLUMNS.ends_at(body.ends_at),
+          )
         ).lastInsertRowid,
       );
     } catch (error) {
@@ -1283,44 +1330,44 @@ router.post('/promotions', (req, res, next) => {
 
     res.json({
       success: true,
-      data: promotionShape(selectOwnedPromotion.get(promotionId, salon.id)),
+      data: promotionShape(await selectOwnedPromotion.get(promotionId, salon.id)),
     });
   } catch (error) {
     next(error);
   }
 });
 
-router.patch('/promotions/:id', (req, res, next) => {
+router.patch('/promotions/:id', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const promotionId = requireId(req.params.id, 'Mã ưu đãi không hợp lệ.');
-    ownedRow(selectOwnedPromotion, promotionId, salon.id, 'Không tìm thấy ưu đãi này.');
+    await ownedRow(selectOwnedPromotion, promotionId, salon.id, 'Không tìm thấy ưu đãi này.');
 
-    const { assignments, values } = buildPatch(req.body ?? {}, PROMOTION_COLUMNS);
+    const { assignments, values } = await buildPatch(req.body ?? {}, PROMOTION_COLUMNS);
     try {
-      db.prepare(
-        `UPDATE promotions SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`,
-      ).run(...values, promotionId, salon.id);
+      await db
+        .prepare(`UPDATE promotions SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`)
+        .run(...values, promotionId, salon.id);
     } catch (error) {
       throw asCodeTaken(error);
     }
 
     res.json({
       success: true,
-      data: promotionShape(selectOwnedPromotion.get(promotionId, salon.id)),
+      data: promotionShape(await selectOwnedPromotion.get(promotionId, salon.id)),
     });
   } catch (error) {
     next(error);
   }
 });
 
-router.delete('/promotions/:id', (req, res, next) => {
+router.delete('/promotions/:id', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const promotionId = requireId(req.params.id, 'Mã ưu đãi không hợp lệ.');
-    ownedRow(selectOwnedPromotion, promotionId, salon.id, 'Không tìm thấy ưu đãi này.');
+    await ownedRow(selectOwnedPromotion, promotionId, salon.id, 'Không tìm thấy ưu đãi này.');
 
-    deletePromotion.run(promotionId, salon.id);
+    await deletePromotion.run(promotionId, salon.id);
     res.json({ success: true, data: { ok: true } });
   } catch (error) {
     next(error);
@@ -1331,16 +1378,17 @@ router.delete('/promotions/:id', (req, res, next) => {
  * Revenue
  * ========================================================================= */
 
-// The group key is a strftime format, never raw input: the request may only pick a
-// key of this map, and the format itself is bound as a parameter.
+// The group key is a to_char format, never raw input: the request may only pick a
+// key of this map, and the format itself is bound as a parameter. Weeks follow ISO
+// numbering (IYYY/IW), which differs marginally from SQLite's %W — accepted.
 const REVENUE_GROUPS = {
-  day: '%Y-%m-%d',
-  week: '%Y-W%W',
-  month: '%Y-%m',
+  day: 'YYYY-MM-DD',
+  week: 'IYYY-"W"IW',
+  month: 'YYYY-MM',
 };
 
 const selectRevenueSeries = db.prepare(`
-  SELECT strftime(?, date) AS period,
+  SELECT to_char(date::date, ?) AS period,
          COALESCE(SUM(total_price), 0) AS revenue,
          COUNT(*) AS bookings
   FROM bookings
@@ -1372,9 +1420,9 @@ const selectRevenueByStaff = db.prepare(`
   LIMIT ?
 `);
 
-router.get('/revenue', (req, res, next) => {
+router.get('/revenue', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const group = req.query.group
       ? requireOneOf(req.query.group, Object.keys(REVENUE_GROUPS), 'Cách nhóm dữ liệu không hợp lệ.')
       : 'day';
@@ -1383,7 +1431,7 @@ router.get('/revenue', (req, res, next) => {
       ? requireDate(req.query.from, 'Ngày bắt đầu')
       : addDaysISO(to, -(REVENUE_DEFAULT_DAYS - 1));
 
-    const totals = selectRevenueTotals.get(salon.id, from, to);
+    const totals = await selectRevenueTotals.get(salon.id, from, to);
 
     res.json({
       success: true,
@@ -1391,15 +1439,15 @@ router.get('/revenue', (req, res, next) => {
         from,
         to,
         group,
-        series: selectRevenueSeries.all(REVENUE_GROUPS[group], salon.id, from, to),
+        series: await selectRevenueSeries.all(REVENUE_GROUPS[group], salon.id, from, to),
         totals: {
           revenue: totals.revenue,
           bookings: totals.bookings,
           // No bookings means no average, not a division by zero.
           avg_ticket: totals.bookings === 0 ? 0 : Math.round(totals.revenue / totals.bookings),
         },
-        by_service: selectRevenueByService.all(salon.id, from, to, TOP_BREAKDOWN_LIMIT),
-        by_staff: selectRevenueByStaff.all(salon.id, from, to, TOP_BREAKDOWN_LIMIT),
+        by_service: await selectRevenueByService.all(salon.id, from, to, TOP_BREAKDOWN_LIMIT),
+        by_staff: await selectRevenueByStaff.all(salon.id, from, to, TOP_BREAKDOWN_LIMIT),
       },
     });
   } catch (error) {
@@ -1428,23 +1476,25 @@ const SALON_COLUMNS = {
   tour_url: (value) => optionalHttpsUrl(value, 'Đường dẫn tour 360'),
 };
 
-router.get('/salon', (req, res, next) => {
+router.get('/salon', async (req, res, next) => {
   try {
-    res.json({ success: true, data: salonShape(ownedSalon(req)) });
+    res.json({ success: true, data: salonShape(await ownedSalon(req)) });
   } catch (error) {
     next(error);
   }
 });
 
-router.patch('/salon', (req, res, next) => {
+router.patch('/salon', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
-    const { assignments, values } = buildPatch(req.body ?? {}, SALON_COLUMNS);
+    const salon = await ownedSalon(req);
+    const { assignments, values } = await buildPatch(req.body ?? {}, SALON_COLUMNS);
 
     // Keyed by the derived id, so no body field can redirect the update elsewhere.
-    db.prepare(`UPDATE salons SET ${assignments.join(', ')} WHERE id = ?`).run(...values, salon.id);
+    await db
+      .prepare(`UPDATE salons SET ${assignments.join(', ')} WHERE id = ?`)
+      .run(...values, salon.id);
 
-    res.json({ success: true, data: salonShape(selectSalonById.get(salon.id)) });
+    res.json({ success: true, data: salonShape(await selectSalonById.get(salon.id)) });
   } catch (error) {
     next(error);
   }
@@ -1456,19 +1506,19 @@ router.patch('/salon', (req, res, next) => {
 
 const searchBookings = db.prepare(`
   SELECT id, code, customer_name FROM bookings
-  WHERE salon_id = ? AND (code LIKE ? OR customer_name LIKE ?)
+  WHERE salon_id = ? AND (code ILIKE ? OR customer_name ILIKE ?)
   ORDER BY date DESC, id DESC LIMIT ?
 `);
 const searchServices = db.prepare(
-  'SELECT id, name FROM services WHERE salon_id = ? AND name LIKE ? ORDER BY name LIMIT ?',
+  'SELECT id, name FROM services WHERE salon_id = ? AND name ILIKE ? ORDER BY name LIMIT ?',
 );
 const searchStaff = db.prepare(
-  'SELECT id, name FROM staff WHERE salon_id = ? AND name LIKE ? ORDER BY name LIMIT ?',
+  'SELECT id, name FROM staff WHERE salon_id = ? AND name ILIKE ? ORDER BY name LIMIT ?',
 );
 
-router.get('/search', (req, res, next) => {
+router.get('/search', async (req, res, next) => {
   try {
-    const salon = ownedSalon(req);
+    const salon = await ownedSalon(req);
     const query = req.query.q ? String(req.query.q).trim() : '';
     // An empty box is not an error, it simply has nothing to show yet.
     if (query === '') {
@@ -1478,17 +1528,21 @@ router.get('/search', (req, res, next) => {
 
     const term = `%${query}%`;
     const results = [
-      ...searchBookings.all(salon.id, term, term, SEARCH_LIMIT).map((row) => ({
+      ...(await searchBookings.all(salon.id, term, term, SEARCH_LIMIT)).map((row) => ({
         type: 'booking',
         id: row.id,
         label: [row.code, row.customer_name].filter(Boolean).join(' · '),
       })),
-      ...searchServices
-        .all(salon.id, term, SEARCH_LIMIT)
-        .map((row) => ({ type: 'service', id: row.id, label: row.name })),
-      ...searchStaff
-        .all(salon.id, term, SEARCH_LIMIT)
-        .map((row) => ({ type: 'staff', id: row.id, label: row.name })),
+      ...(await searchServices.all(salon.id, term, SEARCH_LIMIT)).map((row) => ({
+        type: 'service',
+        id: row.id,
+        label: row.name,
+      })),
+      ...(await searchStaff.all(salon.id, term, SEARCH_LIMIT)).map((row) => ({
+        type: 'staff',
+        id: row.id,
+        label: row.name,
+      })),
     ];
 
     res.json({ success: true, data: results });

@@ -52,9 +52,9 @@ const selectSalonServiceIds = db.prepare(
 );
 
 /** Busy [start, end) minute ranges for one staff member on one date. */
-function busyRanges(staffId, date) {
+async function busyRanges(staffId, date) {
   const ranges = [];
-  for (const booking of selectStaffBookings.all(staffId, date)) {
+  for (const booking of await selectStaffBookings.all(staffId, date)) {
     const start = toMinutes(booking.time);
     if (start === null) {
       continue;
@@ -81,8 +81,8 @@ function* shiftStarts(shift, duration) {
 }
 
 /** Ordered slots for a service on a date, unioned across every staff who performs it. */
-export function getServiceSlots(serviceId, date) {
-  const service = selectService.get(serviceId);
+export async function getServiceSlots(serviceId, date) {
+  const service = await selectService.get(serviceId);
   if (!service) {
     return [];
   }
@@ -90,8 +90,8 @@ export function getServiceSlots(serviceId, date) {
   const duration = service.duration_min || FALLBACK_DURATION_MIN;
   const availability = new Map();
 
-  for (const shift of selectServiceShifts.all(serviceId, weekdayOf(date))) {
-    const ranges = busyRanges(shift.id, date);
+  for (const shift of await selectServiceShifts.all(serviceId, weekdayOf(date))) {
+    const ranges = await busyRanges(shift.id, date);
     for (const minute of shiftStarts(shift, duration)) {
       // One free staff member is enough, so availability ORs across staff.
       availability.set(minute, (availability.get(minute) ?? false) || isFree(ranges, minute, duration));
@@ -103,12 +103,12 @@ export function getServiceSlots(serviceId, date) {
     .map((minute) => ({ time: fromMinutes(minute), available: availability.get(minute) }));
 }
 
-function staffDaySlots(staffId, date, duration) {
-  const shift = selectStaffShift.get(staffId, weekdayOf(date));
+async function staffDaySlots(staffId, date, duration) {
+  const shift = await selectStaffShift.get(staffId, weekdayOf(date));
   if (!shift) {
     return [];
   }
-  const ranges = busyRanges(staffId, date);
+  const ranges = await busyRanges(staffId, date);
   const slots = [];
   for (const minute of shiftStarts(shift, duration)) {
     slots.push({ time: fromMinutes(minute), available: isFree(ranges, minute, duration) });
@@ -124,8 +124,8 @@ function staffDaySlots(staffId, date, duration) {
  * schedule row for that weekday, or one marked is_off, has no slots at all — and since
  * staff_schedule.staff_id is a foreign key, that also covers an id that does not exist.
  */
-export function getStaffSlots(staffId, serviceId, date) {
-  const service = selectService.get(serviceId);
+export async function getStaffSlots(staffId, serviceId, date) {
+  const service = await selectService.get(serviceId);
   if (!service) {
     return [];
   }
@@ -133,23 +133,24 @@ export function getStaffSlots(staffId, serviceId, date) {
 }
 
 /** One entry per day from fromDate, including days the staff member does not work. */
-export function getStaffWeek(staffId, fromDate, days = 7) {
-  const duration = selectStaffMaxDuration.get(staffId)?.duration_min || FALLBACK_DURATION_MIN;
+export async function getStaffWeek(staffId, fromDate, days = 7) {
+  const duration =
+    (await selectStaffMaxDuration.get(staffId))?.duration_min || FALLBACK_DURATION_MIN;
   const week = [];
   for (let offset = 0; offset < days; offset += 1) {
     const date = addDaysISO(fromDate, offset);
-    week.push({ date, slots: staffDaySlots(staffId, date, duration) });
+    week.push({ date, slots: await staffDaySlots(staffId, date, duration) });
   }
   return week;
 }
 
 /** Does any service of this salon still have a free slot starting inside the window? */
-export function hasSlotsInRange(salonId, date, timeFrom, timeTo) {
+export async function hasSlotsInRange(salonId, date, timeFrom, timeTo) {
   const from = toMinutes(timeFrom) ?? DAY_START_MIN;
   const to = toMinutes(timeTo) ?? DAY_END_MIN;
 
-  for (const service of selectSalonServiceIds.all(salonId)) {
-    for (const slot of getServiceSlots(service.id, date)) {
+  for (const service of await selectSalonServiceIds.all(salonId)) {
+    for (const slot of await getServiceSlots(service.id, date)) {
       const minute = toMinutes(slot.time);
       if (slot.available && minute >= from && minute <= to) {
         return true;

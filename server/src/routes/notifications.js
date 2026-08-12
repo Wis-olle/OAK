@@ -45,21 +45,21 @@ function toNotification(row) {
   };
 }
 
-router.get('/', (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     // count_only wins: the badge needs a number, and sending the rows too would be waste.
     if (req.query.count_only === 'true') {
       res.json({
         success: true,
-        data: { unread_count: selectUnreadCount.get(req.user.id).count },
+        data: { unread_count: (await selectUnreadCount.get(req.user.id)).count },
       });
       return;
     }
 
     const rows =
       req.query.unread === 'true'
-        ? selectUnreadFeed.all(req.user.id, FEED_LIMIT)
-        : selectFeed.all(req.user.id, FEED_LIMIT);
+        ? await selectUnreadFeed.all(req.user.id, FEED_LIMIT)
+        : await selectFeed.all(req.user.id, FEED_LIMIT);
 
     res.json({ success: true, data: rows.map(toNotification) });
   } catch (error) {
@@ -67,12 +67,14 @@ router.get('/', (req, res, next) => {
   }
 });
 
-router.patch('/:id/read', (req, res, next) => {
+router.patch('/:id/read', async (req, res, next) => {
   try {
     const id = Number.parseInt(req.params.id, 10);
     // Scoped by user_id in the UPDATE itself, so another account's notification simply
     // matches nothing — there is no window between a check and the write.
-    const changes = Number.isInteger(id) ? Number(markRead.run(id, req.user.id).changes) : 0;
+    const changes = Number.isInteger(id)
+      ? Number((await markRead.run(id, req.user.id)).changes)
+      : 0;
     if (changes === 0) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy thông báo.');
     }
@@ -83,9 +85,9 @@ router.patch('/:id/read', (req, res, next) => {
   }
 });
 
-router.post('/read-all', (req, res, next) => {
+router.post('/read-all', async (req, res, next) => {
   try {
-    const updated = Number(markAllRead.run(req.user.id).changes);
+    const updated = Number((await markAllRead.run(req.user.id)).changes);
     res.json({ success: true, data: { updated } });
   } catch (error) {
     next(error);

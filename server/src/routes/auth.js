@@ -23,22 +23,20 @@ const COOKIE_OPTIONS = {
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync('oak-timing-guard', 10);
 
 const selectCredentials = db.prepare('SELECT id, password_hash FROM users WHERE email = ?');
-const selectSalonBySlug = db.prepare('SELECT 1 FROM salons WHERE slug = ?');
-const insertUser = db.prepare(
-  'INSERT INTO users (name, email, phone, password_hash, role, avatar, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)',
-);
+const SELECT_SALON_BY_SLUG = 'SELECT 1 FROM salons WHERE slug = ?';
+const INSERT_USER =
+  'INSERT INTO users (name, email, phone, password_hash, role, avatar, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)';
 // verified = 0: a salon anyone can create by signing up has not been checked by OAK yet,
 // so it must not wear the verified badge until a human approves it.
-const insertSalon = db.prepare(
-  'INSERT INTO salons (owner_id, name, slug, city, verified, created_at) VALUES (?, ?, ?, ?, 0, ?)',
-);
+const INSERT_SALON =
+  'INSERT INTO salons (owner_id, name, slug, city, verified, created_at) VALUES (?, ?, ?, ?, 0, ?)';
 
-/** Append -2, -3, ... until the slug is free. */
-function uniqueSalonSlug(name) {
+/** Append -2, -3, ... until the slug is free. Runs inside the register transaction. */
+async function uniqueSalonSlug(tx, name) {
   const base = slugify(name) || 'salon';
   let slug = base;
   let suffix = 1;
-  while (selectSalonBySlug.get(slug)) {
+  while (await tx.get(SELECT_SALON_BY_SLUG, slug)) {
     suffix += 1;
     slug = `${base}-${suffix}`;
   }
@@ -87,42 +85,45 @@ async function createAccount(req, res, next, forcedRole) {
     const passwordHash = await bcrypt.hash(password, 10);
     const createdAt = new Date().toISOString();
 
-    db.exec('BEGIN');
     let userId;
     try {
-      userId = Number(
-        insertUser.run(
-          name,
-          email.trim().toLowerCase(),
-          phone ?? null,
-          passwordHash,
-          accountRole,
-          createdAt,
-        ).lastInsertRowid,
-      );
-
-      if (accountRole === 'partner') {
-        const partnerSalonName = salonName || `${name} Salon`;
-        insertSalon.run(
-          userId,
-          partnerSalonName,
-          uniqueSalonSlug(partnerSalonName),
-          'TP.HCM',
-          createdAt,
+      await db.withTransaction(async (tx) => {
+        userId = Number(
+          (
+            await tx.run(
+              INSERT_USER,
+              name,
+              email.trim().toLowerCase(),
+              phone ?? null,
+              passwordHash,
+              accountRole,
+              createdAt,
+            )
+          ).lastInsertRowid,
         );
-      }
-      db.exec('COMMIT');
+
+        if (accountRole === 'partner') {
+          const partnerSalonName = salonName || `${name} Salon`;
+          await tx.run(
+            INSERT_SALON,
+            userId,
+            partnerSalonName,
+            await uniqueSalonSlug(tx, partnerSalonName),
+            'TP.HCM',
+            createdAt,
+          );
+        }
+      });
     } catch (error) {
-      db.exec('ROLLBACK');
       // Let the UNIQUE constraint, not a pre-check, decide the duplicate case:
       // check-then-act straddling the ~90ms bcrypt hash was racy.
-      if (String(error.message).includes('UNIQUE constraint failed: users.email')) {
+      if (error.code === '23505' && error.constraint === 'users_email_key') {
         throw httpError(409, 'EMAIL_TAKEN', 'Email này đã được sử dụng.');
       }
       throw error;
     }
 
-    const user = selectPublicUser.get(userId);
+    const user = await selectPublicUser.get(userId);
     issueCookie(res, user);
     res.json({ success: true, data: { user } });
   } catch (error) {
@@ -146,7 +147,7 @@ router.post('/login', async (req, res, next) => {
       throw httpError(401, 'INVALID_CREDENTIALS', 'Email hoặc mật khẩu không đúng.');
     }
 
-    const credentials = selectCredentials.get(email.trim().toLowerCase());
+    const credentials = await selectCredentials.get(email.trim().toLowerCase());
     const matches = await bcrypt.compare(
       password,
       credentials?.password_hash ?? DUMMY_PASSWORD_HASH,
@@ -155,7 +156,7 @@ router.post('/login', async (req, res, next) => {
       throw httpError(401, 'INVALID_CREDENTIALS', 'Email hoặc mật khẩu không đúng.');
     }
 
-    const user = selectPublicUser.get(credentials.id);
+    const user = await selectPublicUser.get(credentials.id);
     issueCookie(res, user);
     res.json({ success: true, data: { user } });
   } catch (error) {
@@ -192,13 +193,13 @@ router.post('/logout', (req, res) => {
 // Optional auth: a guest is a normal outcome here, not a 401. Every page probes this on
 // load, so an anonymous visitor gets 200 {user:null} and the browser console stays clean;
 // the endpoints that genuinely need a session keep using requireAuth.
-router.get('/me', (req, res) => {
+router.get('/me', async (req, res) => {
   const token = req.cookies?.[COOKIE_NAME];
   let user = null;
   if (token) {
     try {
       const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
-      user = selectPublicUser.get(payload.id) ?? null;
+      user = (await selectPublicUser.get(payload.id)) ?? null;
     } catch {
       user = null;
     }

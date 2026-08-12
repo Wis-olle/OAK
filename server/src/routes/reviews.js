@@ -30,12 +30,12 @@ const selectMyReviews = db.prepare(`
   ORDER BY r.created_at DESC, r.id DESC
 `);
 
-router.post('/', (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
     const { booking_id: bookingIdInput, rating, comment } = req.body ?? {};
 
     const bookingId = Number.parseInt(bookingIdInput, 10);
-    const booking = Number.isInteger(bookingId) ? selectBooking.get(bookingId) : undefined;
+    const booking = Number.isInteger(bookingId) ? await selectBooking.get(bookingId) : undefined;
     if (!booking) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy lịch hẹn.');
     }
@@ -57,26 +57,37 @@ router.post('/', (req, res, next) => {
       throw httpError(400, 'VALIDATION_ERROR', 'Nội dung đánh giá phải là chuỗi ký tự.');
     }
 
-    // Safe as a check-then-act: node:sqlite is synchronous and there is no await between
-    // the lookup and the insert, so no second request can slip in between them.
-    if (selectReviewOfBooking.get(booking.id)) {
+    // Friendly 409 for the common case; the unique index idx_reviews_booking_id is the
+    // real guard should two requests race past this check.
+    if (await selectReviewOfBooking.get(booking.id)) {
       throw httpError(409, 'ALREADY_REVIEWED', 'Bạn đã đánh giá lịch hẹn này rồi.');
     }
 
     // salon/service/staff come from the booking, never from the body: otherwise a customer
     // could aim a review at a salon they never visited.
-    const id = Number(
-      insertReview.run(
-        req.user.id,
-        booking.salon_id,
-        booking.service_id,
-        booking.staff_id,
-        booking.id,
-        rating,
-        comment ?? null,
-        new Date().toISOString(),
-      ).lastInsertRowid,
-    );
+    let id;
+    try {
+      id = Number(
+        (
+          await insertReview.run(
+            req.user.id,
+            booking.salon_id,
+            booking.service_id,
+            booking.staff_id,
+            booking.id,
+            rating,
+            comment ?? null,
+            new Date().toISOString(),
+          )
+        ).lastInsertRowid,
+      );
+    } catch (error) {
+      // Two requests raced past the pre-check above; the unique index answers for both.
+      if (error.code === '23505' && error.constraint === 'idx_reviews_booking_id') {
+        throw httpError(409, 'ALREADY_REVIEWED', 'Bạn đã đánh giá lịch hẹn này rồi.');
+      }
+      throw error;
+    }
 
     res.json({ success: true, data: { id, booking_id: booking.id, rating } });
   } catch (error) {
@@ -84,9 +95,9 @@ router.post('/', (req, res, next) => {
   }
 });
 
-router.get('/mine', (req, res, next) => {
+router.get('/mine', async (req, res, next) => {
   try {
-    const reviews = selectMyReviews.all(req.user.id).map((row) => ({
+    const reviews = (await selectMyReviews.all(req.user.id)).map((row) => ({
       id: row.id,
       booking_id: row.booking_id,
       rating: row.rating,

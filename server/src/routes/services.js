@@ -22,11 +22,13 @@ const CATEGORIES = [
 ];
 
 // Sort keys are looked up in this table, never concatenated from the query string.
+// NULLS LAST on rating: Postgres puts NULLs first on DESC, SQLite put them last.
 const SORTS = {
   popular: '(SELECT COUNT(*) FROM bookings b WHERE b.service_id = sv.id) DESC, sv.id',
   price_asc: 'sv.price ASC, sv.id',
   price_desc: 'sv.price DESC, sv.id',
-  rating: '(SELECT ROUND(AVG(r.rating), 1) FROM reviews r WHERE r.salon_id = s.id) DESC, sv.id',
+  rating:
+    '(SELECT ROUND(AVG(r.rating), 1) FROM reviews r WHERE r.salon_id = s.id) DESC NULLS LAST, sv.id',
 };
 const DEFAULT_SORT = 'sv.featured DESC, sv.id';
 
@@ -71,15 +73,15 @@ function intValue(value) {
 }
 
 /** Resolve a :id path segment to an existing service id, or 404. */
-function serviceIdOrThrow(value) {
+async function serviceIdOrThrow(value) {
   const id = Number.parseInt(value, 10);
-  if (!Number.isInteger(id) || !selectServiceExists.get(id)) {
+  if (!Number.isInteger(id) || !(await selectServiceExists.get(id))) {
     throw httpError(404, 'NOT_FOUND', 'Không tìm thấy dịch vụ này.');
   }
   return id;
 }
 
-router.get('/', (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const { page, limit, offset } = parsePagination(req.query, DEFAULT_LIMIT);
     const conditions = ['sv.active = 1'];
@@ -125,10 +127,10 @@ router.get('/', (req, res, next) => {
     const where = `WHERE ${conditions.join(' AND ')}`;
     const order = Object.hasOwn(SORTS, req.query.sort) ? SORTS[req.query.sort] : DEFAULT_SORT;
 
-    const { total } = db
+    const { total } = await db
       .prepare(`SELECT COUNT(*) AS total ${SERVICE_SOURCE} ${where}`)
       .get(...params);
-    const rows = db
+    const rows = await db
       .prepare(
         `SELECT ${SERVICE_CARD_COLUMNS} ${SERVICE_SOURCE} ${where} ORDER BY ${order} LIMIT ? OFFSET ?`,
       )
@@ -141,44 +143,49 @@ router.get('/', (req, res, next) => {
 });
 
 // Declared before /:id, otherwise Express matches "categories" as an id.
-router.get('/categories', (req, res, next) => {
+router.get('/categories', async (req, res, next) => {
   try {
-    const data = CATEGORIES.map((category) => ({
-      key: category.key,
-      label: category.label,
-      count: selectCategoryCount.get(category.key).count,
-    }));
+    const data = [];
+    for (const category of CATEGORIES) {
+      data.push({
+        key: category.key,
+        label: category.label,
+        count: (await selectCategoryCount.get(category.key)).count,
+      });
+    }
     res.json({ success: true, data });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/:id/availability', (req, res, next) => {
+router.get('/:id/availability', async (req, res, next) => {
   try {
-    const serviceId = serviceIdOrThrow(req.params.id);
+    const serviceId = await serviceIdOrThrow(req.params.id);
     const { date } = req.query;
     if (!isISODate(date)) {
       throw httpError(400, 'VALIDATION_ERROR', 'Vui lòng chọn ngày hợp lệ theo định dạng YYYY-MM-DD.');
     }
-    res.json({ success: true, data: { date, slots: getServiceSlots(serviceId, date) } });
+    res.json({ success: true, data: { date, slots: await getServiceSlots(serviceId, date) } });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/:id/staff', (req, res, next) => {
+router.get('/:id/staff', async (req, res, next) => {
   try {
-    const rows = selectServiceStaff.all(serviceIdOrThrow(req.params.id));
+    const rows = await selectServiceStaff.all(await serviceIdOrThrow(req.params.id));
     res.json({ success: true, data: rows, meta: { total: rows.length } });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/:id', (req, res, next) => {
+router.get('/:id', async (req, res, next) => {
   try {
-    const row = /^\d+$/.test(req.params.id) ? selectServiceDetail.get(Number(req.params.id)) : null;
+    const row = /^\d+$/.test(req.params.id)
+      ? await selectServiceDetail.get(Number(req.params.id))
+      : null;
     if (!row) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy dịch vụ này.');
     }

@@ -185,7 +185,7 @@ function buildMatchReason(card, distanceKm, matchedService, slotLabel) {
   return reasons.slice(0, MAX_REASONS).join(' • ');
 }
 
-router.get('/salons', (req, res, next) => {
+router.get('/salons', async (req, res, next) => {
   try {
     const { page, limit, offset } = parsePagination(req.query, DEFAULT_LIMIT);
 
@@ -207,9 +207,9 @@ router.get('/salons', (req, res, next) => {
     const params = [];
 
     if (q) {
-      conditions.push(`(s.name LIKE ? OR s.district LIKE ?
+      conditions.push(`(s.name ILIKE ? OR s.district ILIKE ?
         OR EXISTS (SELECT 1 FROM services sv
-                   WHERE sv.salon_id = s.id AND sv.active = 1 AND sv.name LIKE ?))`);
+                   WHERE sv.salon_id = s.id AND sv.active = 1 AND sv.name ILIKE ?))`);
       params.push(`%${q}%`, `%${q}%`, `%${q}%`);
     }
     if (category) {
@@ -223,7 +223,7 @@ router.get('/salons', (req, res, next) => {
     if (style) {
       conditions.push(`EXISTS (SELECT 1 FROM services sv
         WHERE sv.salon_id = s.id AND sv.active = 1
-          AND (sv.subcategory LIKE ? OR sv.name LIKE ?))`);
+          AND (sv.subcategory ILIKE ? OR sv.name ILIKE ?))`);
       params.push(`%${style}%`, `%${style}%`);
     }
     if (district) {
@@ -244,33 +244,35 @@ router.get('/salons', (req, res, next) => {
 
     const where = `WHERE ${conditions.join(' AND ')}`;
     // ORDER BY, so which salons the cap keeps is stable rather than left to the planner.
-    const rows = db
+    const rows = await db
       .prepare(`SELECT ${SALON_CARD_COLUMNS} FROM salons s ${where} ORDER BY s.id LIMIT ?`)
       .all(...params, CANDIDATE_LIMIT);
 
     const normalizedQuery = q ? normalize(q) : '';
-    const candidates = rows
-      .map((row) => {
-        const card = toSalonCard(row);
-        const services = selectSalonServices.all(row.id);
-        return {
-          ...card,
-          distance_km: haversineKm(lat, lng, row.lat, row.lng),
-          score: matchScore(card, services, normalizedQuery, category),
-          matched_service: pickMatchedService(services, category, normalizedQuery),
-        };
-      })
+    const candidates = [];
+    for (const row of rows) {
+      const card = toSalonCard(row);
+      const services = await selectSalonServices.all(row.id);
+      candidates.push({
+        ...card,
+        distance_km: haversineKm(lat, lng, row.lat, row.lng),
+        score: matchScore(card, services, normalizedQuery, category),
+        matched_service: pickMatchedService(services, category, normalizedQuery),
+      });
+    }
+    const filtered = candidates
       // A radius cannot filter anything when the caller gave no position to measure from.
       .filter((item) => radiusKm === null || item.distance_km === null || item.distance_km <= radiusKm)
       .filter((item) => ratingMin === null || item.rating >= ratingMin);
 
     const comparator = Object.hasOwn(SORTS, req.query.sort) ? SORTS[req.query.sort] : BY_RELEVANCE;
-    candidates.sort(comparator);
+    filtered.sort(comparator);
 
     const slotLabel = date ? [windowLabel(timeFrom), dayLabel(date)].filter(Boolean).join(' ') : '';
-    const data = candidates.slice(offset, offset + limit).map((item) => {
+    const data = [];
+    for (const item of filtered.slice(offset, offset + limit)) {
       const { score, matched_service: matchedService, ...card } = item;
-      const availability = date ? hasSlotsInRange(item.id, date, timeFrom, timeTo) : null;
+      const availability = date ? await hasSlotsInRange(item.id, date, timeFrom, timeTo) : null;
       const result = {
         ...card,
         match_reason: buildMatchReason(
@@ -283,10 +285,10 @@ router.get('/salons', (req, res, next) => {
       if (date) {
         result.availability = availability;
       }
-      return result;
-    });
+      data.push(result);
+    }
 
-    res.json({ success: true, data, meta: { page, limit, total: candidates.length } });
+    res.json({ success: true, data, meta: { page, limit, total: filtered.length } });
   } catch (error) {
     next(error);
   }
@@ -494,11 +496,11 @@ router.post('/assistant', (req, res, next) => {
   }
 });
 
-router.get('/suggestions', (req, res, next) => {
+router.get('/suggestions', async (req, res, next) => {
   try {
     const chips = [
-      ...selectTopCategories.all().map((row) => categoryLabel(row.category)),
-      ...selectTopDistricts.all().map((row) => row.district),
+      ...(await selectTopCategories.all()).map((row) => categoryLabel(row.category)),
+      ...(await selectTopDistricts.all()).map((row) => row.district),
     ];
     res.json({ success: true, data: { chips } });
   } catch (error) {

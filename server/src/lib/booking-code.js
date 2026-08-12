@@ -23,15 +23,18 @@ function randomCode() {
  * Codes are drawn at random rather than derived, so two concurrent bookings can draw
  * the same one. The UNIQUE index is the only authority on that: a SELECT-then-INSERT
  * pre-check would still lose the race between the two statements.
+ *
+ * A unique violation aborts a Postgres transaction, so an `insert` that needs one must
+ * open its own — each retry then starts a fresh transaction.
  */
-export function withBookingCode(insert) {
+export async function withBookingCode(insert) {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     const code = randomCode();
     try {
-      insert(code);
+      await insert(code);
       return code;
     } catch (error) {
-      if (!String(error.message).includes('UNIQUE constraint failed: bookings.code')) {
+      if (!(error.code === '23505' && error.constraint === 'bookings_code_key')) {
         throw error;
       }
     }

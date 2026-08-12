@@ -68,13 +68,13 @@ function parseTarget(source) {
   return { isSalon: hasSalon, id };
 }
 
-router.get('/', (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     res.json({
       success: true,
       data: {
-        salons: selectFavoriteSalons.all(req.user.id).map(toSalonCard),
-        services: selectFavoriteServices.all(req.user.id).map(toServiceCard),
+        salons: (await selectFavoriteSalons.all(req.user.id)).map(toSalonCard),
+        services: (await selectFavoriteServices.all(req.user.id)).map(toServiceCard),
       },
     });
   } catch (error) {
@@ -82,11 +82,11 @@ router.get('/', (req, res, next) => {
   }
 });
 
-router.post('/', (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
     const { isSalon, id } = parseTarget(req.body ?? {});
 
-    const exists = isSalon ? selectSalon.get(id) : selectService.get(id);
+    const exists = isSalon ? await selectSalon.get(id) : await selectService.get(id);
     if (!exists) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy salon hoặc dịch vụ.');
     }
@@ -94,15 +94,27 @@ router.post('/', (req, res, next) => {
     // Idempotent: tapping the heart twice is a UI race, not a client error, so an
     // existing row is reported as success instead of a UNIQUE constraint failure.
     const existing = isSalon
-      ? selectFavoriteSalon.get(req.user.id, id)
-      : selectFavoriteService.get(req.user.id, id);
+      ? await selectFavoriteSalon.get(req.user.id, id)
+      : await selectFavoriteService.get(req.user.id, id);
     if (!existing) {
-      insertFavorite.run(
-        req.user.id,
-        isSalon ? id : null,
-        isSalon ? null : id,
-        new Date().toISOString(),
-      );
+      try {
+        await insertFavorite.run(
+          req.user.id,
+          isSalon ? id : null,
+          isSalon ? null : id,
+          new Date().toISOString(),
+        );
+      } catch (error) {
+        // Two identical taps raced past the check above: the row exists, which is
+        // exactly the state the client asked for — success, like the pre-check path.
+        const duplicate =
+          error.code === '23505' &&
+          (error.constraint === 'favorites_user_id_salon_id_key' ||
+            error.constraint === 'favorites_user_id_service_id_key');
+        if (!duplicate) {
+          throw error;
+        }
+      }
     }
 
     res.json({ success: true, data: { ok: true } });
@@ -111,16 +123,16 @@ router.post('/', (req, res, next) => {
   }
 });
 
-router.delete('/', (req, res, next) => {
+router.delete('/', async (req, res, next) => {
   try {
     const { isSalon, id } = parseTarget(req.query);
 
     // Also idempotent: removing something already gone leaves the client in the state it
     // asked for, so a zero-row delete is still a success.
     if (isSalon) {
-      deleteFavoriteSalon.run(req.user.id, id);
+      await deleteFavoriteSalon.run(req.user.id, id);
     } else {
-      deleteFavoriteService.run(req.user.id, id);
+      await deleteFavoriteService.run(req.user.id, id);
     }
 
     res.json({ success: true, data: { ok: true } });

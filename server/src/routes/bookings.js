@@ -47,16 +47,16 @@ const selectSalonStaff = db.prepare('SELECT id FROM staff WHERE id = ? AND salon
 const selectStaffService = db.prepare(
   'SELECT 1 FROM staff_services WHERE staff_id = ? AND service_id = ?',
 );
-const selectBooking = db.prepare(`SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM} WHERE b.id = ?`);
-const insertBooking = db.prepare(`
+// Also used inside transactions, so the text is kept alongside the pool statement.
+const SELECT_BOOKING = `SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM} WHERE b.id = ?`;
+const selectBooking = db.prepare(SELECT_BOOKING);
+const INSERT_BOOKING = `
   INSERT INTO bookings
     (user_id, salon_id, service_id, staff_id, code, date, time, status, note, total_price,
      customer_name, customer_phone, payment_method, created_at)
   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
-`);
-const cancelBooking = db.prepare(
-  "UPDATE bookings SET status = 'cancelled', note = ? WHERE id = ?",
-);
+`;
+const CANCEL_BOOKING = "UPDATE bookings SET status = 'cancelled', note = ? WHERE id = ?";
 
 // The status filters double as the sort order: only "upcoming" reads forwards in time.
 // Fragments are constants picked by key, never assembled from request text.
@@ -119,8 +119,8 @@ function toBookingDetail(row) {
  * the salon being booked. Anything else is rejected instead of silently ignored, so the
  * customer never sees a total that quietly dropped their code.
  */
-function requireUsablePromotion(code, salonId) {
-  const promotion = selectPromotion.get(code.trim());
+async function requireUsablePromotion(code, salonId) {
+  const promotion = await selectPromotion.get(code.trim());
   const today = todayISO();
   const usable =
     promotion &&
@@ -142,7 +142,7 @@ function requireUsablePromotion(code, salonId) {
  * Money is whole đồng: the percentage discount is floored so rounding can never hand out
  * a fraction of a đồng, and the total is clamped at 0 for a discount larger than the price.
  */
-function buildQuote(service, staffId, promotionCode) {
+async function buildQuote(service, staffId, promotionCode) {
   const items = [{ label: service.name, amount: service.price ?? 0 }];
 
   if (staffId !== null) {
@@ -150,7 +150,7 @@ function buildQuote(service, staffId, promotionCode) {
   }
 
   if (promotionCode) {
-    const promotion = requireUsablePromotion(promotionCode, service.salon_id);
+    const promotion = await requireUsablePromotion(promotionCode, service.salon_id);
     const discount =
       promotion.discount_percent !== null
         ? Math.floor(((service.price ?? 0) * promotion.discount_percent) / 100)
@@ -172,14 +172,14 @@ function minutesUntilStart(date, time) {
 }
 
 // Registered before GET /:id, otherwise Express matches 'quote' and 'mine' as booking ids.
-router.get('/quote', (req, res, next) => {
+router.get('/quote', async (req, res, next) => {
   try {
     const serviceId = toId(req.query.service_id);
     if (serviceId === null) {
       throw httpError(400, 'VALIDATION_ERROR', 'Vui lòng chọn dịch vụ cần báo giá.');
     }
 
-    const service = selectService.get(serviceId);
+    const service = await selectService.get(serviceId);
     if (!service) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy dịch vụ.');
     }
@@ -193,14 +193,14 @@ router.get('/quote', (req, res, next) => {
 
     res.json({
       success: true,
-      data: buildQuote(service, toId(req.query.staff_id), promotionCode),
+      data: await buildQuote(service, toId(req.query.staff_id), promotionCode),
     });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/mine', (req, res, next) => {
+router.get('/mine', async (req, res, next) => {
   try {
     // Object.hasOwn, so a status like "constructor" cannot reach an inherited member
     // and put `undefined` into the WHERE clause.
@@ -210,11 +210,13 @@ router.get('/mine', (req, res, next) => {
     const { page, limit, offset } = parsePagination(req.query, DEFAULT_PAGE_SIZE);
     const params = filter.fromToday ? [req.user.id, todayISO()] : [req.user.id];
 
-    const total = db
-      .prepare(`SELECT COUNT(*) AS count FROM bookings b WHERE b.user_id = ? AND ${filter.where}`)
-      .get(...params).count;
+    const total = (
+      await db
+        .prepare(`SELECT COUNT(*) AS count FROM bookings b WHERE b.user_id = ? AND ${filter.where}`)
+        .get(...params)
+    ).count;
 
-    const rows = db
+    const rows = await db
       .prepare(
         `SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM}
          WHERE b.user_id = ? AND ${filter.where}
@@ -233,7 +235,7 @@ router.get('/mine', (req, res, next) => {
   }
 });
 
-router.post('/', (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
     const {
       salon_id: salonIdInput,
@@ -262,7 +264,7 @@ router.post('/', (req, res, next) => {
 
     // Trusting salon_id from the body would let a caller book a service under another
     // salon's name, so the service's own salon_id is the authority.
-    const service = selectService.get(serviceId);
+    const service = await selectService.get(serviceId);
     if (!service || service.salon_id !== salonId) {
       throw httpError(400, 'VALIDATION_ERROR', 'Dịch vụ không thuộc salon đã chọn.');
     }
@@ -284,11 +286,11 @@ router.post('/', (req, res, next) => {
     let staffId = null;
     if (staffIdInput != null) {
       staffId = toId(staffIdInput);
-      if (staffId === null || !selectSalonStaff.get(staffId, salonId)) {
+      if (staffId === null || !(await selectSalonStaff.get(staffId, salonId))) {
         throw httpError(400, 'VALIDATION_ERROR', 'Kỹ thuật viên không thuộc salon đã chọn.');
       }
 
-      if (!selectStaffService.get(staffId, serviceId)) {
+      if (!(await selectStaffService.get(staffId, serviceId))) {
         throw httpError(
           400,
           'VALIDATION_ERROR',
@@ -299,7 +301,7 @@ router.post('/', (req, res, next) => {
       // That technician's OWN calendar. getServiceSlots ORs availability across every
       // staff who performs the service, so it answers "is somebody free?" — using it
       // here let two customers book the same person at the same time.
-      const slot = getStaffSlots(staffId, serviceId, date).find(
+      const slot = (await getStaffSlots(staffId, serviceId, date)).find(
         (candidate) => candidate.time === time,
       );
       if (!slot || !slot.available) {
@@ -313,43 +315,53 @@ router.post('/', (req, res, next) => {
     }
 
     // Recomputed here rather than read from the body: the client is never the price authority.
-    const { total } = buildQuote(service, staffId, promotionCode);
+    const { total } = await buildQuote(service, staffId, promotionCode);
     const createdAt = new Date().toISOString();
 
-    db.exec('BEGIN');
+    // The transaction sits INSIDE the code retry: a duplicate code aborts the whole
+    // Postgres transaction, so each attempt has to start a fresh one.
     let booking;
     try {
-      let bookingId;
-      const code = withBookingCode((generated) => {
-        bookingId = Number(
-          insertBooking.run(
-            req.user.id,
-            salonId,
-            serviceId,
-            staffId,
-            generated,
-            date,
-            time,
-            note ?? null,
-            total,
-            customerName ?? req.user.name,
-            customerPhone ?? req.user.phone,
-            paymentMethod,
-            createdAt,
-          ).lastInsertRowid,
-        );
-      });
+      await withBookingCode((generated) =>
+        db.withTransaction(async (tx) => {
+          const bookingId = Number(
+            (
+              await tx.run(
+                INSERT_BOOKING,
+                req.user.id,
+                salonId,
+                serviceId,
+                staffId,
+                generated,
+                date,
+                time,
+                note ?? null,
+                total,
+                customerName ?? req.user.name,
+                customerPhone ?? req.user.phone,
+                paymentMethod,
+                createdAt,
+              )
+            ).lastInsertRowid,
+          );
 
-      booking = selectBooking.get(bookingId);
-      notifyUser(
-        req.user.id,
-        'Đặt lịch thành công',
-        `Lịch hẹn ${code} tại ${booking.salon_name} ngày ${formatDate(date)} lúc ${time} đã được ghi nhận.`,
-        'booking',
+          booking = await tx.get(SELECT_BOOKING, bookingId);
+          await notifyUser(
+            tx,
+            req.user.id,
+            'Đặt lịch thành công',
+            `Lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(date)} lúc ${time} đã được ghi nhận.`,
+            'booking',
+          );
+        }),
       );
-      db.exec('COMMIT');
     } catch (error) {
-      db.exec('ROLLBACK');
+      // The idx_bookings_slot backstop: a second customer slipped past the availability
+      // pre-check while this request awaited. Same answer as the pre-check. A duplicate
+      // CODE (bookings_code_key) never reaches here — withBookingCode retries it.
+      if (error.code === '23505' && error.constraint === 'idx_bookings_slot') {
+        throw httpError(409, 'SLOT_TAKEN', 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.');
+      }
       throw error;
     }
 
@@ -360,9 +372,9 @@ router.post('/', (req, res, next) => {
 });
 
 /** Load a booking the caller is allowed to see, or throw 404/403. */
-function ownedBooking(req) {
+async function ownedBooking(req) {
   const id = toId(req.params.id);
-  const booking = id === null ? undefined : selectBooking.get(id);
+  const booking = id === null ? undefined : await selectBooking.get(id);
   if (!booking) {
     throw httpError(404, 'NOT_FOUND', 'Không tìm thấy lịch hẹn.');
   }
@@ -373,17 +385,17 @@ function ownedBooking(req) {
   return booking;
 }
 
-router.get('/:id', (req, res, next) => {
+router.get('/:id', async (req, res, next) => {
   try {
-    res.json({ success: true, data: toBookingDetail(ownedBooking(req)) });
+    res.json({ success: true, data: toBookingDetail(await ownedBooking(req)) });
   } catch (error) {
     next(error);
   }
 });
 
-router.patch('/:id/cancel', (req, res, next) => {
+router.patch('/:id/cancel', async (req, res, next) => {
   try {
-    const booking = ownedBooking(req);
+    const booking = await ownedBooking(req);
     const { reason } = req.body ?? {};
     if (reason != null && typeof reason !== 'string') {
       throw httpError(400, 'VALIDATION_ERROR', 'Lý do huỷ phải là chuỗi ký tự.');
@@ -404,22 +416,18 @@ router.patch('/:id/cancel', (req, res, next) => {
     const cancelNote = reason ? `Lý do huỷ: ${reason}` : null;
     const note = [booking.note, cancelNote].filter(Boolean).join('\n') || null;
 
-    db.exec('BEGIN');
-    try {
-      cancelBooking.run(note, booking.id);
-      notifyUser(
+    await db.withTransaction(async (tx) => {
+      await tx.run(CANCEL_BOOKING, note, booking.id);
+      await notifyUser(
+        tx,
         req.user.id,
         'Đã huỷ lịch hẹn',
         `Lịch hẹn ${booking.code} tại ${booking.salon_name} ngày ${formatDate(booking.date)} lúc ${booking.time} đã được huỷ.`,
         'booking',
       );
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    });
 
-    res.json({ success: true, data: toBookingDetail(selectBooking.get(booking.id)) });
+    res.json({ success: true, data: toBookingDetail(await selectBooking.get(booking.id)) });
   } catch (error) {
     next(error);
   }

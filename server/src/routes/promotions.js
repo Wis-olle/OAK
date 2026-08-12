@@ -21,34 +21,41 @@ const selectActivePromotions = db.prepare(`
 const selectServiceName = db.prepare('SELECT name FROM services WHERE id = ?');
 
 /** Combo offers bundle service ids; the list is only useful to a client as names. */
-function resolveServiceNames(serviceIds) {
-  return parseJsonArray(serviceIds)
-    .filter((id) => Number.isInteger(id))
-    .map((id) => selectServiceName.get(id)?.name)
-    .filter((name) => name !== undefined);
+async function resolveServiceNames(serviceIds) {
+  const names = [];
+  for (const id of parseJsonArray(serviceIds).filter((value) => Number.isInteger(value))) {
+    const name = (await selectServiceName.get(id))?.name;
+    if (name !== undefined) {
+      names.push(name);
+    }
+  }
+  return names;
 }
 
-router.get('/', (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const today = todayISO();
-    const rows = selectActivePromotions.all(today, today);
+    const rows = await selectActivePromotions.all(today, today);
 
-    const data = rows.map((row) => ({
-      id: row.id,
-      code: row.code,
-      type: row.type,
-      title: row.title,
-      description: row.description,
-      discount_percent: row.discount_percent,
-      discount_amount: row.discount_amount,
-      original_price: row.original_price,
-      sale_price: row.sale_price,
-      service_names: resolveServiceNames(row.service_ids),
-      image: row.image,
-      starts_at: row.starts_at,
-      ends_at: row.ends_at,
-      salon: row.salon_slug ? { name: row.salon_name, slug: row.salon_slug } : null,
-    }));
+    const data = [];
+    for (const row of rows) {
+      data.push({
+        id: row.id,
+        code: row.code,
+        type: row.type,
+        title: row.title,
+        description: row.description,
+        discount_percent: row.discount_percent,
+        discount_amount: row.discount_amount,
+        original_price: row.original_price,
+        sale_price: row.sale_price,
+        service_names: await resolveServiceNames(row.service_ids),
+        image: row.image,
+        starts_at: row.starts_at,
+        ends_at: row.ends_at,
+        salon: row.salon_slug ? { name: row.salon_name, slug: row.salon_slug } : null,
+      });
+    }
 
     res.json({ success: true, data, meta: { total: data.length } });
   } catch (error) {

@@ -10,9 +10,14 @@ import app from './app.js';
 
 const port = process.env.PORT || 3000;
 const dataDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../data');
-// Mirrors the resolution in db.js so the startup line names the database actually opened.
-const dbFile = process.env.OAK_DB_FILE || path.join(dataDir, 'oak.db');
 const errorLogFile = path.join(dataDir, 'server-error.log');
+
+// Mirrors the resolution in db.js so the startup line names the database actually opened.
+// Only host and database name — never credentials.
+const dbUrl = new URL(
+  process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/oak',
+);
+const dbTarget = `${dbUrl.hostname}${dbUrl.pathname}`;
 
 function stamp() {
   return new Date().toISOString();
@@ -46,8 +51,8 @@ process.on('unhandledRejection', (reason) => {
 // then exit non-zero so a supervisor (pm2/systemd/`npm run dev`'s watcher) restarts us.
 // Swallowing this and pretending all is well is exactly the failure this file exists to stop.
 // Scope note: ESM evaluates the imports above before this line runs, so a failure while
-// loading app.js/db.js (say, an unreadable oak.db) still ends up as a plain stack on stderr
-// rather than in the log file. That path is loud and exits non-zero already; this guard is
+// loading app.js/db.js (say, an unreachable Postgres) still ends up as a plain stack on
+// stderr rather than in the log file. That path is loud and exits non-zero already; this guard is
 // for the silent mid-flight deaths that leave nothing behind.
 process.on('uncaughtException', (error) => {
   logCrash('uncaughtException — exiting with code 1', error);
@@ -55,7 +60,7 @@ process.on('uncaughtException', (error) => {
 });
 
 const server = app.listen(port, () => {
-  console.log(`[${stamp()}] OAK server listening on http://localhost:${port} — db: ${dbFile}`);
+  console.log(`[${stamp()}] OAK server listening on http://localhost:${port} — db: ${dbTarget}`);
 });
 
 server.on('error', (error) => {

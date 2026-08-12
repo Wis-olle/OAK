@@ -1176,60 +1176,46 @@ const POST_COMMENTS = [
   },
 ];
 
+const INSERT_USER =
+  'INSERT INTO users (name, email, phone, password_hash, role, avatar, city, district, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
+const INSERT_SALON =
+  'INSERT INTO salons (owner_id, name, slug, description, address, district, city, phone, image, open_time, close_time, lat, lng, verified, featured, flagship, tags, amenities, tour_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)';
+const INSERT_SALON_PHOTO =
+  'INSERT INTO salon_photos (salon_id, image, caption, sort) VALUES (?, ?, ?, ?)';
+const INSERT_SERVICE =
+  'INSERT INTO services (salon_id, category, subcategory, name, description, price, duration_min, image, featured, is_package, price_is_from, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)';
+const INSERT_STAFF =
+  'INSERT INTO staff (salon_id, name, title, specialty, bio, image, rating, years_experience, portfolio, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)';
+const INSERT_STAFF_SCHEDULE =
+  'INSERT INTO staff_schedule (staff_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)';
+const INSERT_STAFF_SERVICE =
+  'INSERT INTO staff_services (staff_id, service_id) VALUES (?, ?)';
+const INSERT_BOOKING =
+  'INSERT INTO bookings (user_id, salon_id, service_id, staff_id, code, date, time, status, note, total_price, customer_name, customer_phone, payment_method, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+const INSERT_REVIEW =
+  'INSERT INTO reviews (user_id, salon_id, service_id, staff_id, booking_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+const INSERT_FAVORITE =
+  'INSERT INTO favorites (user_id, salon_id, created_at) VALUES (?, ?, ?)';
+const INSERT_NOTIFICATION =
+  'INSERT INTO notifications (user_id, title, body, type, "read", created_at) VALUES (?, ?, ?, ?, ?, ?)';
+const INSERT_PROMOTION =
+  'INSERT INTO promotions (salon_id, code, type, title, description, discount_percent, discount_amount, original_price, sale_price, service_ids, image, starts_at, ends_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)';
+const INSERT_POST =
+  'INSERT INTO posts (author_id, type, title, slug, excerpt, content, video_url, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
+const INSERT_COMMENT =
+  'INSERT INTO post_comments (post_id, user_id, content, created_at) VALUES (?, ?, ?, ?)';
+
 /**
  * Insert the full demo data set. Called only when the users table is empty.
  */
-export function seed(db) {
+export async function seed(db) {
   const passwordHash = bcrypt.hashSync(DEMO_PASSWORD, 10);
 
-  const insertUser = db.prepare(
-    'INSERT INTO users (name, email, phone, password_hash, role, avatar, city, district, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  );
-  const insertSalon = db.prepare(
-    'INSERT INTO salons (owner_id, name, slug, description, address, district, city, phone, image, open_time, close_time, lat, lng, verified, featured, flagship, tags, amenities, tour_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)',
-  );
-  const insertSalonPhoto = db.prepare(
-    'INSERT INTO salon_photos (salon_id, image, caption, sort) VALUES (?, ?, ?, ?)',
-  );
-  const insertService = db.prepare(
-    'INSERT INTO services (salon_id, category, subcategory, name, description, price, duration_min, image, featured, is_package, price_is_from, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)',
-  );
-  const insertStaff = db.prepare(
-    'INSERT INTO staff (salon_id, name, title, specialty, bio, image, rating, years_experience, portfolio, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)',
-  );
-  const insertStaffSchedule = db.prepare(
-    'INSERT INTO staff_schedule (staff_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)',
-  );
-  const insertStaffService = db.prepare(
-    'INSERT INTO staff_services (staff_id, service_id) VALUES (?, ?)',
-  );
-  const insertBooking = db.prepare(
-    'INSERT INTO bookings (user_id, salon_id, service_id, staff_id, code, date, time, status, note, total_price, customer_name, customer_phone, payment_method, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  );
-  const insertReview = db.prepare(
-    'INSERT INTO reviews (user_id, salon_id, service_id, staff_id, booking_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-  );
-  const insertFavorite = db.prepare(
-    'INSERT INTO favorites (user_id, salon_id, created_at) VALUES (?, ?, ?)',
-  );
-  const insertNotification = db.prepare(
-    'INSERT INTO notifications (user_id, title, body, type, "read", created_at) VALUES (?, ?, ?, ?, ?, ?)',
-  );
-  const insertPromotion = db.prepare(
-    'INSERT INTO promotions (salon_id, code, type, title, description, discount_percent, discount_amount, original_price, sale_price, service_ids, image, starts_at, ends_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)',
-  );
-  const insertPost = db.prepare(
-    'INSERT INTO posts (author_id, type, title, slug, excerpt, content, video_url, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  );
-  const insertComment = db.prepare(
-    'INSERT INTO post_comments (post_id, user_id, content, created_at) VALUES (?, ?, ?, ?)',
-  );
-
-  db.exec('BEGIN');
-  try {
+  await db.withTransaction(async (tx) => {
     const userIds = new Map();
     for (const user of USERS) {
-      const { lastInsertRowid } = insertUser.run(
+      const { lastInsertRowid } = await tx.run(
+        INSERT_USER,
         user.name,
         user.email,
         user.phone,
@@ -1245,7 +1231,8 @@ export function seed(db) {
 
     const salonIds = new Map();
     for (const salon of SALONS) {
-      const { lastInsertRowid } = insertSalon.run(
+      const { lastInsertRowid } = await tx.run(
+        INSERT_SALON,
         userIds.get(salon.owner),
         salon.name,
         salon.slug,
@@ -1270,13 +1257,20 @@ export function seed(db) {
     }
 
     for (const photo of SALON_PHOTOS) {
-      insertSalonPhoto.run(salonIds.get(photo.salon), photo.image, photo.caption, photo.sort);
+      await tx.run(
+        INSERT_SALON_PHOTO,
+        salonIds.get(photo.salon),
+        photo.image,
+        photo.caption,
+        photo.sort,
+      );
     }
 
     const serviceIds = new Map();
     const servicePrices = new Map();
     for (const service of SERVICES) {
-      const { lastInsertRowid } = insertService.run(
+      const { lastInsertRowid } = await tx.run(
+        INSERT_SERVICE,
         salonIds.get(service.salon),
         service.category,
         service.subcategory ?? null,
@@ -1295,7 +1289,8 @@ export function seed(db) {
 
     const staffIds = new Map();
     for (const member of STAFF) {
-      const { lastInsertRowid } = insertStaff.run(
+      const { lastInsertRowid } = await tx.run(
+        INSERT_STAFF,
         salonIds.get(member.salon),
         member.name,
         member.title,
@@ -1311,7 +1306,8 @@ export function seed(db) {
 
     for (const shift of STAFF_SCHEDULE) {
       for (let weekday = 1; weekday <= 6; weekday += 1) {
-        insertStaffSchedule.run(
+        await tx.run(
+          INSERT_STAFF_SCHEDULE,
           staffIds.get(shift.staff),
           weekday,
           shift.start,
@@ -1323,13 +1319,14 @@ export function seed(db) {
 
     for (const link of STAFF_SERVICES) {
       for (const serviceName of link.services) {
-        insertStaffService.run(staffIds.get(link.staff), serviceIds.get(serviceName));
+        await tx.run(INSERT_STAFF_SERVICE, staffIds.get(link.staff), serviceIds.get(serviceName));
       }
     }
 
     const bookingIds = [];
     for (const booking of BOOKINGS) {
-      const { lastInsertRowid } = insertBooking.run(
+      const { lastInsertRowid } = await tx.run(
+        INSERT_BOOKING,
         userIds.get(booking.user),
         salonIds.get(booking.salon),
         serviceIds.get(booking.service),
@@ -1349,7 +1346,8 @@ export function seed(db) {
     }
 
     for (const review of REVIEWS) {
-      insertReview.run(
+      await tx.run(
+        INSERT_REVIEW,
         userIds.get(review.user),
         salonIds.get(review.salon),
         serviceIds.get(review.service),
@@ -1362,7 +1360,8 @@ export function seed(db) {
     }
 
     for (const favorite of FAVORITES) {
-      insertFavorite.run(
+      await tx.run(
+        INSERT_FAVORITE,
         userIds.get(favorite.user),
         salonIds.get(favorite.salon),
         favorite.created_at,
@@ -1370,7 +1369,8 @@ export function seed(db) {
     }
 
     for (const notification of NOTIFICATIONS) {
-      insertNotification.run(
+      await tx.run(
+        INSERT_NOTIFICATION,
         userIds.get(notification.user),
         notification.title,
         notification.body,
@@ -1381,7 +1381,8 @@ export function seed(db) {
     }
 
     for (const promotion of PROMOTIONS) {
-      insertPromotion.run(
+      await tx.run(
+        INSERT_PROMOTION,
         promotion.salon === null ? null : salonIds.get(promotion.salon),
         promotion.code,
         promotion.type,
@@ -1402,7 +1403,8 @@ export function seed(db) {
 
     const postIds = new Map();
     for (const post of POSTS) {
-      const { lastInsertRowid } = insertPost.run(
+      const { lastInsertRowid } = await tx.run(
+        INSERT_POST,
         userIds.get(post.author),
         post.type,
         post.title,
@@ -1417,17 +1419,13 @@ export function seed(db) {
     }
 
     for (const comment of POST_COMMENTS) {
-      insertComment.run(
+      await tx.run(
+        INSERT_COMMENT,
         postIds.get(comment.post),
         userIds.get(comment.user),
         comment.content,
         comment.created_at,
       );
     }
-
-    db.exec('COMMIT');
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
+  });
 }
