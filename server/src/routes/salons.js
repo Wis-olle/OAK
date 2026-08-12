@@ -22,6 +22,7 @@ const RATING_VALUES = [5, 4, 3, 2, 1];
 const SORTS = {
   rating: 'rating DESC NULLS LAST, review_count DESC, s.id',
   popular: '(SELECT COUNT(*) FROM bookings b WHERE b.salon_id = s.id) DESC, s.id',
+  newest: 's.id DESC', // id is identity-generated, so descending id is newest first.
 };
 const DEFAULT_SORT = 's.featured DESC, s.flagship DESC, s.id';
 
@@ -100,8 +101,9 @@ function toSalonProfile(row) {
 router.get('/', async (req, res, next) => {
   try {
     const { page, limit, offset } = parsePagination(req.query, DEFAULT_LIMIT);
-    // verified is a gate, not a badge: anyone can create a salon by signing up as a
-    // partner, and an unchecked one must not reach the public list.
+    // Every salon is verified on creation (auth.js) and a boot-time backfill (db.js) lifted
+    // the older rows, so this matches every row today. It stays as the one switch that would
+    // take a salon off the public list if a real verification flow ever returns.
     const conditions = ['s.verified = 1'];
     const params = [];
 

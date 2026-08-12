@@ -1703,10 +1703,10 @@ async function groupAuthz() {
     unknown,
   );
 
-  // verified is a gate, not a badge: a salon anyone can create by signing up must stay
-  // out of the public list and the public search until OAK has checked it.
+  // On this demo a self-registered salon goes live immediately: it is verified on
+  // creation and reachable from the public list and the public search right away.
   const stamp = Date.now();
-  const salonName = `Salon Chưa Duyệt ${stamp}`;
+  const salonName = `Salon Tự Đăng Ký ${stamp}`;
   const applicant = new Session();
   const registered = ok(
     await applicant.fetch('/api/auth/register', {
@@ -1725,20 +1725,24 @@ async function groupAuthz() {
 
   const ownSalon = ok(await applicant.fetch('/api/partner/salon'), 'the self-registered salon');
   assert(ownSalon.name === salonName, 'self-registration: the salon must exist for its owner');
-  assert(ownSalon.verified === 0, 'self-registration: a new salon must start unverified');
+  assert(ownSalon.verified === 1, 'self-registration: a new salon is verified on creation');
+
+  // Group 16 sweeps the public list for salons without a demo owner; this one is a
+  // deliberate artifact of the test run, so record it there for exclusion.
+  state.selfRegisteredSalonIds = [...(state.selfRegisteredSalonIds ?? []), ownSalon.id];
 
   const publicList = await session('guest').fetch('/api/salons?limit=50');
   assert(
-    !ok(publicList, 'public salon list').some((item) => item.id === ownSalon.id),
-    'an unverified salon must not appear in GET /api/salons',
+    ok(publicList, 'public salon list').some((item) => item.id === ownSalon.id),
+    'a self-registered salon must appear in GET /api/salons',
     publicList,
   );
   const publicSearch = await session('guest').fetch(
     `/api/search/salons?q=${encodeURIComponent(salonName)}`,
   );
   assert(
-    !ok(publicSearch, 'public salon search').some((item) => item.id === ownSalon.id),
-    'an unverified salon must not appear in GET /api/search/salons',
+    ok(publicSearch, 'public salon search').some((item) => item.id === ownSalon.id),
+    'a self-registered salon must appear in GET /api/search/salons',
     publicSearch,
   );
 
@@ -1762,10 +1766,15 @@ const DEMO_SALON_OWNERS = {
 
 async function groupSalonOwnership() {
   const listResponse = await session('guest').fetch('/api/salons?limit=50');
-  const salons = ok(listResponse, 'GET /api/salons for the ownership sweep');
+  const listed = ok(listResponse, 'GET /api/salons for the ownership sweep');
 
-  // Every seeded salon, not just the six listed above: a new salon without an owner of
-  // its own must fail here rather than quietly ship without a console.
+  // Salons the suite itself registered in group 15 are expected to have no demo owner.
+  const selfRegistered = new Set(state.selfRegisteredSalonIds ?? []);
+  const salons = listed.filter((salon) => !selfRegistered.has(salon.id));
+
+  // The sweep runs over the public list, not over DEMO_SALON_OWNERS: a seeded salon
+  // without an owner of its own must fail here rather than quietly ship without a
+  // console, and only a list-driven sweep can catch one that was never expected.
   for (const salon of salons) {
     const email = DEMO_SALON_OWNERS[salon.slug];
     assert(email !== undefined, `salon ownership: "${salon.slug}" has no demo partner account`, listResponse);
@@ -1780,8 +1789,13 @@ async function groupSalonOwnership() {
     );
   }
 
+  // Against meta.total, not the page: ?limit=50 is already at MAX_LIMIT, and the public
+  // list grows by one for every test that registers a partner.
+  // Assumes a fresh database, which the default run gets. Under OAK_TEST_BASE_URL the
+  // salons registered here survive the run and are not in state.selfRegisteredSalonIds
+  // next time, so repeated external-mode runs accumulate them and fail this count.
   assert(
-    salons.length === Object.keys(DEMO_SALON_OWNERS).length,
+    listResponse.body.meta.total - selfRegistered.size === Object.keys(DEMO_SALON_OWNERS).length,
     `salon ownership: expected all ${Object.keys(DEMO_SALON_OWNERS).length} seeded salons in the public list`,
     listResponse,
   );

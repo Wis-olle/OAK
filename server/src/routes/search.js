@@ -202,7 +202,8 @@ router.get('/salons', async (req, res, next) => {
     const timeFrom = isHHMM(req.query.time_from) ? req.query.time_from : null;
     const timeTo = isHHMM(req.query.time_to) ? req.query.time_to : null;
 
-    // Same gate as GET /api/salons: an unverified salon is not discoverable.
+    // Same switch as GET /api/salons: salons are verified on creation, so this excludes
+    // nothing today and only matters if a real verification flow ever returns.
     const conditions = ['s.verified = 1'];
     const params = [];
 

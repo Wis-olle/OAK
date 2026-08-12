@@ -310,6 +310,9 @@ export const db = {
 
 await pool.query(SCHEMA);
 
+// Backfills partner salons created before auto-verify.
+await pool.query('UPDATE salons SET verified = 1 WHERE verified = 0');
+
 if ((await pool.query('SELECT COUNT(*) AS count FROM users')).rows[0].count === 0) {
   await seed(db);
 }

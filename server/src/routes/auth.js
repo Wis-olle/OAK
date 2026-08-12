@@ -26,10 +26,10 @@ const selectCredentials = db.prepare('SELECT id, password_hash FROM users WHERE 
 const SELECT_SALON_BY_SLUG = 'SELECT 1 FROM salons WHERE slug = ?';
 const INSERT_USER =
   'INSERT INTO users (name, email, phone, password_hash, role, avatar, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)';
-// verified = 0: a salon anyone can create by signing up has not been checked by OAK yet,
-// so it must not wear the verified badge until a human approves it.
+// verified = 1: on this demo a partner salon goes live the moment it signs up, so it is
+// browsable straight away. There is no manual approval step to wait for.
 const INSERT_SALON =
-  'INSERT INTO salons (owner_id, name, slug, city, verified, created_at) VALUES (?, ?, ?, ?, 0, ?)';
+  'INSERT INTO salons (owner_id, name, slug, city, verified, created_at) VALUES (?, ?, ?, ?, 1, ?)';
 
 /** Append -2, -3, ... until the slug is free. Runs inside the register transaction. */
 async function uniqueSalonSlug(tx, name) {
