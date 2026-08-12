@@ -165,12 +165,6 @@
 <button :disabled="salonsLoading" @click="loadMoreSalons()" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors disabled:opacity-60" type="button">Xem thêm</button>
 </div>
 </div>
-<div class="flex flex-col gap-3">
-<p class="font-caption text-caption text-error-container" x-cloak="" x-show="stepError" x-text="stepError"></p>
-<div class="flex flex-wrap items-center gap-4">
-<button :disabled="loading" @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">Tiếp tục</button>
-</div>
-</div>
 </div>
 <!-- Step 2: the chosen salon's own services -->
 <div class="flex flex-col gap-12" x-cloak="" x-show="step === 2">
@@ -572,23 +566,24 @@
                 }
             },
 
-            /** Pick a salon and drop everything that belonged to the previous one. */
-            async chooseSalon(salon) {
-                this.stepError = '';
-                // Re-picking the current one would only throw away a service already chosen.
-                if (this.salon && this.salon.id === salon.id) {
-                    return;
+            /** Pick a salon and drop everything that belonged to the previous one. The card is
+                step 1's only control, so it doubles as that step's continue button. */
+            chooseSalon(salon) {
+                // Re-picking the current one keeps the service and slot already chosen.
+                if (!this.salon || this.salon.id !== salon.id) {
+                    this.salon = salon;
+                    this.service = null;
+                    this.options = [];
+                    this.staffList = [];
+                    this.staffId = null;
+                    this.time = '';
+                    this.slots = [];
+                    this.quote = null;
+                    this.promoError = '';
+                    // Step 2 renders its own loading state, so it does not wait for this.
+                    this.loadOptions(salon.id);
                 }
-                this.salon = salon;
-                this.service = null;
-                this.options = [];
-                this.staffList = [];
-                this.staffId = null;
-                this.time = '';
-                this.slots = [];
-                this.quote = null;
-                this.promoError = '';
-                await this.loadOptions(salon.id);
+                this.goTo(2);
             },
 
             salonRating(salon) {
@@ -636,10 +631,6 @@
 
             /** Leave the current step, naming whatever it is still missing. */
             next() {
-                if (this.step === 1 && !this.salon) {
-                    this.stepError = 'Vui lòng chọn salon.';
-                    return;
-                }
                 if (this.step === 2 && !this.service) {
                     this.stepError = 'Vui lòng chọn dịch vụ.';
                     return;
