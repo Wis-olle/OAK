@@ -315,7 +315,12 @@ function promotionShape(row) {
   };
 }
 
-function salonShape(row) {
+const selectSalonHours = db.prepare(`
+  SELECT weekday, "start" AS start, "end" AS end, is_off
+  FROM salon_hours WHERE salon_id = ? ORDER BY weekday
+`);
+
+async function salonShape(row) {
   return {
     id: row.id,
     slug: row.slug,
@@ -326,8 +331,11 @@ function salonShape(row) {
     city: row.city,
     phone: row.phone,
     image: row.image,
+    // The pair is the whole-week summary of `hours`, kept for the calendar grid and
+    // the older consumers that never learned about per-weekday opening times.
     open_time: row.open_time,
     close_time: row.close_time,
+    hours: await selectSalonHours.all(row.id),
     lat: row.lat,
     lng: row.lng,
     verified: row.verified,
@@ -1460,6 +1468,11 @@ router.get('/revenue', async (req, res, next) => {
  * ========================================================================= */
 
 const selectSalonById = db.prepare('SELECT * FROM salons WHERE id = ?');
+// The hours writes all happen inside one transaction, so these are kept as SQL text.
+const INSERT_SALON_HOURS =
+  'INSERT INTO salon_hours (salon_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)';
+const DELETE_SALON_HOURS = 'DELETE FROM salon_hours WHERE salon_id = ?';
+const UPDATE_SALON_SUMMARY = 'UPDATE salons SET open_time = ?, close_time = ? WHERE id = ?';
 
 const SALON_COLUMNS = {
   name: (value) => requireText(value, 'tên salon'),
@@ -1469,16 +1482,62 @@ const SALON_COLUMNS = {
   city: (value) => optionalText(value, 'Tỉnh/Thành phố'),
   phone: (value) => optionalText(value, 'Số điện thoại'),
   image: (value) => optionalText(value, 'Ảnh đại diện'),
-  open_time: (value) => requireTime(value, 'Giờ mở cửa'),
-  close_time: (value) => requireTime(value, 'Giờ đóng cửa'),
   amenities: (value) => requireJsonStringArray(value, 'Tiện ích'),
   tags: (value) => requireJsonStringArray(value, 'Thẻ phân loại'),
   tour_url: (value) => optionalHttpsUrl(value, 'Đường dẫn tour 360'),
 };
 
+/**
+ * Validate a full-replace opening-hours payload: the whole week, one row per weekday.
+ *
+ * A day off carries no times, so whatever the form left in its inputs is dropped.
+ * open_time/close_time are no longer patchable columns — they are derived from here.
+ */
+function parseSalonHours(value) {
+  const rows = requireArray(value, 'Giờ mở cửa').map((entry) => {
+    if (entry === null || typeof entry !== 'object') {
+      throw httpError(400, 'VALIDATION_ERROR', 'Mỗi ngày trong tuần phải là một đối tượng.');
+    }
+    const weekday = Number(entry.weekday);
+    if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Thứ trong tuần phải là số từ 0 đến 6.');
+    }
+    const isOff = entry.is_off === undefined ? 0 : requireFlag(entry.is_off, 'Ngày nghỉ');
+    if (isOff === 1) {
+      return { weekday, start: null, end: null, is_off: 1 };
+    }
+    const start = requireTime(entry.start, 'Giờ mở cửa');
+    const end = requireTime(entry.end, 'Giờ đóng cửa');
+    if (toMinutes(start) >= toMinutes(end)) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Giờ mở cửa phải sớm hơn giờ đóng cửa.');
+    }
+    return { weekday, start, end, is_off: 0 };
+  });
+
+  // The whole week or nothing: a partial payload would silently close the missing days,
+  // and a repeated weekday would fail on UNIQUE(salon_id, weekday) mid-transaction.
+  const weekdays = new Set(rows.map((row) => row.weekday));
+  if (rows.length !== DAYS_IN_WEEK || weekdays.size !== DAYS_IN_WEEK) {
+    throw httpError(
+      400,
+      'VALIDATION_ERROR',
+      'Vui lòng khai báo đủ 7 ngày trong tuần, mỗi thứ một lần.',
+    );
+  }
+  return rows;
+}
+
+/** The whole-week summary written back to salons: earliest opening, latest closing. */
+function hoursSummary(hours) {
+  const open = hours.filter((day) => day.is_off === 0);
+  const starts = open.map((day) => day.start).sort();
+  const ends = open.map((day) => day.end).sort();
+  return [starts[0] ?? null, ends[ends.length - 1] ?? null];
+}
+
 router.get('/salon', async (req, res, next) => {
   try {
-    res.json({ success: true, data: salonShape(await ownedSalon(req)) });
+    res.json({ success: true, data: await salonShape(await ownedSalon(req)) });
   } catch (error) {
     next(error);
   }
@@ -1487,14 +1546,37 @@ router.get('/salon', async (req, res, next) => {
 router.patch('/salon', async (req, res, next) => {
   try {
     const salon = await ownedSalon(req);
-    const { assignments, values } = await buildPatch(req.body ?? {}, SALON_COLUMNS);
+    const body = req.body ?? {};
+    const hours = body.hours === undefined ? null : parseSalonHours(body.hours);
+    // buildPatch refuses an empty SET clause, so it only runs when the body really
+    // names a column — `hours` alone is a valid update, and so is a column alone.
+    const patch = Object.keys(SALON_COLUMNS).some((column) => Object.hasOwn(body, column))
+      ? await buildPatch(body, SALON_COLUMNS)
+      : null;
+    if (!patch && !hours) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Không có thông tin nào để cập nhật.');
+    }
 
     // Keyed by the derived id, so no body field can redirect the update elsewhere.
-    await db
-      .prepare(`UPDATE salons SET ${assignments.join(', ')} WHERE id = ?`)
-      .run(...values, salon.id);
+    await db.withTransaction(async (tx) => {
+      if (patch) {
+        await tx.run(
+          `UPDATE salons SET ${patch.assignments.join(', ')} WHERE id = ?`,
+          ...patch.values,
+          salon.id,
+        );
+      }
+      if (hours) {
+        // Full replace: the payload is the whole week, so the old rows go first.
+        await tx.run(DELETE_SALON_HOURS, salon.id);
+        for (const day of hours) {
+          await tx.run(INSERT_SALON_HOURS, salon.id, day.weekday, day.start, day.end, day.is_off);
+        }
+        await tx.run(UPDATE_SALON_SUMMARY, ...hoursSummary(hours), salon.id);
+      }
+    });
 
-    res.json({ success: true, data: salonShape(await selectSalonById.get(salon.id)) });
+    res.json({ success: true, data: await salonShape(await selectSalonById.get(salon.id)) });
   } catch (error) {
     next(error);
   }

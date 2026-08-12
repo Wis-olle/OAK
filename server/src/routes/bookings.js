@@ -1,7 +1,7 @@
 // Customer bookings: price quote, create, list, detail, cancel.
 import express from 'express';
 import { db } from '../db.js';
-import { getStaffSlots } from '../lib/availability.js';
+import { getStaffSlots, isSalonOpenFor } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
 import { notifyUser } from '../lib/notify.js';
 import { parsePagination } from '../lib/query.js';
@@ -281,6 +281,14 @@ router.post('/', async (req, res, next) => {
     }
     if (!isHHMM(time)) {
       throw httpError(400, 'VALIDATION_ERROR', 'Giờ hẹn không hợp lệ.');
+    }
+    // Ahead of the technician block, so it covers the walk-in path too: a booking with
+    // no technician reaches no slot check at all, and would otherwise take a day the
+    // salon has declared closed. For a named technician the clamped slots already say
+    // the same thing, but saying it here answers "the salon is shut" rather than the
+    // SLOT_TAKEN below, which would claim somebody else just took the hour.
+    if (!(await isSalonOpenFor(salonId, date, time, service.duration_min))) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Salon không mở cửa vào thời điểm này.');
     }
 
     let staffId = null;

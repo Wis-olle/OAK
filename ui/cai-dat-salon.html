@@ -170,24 +170,37 @@
 <label class="floating-label font-label-md uppercase tracking-widest" for="salon-city">Tỉnh/Thành phố</label>
 </div>
 </div>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-10">
 <div class="relative">
 <input class="input-minimal font-body-md text-body-md text-primary" id="salon-phone" placeholder=" " type="tel" x-model="form.phone"/>
 <label class="floating-label font-label-md uppercase tracking-widest" for="salon-phone">Số điện thoại</label>
 </div>
 <div class="relative">
-<input class="input-minimal always-raised font-body-md text-body-md text-primary" id="salon-open" required="" type="time" x-model="form.open_time"/>
-<label class="floating-label font-label-md uppercase tracking-widest" for="salon-open">Giờ mở cửa</label>
-</div>
-<div class="relative">
-<input class="input-minimal always-raised font-body-md text-body-md text-primary" id="salon-close" required="" type="time" x-model="form.close_time"/>
-<label class="floating-label font-label-md uppercase tracking-widest" for="salon-close">Giờ đóng cửa</label>
-</div>
-</div>
-<div class="relative">
 <input class="input-minimal font-body-md text-body-md text-primary" id="salon-tour" placeholder=" " type="url" x-model="form.tour_url"/>
 <label class="floating-label font-label-md uppercase tracking-widest" for="salon-tour">Đường dẫn tour 360°</label>
 </div>
+</div>
+</section>
+
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Giờ mở cửa</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Đặt giờ riêng cho từng ngày, đánh dấu “Nghỉ” cho ngày salon đóng cửa.</p>
+<div class="space-y-4">
+<template :key="day.weekday" x-for="day in form.hours">
+<div :class="{ 'opacity-50': day.is_off }" class="flex items-center gap-4 flex-wrap">
+<span class="w-24 font-label-md text-label-md text-on-surface-variant uppercase tracking-widest" x-text="weekdayLabel(day.weekday)"></span>
+<div class="w-32">
+<input :aria-label="weekdayLabel(day.weekday) + ' — giờ mở cửa'" :disabled="day.is_off" class="input-minimal font-body-md text-body-md text-primary" type="time" x-model="day.start"/>
+</div>
+<span class="text-on-surface-variant">-</span>
+<div class="w-32">
+<input :aria-label="weekdayLabel(day.weekday) + ' — giờ đóng cửa'" :disabled="day.is_off" class="input-minimal font-body-md text-body-md text-primary" type="time" x-model="day.end"/>
+</div>
+<label class="flex items-center gap-2 font-caption text-caption text-on-surface-variant cursor-pointer">
+<input type="checkbox" x-model="day.is_off"/>
+                Nghỉ
+            </label>
+</div>
+</template>
 </div>
 </section>
 
@@ -281,6 +294,13 @@
         'Phòng xông hơi', 'Tư vấn soi da miễn phí', 'Thanh toán thẻ',
     ];
 
+    /* Weekdays as the schema stores them: 0 = Sunday. Rendered Monday-first. */
+    var WEEKDAY_LABELS = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+    var WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+    /* What a salon that has never published its week starts from — the same default the
+       booking calendar grid falls back to. */
+    var DEFAULT_HOURS = { start: '09:00', end: '21:00' };
+
     /** Keep the salon's own value in the list even when it is not one of the presets. */
     function withCurrent(options, current) {
         return current && options.indexOf(current) === -1 ? [current].concat(options) : options;
@@ -299,8 +319,8 @@
             original: null,
             form: {
                 name: '', description: '', address: '', district: '', city: '',
-                phone: '', image: '', open_time: '', close_time: '', tour_url: '',
-                amenities: [],
+                phone: '', image: '', tour_url: '',
+                amenities: [], hours: [],
             },
 
             async init() {
@@ -332,13 +352,33 @@
             fill(salon) {
                 var self = this;
                 Object.keys(this.form).forEach(function (field) {
-                    if (field !== 'amenities') {
+                    if (field !== 'amenities' && field !== 'hours') {
                         self.form[field] = salon[field] || '';
                     }
                 });
                 this.form.amenities = (salon.amenities || []).slice();
+                this.form.hours = this.buildHours(salon.hours || []);
                 this.tagsText = (salon.tags || []).join(', ');
                 this.error = '';
+            },
+
+            /* One editable row per weekday; a salon with no hours yet opens every day. */
+            buildHours(rows) {
+                return WEEKDAY_ORDER.map(function (weekday) {
+                    var stored = rows.find(function (row) {
+                        return row.weekday === weekday;
+                    });
+                    return {
+                        weekday: weekday,
+                        start: (stored && stored.start) || DEFAULT_HOURS.start,
+                        end: (stored && stored.end) || DEFAULT_HOURS.end,
+                        is_off: stored ? stored.is_off === 1 : false,
+                    };
+                });
+            },
+
+            weekdayLabel(weekday) {
+                return WEEKDAY_LABELS[weekday];
             },
 
             toggleAmenity(amenity) {
@@ -383,8 +423,11 @@
                     this.error = 'Vui lòng nhập tên salon.';
                     return;
                 }
-                if (!this.form.open_time || !this.form.close_time) {
-                    this.error = 'Vui lòng nhập giờ mở cửa và giờ đóng cửa.';
+                var badDay = this.form.hours.find(function (day) {
+                    return !day.is_off && (!day.start || !day.end || day.start >= day.end);
+                });
+                if (badDay) {
+                    this.error = 'Ngày mở cửa cần giờ mở sớm hơn giờ đóng: ' + this.weekdayLabel(badDay.weekday) + '.';
                     return;
                 }
 
@@ -401,10 +444,16 @@
                             city: this.form.city,
                             phone: this.form.phone,
                             image: this.form.image,
-                            open_time: this.form.open_time,
-                            close_time: this.form.close_time,
                             tour_url: this.form.tour_url,
                             amenities: this.form.amenities,
+                            hours: this.form.hours.map(function (day) {
+                                return {
+                                    weekday: day.weekday,
+                                    start: day.start,
+                                    end: day.end,
+                                    is_off: day.is_off ? 1 : 0,
+                                };
+                            }),
                             tags: this.tagsText.split(',').map(function (tag) {
                                 return tag.trim();
                             }).filter(Boolean),

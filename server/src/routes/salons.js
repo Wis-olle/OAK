@@ -38,6 +38,11 @@ const selectSalonBySlug = db.prepare(
 );
 const selectSalonExists = db.prepare('SELECT 1 FROM salons WHERE id = ?');
 
+const selectSalonHours = db.prepare(`
+  SELECT weekday, "start" AS start, "end" AS end, is_off
+  FROM salon_hours WHERE salon_id = ? ORDER BY weekday
+`);
+
 const selectPhotos = db.prepare(
   'SELECT id, image, caption, sort FROM salon_photos WHERE salon_id = ? ORDER BY sort, id',
 );
@@ -83,13 +88,15 @@ async function salonIdOrThrow(value) {
   return id;
 }
 
-function toSalonProfile(row) {
+async function toSalonProfile(row) {
   return {
     ...toSalonCard(row),
     description: row.description,
     phone: row.phone,
+    // The pair is the whole-week summary of `hours`, kept for the older consumers.
     open_time: row.open_time,
     close_time: row.close_time,
+    hours: await selectSalonHours.all(row.id),
     featured: Boolean(row.featured),
     flagship: Boolean(row.flagship),
     amenities: parseJsonArray(row.amenities),
@@ -253,7 +260,7 @@ router.get('/:idOrSlug', async (req, res, next) => {
     if (!row) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy salon này.');
     }
-    res.json({ success: true, data: toSalonProfile(row) });
+    res.json({ success: true, data: await toSalonProfile(row) });
   } catch (error) {
     next(error);
   }

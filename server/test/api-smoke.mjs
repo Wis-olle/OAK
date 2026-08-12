@@ -187,6 +187,20 @@ function hhmm(minutes) {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
+/**
+ * A whole week of opening hours, every day round the clock, with one weekday closed —
+ * pass -1 to close none. Round the clock so that whichever hour a test books at, the
+ * salon's own hours are never the thing deciding the outcome.
+ */
+function weekClosedOn(offWeekday) {
+  return [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+    weekday,
+    start: '00:00',
+    end: '23:59',
+    is_off: weekday === offWeekday ? 1 : 0,
+  }));
+}
+
 /* ============================================================================
  * Server lifecycle
  * ========================================================================= */
@@ -264,6 +278,37 @@ async function findBookableSlot(salonId) {
       const slot = (response.body?.data?.slots ?? []).find((candidate) => candidate.available);
       if (slot) {
         return { service, date, time: slot.time };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * The first (service, technician, date, time) that ONE named technician is free for,
+ * scanning forward from tomorrow.
+ *
+ * The week grid is sized by that technician's longest service, so a slot free there is
+ * also free for the shorter service returned beside it: the result is a booking that
+ * must succeed on its own merits, which is what makes it usable as a control.
+ */
+async function findStaffBookableSlot(salonId) {
+  const guest = session('guest');
+  const services = ok(
+    await guest.fetch(`/api/services?salon_id=${salonId}&limit=50`),
+    'services for the technician slot scan',
+  );
+  for (const service of services) {
+    const performers = (await guest.fetch(`/api/services/${service.id}/staff`)).body?.data ?? [];
+    for (const performer of performers) {
+      const grid = await guest.fetch(
+        `/api/staff/${performer.id}/availability?from=${addDays(state.today, 1)}&days=7`,
+      );
+      for (const day of grid.body?.data?.week ?? []) {
+        const slot = day.slots.find((candidate) => candidate.available);
+        if (slot) {
+          return { service, staffId: performer.id, date: day.date, time: slot.time };
+        }
       }
     }
   }
@@ -417,6 +462,13 @@ async function groupSalons() {
   assert(
     Array.isArray(byId.amenities) && byId.amenities.length > 0,
     'salon detail: amenities must be a non-empty array',
+  );
+  // Straight off the boot-time backfill: a salon that only ever had the whole-week pair
+  // still answers with a full week, every day open on those same hours.
+  assert(byId.hours.length === 7, 'salon detail: expected one opening-hours row per weekday');
+  assert(
+    byId.hours.every((row) => row.is_off === 0 && row.start === byId.open_time && row.end === byId.close_time),
+    'salon detail: the backfilled week must mirror the whole-week pair',
   );
   assert(typeof byId.tour_url === 'string', 'salon detail: expected a tour_url on the flagship');
   assert(typeof byId.description === 'string', 'salon detail: expected a description');
@@ -741,7 +793,21 @@ async function groupSearch() {
 async function groupBookings() {
   const customer = session('customer');
   const guest = session('guest');
+  const partner = session('partnerA');
   const { service, date, time } = state.slot;
+
+  // POST /api/bookings now refuses an hour the salon is shut, and the cancel-window case
+  // below books 30 minutes from now — whatever time of day the suite runs at. Lala's own
+  // 09:00-21:00 would make that clock-dependent, so the week is opened round the clock
+  // for this group and put back at the end. The hours rule gets its own tests below.
+  const salonHours = ok(
+    await partner.fetch('/api/partner/salon'),
+    'the salon hours the booking group starts from',
+  ).hours;
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: weekClosedOn(-1) } }),
+    'PATCH /api/partner/salon (round the clock for the booking group)',
+  );
 
   const quoteResponse = await customer.fetch(`/api/bookings/quote?service_id=${service.id}`);
   const quote = ok(quoteResponse, 'GET /api/bookings/quote');
@@ -962,6 +1028,78 @@ async function groupBookings() {
     400,
     'VALIDATION_ERROR',
     'booking a technician who does not perform the chosen service',
+  );
+
+  // A booking that names no technician reaches no slot check at all, so the salon's own
+  // opening hours are the only thing standing between a customer and a closed day.
+  const hoursDate = addDays(state.today, 1);
+  const hoursWeekday = weekdayOf(hoursDate);
+  const walkIn = { salon_id: state.lalaId, service_id: service.id, date: hoursDate, time: '10:00' };
+
+  ok(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { hours: weekClosedOn(hoursWeekday) },
+    }),
+    'PATCH /api/partner/salon (closing that weekday)',
+  );
+  expectError(
+    await customer.fetch('/api/bookings', { method: 'POST', json: walkIn }),
+    400,
+    'VALIDATION_ERROR',
+    'POST /api/bookings without a technician on a day the salon declared closed',
+  );
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: weekClosedOn(-1) } }),
+    'PATCH /api/partner/salon (reopening that weekday)',
+  );
+  ok(
+    await customer.fetch('/api/bookings', { method: 'POST', json: walkIn }),
+    'POST /api/bookings without a technician once that day is open',
+  );
+
+  // The far edge of the window: the service has to FINISH by closing time, not merely
+  // start before it. One minute past the last legal start is the whole difference.
+  assert(
+    service.duration_min <= 6 * 60,
+    'closing-time check: needed a service that fits inside the 08:00-14:00 window',
+  );
+  ok(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: {
+        hours: weekClosedOn(-1).map((day) =>
+          day.weekday === hoursWeekday ? { ...day, start: '08:00', end: '14:00' } : day,
+        ),
+      },
+    }),
+    'PATCH /api/partner/salon (an 08:00-14:00 window on that day)',
+  );
+  const lastLegalStart = hhmm(14 * 60 - service.duration_min);
+  expectError(
+    await customer.fetch('/api/bookings', {
+      method: 'POST',
+      json: { ...walkIn, time: hhmm(14 * 60 - service.duration_min + 1) },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'POST /api/bookings that would run one minute past closing',
+  );
+  const untilClosing = ok(
+    await customer.fetch('/api/bookings', {
+      method: 'POST',
+      json: { ...walkIn, time: lastLegalStart },
+    }),
+    'POST /api/bookings that finishes exactly at closing time',
+  );
+  assert(
+    untilClosing.time === lastLegalStart,
+    'closing-time check: a service ending exactly at closing must still be accepted',
+  );
+
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: salonHours } }),
+    'PATCH /api/partner/salon (restore the hours the booking group started from)',
   );
 }
 
@@ -1642,6 +1780,215 @@ async function groupPartner() {
   ok(
     await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { tags: salon.tags } }),
     'PATCH /api/partner/salon (restore)',
+  );
+
+  // Opening hours: one row per weekday, replaced as a whole week.
+  const workweek = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+    weekday,
+    start: '09:00',
+    end: '21:00',
+    is_off: weekday === 0 || weekday === 6 ? 1 : 0,
+  }));
+  const withHours = ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: workweek } }),
+    'PATCH /api/partner/salon (hours)',
+  );
+  assert(withHours.hours.length === 7, 'partner salon hours: expected one row per weekday');
+  assert(
+    withHours.hours.every((row, index) => row.weekday === index),
+    'partner salon hours: rows must come back ordered by weekday',
+  );
+  assert(
+    withHours.hours[1].start === '09:00' && withHours.hours[1].end === '21:00' && withHours.hours[1].is_off === 0,
+    'partner salon hours: an open day must keep its times',
+  );
+  assert(
+    withHours.hours[0].is_off === 1 && withHours.hours[6].is_off === 1,
+    'partner salon hours: Sunday and Saturday must be stored closed',
+  );
+  assert(
+    withHours.hours[0].start === null && withHours.hours[0].end === null,
+    'partner salon hours: a day off carries no times',
+  );
+  assert(
+    withHours.open_time === '09:00' && withHours.close_time === '21:00',
+    'partner salon hours: the whole-week summary must span the open days',
+  );
+  const rereadHours = ok(
+    await partner.fetch('/api/partner/salon'),
+    'GET /api/partner/salon after the hours patch',
+  );
+  assert(
+    JSON.stringify(rereadHours.hours) === JSON.stringify(withHours.hours),
+    'partner salon hours: a re-read must echo the same week',
+  );
+
+  // A payload that is not exactly the seven distinct weekdays would silently close a day.
+  expectError(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: workweek.slice(0, 6) } }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/partner/salon with only six days',
+  );
+  expectError(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { hours: workweek.map((day) => ({ ...day, weekday: 1 })) },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/partner/salon with a duplicated weekday',
+  );
+  expectError(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { hours: workweek.map((day) => ({ ...day, is_off: 0, start: '21:00', end: '09:00' })) },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/partner/salon with an open day that closes before it opens',
+  );
+  // The pair is derived from the week now, so it is no longer a patchable column and a
+  // body naming nothing else has nothing left to update.
+  expectError(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { open_time: '07:00' } }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/partner/salon with open_time alone',
+  );
+
+  const publicSalon = ok(
+    await session('guest').fetch(`/api/salons/${salon.slug}`),
+    'GET /api/salons/:slug after the hours patch',
+  );
+  assert(publicSalon.hours.length === 7, 'public salon profile: expected the seven hours rows');
+  assert(
+    publicSalon.hours[6].is_off === 1 && publicSalon.hours[1].start === '09:00',
+    'public salon profile: the week must match what the console stored',
+  );
+
+  // open_now is answered against today's own row. Open days run 00:00-23:59 so the
+  // result never depends on the clock the suite happens to run at.
+  ok(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { hours: weekClosedOn(weekdayOf(state.today)) },
+    }),
+    'PATCH /api/partner/salon (closed today)',
+  );
+  const whileClosed = await session('guest').fetch('/api/search/salons?open_now=1&limit=50');
+  assert(
+    !ok(whileClosed, 'GET /api/search/salons?open_now=1 (closed today)').some(
+      (item) => item.id === salon.id,
+    ),
+    'search open_now=1: a salon closed today must drop out',
+    whileClosed,
+  );
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: weekClosedOn(-1) } }),
+    'PATCH /api/partner/salon (open every day)',
+  );
+  const whileOpen = await session('guest').fetch('/api/search/salons?open_now=1&limit=50');
+  assert(
+    ok(whileOpen, 'GET /api/search/salons?open_now=1 (open today)').some(
+      (item) => item.id === salon.id,
+    ),
+    'search open_now=1: the salon must come back once today is open again',
+    whileOpen,
+  );
+  // Booking availability is gated by the salon's hours too, not by the roster alone:
+  // the seeded technicians work Monday to Saturday whatever the salon has declared.
+  const bookable = await findStaffBookableSlot(salon.id);
+  assert(bookable !== null, 'salon hours: needed a free technician slot to test against');
+  const bookingBody = {
+    salon_id: salon.id,
+    service_id: bookable.service.id,
+    staff_id: bookable.staffId,
+    date: bookable.date,
+    time: bookable.time,
+  };
+
+  ok(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { hours: weekClosedOn(weekdayOf(bookable.date)) },
+    }),
+    'PATCH /api/partner/salon (closing a day that had slots)',
+  );
+  const closedDay = await session('guest').fetch(
+    `/api/services/${bookable.service.id}/availability?date=${bookable.date}`,
+  );
+  assert(
+    ok(closedDay, 'GET /api/services/:id/availability on a closed day').slots.length === 0,
+    'availability: a day the salon declared closed must offer no slot at all',
+    closedDay,
+  );
+  // Rejected on the salon's hours, ahead of the technician's calendar: a closed day is
+  // not somebody else having taken the slot, and the message must not say it was.
+  expectError(
+    await session('customer').fetch('/api/bookings', { method: 'POST', json: bookingBody }),
+    400,
+    'VALIDATION_ERROR',
+    'POST /api/bookings naming a technician on a day the salon declared closed',
+  );
+
+  // A window narrower than the shift behind it, so the clamp alone decides the first and
+  // the last slot: nothing may start before opening, and the service must end by closing.
+  assert(
+    bookable.service.duration_min <= 4 * 60,
+    'clamp check: needed a service that fits inside the 10:00-14:00 window',
+  );
+  ok(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: {
+        hours: weekClosedOn(-1).map((day) =>
+          day.weekday === weekdayOf(bookable.date) ? { ...day, start: '10:00', end: '14:00' } : day,
+        ),
+      },
+    }),
+    'PATCH /api/partner/salon (a narrow window on that day)',
+  );
+  const narrowedResponse = await session('guest').fetch(
+    `/api/services/${bookable.service.id}/availability?date=${bookable.date}`,
+  );
+  const narrowed = ok(narrowedResponse, 'GET /api/services/:id/availability in a narrow window').slots;
+  assert(narrowed.length > 0, 'availability: a narrowed window must still offer slots', narrowedResponse);
+  assert(
+    narrowed.every((slot) => slot.time >= '10:00'),
+    'availability: no slot may start before the salon opens',
+    narrowedResponse,
+  );
+  assert(
+    narrowed[narrowed.length - 1].time <= hhmm(14 * 60 - bookable.service.duration_min),
+    'availability: the last slot must leave room to finish by closing time',
+    narrowedResponse,
+  );
+
+  // The control for the rejection above: the very same booking goes through once the
+  // salon is open at that hour, so only the closure could have refused it.
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: weekClosedOn(-1) } }),
+    'PATCH /api/partner/salon (reopening every day)',
+  );
+  const nowAllowed = ok(
+    await session('customer').fetch('/api/bookings', { method: 'POST', json: bookingBody }),
+    'POST /api/bookings once the salon is open again',
+  );
+  assert(
+    nowAllowed.date === bookable.date && nowAllowed.time === bookable.time,
+    'availability: the booking the closed day refused must succeed when the salon is open',
+  );
+
+  // Back to the week this salon was carrying before the group touched it, read from the
+  // API rather than rebuilt from the seed's own hours.
+  const restoredHours = ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: salon.hours } }),
+    'PATCH /api/partner/salon (restore hours)',
+  );
+  assert(
+    restoredHours.open_time === salon.open_time && restoredHours.close_time === salon.close_time,
+    'partner salon hours: the restore must put the summary back',
   );
 
   const searchResults = ok(await partner.fetch('/api/partner/search?q=Minh'), 'GET /api/partner/search?q=');

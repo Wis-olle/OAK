@@ -12,6 +12,7 @@ import {
   nowMinutes,
   toMinutes,
   todayISO,
+  weekdayOf,
 } from '../lib/time.js';
 import { httpError } from '../middleware/auth.js';
 
@@ -236,11 +237,15 @@ router.get('/salons', async (req, res, next) => {
         WHERE sv.salon_id = s.id AND sv.active = 1 AND sv.category <> 'amenity' AND sv.price <= ?)`);
       params.push(priceMax);
     }
-    // open_time/close_time are 'HH:MM', which compares correctly as plain text.
+    // Against today's own opening hours: 'HH:MM' compares correctly as plain text, and
+    // a salon that has not published its week is never open now — the same answer the
+    // whole-week pair gave while it was still NULL.
     if (req.query.open_now === '1') {
       const now = fromMinutes(nowMinutes());
-      conditions.push('s.open_time <= ? AND s.close_time >= ?');
-      params.push(now, now);
+      conditions.push(`EXISTS (SELECT 1 FROM salon_hours h
+        WHERE h.salon_id = s.id AND h.weekday = ? AND h.is_off = 0
+          AND h."start" <= ? AND h."end" >= ?)`);
+      params.push(weekdayOf(todayISO()), now, now);
     }
 
     const where = `WHERE ${conditions.join(' AND ')}`;
