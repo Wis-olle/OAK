@@ -96,34 +96,97 @@
 </header>
 <!-- Main Content -->
 <main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full">
+<!-- The stepper and the grid share one scope so the stepper can follow the wizard. -->
+<div class="scroll-mt-32" x-data="oakBookingForm()">
 <!-- Stepper -->
-<div class="mb-12 max-w-3xl mx-auto">
+<div class="mb-12 max-w-3xl mx-auto" x-cloak="">
 <div class="flex items-center justify-between relative">
 <div class="absolute left-0 top-1/2 -translate-y-1/2 w-full h-[1px] bg-outline-variant/30 -z-10"></div>
-<div class="flex flex-col items-center gap-2 bg-background px-4">
-<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-label-md text-label-md">
-<span class="material-symbols-outlined text-[16px]" data-icon="check">check</span>
+<template :key="item.n" x-for="item in steps">
+<button :aria-current="step === item.n ? 'step' : false" :class="!loading &amp;&amp; stepOpen(item.n) ? 'hover:opacity-80 transition-opacity' : 'cursor-default'" :disabled="loading || !stepOpen(item.n)" @click="goTo(item.n)" class="flex flex-col items-center gap-2 bg-background px-4" type="button">
+<div :class="stepOpen(item.n) ? 'bg-primary-container text-on-primary' : 'bg-surface-variant text-on-surface-variant'" class="w-8 h-8 rounded-full flex items-center justify-center font-label-md text-label-md">
+<span class="material-symbols-outlined text-[16px]" data-icon="check" x-cloak="" x-show="stepDone(item.n)">check</span>
+<span x-show="!stepDone(item.n)" x-text="item.n"></span>
 </div>
-<span class="font-caption text-caption text-on-surface-variant">Chọn dịch vụ</span>
-</div>
-<div class="flex flex-col items-center gap-2 bg-background px-4">
-<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-label-md text-label-md">
-<span class="material-symbols-outlined text-[16px]" data-icon="check">check</span>
-</div>
-<span class="font-caption text-caption text-on-surface-variant">Chọn thời gian</span>
-</div>
-<div class="flex flex-col items-center gap-2 bg-background px-4">
-<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-label-md text-label-md">3</div>
-<span class="font-label-md text-label-md text-primary font-bold">Xác nhận</span>
-</div>
+<span :class="step === item.n ? 'font-label-md text-label-md text-primary font-bold' : 'font-caption text-caption text-on-surface-variant'" x-text="item.label"></span>
+</button>
+</template>
 </div>
 </div>
 <!-- Layout Grid -->
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start" x-data="oakBookingForm()">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
 <!-- Left Column: Form -->
 <div class="lg:col-span-8 flex flex-col gap-12">
+<!-- Step 1: choose the service -->
+<div class="flex flex-col gap-12" x-cloak="" x-show="step === 1">
 <div class="space-y-6">
-<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Xem lại thông tin</h1>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Đặt lịch hẹn</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Hãy chọn dịch vụ bạn muốn trải nghiệm để bắt đầu đặt lịch.</p>
+</div>
+<!-- Service picker -->
+<div class="space-y-8">
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn dịch vụ</h2>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading &amp;&amp; !options.length">Chưa có dịch vụ nào để đặt lịch.</p>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4" :class="loading ? 'opacity-50' : ''">
+<template :key="option.id" x-for="option in options">
+<button :class="service &amp;&amp; service.id === option.id ? 'border-primary' : 'border-outline-variant'" @click="chooseService(option)" class="flex items-start justify-between gap-4 text-left p-4 border rounded-lg hover:border-primary transition-colors" type="button">
+<span>
+<span class="block font-body-md text-body-md font-medium" x-text="option.name"></span>
+<span class="block font-caption text-caption text-on-surface-variant mt-1" x-text="option.duration_min + ' phút'"></span>
+</span>
+<span class="flex items-center gap-2 shrink-0">
+<span class="font-label-md text-label-md text-primary" x-text="OAK.fmtPrice(option.price)"></span>
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="check_circle" x-cloak="" x-show="service &amp;&amp; service.id === option.id">check_circle</span>
+</span>
+</button>
+</template>
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<p class="font-caption text-caption text-error-container" x-cloak="" x-show="stepError" x-text="stepError"></p>
+<div class="flex flex-wrap items-center gap-4">
+<button @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="button">Tiếp tục</button>
+</div>
+</div>
+</div>
+<!-- Step 2: technician first, since it decides which slots are on offer -->
+<div class="flex flex-col gap-12" x-cloak="" x-show="step === 2">
+<!-- Staff picker -->
+<div class="space-y-8" x-cloak="" x-show="staffList.length">
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn kỹ thuật viên</h2>
+<div class="flex flex-wrap gap-3">
+<button :class="staffId ? 'border-outline-variant text-on-surface-variant' : 'border-primary text-primary'" @click="setStaff(null)" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button">Bất kỳ</button>
+<template :key="member.id" x-for="member in staffList">
+<button :class="staffId === member.id ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" @click="setStaff(member.id)" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button" x-text="member.name"></button>
+</template>
+</div>
+</div>
+<!-- Date + slot picker -->
+<div class="space-y-8" x-cloak="" x-show="service">
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn thời gian</h2>
+<div class="relative md:max-w-xs">
+<label class="font-label-md text-label-md text-outline block mb-2">Ngày hẹn *</label>
+<input :min="today" @change="loadSlots()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors" type="date" x-model="date"/>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!slotsLoading &amp;&amp; !slots.length">Ngày này chưa có khung giờ nào, vui lòng chọn ngày khác.</p>
+<div class="flex flex-wrap gap-3" :class="slotsLoading ? 'opacity-50' : ''">
+<template :key="slot.time" x-for="slot in slots">
+<button :class="time === slot.time ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" :disabled="!slot.available" @click="time = slot.time; stepError = ''" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors disabled:opacity-40 disabled:line-through disabled:hover:border-outline-variant" type="button" x-text="slot.time"></button>
+</template>
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<p class="font-caption text-caption text-error-container" x-cloak="" x-show="stepError" x-text="stepError"></p>
+<div class="flex flex-wrap items-center gap-4">
+<button @click="goTo(1)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
+<button :disabled="slotsLoading || loading" @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">Tiếp tục</button>
+</div>
+</div>
+</div>
+<!-- Step 3: review and confirm -->
+<div class="flex flex-col gap-12" x-cloak="" x-show="step === 3">
+<div class="space-y-6">
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Xem lại thông tin</h2>
 <p class="font-body-lg text-body-lg text-on-surface-variant">Vui lòng kiểm tra lại thông tin và cung cấp chi tiết liên hệ của bạn để chúng tôi phục vụ tốt nhất.</p>
 </div>
 <!-- Booking Summary Card -->
@@ -160,46 +223,6 @@
 </div>
 </div>
 </div>
-<!-- Service picker: only needed when the visitor arrives without ?service_id= -->
-<div class="space-y-8" x-cloak="" x-show="!service">
-<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn dịch vụ</h2>
-<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading &amp;&amp; !options.length">Chưa có dịch vụ nào để đặt lịch.</p>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4" :class="loading ? 'opacity-50' : ''">
-<template :key="option.id" x-for="option in options">
-<button @click="chooseService(option)" class="flex items-start justify-between gap-4 text-left p-4 border border-outline-variant rounded-lg hover:border-primary transition-colors" type="button">
-<span>
-<span class="block font-body-md text-body-md font-medium" x-text="option.name"></span>
-<span class="block font-caption text-caption text-on-surface-variant mt-1" x-text="option.duration_min + ' phút'"></span>
-</span>
-<span class="font-label-md text-label-md text-primary shrink-0" x-text="OAK.fmtPrice(option.price)"></span>
-</button>
-</template>
-</div>
-</div>
-<!-- Staff picker -->
-<div class="space-y-8" x-cloak="" x-show="service &amp;&amp; staffList.length">
-<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn kỹ thuật viên</h2>
-<div class="flex flex-wrap gap-3">
-<button :class="staffId ? 'border-outline-variant text-on-surface-variant' : 'border-primary text-primary'" @click="setStaff(null)" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button">Bất kỳ</button>
-<template :key="member.id" x-for="member in staffList">
-<button :class="staffId === member.id ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" @click="setStaff(member.id)" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button" x-text="member.name"></button>
-</template>
-</div>
-</div>
-<!-- Date + slot picker -->
-<div class="space-y-8" x-cloak="" x-show="service">
-<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn thời gian</h2>
-<div class="relative md:max-w-xs">
-<label class="font-label-md text-label-md text-outline block mb-2">Ngày hẹn *</label>
-<input :min="today" @change="loadSlots()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors" type="date" x-model="date"/>
-</div>
-<p class="font-body-md text-body-md text-on-surface-variant" x-show="!slotsLoading &amp;&amp; !slots.length">Ngày này chưa có khung giờ nào, vui lòng chọn ngày khác.</p>
-<div class="flex flex-wrap gap-3" :class="slotsLoading ? 'opacity-50' : ''">
-<template :key="slot.time" x-for="slot in slots">
-<button :class="time === slot.time ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" :disabled="!slot.available" @click="time = slot.time" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors disabled:opacity-40 disabled:line-through disabled:hover:border-outline-variant" type="button" x-text="slot.time"></button>
-</template>
-</div>
-</div>
 <!-- Customer Info Form -->
 <div class="space-y-8">
 <h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Thông tin khách hàng</h2>
@@ -231,6 +254,10 @@
 </div>
 </label>
 </div>
+<div class="flex flex-wrap items-center gap-4">
+<button @click="goTo(2)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
+</div>
+</div>
 </div>
 <!-- Right Column: Sidebar -->
 <div class="lg:col-span-4 mt-12 lg:mt-0">
@@ -258,9 +285,9 @@
 <span class="font-headline-md text-headline-md font-bold text-on-tertiary" x-text="quote ? OAK.fmtPrice(quote.total) : '—'">—</span>
 </div>
 </div>
-<div class="flex flex-col gap-3">
+<div class="flex flex-col gap-3" x-cloak="" x-show="step === 3">
 <p class="font-caption text-caption text-error-container" x-cloak="" x-show="formError" x-text="formError"></p>
-<button :disabled="busy" @click="submit()" class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : 'Xác nhận đặt lịch'">Xác nhận đặt lịch</button>
+<button :disabled="busy || loading" @click="submit()" class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : 'Xác nhận đặt lịch'">Xác nhận đặt lịch</button>
 </div>
 <div class="bg-on-tertiary/5 p-4 rounded-DEFAULT space-y-2">
 <div class="flex items-start gap-2">
@@ -270,6 +297,7 @@
 <p class="font-caption text-caption text-on-tertiary/70 pl-6 leading-relaxed">
                             Bạn có thể hủy hoặc thay đổi lịch hẹn miễn phí trước 2 tiếng so với giờ đặt. Hủy muộn hoặc không đến có thể ảnh hưởng đến hạng thẻ thành viên của bạn.
                         </p>
+</div>
 </div>
 </div>
 </div>
@@ -337,9 +365,17 @@
             busy: false,
             today: oakToday(),
 
+            step: 1,
+            stepError: '',
+            steps: [
+                { n: 1, label: 'Chọn dịch vụ' },
+                { n: 2, label: 'Chọn thời gian' },
+                { n: 3, label: 'Xác nhận' },
+            ],
+
             salon: null,
             service: null,
-            options: [],        // services offered when the visitor still has to pick one
+            options: [],        // what step 1 offers: this salon's services, or the popular ones
             staffList: [],
             staffId: null,
             date: '',
@@ -354,6 +390,12 @@
             form: { name: '', phone: '', note: '' },
 
             async init() {
+                const serviceId = Number(OAK.qs('service_id')) || 0;
+                const salonId = Number(OAK.qs('salon_id')) || 0;
+                // Paint the step the url implies before anything is awaited, so a deep-linked
+                // visitor never sees a live step 1 they can click into a false error.
+                this.step = serviceId && OAK.qs('time') ? 3 : (serviceId ? 2 : 1);
+
                 this.user = await OAK.me();
                 if (this.user) {
                     this.form.name = this.user.name || '';
@@ -365,11 +407,12 @@
                 this.time = OAK.qs('time') || '';
                 this.staffId = Number(OAK.qs('staff_id')) || null;
 
-                const serviceId = Number(OAK.qs('service_id')) || 0;
-                const salonId = Number(OAK.qs('salon_id')) || 0;
                 try {
                     if (serviceId) {
                         await this.chooseService(await OAK.api('/api/services/' + serviceId));
+                        // Step 1 needs alternatives to the deep-linked service, but the page is
+                        // already usable without them, so nothing here waits.
+                        this.loadOptions('/api/salons/' + this.salon.id + '/services');
                     } else if (salonId) {
                         this.salon = await OAK.api('/api/salons/' + salonId);
                         this.options = await OAK.api('/api/salons/' + salonId + '/services');
@@ -380,10 +423,76 @@
                     OAK.toast(error.message, 'error');
                 }
                 this.loading = false;
+
+                // Correct the guess above once the data is in: a slot that went stale while the
+                // user was away clears `time`, which drops them back on step 2. Landing on a
+                // step clears its errors, the same way goTo() does.
+                this.step = this.canEnter(3) ? 3 : (this.canEnter(2) ? 2 : 1);
+                this.stepError = '';
+                this.formError = '';
+            },
+
+            /** Step 1's grid, filled off the critical path so first paint never waits for it. */
+            async loadOptions(path) {
+                try {
+                    this.options = await OAK.api(path);
+                } catch (error) {
+                    this.options = [];
+                }
+            },
+
+            /** Whether step n has everything the steps before it were meant to collect. */
+            canEnter(n) {
+                if (n === 2) {
+                    return !!this.service;
+                }
+                if (n === 3) {
+                    return !!(this.service && this.date && this.time);
+                }
+                return n === 1;
+            },
+
+            /** A step reads as done once its data is in and the user is not standing on it. */
+            stepDone(n) {
+                return n < 3 && this.step !== n && this.canEnter(n + 1);
+            },
+
+            /** Whether the stepper's node for n is a working shortcut. */
+            stepOpen(n) {
+                return this.step === n || this.canEnter(n);
+            },
+
+            goTo(n) {
+                // Going back is always allowed; the continue buttons are the only way forward.
+                if (n > this.step && !this.canEnter(n)) {
+                    return;
+                }
+                this.step = n;
+                this.stepError = '';
+                this.formError = '';
+                this.$root.scrollIntoView({ behavior: 'smooth' });
+            },
+
+            /** Leave the current step, naming whatever it is still missing. */
+            next() {
+                if (this.step === 1 && !this.service) {
+                    this.stepError = 'Vui lòng chọn dịch vụ.';
+                    return;
+                }
+                if (this.step === 2 && (!this.date || !this.time)) {
+                    this.stepError = 'Vui lòng chọn ngày và giờ hẹn.';
+                    return;
+                }
+                this.goTo(this.step + 1);
             },
 
             /** Pick a service and reload everything that depends on it. */
             async chooseService(service) {
+                this.stepError = '';
+                // Re-picking the current one would only reset the technician and the slot.
+                if (this.service && this.service.id === service.id) {
+                    return;
+                }
                 this.service = service;
                 this.salon = service.salon;
                 try {
@@ -555,9 +664,13 @@
                     location.href = 'xac-nhan-dat-lich.html?id=' + booking.id;
                 } catch (error) {
                     this.formError = error.message;
-                    // Somebody took the slot between loading it and confirming: show what is left.
+                    // Somebody took the slot between loading it and confirming. The refreshed
+                    // grid lives on step 2, so send the user back to it rather than stranding
+                    // them on a review page whose time just went blank.
                     if (error.code === 'SLOT_TAKEN') {
-                        this.loadSlots();
+                        await this.loadSlots();
+                        this.goTo(2);
+                        this.stepError = 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.';
                     }
                     this.busy = false;
                 }
