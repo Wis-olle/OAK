@@ -117,17 +117,71 @@
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
 <!-- Left Column: Form -->
 <div class="lg:col-span-8 flex flex-col gap-12">
-<!-- Step 1: choose the service -->
+<!-- Step 1: choose the salon — an aggregator starts with the place, not the service -->
 <div class="flex flex-col gap-12" x-cloak="" x-show="step === 1">
 <div class="space-y-6">
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Đặt lịch hẹn</h1>
-<p class="font-body-lg text-body-lg text-on-surface-variant">Hãy chọn dịch vụ bạn muốn trải nghiệm để bắt đầu đặt lịch.</p>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Hãy chọn salon bạn muốn ghé thăm để bắt đầu đặt lịch.</p>
 </div>
+<!-- Salon picker -->
+<div class="space-y-8">
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn salon</h2>
+<form @submit.prevent="searchSalons()" class="flex flex-col sm:flex-row gap-3">
+<input aria-label="Tìm salon theo tên" class="flex-grow border border-outline-variant bg-surface rounded-full px-6 py-3 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50" placeholder="Tìm salon theo tên..." type="text" x-model="salonQuery"/>
+<button class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="submit">Tìm kiếm</button>
+</form>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!salonsLoading &amp;&amp; !salons.length">Không tìm thấy salon nào.</p>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4" :class="salonsLoading ? 'opacity-50' : ''">
+<template :key="entry.id" x-for="entry in salons">
+<button :class="salon &amp;&amp; salon.id === entry.id ? 'border-primary' : 'border-outline-variant'" @click="chooseSalon(entry)" class="text-left p-3 border rounded-lg hover:border-primary transition-colors" type="button">
+<span class="block aspect-[3/2] w-full rounded-DEFAULT overflow-hidden mb-3 bg-surface-container">
+<template x-if="entry.image">
+<img :src="entry.image" alt="" class="w-full h-full object-cover"/>
+</template>
+<template x-if="!entry.image">
+<span class="w-full h-full flex items-center justify-center">
+<span class="material-symbols-outlined text-4xl text-on-surface-variant/50" data-icon="spa">spa</span>
+</span>
+</template>
+</span>
+<span class="flex items-start justify-between gap-2">
+<span class="font-body-md text-body-md font-medium" x-text="entry.name"></span>
+<span class="material-symbols-outlined text-[18px] text-primary shrink-0" data-icon="check_circle" x-cloak="" x-show="salon &amp;&amp; salon.id === entry.id">check_circle</span>
+</span>
+<span class="font-caption text-caption text-on-surface-variant flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
+<span x-text="salonLocation(entry)"></span>
+</span>
+<span class="flex items-center gap-1 mt-1" x-show="entry.review_count">
+<span class="material-symbols-outlined text-[14px] text-secondary" data-icon="star" data-weight="fill">star</span>
+<span class="font-label-md text-label-md text-primary" x-text="salonRating(entry)"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="'(' + entry.review_count + ')'"></span>
+</span>
+<span class="font-caption text-caption text-on-surface-variant mt-1 block" x-show="!entry.review_count">Chưa có đánh giá</span>
+</button>
+</template>
+</div>
+<div class="text-center" x-cloak="" x-show="salons.length &lt; salonTotal">
+<button :disabled="salonsLoading" @click="loadMoreSalons()" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors disabled:opacity-60" type="button">Xem thêm</button>
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<p class="font-caption text-caption text-error-container" x-cloak="" x-show="stepError" x-text="stepError"></p>
+<div class="flex flex-wrap items-center gap-4">
+<button :disabled="loading" @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">Tiếp tục</button>
+</div>
+</div>
+</div>
+<!-- Step 2: the chosen salon's own services -->
+<div class="flex flex-col gap-12" x-cloak="" x-show="step === 2">
 <!-- Service picker -->
 <div class="space-y-8">
-<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn dịch vụ</h2>
-<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading &amp;&amp; !options.length">Chưa có dịch vụ nào để đặt lịch.</p>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4" :class="loading ? 'opacity-50' : ''">
+<div class="border-b border-outline-variant/20 pb-4">
+<h2 class="font-headline-sm text-headline-sm text-primary">Chọn dịch vụ</h2>
+<p class="font-caption text-caption text-on-surface-variant mt-1" x-cloak="" x-show="salon">Đặt lịch tại <span class="font-medium" x-text="salon ? salon.name : ''"></span></p>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="salon &amp;&amp; !optionsLoading &amp;&amp; !options.length">Chưa có dịch vụ nào để đặt lịch.</p>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4" :class="optionsLoading ? 'opacity-50' : ''">
 <template :key="option.id" x-for="option in options">
 <button :class="service &amp;&amp; service.id === option.id ? 'border-primary' : 'border-outline-variant'" @click="chooseService(option)" class="flex items-start justify-between gap-4 text-left p-4 border rounded-lg hover:border-primary transition-colors" type="button">
 <span>
@@ -145,12 +199,13 @@
 <div class="flex flex-col gap-3">
 <p class="font-caption text-caption text-error-container" x-cloak="" x-show="stepError" x-text="stepError"></p>
 <div class="flex flex-wrap items-center gap-4">
-<button @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="button">Tiếp tục</button>
+<button @click="goTo(1)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
+<button :disabled="loading || optionsLoading" @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">Tiếp tục</button>
 </div>
 </div>
 </div>
-<!-- Step 2: technician first, since it decides which slots are on offer -->
-<div class="flex flex-col gap-12" x-cloak="" x-show="step === 2">
+<!-- Step 3: technician first, since it decides which slots are on offer -->
+<div class="flex flex-col gap-12" x-cloak="" x-show="step === 3">
 <!-- Staff picker -->
 <div class="space-y-8" x-cloak="" x-show="staffList.length">
 <h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn kỹ thuật viên</h2>
@@ -178,13 +233,13 @@
 <div class="flex flex-col gap-3">
 <p class="font-caption text-caption text-error-container" x-cloak="" x-show="stepError" x-text="stepError"></p>
 <div class="flex flex-wrap items-center gap-4">
-<button @click="goTo(1)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
+<button @click="goTo(2)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
 <button :disabled="slotsLoading || loading" @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">Tiếp tục</button>
 </div>
 </div>
 </div>
-<!-- Step 3: review and confirm -->
-<div class="flex flex-col gap-12" x-cloak="" x-show="step === 3">
+<!-- Step 4: review and confirm -->
+<div class="flex flex-col gap-12" x-cloak="" x-show="step === 4">
 <div class="space-y-6">
 <h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Xem lại thông tin</h2>
 <p class="font-body-lg text-body-lg text-on-surface-variant">Vui lòng kiểm tra lại thông tin và cung cấp chi tiết liên hệ của bạn để chúng tôi phục vụ tốt nhất.</p>
@@ -255,7 +310,7 @@
 </label>
 </div>
 <div class="flex flex-wrap items-center gap-4">
-<button @click="goTo(2)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
+<button @click="goTo(3)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
 </div>
 </div>
 </div>
@@ -285,7 +340,7 @@
 <span class="font-headline-md text-headline-md font-bold text-on-tertiary" x-text="quote ? OAK.fmtPrice(quote.total) : '—'">—</span>
 </div>
 </div>
-<div class="flex flex-col gap-3" x-cloak="" x-show="step === 3">
+<div class="flex flex-col gap-3" x-cloak="" x-show="step === 4">
 <p class="font-caption text-caption text-error-container" x-cloak="" x-show="formError" x-text="formError"></p>
 <button :disabled="busy || loading" @click="submit()" class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : 'Xác nhận đặt lịch'">Xác nhận đặt lịch</button>
 </div>
@@ -368,14 +423,27 @@
             step: 1,
             stepError: '',
             steps: [
-                { n: 1, label: 'Chọn dịch vụ' },
-                { n: 2, label: 'Chọn thời gian' },
-                { n: 3, label: 'Xác nhận' },
+                { n: 1, label: 'Chọn salon' },
+                { n: 2, label: 'Chọn dịch vụ' },
+                { n: 3, label: 'Chọn thời gian' },
+                { n: 4, label: 'Xác nhận' },
             ],
+
+            // Step 1's directory. `salonApplied` is the keyword that produced the current
+            // page, snapshotted away from the box so "Xem thêm" repeats the same search.
+            salons: [],
+            salonQuery: '',
+            salonApplied: '',
+            salonTotal: 0,
+            salonPage: 1,
+            salonsLoading: false,
+            salonsToken: 0,
 
             salon: null,
             service: null,
-            options: [],        // what step 1 offers: this salon's services, or the popular ones
+            options: [],        // step 2's grid: the chosen salon's own services
+            optionsLoading: false,
+            optionsToken: 0,
             staffList: [],
             staffId: null,
             date: '',
@@ -394,7 +462,7 @@
                 const salonId = Number(OAK.qs('salon_id')) || 0;
                 // Paint the step the url implies before anything is awaited, so a deep-linked
                 // visitor never sees a live step 1 they can click into a false error.
-                this.step = serviceId && OAK.qs('time') ? 3 : (serviceId ? 2 : 1);
+                this.step = serviceId && OAK.qs('time') ? 4 : (serviceId ? 3 : (salonId ? 2 : 1));
 
                 this.user = await OAK.me();
                 if (this.user) {
@@ -407,17 +475,20 @@
                 this.time = OAK.qs('time') || '';
                 this.staffId = Number(OAK.qs('staff_id')) || null;
 
+                // Step 1 stays one stepper click away on every path, so its list always loads.
+                // Only a visitor who actually starts there waits for it.
+                const salonList = this.loadSalons(1);
                 try {
                     if (serviceId) {
                         await this.chooseService(await OAK.api('/api/services/' + serviceId));
-                        // Step 1 needs alternatives to the deep-linked service, but the page is
-                        // already usable without them, so nothing here waits.
-                        this.loadOptions('/api/salons/' + this.salon.id + '/services');
+                        // Step 2 needs the salon's other services, but the page is already
+                        // usable without them, so nothing here waits.
+                        this.loadOptions(this.salon.id);
                     } else if (salonId) {
                         this.salon = await OAK.api('/api/salons/' + salonId);
-                        this.options = await OAK.api('/api/salons/' + salonId + '/services');
+                        await this.loadOptions(salonId);
                     } else {
-                        this.options = await OAK.api('/api/services?sort=popular&limit=6');
+                        await salonList;
                     }
                 } catch (error) {
                     OAK.toast(error.message, 'error');
@@ -425,28 +496,118 @@
                 this.loading = false;
 
                 // Correct the guess above once the data is in: a slot that went stale while the
-                // user was away clears `time`, which drops them back on step 2. Landing on a
+                // user was away clears `time`, which drops them back on step 3. Landing on a
                 // step clears its errors, the same way goTo() does.
-                this.step = this.canEnter(3) ? 3 : (this.canEnter(2) ? 2 : 1);
+                this.step = this.canEnter(4) ? 4 : (this.canEnter(3) ? 3 : (this.canEnter(2) ? 2 : 1));
                 this.stepError = '';
                 this.formError = '';
             },
 
-            /** Step 1's grid, filled off the critical path so first paint never waits for it. */
-            async loadOptions(path) {
+            /** Step 1's directory. `page` is committed only on success, so a failed "Xem thêm"
+                asks for the same page again instead of skipping it. Two searches in flight at
+                once resolve in any order, so only the newest one is allowed to land. */
+            async loadSalons(page, append) {
+                const token = ++this.salonsToken;
+                this.salonsLoading = true;
                 try {
-                    this.options = await OAK.api(path);
+                    const params = new URLSearchParams({ limit: 12, page: page });
+                    if (this.salonApplied) {
+                        params.set('q', this.salonApplied);
+                    }
+                    const data = await OAK.api('/api/salons?' + params);
+                    if (token !== this.salonsToken) {
+                        return;
+                    }
+                    this.salonPage = page;
+                    this.salonTotal = data.meta.total;
+                    this.salons = append ? this.salons.concat(data) : data;
                 } catch (error) {
-                    this.options = [];
+                    if (token !== this.salonsToken) {
+                        return;
+                    }
+                    if (!append) {
+                        this.salons = [];
+                        this.salonTotal = 0;
+                    }
+                    // Only step 1 shows this list; elsewhere this would stack on init's toast.
+                    if (this.step === 1) {
+                        OAK.toast(error.message, 'error');
+                    }
+                } finally {
+                    if (token === this.salonsToken) {
+                        this.salonsLoading = false;
+                    }
                 }
+            },
+
+            searchSalons() {
+                this.salonApplied = this.salonQuery.trim();
+                this.loadSalons(1);
+            },
+
+            loadMoreSalons() {
+                this.loadSalons(this.salonPage + 1, true);
+            },
+
+            /** Step 2's grid. Kept off the critical path, so first paint never waits for it.
+                Rapid salon switches overlap, and the slow one must not overwrite the fast one:
+                that would leave one salon selected while its neighbour's services are on offer. */
+            async loadOptions(salonId) {
+                const token = ++this.optionsToken;
+                this.optionsLoading = true;
+                try {
+                    const services = await OAK.api('/api/salons/' + salonId + '/services');
+                    if (token !== this.optionsToken) {
+                        return;
+                    }
+                    this.options = services;
+                } catch (error) {
+                    if (token === this.optionsToken) {
+                        this.options = [];
+                    }
+                } finally {
+                    if (token === this.optionsToken) {
+                        this.optionsLoading = false;
+                    }
+                }
+            },
+
+            /** Pick a salon and drop everything that belonged to the previous one. */
+            async chooseSalon(salon) {
+                this.stepError = '';
+                // Re-picking the current one would only throw away a service already chosen.
+                if (this.salon && this.salon.id === salon.id) {
+                    return;
+                }
+                this.salon = salon;
+                this.service = null;
+                this.options = [];
+                this.staffList = [];
+                this.staffId = null;
+                this.time = '';
+                this.slots = [];
+                this.quote = null;
+                this.promoError = '';
+                await this.loadOptions(salon.id);
+            },
+
+            salonRating(salon) {
+                return Number(salon.rating || 0).toFixed(1);
+            },
+
+            salonLocation(salon) {
+                return [salon.district, salon.city].filter(Boolean).join(', ');
             },
 
             /** Whether step n has everything the steps before it were meant to collect. */
             canEnter(n) {
                 if (n === 2) {
-                    return !!this.service;
+                    return !!this.salon;
                 }
                 if (n === 3) {
+                    return !!this.service;
+                }
+                if (n === 4) {
                     return !!(this.service && this.date && this.time);
                 }
                 return n === 1;
@@ -454,7 +615,7 @@
 
             /** A step reads as done once its data is in and the user is not standing on it. */
             stepDone(n) {
-                return n < 3 && this.step !== n && this.canEnter(n + 1);
+                return n < 4 && this.step !== n && this.canEnter(n + 1);
             },
 
             /** Whether the stepper's node for n is a working shortcut. */
@@ -475,11 +636,15 @@
 
             /** Leave the current step, naming whatever it is still missing. */
             next() {
-                if (this.step === 1 && !this.service) {
+                if (this.step === 1 && !this.salon) {
+                    this.stepError = 'Vui lòng chọn salon.';
+                    return;
+                }
+                if (this.step === 2 && !this.service) {
                     this.stepError = 'Vui lòng chọn dịch vụ.';
                     return;
                 }
-                if (this.step === 2 && (!this.date || !this.time)) {
+                if (this.step === 3 && (!this.date || !this.time)) {
                     this.stepError = 'Vui lòng chọn ngày và giờ hẹn.';
                     return;
                 }
@@ -494,7 +659,9 @@
                     return;
                 }
                 this.service = service;
-                this.salon = service.salon;
+                // Only the ?service_id deep link arrives without a salon; a step 2 pick already
+                // has the richer card from the directory, so it wins over the service's stub.
+                this.salon = this.salon || service.salon;
                 try {
                     this.staffList = await OAK.api('/api/services/' + service.id + '/staff');
                 } catch (error) {
@@ -665,11 +832,11 @@
                 } catch (error) {
                     this.formError = error.message;
                     // Somebody took the slot between loading it and confirming. The refreshed
-                    // grid lives on step 2, so send the user back to it rather than stranding
+                    // grid lives on step 3, so send the user back to it rather than stranding
                     // them on a review page whose time just went blank.
                     if (error.code === 'SLOT_TAKEN') {
                         await this.loadSlots();
-                        this.goTo(2);
+                        this.goTo(3);
                         this.stepError = 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.';
                     }
                     this.busy = false;
