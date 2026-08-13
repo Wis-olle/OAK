@@ -222,9 +222,20 @@
       return;
     }
     link.href = PROFILE_PAGE;
-    var image = link.querySelector('img');
+    var image = link.querySelector('[data-oak-avatar-img], img');
+    var icon = link.querySelector('[data-oak-avatar-icon]');
     if (image && user.avatar) {
+      image.onerror = function () {
+        image.classList.add('hidden');
+        if (icon) {
+          icon.classList.remove('hidden');
+        }
+      };
       image.src = user.avatar;
+      image.classList.remove('hidden');
+      if (icon) {
+        icon.classList.add('hidden');
+      }
     }
   }
 

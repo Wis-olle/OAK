@@ -106,8 +106,9 @@
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
 </a>
 <a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
-<span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 block">
-<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover" data-oak-user-avatar src="assets/images/img-77a799e9a6.jpg"/>
+<span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 flex items-center justify-center">
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant" data-oak-avatar-icon>person</span>
+<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover hidden" data-oak-user-avatar/>
 </span>
 <span class="font-label-md text-label-md text-primary hidden sm:inline" data-oak-user-name>Đối tác</span>
 </a>
@@ -452,8 +453,13 @@
                 name.textContent = user.name;
             }
             var avatar = document.querySelector('[data-oak-user-avatar]');
+            var avatarIcon = document.querySelector('[data-oak-avatar-icon]');
             if (avatar && user.avatar) {
                 avatar.src = user.avatar;
+                avatar.classList.remove('hidden');
+                if (avatarIcon) {
+                    avatarIcon.classList.add('hidden');
+                }
             }
         });
 

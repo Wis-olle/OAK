@@ -77,8 +77,9 @@
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
 <a class="hidden md:inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="dat-lich.html">Đặt lịch</a>
-<a aria-label="Tài khoản" class="block w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/30 shrink-0" href="dang-nhap-nguoi-dung.html">
-<img alt="Ảnh đại diện người dùng" class="w-full h-full object-cover" data-alt="A close up portrait of an elegant young Asian woman with glowing, flawless skin, subtle natural makeup, her dark hair pulled back neatly. The lighting is soft and high-key, creating a pristine, premium beauty aesthetic." src="assets/images/img-b79c0642dd.jpg">
+<a aria-label="Tài khoản" class="flex items-center justify-center w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/30 shrink-0" href="dang-nhap-nguoi-dung.html">
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant" data-oak-avatar-icon>person</span>
+<img alt="Ảnh đại diện người dùng" class="w-full h-full object-cover hidden" data-oak-avatar-img>
 </a>
 <button :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen" aria-controls="mobile-menu" aria-expanded="false" aria-label="Menu" class="md:hidden flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined" data-icon="menu" x-show="!menuOpen">menu</span>
