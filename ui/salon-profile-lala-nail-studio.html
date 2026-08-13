@@ -64,8 +64,9 @@
 <span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
 </a>
 <a class="hidden md:inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="dat-lich.html">Đặt lịch</a>
-<a aria-label="Tài khoản" class="block w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/30 shrink-0" href="dang-nhap-nguoi-dung.html">
-<img alt="Ảnh đại diện người dùng" class="w-full h-full object-cover" data-alt="A close up portrait of an elegant young Asian woman with glowing, flawless skin, subtle natural makeup, her dark hair pulled back neatly. The lighting is soft and high-key, creating a pristine, premium beauty aesthetic." src="assets/images/img-b79c0642dd.jpg">
+<a aria-label="Tài khoản" class="flex items-center justify-center w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/30 shrink-0" href="dang-nhap-nguoi-dung.html">
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant" data-oak-avatar-icon>person</span>
+<img alt="Ảnh đại diện người dùng" class="w-full h-full object-cover hidden" data-oak-avatar-img>
 </a>
 <button :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen" aria-controls="mobile-menu" aria-expanded="false" aria-label="Menu" class="md:hidden flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined" data-icon="menu" x-show="!menuOpen">menu</span>
@@ -275,7 +276,10 @@
 </section>
 <!-- Reviews -->
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mt-section-gap">
-<h2 class="font-headline-md text-headline-md text-on-surface mb-10">Đánh Giá Của Khách Hàng</h2>
+<div class="flex flex-wrap items-center justify-between gap-4 mb-10">
+<h2 class="font-headline-md text-headline-md text-on-surface">Đánh Giá Của Khách Hàng</h2>
+<button @click="writeReview()" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="button">Viết đánh giá</button>
+</div>
 <template x-if="!reviews.length">
 <p class="font-body-md text-body-md text-on-surface-variant">Chưa có đánh giá cho salon này.</p>
 </template>
@@ -552,6 +556,42 @@
                     );
                     this.reviews = this.reviews.concat(more);
                     this.reviewPage = nextPage;
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                }
+            },
+
+            /**
+             * The composer is per booking, so this picks the visitor's most recent
+             * completed booking at this salon that has not been reviewed yet.
+             */
+            async writeReview() {
+                await OAK.requireLogin();
+                try {
+                    const [completed, myReviews] = await Promise.all([
+                        OAK.api('/api/bookings/mine?status=completed&limit=50'),
+                        OAK.api('/api/reviews/mine'),
+                    ]);
+                    const reviewed = myReviews.map((review) => review.booking_id);
+                    const here = completed.filter((booking) => booking.salon.id === this.salon.id);
+                    const target = here.find((booking) => !reviewed.includes(booking.id));
+                    if (target) {
+                        window.location.href = 'danh-gia-cua-toi.html?booking_id=' + target.id;
+                        return;
+                    }
+                    // Only the newest 50 came back, so an older booking here may exist:
+                    // hand the visitor the full "Chờ đánh giá" list instead of claiming
+                    // there is nothing to review.
+                    if (completed.meta.total > completed.length) {
+                        window.location.href = 'danh-gia-cua-toi.html';
+                        return;
+                    }
+                    OAK.toast(
+                        here.length
+                            ? 'Bạn đã đánh giá các lịch hẹn tại salon này rồi.'
+                            : 'Bạn cần hoàn tất một lịch hẹn tại salon này trước khi viết đánh giá.',
+                        'error',
+                    );
                 } catch (error) {
                     OAK.toast(error.message, 'error');
                 }
