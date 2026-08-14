@@ -187,7 +187,18 @@
 
 <section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
 <h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Vị trí trên bản đồ</h3>
-<p class="font-caption text-caption text-on-surface-variant mb-6">Tìm theo địa chỉ đã nhập ở trên, rồi kéo ghim để chỉnh cho đúng cửa tiệm. Chưa có toạ độ thì salon không hiện trên bản đồ tìm kiếm.</p>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Tìm theo tên đường, chợ hay toà nhà rồi kéo ghim cho đúng cửa tiệm. Chưa có toạ độ thì salon không hiện trên bản đồ tìm kiếm.</p>
+<!-- Deliberately not a form element: this sits inside the page's save form, and a
+             nested one is dropped by the parser, closing the outer form early. -->
+<div class="flex items-end gap-3 mb-6">
+<div class="relative flex-grow">
+<input @keydown.enter.prevent="searchPlace()" autocomplete="off" class="input-minimal font-body-md text-body-md text-primary" id="salon-place-search" placeholder=" " type="text" x-model="placeQuery"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-place-search">Tìm địa điểm</label>
+</div>
+<button :disabled="geoPending !== '' &amp;&amp; geoPending === placeQuery.trim()" @click="searchPlace()" aria-label="Tìm địa điểm" class="shrink-0 w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]">search</span>
+</button>
+</div>
 <div class="flex flex-wrap items-center gap-3 mb-4">
 <button :disabled="geoPending !== ''" @click="geocodeAddress()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">travel_explore</span>
@@ -205,6 +216,7 @@
 <button @click="pickPlace(place)" class="block w-full text-left px-4 py-2.5 font-body-md text-sm text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors" type="button" x-text="placeLabel(place)"></button>
 </template>
 </div>
+<p class="font-caption text-caption text-on-surface-variant mb-4" x-cloak x-show="areaOnly">Kết quả chỉ ở mức khu vực — bạn có thể kéo ghim tới đúng cửa tiệm.</p>
 <div class="w-full h-[320px] rounded-xl overflow-hidden border border-surface-variant" x-ref="map"></div>
 <p class="font-caption text-caption text-on-surface-variant mt-3">Bấm lên bản đồ để đặt ghim, hoặc kéo ghim để chỉnh lại.</p>
 </section>
@@ -333,6 +345,48 @@
     var NOMINATIM = 'https://nominatim.openstreetmap.org/search?';
     /* Nominatim allows one request a second, so a retry has to wait its turn. */
     var NOMINATIM_GAP_MS = 1100;
+    /* Nominatim files an administrative area under the boundary category, or as a coarse
+       "place" type. A street, a building or a shop is none of those. */
+    var AREA_TYPES = ['city', 'town', 'village', 'state', 'county', 'district', 'suburb',
+        'quarter', 'municipality', 'province', 'administrative'];
+
+    function isAreaResult(place) {
+        return place.category === 'boundary' || AREA_TYPES.indexOf(place.type) !== -1;
+    }
+
+    /** Drop the "Đ." / "Đ" street abbreviation and a trailing ", Việt Nam". */
+    function normalizeAddress(text) {
+        return String(text || '')
+            .replace(/(^|\s)Đ\.?\s+/g, '$1')
+            .replace(/,\s*Việt Nam\s*\.?\s*$/i, '')
+            .replace(/^[\s,]+|[\s,]+$/g, '');
+    }
+
+    /** Loose key for "does this string already name that place?": no diacritics, no
+        punctuation, and without the prefixes people write inconsistently. */
+    function placeKey(text) {
+        return String(text || '')
+            .normalize('NFD')
+            .replace(/[̀-ͯ]/g, '')
+            .replace(/đ/gi, 'd')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .replace(/\btp\s*hcm\b/g, 'ho chi minh')
+            .replace(/\bhcm\b/g, 'ho chi minh')
+            .replace(/\b(tp|thanh pho|quan|huyen|phuong|q)\b/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    /** True when `address` already carries `part`, so appending it would only repeat it. */
+    function mentions(address, part) {
+        var key = placeKey(part);
+        /* A district reduced to a bare number would match any lot/house number. */
+        if (/^\d+$/.test(key)) {
+            return false;
+        }
+        return key === '' || (' ' + placeKey(address) + ' ').indexOf(' ' + key + ' ') !== -1;
+    }
     /* Where the picker opens before a salon has any coordinates: District 1, HCMC. */
     var MAP_FALLBACK = { center: [10.776, 106.700], zoom: 13 };
     /* Leaflet objects must stay out of the Alpine state, or its proxies break the map. */
@@ -361,6 +415,8 @@
             geoStatus: '',
             /* The address currently being looked up; empty when nothing is in flight. */
             geoPending: '',
+            /* The free-text box in the map panel, independent of the address fields. */
+            placeQuery: '',
             form: {
                 name: '', description: '', address: '', district: '', city: '',
                 phone: '', image: '', tour_url: '', lat: '', lng: '',
@@ -501,37 +557,88 @@
                 this.syncPin(false);
             },
 
-            /* Only ever called on click, never per keystroke: Nominatim asks for that. */
-            async geocodeAddress() {
-                var query = this.addressQuery;
-                if (!query) {
+            /* Broadening rungs, tried in order until one answers. The address box usually
+               already carries the ward and city, and the district picked in the form can
+               disagree with the current ward structure, so each rung drops more of it. */
+            get geoLadder() {
+                var address = normalizeAddress(this.form.address);
+                var district = String(this.form.district || '').trim();
+                var city = String(this.form.city || '').trim();
+                var rungs = [];
+                if (address) {
+                    var full = [address];
+                    if (district && !mentions(address, district)) {
+                        full.push(district);
+                    }
+                    if (city && !mentions(address, city)) {
+                        full.push(city);
+                    }
+                    rungs.push({ q: full.join(', '), note: 'Đang tìm địa chỉ...' });
+
+                    var withoutDistrict = [address];
+                    if (city && !mentions(address, city)) {
+                        withoutDistrict.push(city);
+                    }
+                    rungs.push({ q: withoutDistrict.join(', '), note: 'Đang thử bỏ quận/huyện...' });
+                }
+                if (this.areaQuery) {
+                    rungs.push({ q: this.areaQuery, note: 'Đang thử tìm theo khu vực...' });
+                }
+                /* Repeating a rung would only spend the rate limit twice for one answer. */
+                var seen = [];
+                return rungs.filter(function (rung) {
+                    if (!rung.q || seen.indexOf(rung.q) !== -1) {
+                        return false;
+                    }
+                    seen.push(rung.q);
+                    return true;
+                });
+            },
+
+            /* Only ever called on submit, never per keystroke: Nominatim asks for that. */
+            geocodeAddress() {
+                return this.runLookups(this.geoLadder, 'Nhập địa chỉ ở trên trước đã.');
+            },
+
+            searchPlace() {
+                var query = String(this.placeQuery || '').trim();
+                var rungs = query ? [{ q: query, note: 'Đang tìm địa điểm...' }] : [];
+                return this.runLookups(rungs, '');
+            },
+
+            async runLookups(rungs, emptyMessage) {
+                if (!rungs.length) {
                     this.geoResults = [];
-                    this.geoStatus = 'Nhập địa chỉ ở trên trước đã.';
+                    this.geoStatus = emptyMessage;
                     return;
                 }
-                if (this.geoPending === query) {
+                if (this.geoPending === rungs[0].q) {
                     return;
                 }
                 var token = ++geoToken;
-                this.geoPending = query;
+                this.geoPending = rungs[0].q;
                 this.geoResults = [];
-                this.geoStatus = 'Đang tìm địa chỉ...';
+                this.geoStatus = rungs[0].note;
                 try {
-                    var places = await this.lookup(query);
-                    var area = this.areaQuery;
-                    if (!places.length && area && area !== query) {
-                        if (token !== geoToken) {
-                            return;
+                    var places = [];
+                    for (var index = 0; index < rungs.length; index += 1) {
+                        if (index > 0) {
+                            if (token !== geoToken) {
+                                return;
+                            }
+                            /* Said out loud, or the enforced pause reads as a hung button. */
+                            this.geoStatus = rungs[index].note;
+                            await new Promise(function (resolve) {
+                                setTimeout(resolve, NOMINATIM_GAP_MS);
+                            });
+                            if (token !== geoToken) {
+                                return;
+                            }
                         }
-                        /* Said out loud, or the enforced pause reads as a hung button. */
-                        this.geoStatus = 'Đang thử tìm theo khu vực...';
-                        await new Promise(function (resolve) {
-                            setTimeout(resolve, NOMINATIM_GAP_MS);
-                        });
-                        if (token !== geoToken) {
-                            return;
+                        places = await this.lookup(rungs[index].q);
+                        if (places.length) {
+                            break;
                         }
-                        places = await this.lookup(area);
                     }
                     /* A slower earlier lookup must never overwrite a newer one. */
                     if (token !== geoToken) {
@@ -551,6 +658,11 @@
                         this.geoPending = '';
                     }
                 }
+            },
+
+            /* A district or city hit cannot mark a shopfront; the pin has to be dragged. */
+            get areaOnly() {
+                return this.geoResults.length > 0 && this.geoResults.every(isAreaResult);
             },
 
             /* display_name is a long postal chain; its first parts read like a place name. */
