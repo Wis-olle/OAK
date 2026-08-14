@@ -54,3 +54,5 @@ server/uploads/
 
 # Static site CSS build tooling (ui/assets/css/oak-tailwind.css is committed)
 tools/tailwind/node_modules/
+# Leftover from when the tooling lived in ui/ — must never be committed (ui/ is served publicly)
+ui/node_modules/

@@ -7,8 +7,9 @@ from, plus the layout features that fire the substitution.
 Usage (from anywhere):
     python tools/icons/subset_icons.py <source-material-symbols.woff2>
 
-Get the source font from git history (the full 1.1MB file, deleted in 0c221aa):
-    git show 0c221aa^:ui/assets/fonts/font-0bb58271a2.woff2 > material-symbols.woff2
+Get the source font from git history (the full 1.1MB file, deleted in 0c221aa).
+PowerShell's `>` corrupts binary output, so route through cmd:
+    cmd /c "git show 0c221aa~1:ui/assets/fonts/font-0bb58271a2.woff2 > material-symbols.woff2"
 
 Requires: fonttools, brotli.
 """

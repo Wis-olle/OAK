@@ -87,10 +87,9 @@ npm run build:css
 
 Nhớ commit lại file `ui/assets/css/oak-tailwind.css` sau khi build. Tokens vẫn lấy từ `ui/assets/js/oak-tailwind-config.js` (file này không còn được trang nào load, chỉ dùng lúc build).
 
-Muốn kiểm tra file CSS đã commit có còn khớp với HTML hiện tại không (không ghi đè gì cả):
+Muốn kiểm tra file CSS đã commit có còn khớp với HTML hiện tại không (không ghi đè gì cả) — chạy trong `tools/tailwind`, sau khi đã `npm install`:
 
 ```powershell
-cd tools/tailwind
 npm run check:css   # thoát khác 0 nếu CSS đã cũ
 ```
 
