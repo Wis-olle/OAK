@@ -81,6 +81,18 @@ The main agent MAY skip delegation only for trivial one-line mechanical edits, a
 
 Never report a task complete on the coder's word alone — it must have passed review.
 
+## 6. This Repo: Mandatory Build Steps After UI Edits
+
+The static site in `ui/` ships prebuilt assets. After editing, run the matching build step YOURSELF as part of the task — never leave it to the user, and never report a task done with a stale artifact. (Full procedures: DEPLOY.md §4–5.)
+
+| Change made | Required step |
+|---|---|
+| Added a Tailwind class not previously used anywhere in `ui/*.html` / `ui/assets/js/oak-api.js` | `cd tools/tailwind && npm install` (first time) `&& npm run build:css`, commit the regenerated `ui/assets/css/oak-tailwind.css` together with the HTML |
+| Used a Material Symbols icon name not listed in `tools/icons/icon-names.txt` | Add the name to that file, regenerate the subset font per DEPLOY.md §5, commit both |
+| Added an image | No build step — but compress it first (WebP/JPG, never a multi-MB PNG) and add `loading="lazy"` if it sits below the fold |
+
+When unsure whether the CSS is stale, `npm run check:css` in `tools/tailwind/` answers without overwriting anything. There is no CI safety net: a missed rebuild ships silently as an unstyled element or a blank icon.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
