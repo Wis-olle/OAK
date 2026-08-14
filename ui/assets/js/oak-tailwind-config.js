@@ -1,5 +1,6 @@
 /* OAK Beauty - shared Tailwind design tokens.
-   Load AFTER assets/js/tailwind-36d3755fef.js and BEFORE any markup. */
+   No longer loaded by the pages: ../../tailwind.build.config.js evaluates this file
+   at build time to produce assets/css/oak-tailwind.css. Still the only token source. */
 tailwind.config = {
     "darkMode": "class",
     "theme": {

@@ -71,7 +71,23 @@ Không đặt `SUPABASE_URL` khi chạy local → ảnh upload rơi về thư m�
 
 ---
 
-## 4. Lưu ý vận hành
+## 4. Build lại CSS (Tailwind)
+
+`ui/assets/css/oak-tailwind.css` được build sẵn (không còn Tailwind Play CDN chạy trong trình duyệt) và **đã commit** vào repo — deploy không cần bước build nào.
+
+Chỉ cần chạy lại khi **thêm/đổi class Tailwind trong `ui/*.html` hoặc `ui/assets/js/oak-api.js`**, hoặc khi sửa token trong `ui/assets/js/oak-tailwind-config.js`:
+
+```powershell
+cd ui
+npm install        # chỉ lần đầu
+npm run build:css
+```
+
+Nhớ commit lại file `ui/assets/css/oak-tailwind.css` sau khi build. Tokens vẫn lấy từ `ui/assets/js/oak-tailwind-config.js` (file này không còn được trang nào load, chỉ dùng lúc build).
+
+---
+
+## 5. Lưu ý vận hành
 
 - **Supabase free tier**: project bị *tạm dừng* nếu không có truy vấn nào trong 7 ngày liên tục; vào dashboard bấm **Restore** là chạy lại, dữ liệu không mất. Khi web có người dùng thật thường xuyên thì không bị.
 - **Render free tier**: service ngủ sau ~15 phút không truy cập, request kế tiếp chờ ~30–60s để thức dậy. Dữ liệu giờ đã an toàn ở Supabase; chỉ còn trải nghiệm chậm lúc thức dậy. Khi go-live chính thức: nâng **Starter** (~7 USD/tháng) để bỏ cold start, rồi gắn tên miền riêng (**Settings → Custom Domains**, SSL tự động).
