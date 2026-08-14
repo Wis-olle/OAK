@@ -59,3 +59,70 @@
 .smooth-hover {
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* The vendored Tailwind bundle bakes in @tailwindcss/forms, whose `[type="text"]`-style
+   base rules tie with the pages' own `.input-minimal` / `.oak-field` classes and win on
+   source order: white box, grey-500 border, 0.5rem/0.75rem padding, and a blue focus ring
+   painted through box-shadow. `element.class` outranks `[type]`, so these rules restore
+   the intended look no matter when the bundle injects its styles.
+   Only inputs need it: the plugin's `select` / `textarea` base rules are element-level
+   and already lose to the classes. */
+input.input-minimal {
+    background-color: transparent;
+    border: none;
+    border-bottom: 1px solid #c4c7c7;
+    border-radius: 0;
+    padding: 12px 0;
+    outline: none;
+    box-shadow: none;
+}
+
+input.input-minimal:focus {
+    border-bottom-color: #171818;
+    outline: none;
+    box-shadow: none;
+}
+
+input.oak-field {
+    background-color: #ffffff;
+    border: 1px solid #c4c7c7;
+    border-radius: 0.5rem;
+    padding: 12px 16px;
+    outline: none;
+    box-shadow: none;
+}
+
+input.oak-field:focus {
+    border-color: #171818;
+    outline: none;
+    box-shadow: none;
+}
+
+/* Chromium paints autofilled values with its own pale-blue background and text
+   colour (`:-internal-autofill-selected`, !important), which ordinary declarations
+   cannot beat. A week-long transition parks those two changes so the page colours
+   stay on screen, whatever the card background; `-webkit-text-fill-color` pins the
+   text paint to the fields' #171818 (both classes set that colour). */
+input.input-minimal:-webkit-autofill,
+input.input-minimal:-webkit-autofill:hover,
+input.input-minimal:-webkit-autofill:focus,
+select.input-minimal:-webkit-autofill,
+select.input-minimal:-webkit-autofill:hover,
+select.input-minimal:-webkit-autofill:focus,
+input.oak-field:-webkit-autofill,
+input.oak-field:-webkit-autofill:hover,
+input.oak-field:-webkit-autofill:focus {
+    -webkit-text-fill-color: #171818;
+    transition: background-color 604800s ease-out 0s, color 604800s ease-out 0s, border-color 0.3s ease;
+}
+
+/* At the pages' own -12px the raised label's bottom still sat ~2px inside the field,
+   so anything painted at the field's top edge (autofill band, focus ring) struck the
+   text. -18px clears the edge with a small gap. `label.floating-label` (0,3,1) beats
+   the pages' inline (0,3,0) rules regardless of stylesheet order. */
+.input-minimal:focus ~ label.floating-label,
+.input-minimal:not(:placeholder-shown) ~ label.floating-label,
+.input-minimal.always-raised ~ label.floating-label {
+    top: -14px;
+    line-height: 1;
+}
