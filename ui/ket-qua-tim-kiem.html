@@ -145,6 +145,30 @@
 </template>
 </div>
 </div>
+<div class="relative">
+<button :class="hasLocation ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'location' ? null : 'location'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2 max-w-[240px]" type="button">
+<span class="truncate" x-text="locationChip"></span> <span class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+<div @click.outside="if (openFilter === 'location') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg p-4 w-[300px]" x-cloak="" x-show="openFilter === 'location'">
+<button @click="locate()" class="w-full flex items-center gap-2 px-3 py-2.5 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">my_location</span> Dùng vị trí của tôi
+                        </button>
+<!-- Nominatim asks callers not to look up on every keystroke, so this only submits. -->
+<form @submit.prevent="geocode()" class="flex gap-2 mt-3">
+<input class="flex-grow min-w-0 px-3 py-2 rounded-full bg-surface-container-low border border-outline-variant/30 font-body-md text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary" placeholder="Nhập địa chỉ..." type="text" x-model="address">
+<button :aria-busy="Boolean(geoPending)" :disabled="geoPending !== '' && geoPending === address.trim()" aria-label="Tìm địa chỉ" class="shrink-0 w-10 h-10 rounded-full bg-surface-container-low border border-outline-variant/30 flex items-center justify-center text-on-surface hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-on-surface" type="submit">
+<span class="material-symbols-outlined text-[18px]">search</span>
+</button>
+</form>
+<p class="font-caption text-caption text-on-surface-variant mt-3" x-show="geoStatus" x-text="geoStatus"></p>
+<div class="mt-2 max-h-[240px] overflow-y-auto" x-show="geoResults.length">
+<template :key="place.place_id" x-for="place in geoResults">
+<button @click="pickPlace(place)" class="block w-full text-left px-3 py-2.5 rounded-lg font-body-md text-sm text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors" type="button" x-text="placeLabel(place)"></button>
+</template>
+</div>
+<button @click="clearLocation()" class="w-full mt-3 px-3 py-2 rounded-full border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button" x-show="hasLocation">Xóa vị trí</button>
+</div>
+</div>
 <button :class="filters.open_now ? 'bg-tertiary text-on-tertiary hover:bg-tertiary/90' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="toggleOpenNow()" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Đang mở cửa
                     </button>
@@ -269,9 +293,14 @@
         ]);
         /* Where the map opens when no result carries coordinates: District 1, Ho Chi Minh City. */
         var MAP_FALLBACK = { center: [10.776, 106.700], zoom: 13 };
+        /* Free OSM geocoder, so an address typed by hand can become coordinates. */
+        var NOMINATIM = 'https://nominatim.openstreetmap.org/search?';
         /* Leaflet objects must stay out of the Alpine state, or its proxies break the map. */
         var map = null;
         var markers = new Map();   /* salon id -> Leaflet marker */
+        var userMarker = null;
+        /* Bumped per lookup so only the newest one is allowed to write its results. */
+        var geoToken = 0;
 
         /* One source for both the initial pin markup and its repaint on hover. */
         function pinClasses(active) {
@@ -301,6 +330,13 @@
             incoming: {},
             filters: { price_max: '', radius_km: '', rating_min: '', open_now: false },
             coords: { lat: '', lng: '' },
+            /* What the chip shows once a location is set; empty means it came from GPS. */
+            locationLabel: '',
+            address: '',
+            geoResults: [],
+            geoStatus: '',
+            /* The address currently being looked up; empty when nothing is in flight. */
+            geoPending: '',
             priceOptions: [
                 { label: 'Tất cả mức giá', value: '' },
                 { label: 'Dưới 300.000đ', value: 300000 },
@@ -385,12 +421,40 @@
                     marker.on('click', function () { self.openSalon(salon); });
                     markers.set(salon.id, marker);
                 });
+                this.drawUserMarker();
                 this.frameMarkers();
+            },
+
+            /* The user's own position, deliberately nothing like a salon pin. */
+            drawUserMarker() {
+                if (!map) { return; }
+                if (userMarker) {
+                    map.removeLayer(userMarker);
+                    userMarker = null;
+                }
+                if (!this.hasLocation) { return; }
+                userMarker = L.marker([this.coords.lat, this.coords.lng], {
+                    interactive: false,   /* it is a landmark, not a destination */
+                    keyboard: false,
+                    icon: L.divIcon({
+                        className: '',
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 16],
+                        html: '<div class="relative w-8 h-8 flex items-center justify-center">'
+                            + '<span class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-primary text-on-primary font-label-md text-xs shadow-lg whitespace-nowrap">Vị trí của bạn</span>'
+                            + '<span class="absolute inset-0 rounded-full bg-primary/30 animate-ping"></span>'
+                            + '<span class="relative w-8 h-8 rounded-full bg-primary border-2 border-surface shadow-lg flex items-center justify-center">'
+                            + '<span class="material-symbols-outlined text-sm text-on-primary">my_location</span>'
+                            + '</span></div>',
+                    }),
+                }).addTo(map);
             },
 
             frameMarkers() {
                 var points = [];
                 markers.forEach(function (marker) { points.push(marker.getLatLng()); });
+                /* Framing the user alongside the salons is what makes the distances legible. */
+                if (userMarker) { points.push(userMarker.getLatLng()); }
                 if (points.length > 1) {
                     map.fitBounds(L.latLngBounds(points), { padding: [48, 48], maxZoom: 16 });
                 } else if (points.length === 1) {
@@ -415,6 +479,20 @@
                 return this.loading
                     ? 'Đang tìm salon phù hợp...'
                     : 'Tìm thấy ' + this.total + ' salon phù hợp với yêu cầu của bạn';
+            },
+
+            /* Coordinates can arrive from the URL, so they are only usable once they parse. */
+            get hasLocation() {
+                return this.coords.lat !== '' && this.coords.lng !== ''
+                    && Number.isFinite(Number(this.coords.lat))
+                    && Number.isFinite(Number(this.coords.lng));
+            },
+
+            get locationChip() {
+                if (!this.hasLocation) {
+                    return 'Vị trí';
+                }
+                return this.locationLabel || 'Vị trí của bạn';
             },
 
             get criteriaText() {
@@ -455,6 +533,10 @@
                 if (this.coords.lat && this.coords.lng) {
                     params.set('lat', this.coords.lat);
                     params.set('lng', this.coords.lng);
+                } else {
+                    /* Clearing the location has to drop coords the page was opened with too. */
+                    params.delete('lat');
+                    params.delete('lng');
                 }
                 return params;
             },
@@ -496,21 +578,105 @@
                     return;
                 }
                 var self = this;
+                this.openFilter = null;
                 navigator.geolocation.getCurrentPosition(
                     function (position) {
                         self.coords.lat = position.coords.latitude;
                         self.coords.lng = position.coords.longitude;
+                        self.locationLabel = '';
+                        self.cancelGeocode();
                         if (radius) { self.filters.radius_km = radius; }
-                        /* After the reload, or its refit would immediately undo the pan. */
-                        self.load().then(function () {
-                            if (map) { map.panTo([position.coords.latitude, position.coords.longitude]); }
-                        });
+                        /* No pan: the refit now frames the user marker with the salons. */
+                        self.load();
                     },
                     function () {
                         self.filters.radius_km = '';
                         OAK.toast('Không lấy được vị trí của bạn.', 'error');
                     },
                 );
+            },
+
+            /* Only ever called on submit, never per keystroke: Nominatim asks for that. */
+            async geocode() {
+                var query = this.address.trim();
+                if (!query) {
+                    this.geoResults = [];
+                    this.geoStatus = '';
+                    return;
+                }
+                /* Holding Enter must not fire the same lookup again while it is in flight. */
+                if (this.geoPending === query) {
+                    return;
+                }
+                var token = ++geoToken;
+                this.geoPending = query;
+                this.geoResults = [];
+                this.geoStatus = 'Đang tìm địa chỉ...';
+                try {
+                    var response = await fetch(NOMINATIM + new URLSearchParams({
+                        format: 'jsonv2',
+                        countrycodes: 'vn',
+                        'accept-language': 'vi',   /* or it answers in the browser's locale */
+                        limit: 5,
+                        q: query,
+                    }));
+                    if (!response.ok) {
+                        throw new Error('Nominatim ' + response.status);
+                    }
+                    var places = await response.json();
+                    /* A slower earlier lookup must never overwrite a newer one. */
+                    if (token !== geoToken) {
+                        return;
+                    }
+                    /* A 200 can still carry an error object rather than the expected list. */
+                    this.geoResults = Array.isArray(places) ? places : [];
+                    this.geoStatus = this.geoResults.length ? '' : 'Không tìm thấy địa chỉ này.';
+                } catch (error) {
+                    if (token !== geoToken) {
+                        return;
+                    }
+                    this.geoStatus = 'Không tra cứu được địa chỉ, bạn thử lại nhé.';
+                } finally {
+                    if (token === geoToken) {
+                        this.geoPending = '';
+                    }
+                }
+            },
+
+            /* display_name is a long postal chain; its first parts read like a place name. */
+            placeLabel(place) {
+                return place.display_name.split(',').slice(0, 2).join(',').trim();
+            },
+
+            pickPlace(place) {
+                this.coords.lat = Number(place.lat);
+                this.coords.lng = Number(place.lon);
+                this.locationLabel = this.placeLabel(place);
+                this.address = '';
+                this.geoResults = [];
+                this.geoStatus = '';
+                this.openFilter = null;
+                this.load();
+            },
+
+            /* Bumping the token strands any lookup still in flight so it cannot write back. */
+            cancelGeocode() {
+                geoToken += 1;
+                this.geoPending = '';
+                this.geoResults = [];
+                this.geoStatus = '';
+            },
+
+            clearLocation() {
+                this.coords.lat = '';
+                this.coords.lng = '';
+                this.locationLabel = '';
+                this.address = '';
+                this.cancelGeocode();
+                /* A radius around nowhere filters nothing, so it goes with the location. */
+                this.filters.radius_km = '';
+                this.openFilter = null;
+                this.load();
             },
 
             salonUrl(salon) {
