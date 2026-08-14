@@ -7,12 +7,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
+<!-- Not deferred either: the Alpine component builds the map inside its own init(). -->
+<script src="assets/js/leaflet-5a640ff863.js"></script>
+<link href="assets/css/leaflet-ec929f1100.css" rel="stylesheet">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <style>
         .material-symbols-outlined[data-weight="fill"] { font-variation-settings: 'FILL' 1; }
+        /* Leaflet paints its own grey ground; keeping it clear lets the fallback map image show
+           through while the OSM tiles are still on the wire. */
+        .leaflet-container { background-color: transparent; }
     </style>
 <title>Kết quả tìm kiếm - OAK Beauty</title>
 </head>
@@ -28,6 +34,8 @@
 <div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
 <a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="index.html">Trang chủ</a>
 <a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
+<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html">Bản đồ salon</a>
+<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="gioi-thieu.html">Về chúng tôi</a>
 </div>
 </div>
 </div>
@@ -80,6 +88,8 @@
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="kham-pha.html">Khám phá</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="index.html">Trang chủ</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">Bản đồ salon</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-body-md text-body-md text-primary font-bold hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-nail.html">NAIL</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
@@ -193,26 +203,11 @@
 </div>
 </section>
 <!-- Right Column: Map -->
-<section class="hidden md:block w-1/2 h-full bg-surface-variant relative">
-<!-- Simulated Map Image -->
-<div class="w-full h-full bg-cover bg-center" data-alt="A stylized, modern digital map showing city streets in a light aesthetic with subtle pastel tones. Several custom branded map pins marking beauty salon locations in District 1, Ho Chi Minh City." data-location="Ho Chi Minh City, Vietnam" style="background-image: url('assets/images/img-1a264dff88.png')">
-<!-- Map Overlay Elements (Simulated Pins) -->
-<div class="absolute inset-0 p-8 flex items-center justify-center pointer-events-none">
-<div class="relative w-full h-full max-w-2xl">
-<!-- Pins: laid out by result index over the static map backdrop, not by real projection. -->
-<template :key="salon.id" x-for="(salon, index) in salons">
-<div :style="pinStyle(index)" :title="pinTitle(salon)" @click="openSalon(salon)" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-auto cursor-pointer group">
-<div :class="hovered === salon.id ? 'bg-primary text-on-primary opacity-100' : 'bg-surface text-on-surface opacity-0'" class="px-3 py-1 rounded-full font-label-md text-xs mb-1 shadow-lg whitespace-nowrap group-hover:opacity-100 transition-opacity" x-text="salon.name"></div>
-<div :class="hovered === salon.id ? 'bg-primary border-surface' : 'bg-surface border-primary'" class="w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2">
-<span :class="hovered === salon.id ? 'text-on-primary' : 'text-primary'" class="material-symbols-outlined text-sm">spa</span>
-</div>
-</div>
-</template>
-</div>
-</div>
-</div>
-<!-- Floating Map Controls -->
-<div class="absolute bottom-8 right-8 flex flex-col gap-2">
+<section class="hidden md:block w-1/2 h-full bg-surface-variant relative z-0">
+<!-- Leaflet canvas; the old static map stays behind it as the offline fallback. -->
+<div aria-label="Bản đồ các salon" class="w-full h-full bg-cover bg-center" style="background-image: url('assets/images/img-1a264dff88.png')" x-ref="map"></div>
+<!-- Floating Map Controls: above Leaflet's own control layer, which sits at z-index 1000. -->
+<div class="absolute bottom-8 right-8 flex flex-col gap-2 z-[1100]">
 <button @click="locate()" aria-label="Tìm quanh vị trí của tôi" class="w-10 h-10 bg-surface rounded-full shadow flex items-center justify-center text-on-surface hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined">my_location</span>
 </button>
@@ -244,7 +239,6 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 </div>
 </div>
 <!-- Social/Contact -->
@@ -273,15 +267,29 @@
             ['spa', 'Spa & Massage'],
             ['eyelash', 'Nối mi'],
         ]);
-        /* The map is a static backdrop, so pins sit on fixed spots cycled by result index. */
-        var PIN_POSITIONS = [
-            { top: '33%', left: '25%' },
-            { top: '50%', left: '62%' },
-            { top: '22%', left: '68%' },
-            { top: '68%', left: '38%' },
-            { top: '45%', left: '15%' },
-            { top: '72%', left: '74%' },
-        ];
+        /* Where the map opens when no result carries coordinates: District 1, Ho Chi Minh City. */
+        var MAP_FALLBACK = { center: [10.776, 106.700], zoom: 13 };
+        /* Leaflet objects must stay out of the Alpine state, or its proxies break the map. */
+        var map = null;
+        var markers = new Map();   /* salon id -> Leaflet marker */
+
+        /* One source for both the initial pin markup and its repaint on hover. */
+        function pinClasses(active) {
+            return {
+                label: 'oak-pin-label absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-3 py-1 rounded-full font-label-md text-xs shadow-lg whitespace-nowrap transition-opacity '
+                    + (active ? 'bg-primary text-on-primary opacity-100' : 'bg-surface text-on-surface opacity-0'),
+                dot: 'oak-pin-dot w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 '
+                    + (active ? 'bg-primary border-surface' : 'bg-surface border-primary'),
+                icon: 'oak-pin-icon material-symbols-outlined text-sm ' + (active ? 'text-on-primary' : 'text-primary'),
+            };
+        }
+
+        /* Pin markup is built as a string, so salon names from the API must be escaped first. */
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"]/g, function (character) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[character];
+            });
+        }
 
         return {
             salons: [],
@@ -320,6 +328,87 @@
                 this.coords.lat = this.incoming.lat || '';
                 this.coords.lng = this.incoming.lng || '';
                 this.load();
+
+                var self = this;
+                /* Hovering either a result card or a pin writes `hovered`; the pins read it back. */
+                this.$watch('hovered', function (current, previous) {
+                    self.paintPin(previous, false);
+                    self.paintPin(current, true);
+                });
+                /* The map column is hidden below md, where Leaflet would size itself to nothing,
+                   so hold off until the viewport is actually wide enough. */
+                var wide = window.matchMedia('(min-width: 768px)');
+                var start = function () {
+                    if (!wide.matches) { return; }
+                    wide.removeEventListener('change', start);
+                    self.initMap();
+                };
+                wide.addEventListener('change', start);
+                start();
+            },
+
+            initMap() {
+                map = L.map(this.$refs.map).setView(MAP_FALLBACK.center, MAP_FALLBACK.zoom);
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                }).addTo(map);
+                this.drawMarkers();
+            },
+
+            /* Every result set replaces the pins outright: the old ones no longer apply. */
+            drawMarkers() {
+                if (!map) { return; }
+                var self = this;
+                /* Pins about to be dropped never fire mouseout, so a hover over one would stick. */
+                this.hovered = null;
+                markers.forEach(function (marker) { map.removeLayer(marker); });
+                markers.clear();
+                this.salons.forEach(function (salon) {
+                    if (!salon.lat || !salon.lng) { return; }
+                    var classes = pinClasses(false);
+                    var marker = L.marker([salon.lat, salon.lng], {
+                        title: salon.name,
+                        icon: L.divIcon({
+                            className: '',   /* Leaflet's default frame would draw a white box. */
+                            iconSize: [32, 32],
+                            iconAnchor: [16, 16],
+                            html: '<div class="relative w-8 h-8">'
+                                + '<div class="' + classes.label + '">' + escapeHtml(salon.name) + '</div>'
+                                + '<div class="' + classes.dot + '">'
+                                + '<span class="' + classes.icon + '">spa</span>'
+                                + '</div></div>',
+                        }),
+                    }).addTo(map);
+                    marker.on('mouseover', function () { self.hovered = salon.id; });
+                    marker.on('mouseout', function () { self.hovered = null; });
+                    marker.on('click', function () { self.openSalon(salon); });
+                    markers.set(salon.id, marker);
+                });
+                this.frameMarkers();
+            },
+
+            frameMarkers() {
+                var points = [];
+                markers.forEach(function (marker) { points.push(marker.getLatLng()); });
+                if (points.length > 1) {
+                    map.fitBounds(L.latLngBounds(points), { padding: [48, 48], maxZoom: 16 });
+                } else if (points.length === 1) {
+                    map.setView(points[0], 15);
+                } else {
+                    map.setView(MAP_FALLBACK.center, MAP_FALLBACK.zoom);
+                }
+            },
+
+            paintPin(id, active) {
+                var marker = id ? markers.get(id) : null;
+                var element = marker && marker.getElement();
+                if (!element) { return; }
+                var classes = pinClasses(active);
+                element.querySelector('.oak-pin-label').className = classes.label;
+                element.querySelector('.oak-pin-dot').className = classes.dot;
+                element.querySelector('.oak-pin-icon').className = classes.icon;
+                marker.setZIndexOffset(active ? 1000 : 0);
             },
 
             get headline() {
@@ -382,6 +471,7 @@
                     OAK.toast(error.message, 'error');
                 } finally {
                     this.loading = false;
+                    this.drawMarkers();
                 }
             },
 
@@ -411,7 +501,10 @@
                         self.coords.lat = position.coords.latitude;
                         self.coords.lng = position.coords.longitude;
                         if (radius) { self.filters.radius_km = radius; }
-                        self.load();
+                        /* After the reload, or its refit would immediately undo the pan. */
+                        self.load().then(function () {
+                            if (map) { map.panTo([position.coords.latitude, position.coords.longitude]); }
+                        });
                     },
                     function () {
                         self.filters.radius_km = '';
@@ -451,17 +544,6 @@
                     parts.push('từ ' + OAK.fmtPrice(salon.price_from));
                 }
                 return parts.filter(Boolean).join(' • ');
-            },
-
-            pinStyle(index) {
-                var position = PIN_POSITIONS[index % PIN_POSITIONS.length];
-                return 'top:' + position.top + ';left:' + position.left;
-            },
-
-            pinTitle(salon) {
-                return salon.lat && salon.lng
-                    ? salon.name + ' (' + salon.lat + ', ' + salon.lng + ')'
-                    : salon.name;
             },
         };
     }
