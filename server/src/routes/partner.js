@@ -127,6 +127,22 @@ function requireCount(value, label) {
   return number;
 }
 
+/** Optional map coordinate. null and '' clear the column; out of range is a client error. */
+function optionalCoordinate(value, label, limit) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < -limit || number > limit) {
+    throw httpError(
+      400,
+      'VALIDATION_ERROR',
+      `${label} phải là số trong khoảng -${limit} đến ${limit}.`,
+    );
+  }
+  return number;
+}
+
 /** Same as requireCount but keeps an explicitly cleared column null. */
 function optionalCount(value, label) {
   if (value === null || value === undefined || value === '') {
@@ -1482,6 +1498,8 @@ const SALON_COLUMNS = {
   city: (value) => optionalText(value, 'Tỉnh/Thành phố'),
   phone: (value) => optionalText(value, 'Số điện thoại'),
   image: (value) => optionalText(value, 'Ảnh đại diện'),
+  lat: (value) => optionalCoordinate(value, 'Vĩ độ', 90),
+  lng: (value) => optionalCoordinate(value, 'Kinh độ', 180),
   amenities: (value) => requireJsonStringArray(value, 'Tiện ích'),
   tags: (value) => requireJsonStringArray(value, 'Thẻ phân loại'),
   tour_url: (value) => optionalHttpsUrl(value, 'Đường dẫn tour 360'),
@@ -1547,6 +1565,20 @@ router.patch('/salon', async (req, res, next) => {
   try {
     const salon = await ownedSalon(req);
     const body = req.body ?? {};
+    // A coordinate is a pair. Letting half of one through would leave the salon pinned
+    // on a meridian somewhere, so both columns move together or neither does.
+    if (Object.hasOwn(body, 'lat') !== Object.hasOwn(body, 'lng')) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Vĩ độ và kinh độ phải được cập nhật cùng nhau.');
+    }
+    // Naming both keys is not enough: one of them may still parse to null, which would
+    // store half a coordinate. Cheaper to parse twice here than to special-case buildPatch.
+    if (Object.hasOwn(body, 'lat')) {
+      const lat = optionalCoordinate(body.lat, 'Vĩ độ', 90);
+      const lng = optionalCoordinate(body.lng, 'Kinh độ', 180);
+      if ((lat === null) !== (lng === null)) {
+        throw httpError(400, 'VALIDATION_ERROR', 'Vĩ độ và kinh độ phải được cập nhật cùng nhau.');
+      }
+    }
     const hours = body.hours === undefined ? null : parseSalonHours(body.hours);
     // buildPatch refuses an empty SET clause, so it only runs when the body really
     // names a column — `hours` alone is a valid update, and so is a column alone.

@@ -9,6 +9,9 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
+<!-- Not deferred either: the map picker is built from the component's own init(). -->
+<script src="assets/js/leaflet-5a640ff863.js"></script>
+<link href="assets/css/leaflet-ec929f1100.css" rel="stylesheet">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -183,6 +186,30 @@
 </section>
 
 <section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Vị trí trên bản đồ</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Tìm theo địa chỉ đã nhập ở trên, rồi kéo ghim để chỉnh cho đúng cửa tiệm. Chưa có toạ độ thì salon không hiện trên bản đồ tìm kiếm.</p>
+<div class="flex flex-wrap items-center gap-3 mb-4">
+<button :disabled="geoPending !== ''" @click="geocodeAddress()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">travel_explore</span>
+                        Tìm từ địa chỉ
+                    </button>
+<button @click="clearPin()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-error hover:text-error transition-colors" type="button" x-cloak x-show="hasPin">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">location_off</span>
+                        Xoá ghim
+                    </button>
+<span class="font-caption text-caption text-on-surface-variant" x-text="pinText"></span>
+</div>
+<p class="font-caption text-caption text-on-surface-variant mb-4" x-show="geoStatus" x-text="geoStatus"></p>
+<div class="mb-4 max-h-[200px] overflow-y-auto rounded-xl border border-surface-variant" x-cloak x-show="geoResults.length">
+<template :key="place.place_id" x-for="place in geoResults">
+<button @click="pickPlace(place)" class="block w-full text-left px-4 py-2.5 font-body-md text-sm text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors" type="button" x-text="placeLabel(place)"></button>
+</template>
+</div>
+<div class="w-full h-[320px] rounded-xl overflow-hidden border border-surface-variant" x-ref="map"></div>
+<p class="font-caption text-caption text-on-surface-variant mt-3">Bấm lên bản đồ để đặt ghim, hoặc kéo ghim để chỉnh lại.</p>
+</section>
+
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
 <h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Giờ mở cửa</h3>
 <p class="font-caption text-caption text-on-surface-variant mb-6">Đặt giờ riêng cho từng ngày, đánh dấu “Nghỉ” cho ngày salon đóng cửa.</p>
 <div class="space-y-4">
@@ -302,6 +329,18 @@
        booking calendar grid falls back to. */
     var DEFAULT_HOURS = { start: '09:00', end: '21:00' };
 
+    /* Free OSM geocoder, same one the search page uses. */
+    var NOMINATIM = 'https://nominatim.openstreetmap.org/search?';
+    /* Nominatim allows one request a second, so a retry has to wait its turn. */
+    var NOMINATIM_GAP_MS = 1100;
+    /* Where the picker opens before a salon has any coordinates: District 1, HCMC. */
+    var MAP_FALLBACK = { center: [10.776, 106.700], zoom: 13 };
+    /* Leaflet objects must stay out of the Alpine state, or its proxies break the map. */
+    var map = null;
+    var pinMarker = null;
+    /* Bumped per lookup so only the newest one is allowed to write its results. */
+    var geoToken = 0;
+
     /** Keep the salon's own value in the list even when it is not one of the presets. */
     function withCurrent(options, current) {
         return current && options.indexOf(current) === -1 ? [current].concat(options) : options;
@@ -318,9 +357,13 @@
             slug: '',
             tagsText: '',
             original: null,
+            geoResults: [],
+            geoStatus: '',
+            /* The address currently being looked up; empty when nothing is in flight. */
+            geoPending: '',
             form: {
                 name: '', description: '', address: '', district: '', city: '',
-                phone: '', image: '', tour_url: '',
+                phone: '', image: '', tour_url: '', lat: '', lng: '',
                 amenities: [], hours: [],
             },
 
@@ -336,6 +379,189 @@
                     this.loadError = error.message;
                 }
                 this.loading = false;
+                /* The form is x-show'd, so the map container has no size until this flush. */
+                this.$nextTick(function () {
+                    this.initMap();
+                }.bind(this));
+            },
+
+            initMap() {
+                if (map || !this.$refs.map) {
+                    return;
+                }
+                map = L.map(this.$refs.map).setView(MAP_FALLBACK.center, MAP_FALLBACK.zoom);
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                }).addTo(map);
+                var self = this;
+                map.on('click', function (event) {
+                    self.setPin(event.latlng.lat, event.latlng.lng, false);
+                });
+                this.syncPin(true);
+            },
+
+            get hasPin() {
+                return this.form.lat !== '' && this.form.lng !== ''
+                    && Number.isFinite(Number(this.form.lat))
+                    && Number.isFinite(Number(this.form.lng));
+            },
+
+            get pinText() {
+                return this.hasPin
+                    ? 'Toạ độ: ' + this.form.lat + ', ' + this.form.lng
+                    : 'Chưa đặt toạ độ';
+            },
+
+            /* The address being typed right now, not the one last saved. */
+            get addressQuery() {
+                return [this.form.address, this.form.district, this.form.city]
+                    .map(function (part) { return String(part || '').trim(); })
+                    .filter(Boolean)
+                    .join(', ');
+            },
+
+            /* Nominatim has little house-number coverage in Vietnam, so a street line
+               often finds nothing; the district still puts the map on the right block. */
+            get areaQuery() {
+                return [this.form.district, this.form.city]
+                    .map(function (part) { return String(part || '').trim(); })
+                    .filter(Boolean)
+                    .join(', ');
+            },
+
+            async lookup(query) {
+                var response = await fetch(NOMINATIM + new URLSearchParams({
+                    format: 'jsonv2',
+                    countrycodes: 'vn',
+                    'accept-language': 'vi',
+                    limit: 5,
+                    q: query,
+                }));
+                if (!response.ok) {
+                    throw new Error('Nominatim ' + response.status);
+                }
+                var places = await response.json();
+                /* A 200 can still carry an error object rather than the expected list. */
+                return Array.isArray(places) ? places : [];
+            },
+
+            /* Six decimals is roughly 0.1 m — far finer than a shopfront needs. */
+            setPin(lat, lng, recenter) {
+                this.form.lat = Math.round(lat * 1e6) / 1e6;
+                this.form.lng = Math.round(lng * 1e6) / 1e6;
+                this.syncPin(recenter);
+            },
+
+            syncPin(recenter) {
+                if (!map) {
+                    return;
+                }
+                if (!this.hasPin) {
+                    if (pinMarker) {
+                        map.removeLayer(pinMarker);
+                        pinMarker = null;
+                    }
+                    return;
+                }
+                var point = [Number(this.form.lat), Number(this.form.lng)];
+                if (pinMarker) {
+                    pinMarker.setLatLng(point);
+                } else {
+                    var self = this;
+                    pinMarker = L.marker(point, {
+                        draggable: true,
+                        icon: L.divIcon({
+                            className: '',
+                            iconSize: [32, 32],
+                            iconAnchor: [16, 16],
+                            html: '<div class="w-8 h-8 rounded-full bg-primary border-2 border-surface shadow-lg flex items-center justify-center cursor-move">'
+                                + '<span class="material-symbols-outlined text-sm text-on-primary">storefront</span>'
+                                + '</div>',
+                        }),
+                    }).addTo(map);
+                    /* Dragging is the fine-tune step, so the map must hold still under it. */
+                    pinMarker.on('dragend', function () {
+                        var position = pinMarker.getLatLng();
+                        self.setPin(position.lat, position.lng, false);
+                    });
+                }
+                if (recenter) {
+                    map.setView(point, Math.max(map.getZoom(), 16));
+                }
+            },
+
+            clearPin() {
+                this.form.lat = '';
+                this.form.lng = '';
+                geoToken += 1;
+                this.geoPending = '';
+                this.geoResults = [];
+                this.geoStatus = '';
+                this.syncPin(false);
+            },
+
+            /* Only ever called on click, never per keystroke: Nominatim asks for that. */
+            async geocodeAddress() {
+                var query = this.addressQuery;
+                if (!query) {
+                    this.geoResults = [];
+                    this.geoStatus = 'Nhập địa chỉ ở trên trước đã.';
+                    return;
+                }
+                if (this.geoPending === query) {
+                    return;
+                }
+                var token = ++geoToken;
+                this.geoPending = query;
+                this.geoResults = [];
+                this.geoStatus = 'Đang tìm địa chỉ...';
+                try {
+                    var places = await this.lookup(query);
+                    var area = this.areaQuery;
+                    if (!places.length && area && area !== query) {
+                        if (token !== geoToken) {
+                            return;
+                        }
+                        /* Said out loud, or the enforced pause reads as a hung button. */
+                        this.geoStatus = 'Đang thử tìm theo khu vực...';
+                        await new Promise(function (resolve) {
+                            setTimeout(resolve, NOMINATIM_GAP_MS);
+                        });
+                        if (token !== geoToken) {
+                            return;
+                        }
+                        places = await this.lookup(area);
+                    }
+                    /* A slower earlier lookup must never overwrite a newer one. */
+                    if (token !== geoToken) {
+                        return;
+                    }
+                    this.geoResults = places;
+                    this.geoStatus = places.length
+                        ? ''
+                        : 'Không tìm thấy địa chỉ này. Bạn bấm thẳng lên bản đồ để đặt ghim nhé.';
+                } catch (error) {
+                    if (token !== geoToken) {
+                        return;
+                    }
+                    this.geoStatus = 'Không tra cứu được địa chỉ, bạn thử lại nhé.';
+                } finally {
+                    if (token === geoToken) {
+                        this.geoPending = '';
+                    }
+                }
+            },
+
+            /* display_name is a long postal chain; its first parts read like a place name. */
+            placeLabel(place) {
+                return place.display_name.split(',').slice(0, 3).join(',').trim();
+            },
+
+            pickPlace(place) {
+                this.geoResults = [];
+                this.geoStatus = '';
+                this.setPin(Number(place.lat), Number(place.lon), true);
             },
 
             get amenityOptions() {
@@ -361,6 +587,7 @@
                 this.form.hours = this.buildHours(salon.hours || []);
                 this.tagsText = (salon.tags || []).join(', ');
                 this.error = '';
+                this.syncPin(false);
             },
 
             /* One editable row per weekday; a salon with no hours yet opens every day. */
@@ -446,6 +673,9 @@
                             phone: this.form.phone,
                             image: this.form.image,
                             tour_url: this.form.tour_url,
+                            /* The API takes the pair or neither, so both always ride along. */
+                            lat: this.hasPin ? Number(this.form.lat) : null,
+                            lng: this.hasPin ? Number(this.form.lng) : null,
                             amenities: this.form.amenities,
                             hours: this.form.hours.map(function (day) {
                                 return {

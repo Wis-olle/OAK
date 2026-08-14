@@ -1782,6 +1782,69 @@ async function groupPartner() {
     'PATCH /api/partner/salon (restore)',
   );
 
+  // Map coordinates: without these two columns the salon never gets a pin on the search map.
+  const located = ok(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { lat: 10.7758, lng: 106.7009 },
+    }),
+    'PATCH /api/partner/salon (coordinates)',
+  );
+  assert(
+    located.lat === 10.7758 && located.lng === 106.7009,
+    'partner salon: coordinates must round-trip as numbers',
+  );
+  const reloaded = ok(
+    await partner.fetch('/api/partner/salon'),
+    'GET /api/partner/salon after the coordinate patch',
+  );
+  assert(
+    reloaded.lat === 10.7758 && reloaded.lng === 106.7009,
+    'partner salon: stored coordinates must survive a reload',
+  );
+  // Clearing is the other half of the round-trip: both columns go back to null together.
+  const cleared = ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { lat: null, lng: null } }),
+    'PATCH /api/partner/salon (clearing the coordinates)',
+  );
+  assert(
+    cleared.lat === null && cleared.lng === null,
+    'partner salon: clearing must null both coordinate columns',
+  );
+  const recleared = ok(
+    await partner.fetch('/api/partner/salon'),
+    'GET /api/partner/salon after the coordinates were cleared',
+  );
+  assert(
+    recleared.lat === null && recleared.lng === null,
+    'partner salon: cleared coordinates must stay null after a reload',
+  );
+  for (const [label, json] of [
+    ['a latitude past the pole', { lat: 91, lng: 106.7 }],
+    ['a longitude past the meridian', { lat: 10.7, lng: 181 }],
+    ['a latitude that is not a number', { lat: 'abc', lng: 106.7 }],
+    ['a latitude without its longitude', { lat: 10.7 }],
+    ['a longitude without its latitude', { lng: 106.7 }],
+    // Both keys present, but one parses to null: still half a coordinate.
+    ['a latitude whose longitude is null', { lat: 10.7, lng: null }],
+    ['a longitude whose latitude is null', { lat: null, lng: 106.7 }],
+    ['a latitude whose longitude is blank', { lat: 10.7, lng: '' }],
+  ]) {
+    expectError(
+      await partner.fetch('/api/partner/salon', { method: 'PATCH', json }),
+      400,
+      'VALIDATION_ERROR',
+      `PATCH /api/partner/salon with ${label}`,
+    );
+  }
+  ok(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { lat: salon.lat, lng: salon.lng },
+    }),
+    'PATCH /api/partner/salon (restore coordinates)',
+  );
+
   // Opening hours: one row per weekday, replaced as a whole week.
   const workweek = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
     weekday,
