@@ -535,8 +535,11 @@
             },
 
             /**
-             * Built from the element x-if just inserted, so the container already has its
-             * size. The Leaflet objects stay local: Alpine's proxies would break the map.
+             * x-init runs the moment x-if inserts the element, before the browser has
+             * settled the layout, so Leaflet would measure a stale width and leave the
+             * marker off-centre. The map re-measures on the next frame and again whenever
+             * the container resizes. The Leaflet objects stay local: Alpine's proxies
+             * would break the map.
              */
             initMap(element) {
                 const point = [Number(this.salon.lat), Number(this.salon.lng)];
@@ -557,6 +560,19 @@
                             + '</div>',
                     }),
                 }).addTo(map);
+                /* Re-centre once the real layout has landed. */
+                requestAnimationFrame(() => {
+                    map.invalidateSize();
+                    map.setView(point, map.getZoom(), { animate: false });
+                });
+                /* And keep it centred through later resizes: fonts, rotation, breakpoints. */
+                if (typeof ResizeObserver !== 'undefined') {
+                    const observer = new ResizeObserver(() => {
+                        map.invalidateSize();
+                        map.setView(point, map.getZoom(), { animate: false });
+                    });
+                    observer.observe(element);
+                }
             },
 
             amenityIcon(label) {
