@@ -47,7 +47,7 @@
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="cham-soc-da.html">SKINCARE</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
 <div class="border-t border-outline-variant/30 my-1"></div>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
@@ -62,7 +62,7 @@
 </a>
 <button aria-label="Chọn khu vực" class="hidden xl:flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined text-[20px]" data-icon="location_on">location_on</span>
-<span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
+<span class="font-label-md text-label-md">Chọn khu vực</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
 <a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
@@ -95,7 +95,7 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
@@ -109,7 +109,7 @@
 <!-- Main Content -->
 <main class="pt-24 flex-grow pb-section-gap flex flex-col md:flex-row h-screen" x-data="oakSearchResults()">
 <!-- Left Column: Search Results -->
-<section class="w-full md:w-1/2 flex flex-col h-full bg-surface border-r border-outline-variant/30 overflow-hidden">
+<section :class="mobileView === 'map' ? 'max-md:hidden' : ''" class="w-full md:w-1/2 flex flex-col h-full bg-surface border-r border-outline-variant/30 overflow-hidden">
 <!-- Header & Filters -->
 <div class="p-6 md:p-8 border-b border-outline-variant/10 shrink-0">
 <h1 class="font-headline-sm text-headline-sm text-on-surface mb-2" x-text="headline"></h1>
@@ -179,11 +179,17 @@
 <template x-if="loading">
 <p class="font-body-md text-body-md text-on-surface-variant">Đang tải kết quả...</p>
 </template>
-<template x-if="!loading &amp;&amp; !salons.length">
+<template x-if="!loading &amp;&amp; loadError">
+<div class="p-6 rounded-xl border border-outline-variant/30 bg-surface-container-low">
+<p class="font-body-md text-body-md text-on-surface mb-4">Không tải được kết quả.</p>
+<button @click="load()" class="px-6 py-2 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors" type="button">Thử lại</button>
+</div>
+</template>
+<template x-if="!loading &amp;&amp; !loadError &amp;&amp; !salons.length">
 <p class="font-body-md text-body-md text-on-surface-variant">Không tìm thấy salon nào phù hợp. Bạn thử nới rộng bộ lọc nhé.</p>
 </template>
 <template :key="salon.id" x-for="salon in salons">
-<article :class="hovered === salon.id ? 'bg-surface-container-low border-outline-variant/20' : 'border-transparent'" @click="openSalon(salon)" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="flex flex-col sm:flex-row gap-6 p-4 rounded-full hover:bg-surface-container-low transition-colors group cursor-pointer border hover:border-outline-variant/20">
+<article :class="hovered === salon.id ? 'bg-surface-container-low border-outline-variant/20' : 'border-transparent'" @click="openSalon(salon)" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="flex flex-col sm:flex-row gap-6 p-4 rounded-xl hover:bg-surface-container-low transition-colors group cursor-pointer border hover:border-outline-variant/20">
 <div class="w-full sm:w-48 sm:h-auto shrink-0 relative rounded-lg overflow-hidden">
 <template x-if="salon.image">
 <img :alt="salon.name" :src="salon.image" class="w-full h-auto sm:h-full object-cover transition-transform duration-500 group-hover:scale-105">
@@ -227,7 +233,10 @@
 </div>
 </section>
 <!-- Right Column: Map -->
-<section class="hidden md:block w-1/2 h-full bg-surface-variant relative z-0">
+<!-- The mobile default stays in the static class list: Alpine is deferred, so a :class-only
+     default would paint both columns until it boots. `max-md:` sits in a media query, which
+     outranks the plain `hidden` it has to beat. -->
+<section :class="mobileView === 'map' ? 'max-md:block' : ''" class="w-full md:w-1/2 h-full hidden md:block bg-surface-variant relative z-0">
 <!-- Leaflet canvas; the old static map stays behind it as the offline fallback. -->
 <div aria-label="Bản đồ các salon" class="w-full h-full bg-cover bg-center" style="background-image: url('assets/images/img-1a264dff88.png')" x-ref="map"></div>
 <!-- Floating Map Controls: above Leaflet's own control layer, which sits at z-index 1000. -->
@@ -237,6 +246,16 @@
 </button>
 </div>
 </section>
+<!-- Mobile list/map switch: below md the two columns take turns, so this is the only
+     way to the map. Sits above the toast strip at bottom-6. -->
+<div class="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-40 flex gap-1 p-1 rounded-full bg-surface border border-outline-variant/30 shadow-lg">
+<button :class="mobileView === 'list' ? 'bg-primary-container text-on-primary' : 'text-on-surface-variant hover:text-primary'" @click="mobileView = 'list'" class="flex items-center gap-1 px-4 py-2 rounded-full font-label-md text-label-md uppercase tracking-wider transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">list</span> Danh sách
+                </button>
+<button :class="mobileView === 'map' ? 'bg-primary-container text-on-primary' : 'text-on-surface-variant hover:text-primary'" @click="showMap()" class="flex items-center gap-1 px-4 py-2 rounded-full font-label-md text-label-md uppercase tracking-wider transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">map</span> Bản đồ
+                </button>
+</div>
 </main>
 <!-- Footer -->
 <footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
@@ -301,6 +320,8 @@
         var userMarker = null;
         /* Bumped per lookup so only the newest one is allowed to write its results. */
         var geoToken = 0;
+        /* Same guard for the result requests: filter chips can outrun a slow reply. */
+        var loadToken = 0;
 
         /* One source for both the initial pin markup and its repaint on hover. */
         function pinClasses(active) {
@@ -324,8 +345,12 @@
             salons: [],
             total: 0,
             loading: true,
+            /* An empty list means "nothing matched"; this means "we never got an answer". */
+            loadError: false,
             hovered: null,
             openFilter: null,
+            /* Below md only one column fits at a time: 'list' or 'map'. */
+            mobileView: 'list',
             /* The query string this page was opened with, kept as a plain object for the subtitle. */
             incoming: {},
             filters: { price_max: '', radius_km: '', rating_min: '', open_now: false },
@@ -358,11 +383,16 @@
             init() {
                 this.incoming = Object.fromEntries(new URLSearchParams(location.search));
                 this.filters.price_max = this.incoming.price_max || '';
-                this.filters.radius_km = this.incoming.radius_km || '';
                 this.filters.rating_min = this.incoming.rating_min || '';
                 this.filters.open_now = this.incoming.open_now === '1';
                 this.coords.lat = this.incoming.lat || '';
                 this.coords.lng = this.incoming.lng || '';
+                /* A radius around nowhere filters nothing, so an incoming one is only kept
+                   once coordinates came with it — same rule setFilter applies by hand. */
+                this.filters.radius_km = this.hasLocation ? (this.incoming.radius_km || '') : '';
+                if (this.incoming.radius_km && !this.hasLocation) {
+                    OAK.toast('Cần vị trí của bạn để lọc theo bán kính, bạn chọn "Vị trí" nhé.', 'error');
+                }
                 this.load();
 
                 var self = this;
@@ -371,16 +401,29 @@
                     self.paintPin(previous, false);
                     self.paintPin(current, true);
                 });
-                /* The map column is hidden below md, where Leaflet would size itself to nothing,
-                   so hold off until the viewport is actually wide enough. */
+                /* Below md the map column only exists while it is the chosen view, so the
+                   split layout starts it here and showMap() starts it there. */
                 var wide = window.matchMedia('(min-width: 768px)');
                 var start = function () {
                     if (!wide.matches) { return; }
                     wide.removeEventListener('change', start);
+                    /* Started on mobile already: it just has a new size to measure. */
+                    if (map) { map.invalidateSize(); return; }
                     self.initMap();
                 };
                 wide.addEventListener('change', start);
                 start();
+            },
+
+            /* Leaflet measures its container on creation, so both paths wait for the column
+               to be on screen: build it the first time, remeasure it every time after. */
+            showMap() {
+                this.mobileView = 'map';
+                var self = this;
+                this.$nextTick(function () {
+                    if (map) { map.invalidateSize(); return; }
+                    self.initMap();
+                });
             },
 
             initMap() {
@@ -476,9 +519,14 @@
             },
 
             get headline() {
-                return this.loading
-                    ? 'Đang tìm salon phù hợp...'
-                    : 'Tìm thấy ' + this.total + ' salon phù hợp với yêu cầu của bạn';
+                if (this.loading) {
+                    return 'Đang tìm salon phù hợp...';
+                }
+                /* Not "Tìm thấy 0 salon": nothing was counted, the request never landed. */
+                if (this.loadError) {
+                    return 'Không tải được kết quả';
+                }
+                return 'Tìm thấy ' + this.total + ' salon phù hợp với yêu cầu của bạn';
             },
 
             /* Coordinates can arrive from the URL, so they are only usable once they parse. */
@@ -542,18 +590,30 @@
             },
 
             async load() {
+                var token = ++loadToken;
                 this.loading = true;
                 try {
                     var data = await OAK.api('/api/search/salons?' + this.query());
+                    /* A slower earlier request must never overwrite a newer one. */
+                    if (token !== loadToken) {
+                        return;
+                    }
                     this.total = data.meta.total;
                     this.salons = data;
+                    this.loadError = false;
                 } catch (error) {
+                    if (token !== loadToken) {
+                        return;
+                    }
                     this.salons = [];
                     this.total = 0;
+                    this.loadError = true;
                     OAK.toast(error.message, 'error');
                 } finally {
-                    this.loading = false;
-                    this.drawMarkers();
+                    if (token === loadToken) {
+                        this.loading = false;
+                        this.drawMarkers();
+                    }
                 }
             },
 
@@ -590,7 +650,12 @@
                         self.load();
                     },
                     function () {
-                        self.filters.radius_km = '';
+                        /* Only the radius-picking path was waiting on this position; a plain
+                           locate() must not wipe a distance filter the list is showing. */
+                        if (radius) {
+                            self.filters.radius_km = '';
+                            self.load();
+                        }
                         OAK.toast('Không lấy được vị trí của bạn.', 'error');
                     },
                 );

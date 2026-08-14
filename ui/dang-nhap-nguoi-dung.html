@@ -55,7 +55,7 @@
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="cham-soc-da.html">SKINCARE</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
 <div class="border-t border-outline-variant/30 my-1"></div>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
@@ -70,7 +70,7 @@
 </a>
 <button aria-label="Chọn khu vực" class="hidden xl:flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined text-[20px]" data-icon="location_on">location_on</span>
-<span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
+<span class="font-label-md text-label-md">Chọn khu vực</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
 <a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
@@ -103,7 +103,7 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
@@ -155,7 +155,7 @@
 <div class="mt-12 text-center">
 <p class="font-body-md text-body-md text-on-surface-variant">
                 Chưa có tài khoản? 
-                <a class="font-label-md text-label-md text-primary underline ml-1 hover:text-secondary transition-colors uppercase tracking-widest" href="dang-ky.html">Đăng ký tài khoản mới</a>
+                <a class="font-label-md text-label-md text-primary underline ml-1 hover:text-secondary transition-colors uppercase tracking-widest" data-oak-register-link href="dang-ky.html">Đăng ký tài khoản mới</a>
 </p>
 </div>
 </div>
@@ -207,12 +207,25 @@
 <script>
     /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
 
+    const OAK_NEXT_PAGE = /^[\w-]+\.html(\?.*)?$/;
+
     /** Partners always land on their dashboard; everyone else on ?next= when it names a page here. */
     function oakLoginDestination(role) {
         if (role === 'partner') return 'tong-quan-doi-tac.html';
         const next = OAK.qs('next');
-        return next && /^[\w-]+\.html(\?.*)?$/.test(next) ? next : 'kham-pha.html';
+        return next && OAK_NEXT_PAGE.test(next) ? next : 'kham-pha.html';
     }
+
+    /** Carry ?next= across to the register page so the round trip keeps its destination. */
+    function oakRegisterHref() {
+        const next = OAK.qs('next');
+        return next && OAK_NEXT_PAGE.test(next)
+            ? 'dang-ky.html?next=' + encodeURIComponent(next)
+            : 'dang-ky.html';
+    }
+
+    // The link sits outside the Alpine form scope, so it is pointed from here.
+    document.querySelector('[data-oak-register-link]').href = oakRegisterHref();
 
     function oakCustomerLogin() {
         return {

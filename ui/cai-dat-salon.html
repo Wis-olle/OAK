@@ -89,7 +89,7 @@
 <span class="material-symbols-outlined" data-icon="storefront">storefront</span>
 <span class="font-body-md text-body-md">Xem trang khách</span>
 </a>
-<a @click.prevent="OAK.logout()" class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="dang-nhap-doi-tac.html">
+<a @click.prevent="OAK.logout()" class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" data-oak-logout href="dang-nhap-doi-tac.html">
 <span class="material-symbols-outlined" data-icon="logout">logout</span>
 <span class="font-body-md text-body-md">Đăng xuất</span>
 </a>
@@ -114,12 +114,12 @@
 <span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant" data-oak-avatar-icon>person</span>
 <img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover hidden" data-oak-avatar-img/>
 </span>
-<span class="font-label-md text-label-md text-primary hover:text-secondary transition-colors hidden sm:inline" x-text="user ? user.name : 'Profile'">Profile</span>
+<span class="font-label-md text-label-md text-primary hover:text-secondary transition-colors hidden sm:inline" x-text="user ? user.name : 'Đối tác'">Đối tác</span>
 </a>
 <a aria-label="Xem trang khách" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="index.html">
 <span class="material-symbols-outlined" data-icon="storefront">storefront</span>
 </a>
-<a @click.prevent="OAK.logout()" aria-label="Đăng xuất" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="dang-nhap-doi-tac.html">
+<a @click.prevent="OAK.logout()" aria-label="Đăng xuất" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" data-oak-logout href="dang-nhap-doi-tac.html">
 <span class="material-symbols-outlined" data-icon="logout">logout</span>
 </a>
 </div>
@@ -733,6 +733,12 @@
             async uploadCover(event) {
                 var file = event.target.files[0];
                 if (!file) {
+                    return;
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                    OAK.toast('Ảnh vượt quá dung lượng tối đa 5MB.', 'error');
+                    // Re-selecting the same file must still fire a change event.
+                    event.target.value = '';
                     return;
                 }
                 this.uploading = true;

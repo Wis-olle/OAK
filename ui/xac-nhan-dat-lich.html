@@ -41,7 +41,7 @@
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="cham-soc-da.html">SKINCARE</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
 <div class="border-t border-outline-variant/30 my-1"></div>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
@@ -56,7 +56,7 @@
 </a>
 <button aria-label="Chọn khu vực" class="hidden xl:flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined text-[20px]" data-icon="location_on">location_on</span>
-<span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
+<span class="font-label-md text-label-md">Chọn khu vực</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
 <a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
@@ -89,7 +89,7 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
@@ -107,8 +107,12 @@
 <p class="font-body-lg text-body-lg text-on-surface mb-6" x-text="error"></p>
 <a class="font-label-md text-label-md uppercase tracking-wider text-primary hover:underline" href="lich-hen-cua-toi.html">Xem lịch hẹn của tôi</a>
 </div>
+<!-- Waiting for the booking: nothing about it is known yet, so nothing about it is claimed -->
+<div class="w-full max-w-3xl bg-surface-container-lowest rounded-xl ambient-shadow p-8 text-center" x-cloak="" x-show="!booking &amp;&amp; !error">
+<p class="font-body-lg text-body-lg text-on-surface-variant">Đang tải lịch hẹn…</p>
+</div>
 <!-- Confirmation Bento Box -->
-<div class="w-full max-w-3xl bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden flex flex-col md:flex-row" x-show="!error">
+<div class="w-full max-w-3xl bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden flex flex-col md:flex-row" x-cloak="" x-show="booking">
 <!-- Left Side: Visual & Status -->
 <div class="md:w-5/12 bg-tertiary relative overflow-hidden min-h-[300px] flex flex-col justify-between p-8 text-on-tertiary z-10">
 <!-- Background Image Layer with tonal overlay -->
@@ -117,11 +121,11 @@
 </div>
 <div class="relative z-10 flex flex-col h-full justify-between">
 <div>
-<div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-surface-container-lowest text-primary mb-6">
-<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<div :class="view().tone" class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-surface-container-lowest mb-6">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;" x-text="view().icon">check_circle</span>
 </div>
-<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg mb-2 text-surface-container-lowest">Đặt lịch<br>thành công!</h1>
-<p class="font-body-md text-body-md text-surface-container-lowest/80">Cảm ơn bạn đã lựa chọn OAK Beauty.</p>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg mb-2 text-surface-container-lowest"><span x-text="view().title">Đặt lịch</span><br><span x-text="view().subtitle">thành công!</span></h1>
+<p class="font-body-md text-body-md text-surface-container-lowest/80" x-text="view().message">Cảm ơn bạn đã lựa chọn OAK Beauty.</p>
 </div>
 <div class="mt-8 pt-6 border-t border-surface-container-lowest/20">
 <p class="font-caption text-caption text-surface-container-lowest/60 uppercase tracking-[0.05em] mb-1">Mã đặt chỗ</p>
@@ -255,6 +259,33 @@
         return pad(Math.floor(total / 60)) + ':' + pad(total % 60);
     }
 
+    /* The page doubles as the detail view for every tab of "Lịch hẹn của tôi", so the banner
+       reports the booking's status instead of always announcing a fresh success. */
+    const OAK_CONFIRMATION_SUCCESS = {
+        icon: 'check_circle',
+        tone: 'text-primary',
+        title: 'Đặt lịch',
+        subtitle: 'thành công!',
+        message: 'Cảm ơn bạn đã lựa chọn OAK Beauty.',
+    };
+
+    const OAK_CONFIRMATION_VIEW = {
+        cancelled: {
+            icon: 'cancel',
+            tone: 'text-error',
+            title: 'Lịch hẹn',
+            subtitle: 'đã hủy',
+            message: 'Lịch hẹn này đã được hủy.',
+        },
+        completed: {
+            icon: 'task_alt',
+            tone: 'text-primary',
+            title: 'Lịch hẹn',
+            subtitle: 'đã hoàn thành',
+            message: 'Cảm ơn bạn đã sử dụng dịch vụ tại OAK Beauty.',
+        },
+    };
+
     function oakBookingConfirmation() {
         return {
             booking: null,
@@ -272,6 +303,11 @@
                 } catch (error) {
                     this.error = error.message;
                 }
+            },
+
+            /** The banner for the booking's status; pending and confirmed keep the success one. */
+            view() {
+                return (this.booking && OAK_CONFIRMATION_VIEW[this.booking.status]) || OAK_CONFIRMATION_SUCCESS;
             },
 
             endTime() {

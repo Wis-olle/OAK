@@ -57,7 +57,7 @@
 </li>
 <li>
 <a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
-<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
 <span class="font-body-md text-body-md">Báo cáo</span>
 </a>
 </li>
@@ -120,7 +120,7 @@
 <!-- Calendar & Details Container -->
 <div class="flex-1 flex overflow-hidden">
 <!-- Main Calendar Area -->
-<main class="flex-1 flex flex-col overflow-hidden">
+<div class="flex-1 flex flex-col overflow-hidden">
 <!-- Filters Bar -->
 <div class="px-gutter py-6 flex flex-wrap items-center justify-between gap-4 border-b border-outline-variant/20 shrink-0">
 <div class="flex items-center gap-4">
@@ -148,8 +148,8 @@
 <option value="">Tất cả trạng thái</option>
 <option value="pending">Chờ xác nhận</option>
 <option value="confirmed">Đã xác nhận</option>
-<option value="completed">Hoàn thành</option>
-<option value="cancelled">Đã huỷ</option>
+<option value="completed">Đã hoàn thành</option>
+<option value="cancelled">Đã hủy</option>
 </select>
 </div>
 </div>
@@ -210,9 +210,12 @@
 <p class="py-12 text-center font-body-md text-body-md text-on-surface-variant" x-show="!loading && placedBookings().length === 0">Không có lịch hẹn nào trong khoảng thời gian này.</p>
 </div>
 </div>
-</main>
+</div>
 <!-- Appointment Details Sidebar (Right Panel) -->
-<aside class="w-[360px] bg-surface-container-low border-l border-outline-variant/20 flex flex-col shrink-0 shadow-[0_0_40px_rgba(0,0,0,0.02)] z-30 relative">
+<!-- Below md this panel is not a column at all: it slides over the whole screen
+     (above the bottom nav) only while a booking is selected, so the calendar keeps
+     its full width on a phone. From md up it is the fixed right-hand column. -->
+<aside :class="detail ? 'flex' : 'hidden'" x-cloak="" class="fixed inset-0 z-[60] md:relative md:inset-auto md:z-30 md:w-[360px] md:flex bg-surface-container-low border-l border-outline-variant/20 flex-col shrink-0 shadow-[0_0_40px_rgba(0,0,0,0.02)]">
 <!-- Close Button -->
 <button @click="detail = null" class="absolute top-4 right-4 text-on-surface-variant hover:text-primary transition-colors" x-show="detail">
 <span class="material-symbols-outlined">close</span>
@@ -406,8 +409,8 @@
     var OAK_STATUS_LABELS = {
         pending: 'Chờ xác nhận',
         confirmed: 'Đã xác nhận',
-        completed: 'Hoàn thành',
-        cancelled: 'Đã huỷ',
+        completed: 'Đã hoàn thành',
+        cancelled: 'Đã hủy',
     };
     var OAK_STATUS_ICONS = {
         pending: 'schedule',
@@ -438,6 +441,9 @@
     };
     var OAK_WEEKDAY_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     var OAK_SLOT_MINUTES = 30;
+    /* The last lane map, kept outside the component so reading it is not a reactive read:
+       one booking grid per page, and it is rebuilt as soon as its inputs differ. */
+    var oakLaneCache = null;
 
     /* Partner chrome shared by all four console pages: owner name/avatar, salon name, logout. */
     function oakPartnerChrome() {
@@ -527,6 +533,7 @@
             createOpen: false,
             formError: '',
             form: {},
+            loadToken: 0,
 
             async init() {
                 await OAK.requirePartner();
@@ -554,7 +561,10 @@
 
             /* ---- data ---- */
 
+            // Every filter, the view switch and the date arrows all call this, and a week now
+            // costs several round trips, so a slow older load must not repaint over a newer one.
             async load() {
+                var token = ++this.loadToken;
                 this.loading = true;
                 var params = new URLSearchParams();
                 if (this.view === 'week') {
@@ -575,16 +585,34 @@
                 if (this.query.trim()) {
                     params.set('q', this.query.trim());
                 }
-                // 50 is the server's MAX_LIMIT; anything larger is silently clamped.
+                // 50 is the server's MAX_LIMIT; anything larger is silently clamped, so a
+                // busy day/week needs the follow-up pages fetched and merged — otherwise
+                // the calendar quietly drops every booking past the 50th.
                 params.set('limit', '50');
 
                 try {
-                    this.bookings = await OAK.api('/api/partner/bookings?' + params.toString());
+                    var rows = await OAK.api('/api/partner/bookings?' + params.toString());
+                    var total = (rows.meta && rows.meta.total) || rows.length;
+                    var merged = rows.slice();
+                    for (var page = 2; rows.length && merged.length < total; page += 1) {
+                        params.set('page', String(page));
+                        rows = await OAK.api('/api/partner/bookings?' + params.toString());
+                        merged = merged.concat(rows);
+                    }
+                    if (token !== this.loadToken) {
+                        return;
+                    }
+                    this.bookings = merged;
                 } catch (error) {
+                    if (token !== this.loadToken) {
+                        return;
+                    }
                     this.bookings = [];
                     OAK.toast(error.message, 'error');
                 } finally {
-                    this.loading = false;
+                    if (token === this.loadToken) {
+                        this.loading = false;
+                    }
                 }
             },
 
@@ -814,26 +842,114 @@
                 return 'grid-column: 1; grid-row: ' + (index + 1);
             },
 
-            bookingStyle(booking) {
+            bookingRows(booking) {
                 var total = this.rows.length;
                 var start = oakToMinutes(booking.time);
                 var offset = Math.floor((start - this.openMinutes()) / OAK_SLOT_MINUTES);
                 var rowStart = Math.min(Math.max(offset, 0), total - 1) + 1;
                 var duration = booking.service ? booking.service.duration_min : OAK_SLOT_MINUTES;
                 var span = Math.max(Math.ceil(duration / OAK_SLOT_MINUTES), 1);
-                var rowEnd = Math.min(rowStart + span, total + 1);
+                return { start: rowStart, end: Math.min(rowStart + span, total + 1) };
+            },
+
+            /* Two bookings sharing a column and a row range would sit exactly on top of each
+               other and hide the card behind. Split every overlapping cluster into lanes
+               (Google-Calendar style): id -> {index, count}. Bookings that overlap nobody
+               come back with count 1 and keep the full column width.
+               bookingStyle() asks for this map once per card, and building it walks every
+               booking and sorts each column, so the map is kept until its inputs change. */
+            bookingLanes() {
+                if (
+                    oakLaneCache &&
+                    oakLaneCache.bookings === this.bookings &&
+                    oakLaneCache.staff === this.staff &&
+                    oakLaneCache.salon === this.salon &&
+                    oakLaneCache.view === this.view &&
+                    oakLaneCache.date === this.date
+                ) {
+                    return oakLaneCache.lanes;
+                }
+
+                var self = this;
+                var groups = {};
+                this.placedBookings().forEach(function (booking) {
+                    var rows = self.bookingRows(booking);
+                    var key = self.columnKey(booking);
+                    groups[key] = groups[key] || [];
+                    groups[key].push({ id: booking.id, start: rows.start, end: rows.end, lane: 0 });
+                });
+
+                var lanes = {};
+                Object.keys(groups).forEach(function (key) {
+                    var items = groups[key].sort(function (a, b) {
+                        return a.start - b.start || a.end - b.end;
+                    });
+                    var cluster = [];
+                    var laneEnds = [];
+                    var clusterEnd = 0;
+                    var flush = function () {
+                        cluster.forEach(function (item) {
+                            lanes[item.id] = { index: item.lane, count: laneEnds.length };
+                        });
+                        cluster = [];
+                        laneEnds = [];
+                        clusterEnd = 0;
+                    };
+                    items.forEach(function (item) {
+                        // A gap in the column closes the cluster: the next group of cards
+                        // gets its own lane count instead of inheriting a wide one.
+                        if (cluster.length && item.start >= clusterEnd) {
+                            flush();
+                        }
+                        var lane = 0;
+                        while (lane < laneEnds.length && laneEnds[lane] > item.start) {
+                            lane += 1;
+                        }
+                        laneEnds[lane] = item.end;
+                        item.lane = lane;
+                        cluster.push(item);
+                        clusterEnd = Math.max(clusterEnd, item.end);
+                    });
+                    flush();
+                });
+                oakLaneCache = {
+                    bookings: this.bookings,
+                    staff: this.staff,
+                    salon: this.salon,
+                    view: this.view,
+                    date: this.date,
+                    lanes: lanes,
+                };
+                return lanes;
+            },
+
+            bookingStyle(booking) {
+                var rows = this.bookingRows(booking);
                 var key = this.columnKey(booking);
                 var column = this.columns.findIndex(function (item) {
                     return item.key === key;
                 });
-                return (
+                var style =
                     'grid-column: ' +
                     (column + 2) +
                     '; grid-row: ' +
-                    rowStart +
+                    rows.start +
                     ' / ' +
-                    rowEnd +
-                    '; z-index: 10'
+                    rows.end +
+                    '; z-index: 10';
+                var lane = this.bookingLanes()[booking.id];
+                if (!lane || lane.count < 2) {
+                    return style;
+                }
+                // Inline width/margin win over the wrapper's mx-2 while keeping the same
+                // 0.5rem gutters, so the lanes split exactly the space one card used to take.
+                return (
+                    style +
+                    '; width: calc((100% - 1rem) / ' +
+                    lane.count +
+                    '); margin-left: calc(0.5rem + (100% - 1rem) * ' +
+                    (lane.index / lane.count).toFixed(4) +
+                    ')'
                 );
             },
 

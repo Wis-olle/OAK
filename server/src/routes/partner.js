@@ -1298,6 +1298,13 @@ const PROMOTION_COLUMNS = {
   active: (value) => requireFlag(value, 'Trạng thái hiển thị'),
 };
 
+/** Both columns are ISO date text, so a plain comparison orders them. */
+function requirePromotionRange(startsAt, endsAt) {
+  if (endsAt < startsAt) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Ngày kết thúc phải sau ngày bắt đầu.');
+  }
+}
+
 /**
  * Let the UNIQUE index decide the duplicate case rather than a pre-check, the same
  * way registration does — a SELECT-then-INSERT would still lose the race.
@@ -1326,6 +1333,9 @@ router.post('/promotions', async (req, res, next) => {
   try {
     const salon = await ownedSalon(req);
     const body = req.body ?? {};
+    const startsAt = PROMOTION_COLUMNS.starts_at(body.starts_at);
+    const endsAt = PROMOTION_COLUMNS.ends_at(body.ends_at);
+    requirePromotionRange(startsAt, endsAt);
 
     let promotionId;
     try {
@@ -1343,8 +1353,8 @@ router.post('/promotions', async (req, res, next) => {
             PROMOTION_COLUMNS.sale_price(body.sale_price),
             PROMOTION_COLUMNS.service_ids(body.service_ids),
             PROMOTION_COLUMNS.image(body.image),
-            PROMOTION_COLUMNS.starts_at(body.starts_at),
-            PROMOTION_COLUMNS.ends_at(body.ends_at),
+            startsAt,
+            endsAt,
           )
         ).lastInsertRowid,
       );
@@ -1365,9 +1375,22 @@ router.patch('/promotions/:id', async (req, res, next) => {
   try {
     const salon = await ownedSalon(req);
     const promotionId = requireId(req.params.id, 'Mã ưu đãi không hợp lệ.');
-    await ownedRow(selectOwnedPromotion, promotionId, salon.id, 'Không tìm thấy ưu đãi này.');
+    const current = await ownedRow(
+      selectOwnedPromotion,
+      promotionId,
+      salon.id,
+      'Không tìm thấy ưu đãi này.',
+    );
 
-    const { assignments, values } = await buildPatch(req.body ?? {}, PROMOTION_COLUMNS);
+    const body = req.body ?? {};
+    const { assignments, values } = await buildPatch(body, PROMOTION_COLUMNS);
+    // A patch may carry one date or neither, so the stored row supplies the other half.
+    requirePromotionRange(
+      Object.hasOwn(body, 'starts_at')
+        ? PROMOTION_COLUMNS.starts_at(body.starts_at)
+        : current.starts_at,
+      Object.hasOwn(body, 'ends_at') ? PROMOTION_COLUMNS.ends_at(body.ends_at) : current.ends_at,
+    );
     try {
       await db
         .prepare(`UPDATE promotions SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`)

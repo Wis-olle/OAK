@@ -40,7 +40,7 @@
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="cham-soc-da.html">SKINCARE</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
 <div class="border-t border-outline-variant/30 my-1"></div>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
@@ -55,7 +55,7 @@
 </a>
 <button aria-label="Chọn khu vực" class="hidden xl:flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined text-[20px]" data-icon="location_on">location_on</span>
-<span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
+<span class="font-label-md text-label-md">Chọn khu vực</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
 <a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
@@ -88,7 +88,7 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
@@ -135,7 +135,11 @@
 <input aria-label="Tìm salon theo tên" class="flex-grow border border-outline-variant bg-surface rounded-full px-6 py-3 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50" placeholder="Tìm salon theo tên..." type="text" x-model="salonQuery"/>
 <button class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="submit">Tìm kiếm</button>
 </form>
-<p class="font-body-md text-body-md text-on-surface-variant" x-show="!salonsLoading &amp;&amp; !salons.length">Không tìm thấy salon nào.</p>
+<p class="font-body-md text-body-md text-on-surface-variant" x-cloak="" x-show="!salonsLoading &amp;&amp; !salonsError &amp;&amp; !salons.length">Không tìm thấy salon nào.</p>
+<div class="flex flex-wrap items-center gap-4" x-cloak="" x-show="salonsError">
+<p class="font-body-md text-body-md text-error" x-text="salonsError"></p>
+<button :disabled="salonsLoading" @click="loadSalons(1)" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors disabled:opacity-60" type="button">Thử lại</button>
+</div>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" :class="salonsLoading ? 'opacity-50' : ''">
 <template :key="entry.id" x-for="entry in salons">
 <button :class="salon &amp;&amp; salon.id === entry.id ? 'border-primary' : 'border-outline-variant'" @click="chooseSalon(entry)" class="text-left p-3 border rounded-lg hover:border-primary transition-colors" type="button">
@@ -196,7 +200,7 @@
 </div>
 </div>
 <div class="flex flex-col gap-3">
-<p class="font-caption text-caption text-error-container" x-cloak="" x-show="stepError" x-text="stepError"></p>
+<p class="font-caption text-caption text-error" x-cloak="" x-show="stepError" x-text="stepError"></p>
 <div class="flex flex-wrap items-center gap-4">
 <button @click="goTo(1)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
 <button :disabled="loading || optionsLoading" @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">Tiếp tục</button>
@@ -219,8 +223,8 @@
 <div class="space-y-8" x-cloak="" x-show="service">
 <h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn thời gian</h2>
 <div class="relative md:max-w-xs">
-<label class="font-label-md text-label-md text-outline block mb-2">Ngày hẹn *</label>
-<input :min="today" @change="loadSlots()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors" type="date" x-model="date"/>
+<label class="font-label-md text-label-md text-outline block mb-2" for="booking-date">Ngày hẹn *</label>
+<input :min="today" @change="loadSlots()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors" id="booking-date" type="date" x-model="date"/>
 </div>
 <p class="font-body-md text-body-md text-on-surface-variant" x-show="!slotsLoading &amp;&amp; !slots.length">Ngày này chưa có khung giờ nào, vui lòng chọn ngày khác.</p>
 <div class="flex flex-wrap gap-3" :class="slotsLoading ? 'opacity-50' : ''">
@@ -230,7 +234,7 @@
 </div>
 </div>
 <div class="flex flex-col gap-3">
-<p class="font-caption text-caption text-error-container" x-cloak="" x-show="stepError" x-text="stepError"></p>
+<p class="font-caption text-caption text-error" x-cloak="" x-show="stepError" x-text="stepError"></p>
 <div class="flex flex-wrap items-center gap-4">
 <button @click="goTo(2)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
 <button :disabled="slotsLoading || loading" @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">Tiếp tục</button>
@@ -282,17 +286,17 @@
 <h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Thông tin khách hàng</h2>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="relative">
-<label class="font-label-md text-label-md text-outline block mb-2">Họ và tên *</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
+<label class="font-label-md text-label-md text-outline block mb-2" for="customer-name">Họ và tên *</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" id="customer-name" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
 </div>
 <div class="relative">
-<label class="font-label-md text-label-md text-outline block mb-2">Số điện thoại *</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
+<label class="font-label-md text-label-md text-outline block mb-2" for="customer-phone">Số điện thoại *</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" id="customer-phone" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
 </div>
 </div>
 <div class="relative">
-<label class="font-label-md text-label-md text-outline block mb-2">Ghi chú đặc biệt (Không bắt buộc)</label>
-<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50 resize-none" placeholder="Ví dụ: Da tay mỏng, cần làm nhẹ nhàng..." rows="3" x-model="form.note"></textarea>
+<label class="font-label-md text-label-md text-outline block mb-2" for="customer-note">Ghi chú đặc biệt (Không bắt buộc)</label>
+<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50 resize-none" id="customer-note" placeholder="Ví dụ: Da tay mỏng, cần làm nhẹ nhàng..." rows="3" x-model="form.note"></textarea>
 </div>
 </div>
 <!-- Payment Method -->
@@ -319,9 +323,9 @@
 <h3 class="font-headline-sm text-headline-sm border-b border-outline-variant/20 pb-4">Tổng chi phí</h3>
 <div class="space-y-4">
 <div>
-<label class="font-caption text-caption uppercase tracking-wider text-on-tertiary/80 block mb-2">Mã ưu đãi</label>
+<label class="font-caption text-caption uppercase tracking-wider text-on-tertiary/80 block mb-2" for="promo-code">Mã ưu đãi</label>
 <div class="flex items-end gap-3">
-<input @change="loadQuote()" class="flex-1 min-w-0 bg-transparent border-0 border-b border-on-tertiary/30 focus:border-on-tertiary focus:ring-0 px-0 py-2 font-body-md text-body-md text-on-tertiary placeholder:text-on-tertiary/40" placeholder="Nhập mã" type="text" x-model="promo"/>
+<input @change="loadQuote()" class="flex-1 min-w-0 bg-transparent border-0 border-b border-on-tertiary/30 focus:border-on-tertiary focus:ring-0 px-0 py-2 font-body-md text-body-md text-on-tertiary placeholder:text-on-tertiary/40" id="promo-code" placeholder="Nhập mã" type="text" x-model="promo"/>
 <button @click="loadQuote()" class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80 hover:text-on-tertiary transition-colors shrink-0" type="button">Áp dụng</button>
 </div>
 <p class="font-caption text-caption text-error-container mt-2" x-cloak="" x-show="promoError" x-text="promoError"></p>
@@ -409,7 +413,16 @@
         return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
     }
 
+    /** Now as a local 'HH:MM', so today's slots that have already started can be closed. */
+    function oakNowTime() {
+        const now = new Date();
+        const pad = (value) => String(value).padStart(2, '0');
+        return pad(now.getHours()) + ':' + pad(now.getMinutes());
+    }
+
     const OAK_PROMO_LOGIN_MESSAGE = 'Vui lòng đăng nhập để áp dụng mã ưu đãi.';
+    // Where the contact fields wait out a login round trip; the url carries the selection.
+    const OAK_BOOKING_FORM_KEY = 'oak-booking-form';
 
     function oakBookingForm() {
         return {
@@ -434,7 +447,9 @@
             salonApplied: '',
             salonTotal: 0,
             salonPage: 1,
-            salonsLoading: false,
+            // Starts true so "Không tìm thấy salon nào." cannot flash before the first load.
+            salonsLoading: true,
+            salonsError: '',
             salonsToken: 0,
 
             salon: null,
@@ -448,6 +463,7 @@
             time: '',
             slots: [],
             slotsLoading: false,
+            slotsToken: 0,
 
             promo: '',
             promoError: '',
@@ -467,6 +483,8 @@
                     this.form.name = this.user.name || '';
                     this.form.phone = this.user.phone || '';
                 }
+                // After the account's own details, so what the visitor typed wins over them.
+                this.restoreForm();
 
                 this.promo = OAK.qs('promo') || '';
                 this.date = OAK.qs('date') || this.today;
@@ -507,6 +525,7 @@
             async loadSalons(page, append) {
                 const token = ++this.salonsToken;
                 this.salonsLoading = true;
+                this.salonsError = '';
                 try {
                     const params = new URLSearchParams({ limit: 12, page: page });
                     if (this.salonApplied) {
@@ -527,10 +546,10 @@
                         this.salons = [];
                         this.salonTotal = 0;
                     }
-                    // Only step 1 shows this list; elsewhere this would stack on init's toast.
-                    if (this.step === 1) {
-                        OAK.toast(error.message, 'error');
-                    }
+                    // Shown in place of "không tìm thấy", so a broken list never reads as an
+                    // empty one. It waits on step 1 instead of toasting from a step nobody
+                    // is looking at, and stays put next to its "Thử lại".
+                    this.salonsError = error.message;
                 } finally {
                     if (token === this.salonsToken) {
                         this.salonsLoading = false;
@@ -676,24 +695,45 @@
                 this.loadQuote();
             },
 
+            /** Step 3's grid. Changing the technician or the date leaves the previous request
+                in flight, and the two endpoints answer in different shapes, so a late reply
+                must not land: read as the other shape it would blank the grid entirely. */
             async loadSlots() {
+                const token = ++this.slotsToken;
                 if (!this.service || !this.date) {
                     this.slots = [];
+                    // The request this call just made stale can no longer clear the flag itself.
+                    this.slotsLoading = false;
                     return;
                 }
                 this.slotsLoading = true;
                 // A chosen technician has their own calendar. The service endpoint ORs across
                 // everyone who performs it, so it would offer slots this one person cannot take.
-                const path = this.staffId
-                    ? '/api/staff/' + this.staffId + '/availability?days=1&from=' + this.date + '&service_id=' + this.service.id
+                const staffId = this.staffId;
+                const path = staffId
+                    ? '/api/staff/' + staffId + '/availability?days=1&from=' + this.date + '&service_id=' + this.service.id
                     : '/api/services/' + this.service.id + '/availability?date=' + this.date;
                 try {
                     const data = await OAK.api(path);
-                    this.slots = this.staffId ? data.week[0].slots : data.slots;
+                    if (token !== this.slotsToken) {
+                        return;
+                    }
+                    const slots = staffId ? data.week[0].slots : data.slots;
+                    // An hour that has already started today cannot be booked any more; the
+                    // server refuses it too, so offering it would only end in an error.
+                    const passed = this.date === this.today ? oakNowTime() : '';
+                    this.slots = slots.map((slot) =>
+                        slot.time <= passed ? { ...slot, available: false } : slot,
+                    );
                 } catch (error) {
+                    if (token !== this.slotsToken) {
+                        return;
+                    }
                     this.slots = [];
                 } finally {
-                    this.slotsLoading = false;
+                    if (token === this.slotsToken) {
+                        this.slotsLoading = false;
+                    }
                 }
                 if (!this.slots.some((slot) => slot.time === this.time && slot.available)) {
                     this.time = '';
@@ -785,6 +825,26 @@
                 return 'dat-lich.html?' + params;
             },
 
+            /** The contact fields the url cannot carry, picked back up once on the way back
+                from login and then dropped, so a later visit starts clean. */
+            restoreForm() {
+                try {
+                    // Reading storage can itself throw where site data is blocked, so it sits
+                    // inside the try as well: init() must not stop over a stash it cannot read.
+                    const stashed = sessionStorage.getItem(OAK_BOOKING_FORM_KEY);
+                    if (!stashed) {
+                        return;
+                    }
+                    sessionStorage.removeItem(OAK_BOOKING_FORM_KEY);
+                    const form = JSON.parse(stashed);
+                    this.form.name = form.name || this.form.name;
+                    this.form.phone = form.phone || this.form.phone;
+                    this.form.note = form.note || '';
+                } catch (error) {
+                    // Nothing to say to the user: the fields simply stay as they are.
+                }
+            },
+
             async submit() {
                 this.formError = '';
                 if (!this.service) {
@@ -802,6 +862,13 @@
 
                 if (!this.user) {
                     history.replaceState(null, '', this.selectionUrl());
+                    // The url holds the selection, but not the note the visitor just wrote,
+                    // and login navigates the page away. Blocked storage only costs the note.
+                    try {
+                        sessionStorage.setItem(OAK_BOOKING_FORM_KEY, JSON.stringify(this.form));
+                    } catch (error) {
+                        // Nothing to say: the visitor simply retypes it after logging in.
+                    }
                     await OAK.requireLogin();
                     return;
                 }

@@ -5,7 +5,7 @@ import { getStaffSlots, isSalonOpenFor } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
 import { notifyUser } from '../lib/notify.js';
 import { parsePagination } from '../lib/query.js';
-import { isHHMM, isISODate, todayISO } from '../lib/time.js';
+import { isHHMM, isISODate, nowMinutes, toMinutes, todayISO } from '../lib/time.js';
 import { httpError, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -274,13 +274,16 @@ router.post('/', async (req, res, next) => {
       throw httpError(400, 'VALIDATION_ERROR', 'Dịch vụ này hiện không nhận đặt lịch.');
     }
 
-    // Dates only: a booking later today is still in the future for the customer, and the
-    // cancel window is what protects the salon from a last-minute change.
     if (!isISODate(date) || date < todayISO()) {
       throw httpError(400, 'VALIDATION_ERROR', 'Ngày hẹn không hợp lệ hoặc đã qua.');
     }
     if (!isHHMM(time)) {
       throw httpError(400, 'VALIDATION_ERROR', 'Giờ hẹn không hợp lệ.');
+    }
+    // Today is a valid date but only the hours it has left: an hour that has already
+    // started is as booked-in-the-past as yesterday is. Later days skip this entirely.
+    if (date === todayISO() && toMinutes(time) <= nowMinutes()) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Giờ hẹn hôm nay đã qua, vui lòng chọn giờ khác.');
     }
     // Ahead of the technician block, so it covers the walk-in path too: a booking with
     // no technician reaches no slot check at all, and would otherwise take a day the

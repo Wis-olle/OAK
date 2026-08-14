@@ -56,7 +56,7 @@
 </li>
 <li>
 <a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
-<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
 <span class="font-body-md text-body-md">Báo cáo</span>
 </a>
 </li>
@@ -235,6 +235,7 @@
 </tbody>
 </table>
 </div>
+<a class="inline-block mt-4 font-label-md text-label-md text-secondary hover:text-on-background transition-colors" href="quan-ly-lich-hen.html" x-show="bookingsTotal > bookings.length" x-text="'Xem tất cả (' + bookingsTotal + ') trong Quản lý lịch hẹn'"></a>
 </section>
 </div>
 <!-- Right Column: Staff Status & Top Services -->
@@ -301,8 +302,8 @@
     var OAK_STATUS_LABELS = {
         pending: 'Chờ xác nhận',
         confirmed: 'Đã xác nhận',
-        completed: 'Hoàn thành',
-        cancelled: 'Đã huỷ',
+        completed: 'Đã hoàn thành',
+        cancelled: 'Đã hủy',
     };
     var OAK_STATUS_CLASSES = {
         pending: 'bg-surface-variant text-on-surface-variant',
@@ -355,6 +356,7 @@
         return {
             overview: null,
             bookings: [],
+            bookingsTotal: 0,
             staffStatus: [],
             loading: true,
             query: '',
@@ -367,7 +369,16 @@
                     this.overview = await OAK.api('/api/partner/overview');
                     this.staffStatus = this.overview.staff_status;
                     // The overview carries the server's own "today", so both cards agree.
-                    this.bookings = await OAK.api('/api/partner/bookings?date=' + this.overview.date);
+                    // limit=50 is the server maximum: the default 20 silently truncated a busy day.
+                    var rows = await OAK.api(
+                        '/api/partner/bookings?limit=50&date=' + this.overview.date,
+                    );
+                    // The endpoint answers newest-first; the dashboard reads as a running day.
+                    rows.sort(function (left, right) {
+                        return left.time < right.time ? -1 : left.time > right.time ? 1 : 0;
+                    });
+                    this.bookingsTotal = rows.meta ? rows.meta.total : rows.length;
+                    this.bookings = rows;
                 } catch (error) {
                     OAK.toast(error.message, 'error');
                 } finally {

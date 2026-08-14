@@ -50,7 +50,7 @@
 </li>
 <li>
 <a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
-<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
 <span class="font-body-md text-body-md">Báo cáo</span>
 </a>
 </li>
@@ -184,7 +184,7 @@
 </main>
 
 <!-- Staff Edit Modal -->
-<div @keydown.escape.window="staffModalOpen = false" aria-labelledby="modal-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="staffModalOpen">
+<div @keydown.escape.window="if (!confirmOpen) staffModalOpen = false" aria-labelledby="modal-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="staffModalOpen">
 <!-- Backdrop -->
 <div @click="staffModalOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="staffModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
 <!-- Modal Panel -->
@@ -268,6 +268,26 @@
                 </button>
 <button :disabled="saving" class="px-8 py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors rounded-full disabled:opacity-50" form="staff-form" type="submit">
                     Lưu thay đổi
+                </button>
+</div>
+</div>
+</div>
+<!-- Confirm Delete Modal -->
+<div @keydown.escape.window="confirmOpen = false" aria-labelledby="confirm-title" aria-modal="true" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="confirmOpen">
+<div @click="confirmOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
+<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-md border border-outline-variant/20 flex flex-col" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="px-6 py-6 border-b border-outline-variant/20">
+<h3 class="font-headline-sm text-headline-sm text-primary" id="confirm-title">Xác nhận xoá</h3>
+</div>
+<div class="px-6 py-6">
+<p class="font-body-md text-body-md text-on-surface-variant" x-text="confirmMessage"></p>
+</div>
+<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4">
+<button @click="confirmOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+                    Giữ lại
+                </button>
+<button @click="deleteStaff()" class="px-8 py-3 bg-error text-on-error font-label-md text-label-md uppercase tracking-wider hover:bg-error/90 transition-colors rounded-full" type="button">
+                    Xoá
                 </button>
 </div>
 </div>
@@ -374,6 +394,8 @@
             // the template reads must exist from the start.
             form: { schedule: [], service_ids: [] },
             formError: '',
+            confirmOpen: false,
+            confirmMessage: '',
 
             async init() {
                 await OAK.requirePartner();
@@ -512,6 +534,10 @@
                 if (!file) {
                     return;
                 }
+                if (file.size > 5 * 1024 * 1024) {
+                    OAK.toast('Ảnh vượt quá dung lượng tối đa 5MB.', 'error');
+                    return;
+                }
                 try {
                     var data = await oakReadFile(file);
                     var result = await OAK.api('/api/uploads', {
@@ -574,10 +600,14 @@
                 }
             },
 
-            async removeStaff() {
-                if (!confirm('Xoá nhân viên "' + this.form.name + '" khỏi danh sách?')) {
-                    return;
-                }
+            /* A styled dialog stands in for confirm(); the delete itself is unchanged. */
+            removeStaff() {
+                this.confirmMessage = 'Xoá nhân viên "' + this.form.name + '" khỏi danh sách?';
+                this.confirmOpen = true;
+            },
+
+            async deleteStaff() {
+                this.confirmOpen = false;
                 try {
                     await OAK.api('/api/partner/staff/' + this.form.id, { method: 'DELETE' });
                     this.staffModalOpen = false;

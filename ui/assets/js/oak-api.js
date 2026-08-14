@@ -56,10 +56,24 @@
 
     if (!payload || payload.success !== true) {
       var envelope = (payload && payload.error) || {};
+      if (envelope.code === 'UNAUTHENTICATED' && sessionSeen) {
+        // The session expired while the page was open: every later click would raise the
+        // same toast on a page that still looks signed in, so sign in again from here and
+        // come back. Only once a session has actually been seen: /api/auth/me is optional
+        // auth and answers {user:null} for a guest, so `sessionSeen` is only ever set by a
+        // real user, and an anonymous visitor on a public page is never bounced from here.
+        sessionSeen = false;
+        return redirectToLogin(partnerPage ? PARTNER_LOGIN_PAGE : LOGIN_PAGE);
+      }
       throw apiError(
         envelope.code || 'UNKNOWN_ERROR',
         envelope.message || 'Đã có lỗi xảy ra, vui lòng thử lại sau.',
       );
+    }
+
+    // A fresh login counts as a session too, for pages that sign in without reloading.
+    if (path === '/api/auth/login' && payload.data && payload.data.user) {
+      sessionSeen = true;
     }
 
     // Pagination totals and breakdowns ride along on the resolved data as a
@@ -82,6 +96,12 @@
   // bouncing to the login page when the server is down strands the visitor on a page whose
   // own login call cannot work either, which reads as "every click does nothing".
   var serverUnreachable = false;
+  // True once this page load has seen a real session. UNAUTHENTICATED then means the session
+  // expired rather than "never signed in", which is what makes the redirect in api() safe.
+  var sessionSeen = false;
+  // True on the partner console: only those pages gate themselves with requirePartner(), and
+  // they belong to the partner login page, not the customer one.
+  var partnerPage = false;
 
   /** The signed-in user, or null. Never redirects — a guest page must still render. */
   function me() {
@@ -89,7 +109,11 @@
       mePromise = api('/api/auth/me').then(
         function (data) {
           // /api/auth/me is optional-auth: a guest resolves to {user:null}.
-          return data ? data.user : null;
+          var user = data ? data.user : null;
+          if (user) {
+            sessionSeen = true;
+          }
+          return user;
         },
         function (error) {
           // Still null, so public pages render as they always have — but the reason is
@@ -141,6 +165,7 @@
   }
 
   async function requirePartner() {
+    partnerPage = true;
     var user = await me();
     if (serverUnreachable) {
       return reportServerUnreachable();
@@ -208,11 +233,28 @@
     }, 3000);
   }
 
+  // Where signing out lands. A page's own [data-oak-logout] link already names it — the
+  // partner console points its links at the partner login page — but the page handlers call
+  // OAK.logout() without arguments, so the href is picked up here, in the capture phase,
+  // before those handlers run.
+  var logoutHref = null;
+  document.addEventListener(
+    'click',
+    function (event) {
+      var link = event.target.closest ? event.target.closest('a[data-oak-logout]') : null;
+      if (link) {
+        logoutHref = link.getAttribute('href');
+      }
+    },
+    true,
+  );
+
   async function logout() {
+    var destination = logoutHref || HOME_PAGE;
     try {
       await api('/api/auth/logout', { method: 'POST' });
     } finally {
-      location.href = HOME_PAGE;
+      location.href = destination;
     }
   }
 

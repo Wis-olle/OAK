@@ -7,6 +7,9 @@
 <script src="assets/js/oak-tailwind-config.js"></script>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
 <script src="assets/js/oak-api.js"></script>
+<!-- Not deferred: the location map is built from the component's own markup. -->
+<script src="assets/js/leaflet-5a640ff863.js"></script>
+<link href="assets/css/leaflet-ec929f1100.css" rel="stylesheet">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -41,7 +44,7 @@
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="cham-soc-da.html">SKINCARE</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
 <div class="border-t border-outline-variant/30 my-1"></div>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
@@ -56,7 +59,7 @@
 </a>
 <button aria-label="Chọn khu vực" class="hidden xl:flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined text-[20px]" data-icon="location_on">location_on</span>
-<span class="font-label-md text-label-md">Quận 1, TP.HCM</span>
+<span class="font-label-md text-label-md">Chọn khu vực</span>
 <span class="material-symbols-outlined text-[16px]">expand_more</span>
 </button>
 <a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
@@ -89,7 +92,7 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">EYELASH</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
@@ -102,27 +105,54 @@
 </header>
 <!-- Main Content -->
 <main class="pt-24 pb-32" x-data="oakSalonProfile()">
-<template x-if="!loading &amp;&amp; !salon">
-<p class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop font-body-md text-body-md text-on-surface-variant">Không tìm thấy salon này.</p>
+<!-- Loading skeleton: everything real sits in the x-if below, which waits for `loading` to
+     clear too — `salon` alone arrives before its photos/services/staff/reviews do. -->
+<template x-if="loading">
+<div aria-label="Đang tải thông tin salon" class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop animate-pulse" role="status">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-4 h-[400px] md:h-[500px] mb-16">
+<div class="md:col-span-2 md:row-span-2 rounded-lg bg-surface-variant"></div>
+<div class="hidden md:block rounded-lg bg-surface-variant"></div>
+<div class="hidden md:block rounded-lg bg-surface-variant"></div>
+<div class="hidden md:block rounded-lg bg-surface-variant"></div>
+<div class="hidden md:block rounded-lg bg-surface-variant"></div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<div class="md:col-span-8 flex flex-col gap-4">
+<div class="h-10 w-2/3 rounded-lg bg-surface-variant"></div>
+<div class="h-4 w-full rounded bg-surface-variant"></div>
+<div class="h-4 w-5/6 rounded bg-surface-variant"></div>
+<div class="h-48 w-full rounded-lg bg-surface-variant mt-4"></div>
+</div>
+<div class="md:col-span-4">
+<div class="h-[420px] w-full rounded-xl bg-surface-variant"></div>
+</div>
+</div>
+</div>
 </template>
-<template x-if="salon">
+<template x-if="!loading &amp;&amp; !salon">
+<div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
+<p class="font-body-md text-body-md text-on-surface-variant">Không tìm thấy salon này.</p>
+<a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 mt-6" href="ket-qua-tim-kiem.html">Khám phá salon khác</a>
+</div>
+</template>
+<template x-if="!loading &amp;&amp; salon">
 <div>
 <!-- Gallery Header -->
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-16">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-4 h-[400px] md:h-[500px]">
-<div @click="openLightbox(0)" class="md:col-span-2 md:row-span-2 overflow-hidden rounded-lg cursor-pointer">
+<div :aria-label="'Xem ảnh: ' + caption(0)" @click="openLightbox(0)" @keydown.enter="openLightbox(0)" @keydown.space.prevent="openLightbox(0)" class="md:col-span-2 md:row-span-2 overflow-hidden rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0">
 <img :alt="caption(0)" :src="photo(0)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
-<div @click="openLightbox(1)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer" x-show="photos[1]">
+<div :aria-label="'Xem ảnh: ' + caption(1)" @click="openLightbox(1)" @keydown.enter="openLightbox(1)" @keydown.space.prevent="openLightbox(1)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[1]">
 <img :alt="caption(1)" :src="photo(1)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
-<div @click="openLightbox(2)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer" x-show="photos[2]">
+<div :aria-label="'Xem ảnh: ' + caption(2)" @click="openLightbox(2)" @keydown.enter="openLightbox(2)" @keydown.space.prevent="openLightbox(2)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[2]">
 <img :alt="caption(2)" :src="photo(2)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
-<div @click="openLightbox(3)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer" x-show="photos[3]">
+<div :aria-label="'Xem ảnh: ' + caption(3)" @click="openLightbox(3)" @keydown.enter="openLightbox(3)" @keydown.space.prevent="openLightbox(3)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[3]">
 <img :alt="caption(3)" :src="photo(3)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
-<div @click="openLightbox(4)" class="hidden md:block relative overflow-hidden rounded-lg cursor-pointer group" x-show="photos[4]">
+<div :aria-label="'Xem ảnh: ' + caption(4)" @click="openLightbox(4)" @keydown.enter="openLightbox(4)" @keydown.space.prevent="openLightbox(4)" class="hidden md:block relative overflow-hidden rounded-lg cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[4]">
 <img :alt="caption(4)" :src="photo(4)" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
 <div class="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors" x-show="morePhotos() &gt; 0">
 <span class="font-label-md text-label-md text-white uppercase tracking-widest" x-text="'+' + morePhotos() + ' Ảnh'"></span>
@@ -192,10 +222,15 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div>
 <h3 class="font-headline-sm text-headline-sm text-on-surface mb-4">Địa điểm</h3>
-<div class="w-full h-48 rounded-lg overflow-hidden bg-surface-variant mb-3">
-<img class="w-full h-full object-cover" data-alt="A clean, minimalist digital map snippet showing a central location in District 1, Ho Chi Minh City, with a subtle pin marker. The style aligns with a high-end, modern lifestyle aesthetic, using soft neutral map colors." data-location="Ho Chi Minh City" src="assets/images/img-74ec6208c4.jpg"/>
-</div>
+<!-- Leaflet canvas; x-if keeps it out of the page for a salon the partner never pinned. -->
+<template x-if="hasCoords()">
+<div :aria-label="'Bản đồ vị trí ' + salon.name" class="w-full h-48 rounded-lg overflow-hidden bg-surface-variant mb-3 relative z-0" role="application" x-init="initMap($el)"></div>
+</template>
 <p class="font-body-md text-body-md text-on-surface-variant" x-text="salon.address"></p>
+<template x-if="hasCoords()">
+<a :href="directionsUrl()" class="inline-flex items-center gap-1 mt-3 font-label-md text-label-md uppercase tracking-wide text-primary hover:opacity-70 transition-opacity" rel="noopener" target="_blank">
+<span class="material-symbols-outlined text-[16px]">directions</span>Chỉ đường</a>
+</template>
 </div>
 <div>
 <h3 class="font-headline-sm text-headline-sm text-on-surface mb-4">Giờ mở cửa</h3>
@@ -253,7 +288,7 @@
 <h2 class="font-headline-md text-headline-md text-on-surface mb-2">Đội Ngũ Chuyên Gia</h2>
 <p class="font-body-md text-body-md text-on-surface-variant" x-text="'Những đôi tay tài hoa tại ' + salon.name"></p>
 </div>
-<button @click="showAllStaff = true" class="hidden md:flex items-center gap-2 text-primary font-label-md text-label-md uppercase tracking-wide hover:opacity-70 transition-opacity" type="button" x-show="!showAllStaff &amp;&amp; staff.length &gt; 3">
+<button @click="showAllStaff = true" class="flex items-center gap-2 text-primary font-label-md text-label-md uppercase tracking-wide hover:opacity-70 transition-opacity" type="button" x-show="!showAllStaff &amp;&amp; staff.length &gt; 3">
                     Xem tất cả <span class="material-symbols-outlined text-sm">arrow_forward</span>
 </button>
 </div>
@@ -486,6 +521,42 @@
             stepLightbox(step) {
                 const count = this.photos.length || 1;
                 this.lightboxIndex = (this.lightboxIndex + step + count) % count;
+            },
+
+            /** The partner pins the salon in cai-dat-salon; without a pin there is no map. */
+            hasCoords() {
+                return this.salon.lat !== null && this.salon.lat !== undefined
+                    && this.salon.lng !== null && this.salon.lng !== undefined;
+            },
+
+            directionsUrl() {
+                return 'https://www.google.com/maps/dir/?api=1&destination='
+                    + this.salon.lat + ',' + this.salon.lng;
+            },
+
+            /**
+             * Built from the element x-if just inserted, so the container already has its
+             * size. The Leaflet objects stay local: Alpine's proxies would break the map.
+             */
+            initMap(element) {
+                const point = [Number(this.salon.lat), Number(this.salon.lng)];
+                /* Wheel zoom off, or scrolling past the map traps the page. */
+                const map = L.map(element, { scrollWheelZoom: false }).setView(point, 16);
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                }).addTo(map);
+                L.marker(point, {
+                    title: this.salon.name,
+                    icon: L.divIcon({
+                        className: '',   /* Leaflet's default frame would draw a white box. */
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 16],
+                        html: '<div class="w-8 h-8 rounded-full bg-primary border-2 border-surface shadow-lg flex items-center justify-center">'
+                            + '<span class="material-symbols-outlined text-sm text-on-primary">storefront</span>'
+                            + '</div>',
+                    }),
+                }).addTo(map);
             },
 
             amenityIcon(label) {

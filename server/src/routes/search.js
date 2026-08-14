@@ -354,6 +354,24 @@ function parseDistrict(text) {
   return NAMED_DISTRICTS.find((rule) => rule.pattern.test(text))?.name ?? null;
 }
 
+/*
+ * "trong bán kính 3km" / "cách 1.5 km" -> a radius in km. Kept as a named pattern
+ * because the budget rule below also has to be able to take these digits out of its
+ * own way: "3km" is a distance, never 3.000đ.
+ */
+const RADIUS_PATTERN = /(\d+(?:[.,]\d+)?)\s*km\b/;
+
+function parseRadius(text) {
+  const match = text.match(RADIUS_PATTERN);
+  return match ? Number(match[1].replace(',', '.')) : null;
+}
+
+/** "đánh giá từ 4.5 sao" / "4 sao trở lên" -> a minimum rating. */
+function parseRating(text) {
+  const match = text.match(/(\d(?:[.,]\d)?)\s*sao\b/);
+  return match ? Number(match[1].replace(',', '.')) : null;
+}
+
 /** "dưới 500k" / "500.000" / "500000" / "1tr" / "1 triệu" -> VND integer. */
 function parseBudget(text) {
   const millions = text.match(/(\d+(?:[.,]\d+)?)\s*(?:tr\b|trieu\b)/);
@@ -471,7 +489,19 @@ router.post('/assistant', (req, res, next) => {
       parsed.district = district;
     }
 
-    const budget = parseBudget(text);
+    // Distance and rating are read before the budget, and the matched distance is taken
+    // out of the text the budget rule sees, so "3km" can never become a price.
+    const radiusKm = parseRadius(text);
+    if (radiusKm !== null) {
+      parsed.radius_km = radiusKm;
+    }
+
+    const rating = parseRating(text);
+    if (rating !== null) {
+      parsed.rating_min = rating;
+    }
+
+    const budget = parseBudget(text.replace(RADIUS_PATTERN, ' '));
     if (budget !== null) {
       // The criteria object doubles as the query string for GET /api/search/salons,
       // where the parameter is price_max; `budget` is kept as the human-facing alias.
