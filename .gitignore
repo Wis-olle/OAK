@@ -53,4 +53,4 @@ server/data/
 server/uploads/
 
 # Static site CSS build tooling (ui/assets/css/oak-tailwind.css is committed)
-ui/node_modules/
+tools/tailwind/node_modules/

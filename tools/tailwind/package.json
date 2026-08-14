@@ -3,7 +3,8 @@
   "private": true,
   "description": "Build-only tooling for ui/assets/css/oak-tailwind.css. The site itself is plain static HTML.",
   "scripts": {
-    "build:css": "tailwindcss -c tailwind.build.config.js -i tailwind.input.css -o assets/css/oak-tailwind.css --minify"
+    "build:css": "tailwindcss -c tailwind.build.config.js -i tailwind.input.css -o ../../ui/assets/css/oak-tailwind.css --minify",
+    "check:css": "node check-css.js"
   },
   "devDependencies": {
     "@tailwindcss/container-queries": "0.1.1",

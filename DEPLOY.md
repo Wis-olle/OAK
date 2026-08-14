@@ -75,19 +75,51 @@ Không đặt `SUPABASE_URL` khi chạy local → ảnh upload rơi về thư m�
 
 `ui/assets/css/oak-tailwind.css` được build sẵn (không còn Tailwind Play CDN chạy trong trình duyệt) và **đã commit** vào repo — deploy không cần bước build nào.
 
+Toàn bộ tooling build nằm ở `tools/tailwind/` (ngoài thư mục `ui/` — vì mọi thứ trong `ui/` đều được server phục vụ công khai).
+
 Chỉ cần chạy lại khi **thêm/đổi class Tailwind trong `ui/*.html` hoặc `ui/assets/js/oak-api.js`**, hoặc khi sửa token trong `ui/assets/js/oak-tailwind-config.js`:
 
 ```powershell
-cd ui
+cd tools/tailwind
 npm install        # chỉ lần đầu
 npm run build:css
 ```
 
 Nhớ commit lại file `ui/assets/css/oak-tailwind.css` sau khi build. Tokens vẫn lấy từ `ui/assets/js/oak-tailwind-config.js` (file này không còn được trang nào load, chỉ dùng lúc build).
 
+Muốn kiểm tra file CSS đã commit có còn khớp với HTML hiện tại không (không ghi đè gì cả):
+
+```powershell
+cd tools/tailwind
+npm run check:css   # thoát khác 0 nếu CSS đã cũ
+```
+
 ---
 
-## 5. Lưu ý vận hành
+## 5. Thêm icon mới
+
+Font icon `ui/assets/fonts/font-material-subset.woff2` chỉ chứa đúng những icon đang dùng (Material Symbols đầy đủ nặng 1.1MB). Khi cần một icon mới:
+
+1. Thêm tên icon vào `tools/icons/icon-names.txt` (mỗi dòng một tên, đúng tên ligature của Material Symbols, vd. `shopping_cart`).
+2. Lấy file font gốc — từ git history (bản đầy đủ đã xoá ở commit `0c221aa`) hoặc tải lại từ Google Fonts:
+
+   ```powershell
+   cmd /c "git show 0c221aa~1:ui/assets/fonts/font-0bb58271a2.woff2 > material-symbols.woff2"
+   ```
+
+   (Phải qua `cmd /c`: dấu `>` của PowerShell ghi file dạng text nên làm hỏng file nhị phân.)
+
+3. Chạy script subset (cần `pip install fonttools brotli`):
+
+   ```powershell
+   python tools/icons/subset_icons.py material-symbols.woff2
+   ```
+
+Script ghi đè `ui/assets/fonts/font-material-subset.woff2` — commit lại file này. Nếu một tên icon không có trong font gốc, script báo lỗi và dừng.
+
+---
+
+## 6. Lưu ý vận hành
 
 - **Supabase free tier**: project bị *tạm dừng* nếu không có truy vấn nào trong 7 ngày liên tục; vào dashboard bấm **Restore** là chạy lại, dữ liệu không mất. Khi web có người dùng thật thường xuyên thì không bị.
 - **Render free tier**: service ngủ sau ~15 phút không truy cập, request kế tiếp chờ ~30–60s để thức dậy. Dữ liệu giờ đã an toàn ở Supabase; chỉ còn trải nghiệm chậm lúc thức dậy. Khi go-live chính thức: nâng **Starter** (~7 USD/tháng) để bỏ cold start, rồi gắn tên miền riêng (**Settings → Custom Domains**, SSL tự động).

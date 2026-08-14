@@ -1,7 +1,7 @@
 /* Build-time Tailwind config for ui/assets/css/oak-tailwind.css.
    Replaces the Play CDN runtime JIT that used to compile the same CSS in the browser.
 
-   The design tokens are NOT duplicated here: assets/js/oak-tailwind-config.js stays the
+   The design tokens are NOT duplicated here: ui/assets/js/oak-tailwind-config.js stays the
    single source of truth and is evaluated below against a fake `tailwind` global, exactly
    like the browser did.
 
@@ -13,10 +13,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const ui = __dirname.replace(/\\/g, '/');
+const ui = path.join(__dirname, '../../ui').replace(/\\/g, '/');
 
 const tailwind = {};
-new Function('tailwind', fs.readFileSync(path.join(__dirname, 'assets/js/oak-tailwind-config.js'), 'utf8'))(tailwind);
+new Function('tailwind', fs.readFileSync(path.join(ui, 'assets/js/oak-tailwind-config.js'), 'utf8'))(tailwind);
 
 module.exports = {
     ...tailwind.config,
