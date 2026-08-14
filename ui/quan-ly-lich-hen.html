@@ -124,27 +124,27 @@
 <!-- Filters Bar -->
 <div class="px-gutter py-6 flex flex-wrap items-center justify-between gap-4 border-b border-outline-variant/20 shrink-0">
 <div class="flex items-center gap-4">
-<div class="flex items-center bg-surface-container-low rounded-DEFAULT p-1 border border-outline-variant/30">
+<div class="flex items-center bg-surface-container-low rounded p-1 border border-outline-variant/30">
 <button :class="view === 'day' ? 'bg-primary-container text-on-primary rounded-full shadow-sm hover:bg-primary' : 'text-on-surface-variant hover:text-primary'" @click="setView('day')" class="px-4 py-1.5 font-label-md text-label-md uppercase">Ngày</button>
 <button :class="view === 'week' ? 'bg-primary-container text-on-primary rounded-full shadow-sm hover:bg-primary' : 'text-on-surface-variant hover:text-primary'" @click="setView('week')" class="px-4 py-1.5 font-label-md text-label-md uppercase">Tuần</button>
 </div>
 <h3 class="font-headline-sm text-headline-sm text-primary ml-4" x-text="rangeLabel()"></h3>
 </div>
 <div class="flex flex-wrap gap-3">
-<input @change="load()" aria-label="Ngày" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none" type="date" x-model="date"/>
-<select @change="load()" aria-label="Lọc theo nhân viên" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8 relative" x-model="staffId">
+<input @change="load()" aria-label="Ngày" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded px-4 py-2 focus:ring-0 focus:border-secondary outline-none" type="date" x-model="date"/>
+<select @change="load()" aria-label="Lọc theo nhân viên" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8 relative" x-model="staffId">
 <option value="">Tất cả nhân viên</option>
 <template :key="member.id" x-for="member in activeStaff()">
 <option :value="member.id" x-text="member.name"></option>
 </template>
 </select>
-<select @change="load()" aria-label="Lọc theo dịch vụ" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8" x-model="serviceId">
+<select @change="load()" aria-label="Lọc theo dịch vụ" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8" x-model="serviceId">
 <option value="">Tất cả dịch vụ</option>
 <template :key="service.id" x-for="service in services">
 <option :value="service.id" x-text="service.name"></option>
 </template>
 </select>
-<select @change="load()" aria-label="Lọc theo trạng thái" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded-DEFAULT px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8" x-model="status">
+<select @change="load()" aria-label="Lọc theo trạng thái" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8" x-model="status">
 <option value="">Tất cả trạng thái</option>
 <option value="pending">Chờ xác nhận</option>
 <option value="confirmed">Đã xác nhận</option>
@@ -186,7 +186,7 @@
 <!-- Appointments -->
 <template :key="booking.id" x-for="booking in placedBookings()">
 <div :style="bookingStyle(booking)" class="mx-2 my-1">
-<div :class="bookingClass(booking)" @click="open(booking.id)" class="rounded-r-DEFAULT p-3 h-full shadow-sm hover:shadow-md cursor-pointer transition-shadow flex flex-col justify-between overflow-hidden">
+<div :class="bookingClass(booking)" @click="open(booking.id)" class="rounded-r p-3 h-full shadow-sm hover:shadow-md cursor-pointer transition-shadow flex flex-col justify-between overflow-hidden">
 <div>
 <div class="flex items-center gap-1 mb-1" x-show="booking.status !== 'confirmed'">
 <span class="material-symbols-outlined text-[14px] text-outline" x-text="statusIcon(booking.status)"></span>

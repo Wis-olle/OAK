@@ -143,7 +143,7 @@
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" :class="salonsLoading ? 'opacity-50' : ''">
 <template :key="entry.id" x-for="entry in salons">
 <button :class="salon &amp;&amp; salon.id === entry.id ? 'border-primary' : 'border-outline-variant'" @click="chooseSalon(entry)" class="text-left p-3 border rounded-lg hover:border-primary transition-colors" type="button">
-<span class="block aspect-[3/2] w-full rounded-DEFAULT overflow-hidden mb-3 bg-surface-container">
+<span class="block aspect-[3/2] w-full rounded overflow-hidden mb-3 bg-surface-container">
 <template x-if="entry.image">
 <img loading="lazy" :src="entry.image" alt="" class="w-full h-full object-cover"/>
 </template>
@@ -347,7 +347,7 @@
 <p class="font-caption text-caption text-error-container" x-cloak="" x-show="formError" x-text="formError"></p>
 <button :disabled="busy || loading" @click="submit()" class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : 'Xác nhận đặt lịch'">Xác nhận đặt lịch</button>
 </div>
-<div class="bg-on-tertiary/5 p-4 rounded-DEFAULT space-y-2">
+<div class="bg-on-tertiary/5 p-4 rounded space-y-2">
 <div class="flex items-start gap-2">
 <span class="material-symbols-outlined text-[18px] mt-0.5 text-on-tertiary/80" data-icon="info">info</span>
 <span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80">Chính sách hủy lịch</span>
