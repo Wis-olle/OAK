@@ -144,16 +144,16 @@
 <img :alt="caption(0)" :src="photo(0)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
 <div :aria-label="'Xem ảnh: ' + caption(1)" @click="openLightbox(1)" @keydown.enter="openLightbox(1)" @keydown.space.prevent="openLightbox(1)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[1]">
-<img :alt="caption(1)" :src="photo(1)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
+<img loading="lazy" :alt="caption(1)" :src="photo(1)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
 <div :aria-label="'Xem ảnh: ' + caption(2)" @click="openLightbox(2)" @keydown.enter="openLightbox(2)" @keydown.space.prevent="openLightbox(2)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[2]">
-<img :alt="caption(2)" :src="photo(2)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
+<img loading="lazy" :alt="caption(2)" :src="photo(2)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
 <div :aria-label="'Xem ảnh: ' + caption(3)" @click="openLightbox(3)" @keydown.enter="openLightbox(3)" @keydown.space.prevent="openLightbox(3)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[3]">
-<img :alt="caption(3)" :src="photo(3)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
+<img loading="lazy" :alt="caption(3)" :src="photo(3)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
 <div :aria-label="'Xem ảnh: ' + caption(4)" @click="openLightbox(4)" @keydown.enter="openLightbox(4)" @keydown.space.prevent="openLightbox(4)" class="hidden md:block relative overflow-hidden rounded-lg cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[4]">
-<img :alt="caption(4)" :src="photo(4)" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
+<img loading="lazy" :alt="caption(4)" :src="photo(4)" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
 <div class="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors" x-show="morePhotos() &gt; 0">
 <span class="font-label-md text-label-md text-white uppercase tracking-widest" x-text="'+' + morePhotos() + ' Ảnh'"></span>
 </div>
@@ -168,7 +168,7 @@
 <button @click="stepLightbox(-1)" aria-label="Ảnh trước" class="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="photos.length &gt; 1">
 <span class="material-symbols-outlined">chevron_left</span>
 </button>
-<img :alt="caption(lightboxIndex)" :src="photo(lightboxIndex)" class="max-h-[75vh] max-w-full object-contain rounded-lg"/>
+<img loading="lazy" :alt="caption(lightboxIndex)" :src="photo(lightboxIndex)" class="max-h-[75vh] max-w-full object-contain rounded-lg"/>
 <p class="font-body-md text-body-md text-white text-center" x-text="caption(lightboxIndex)"></p>
 <p class="font-caption text-caption text-white/60" x-show="photos.length &gt; 1" x-text="(lightboxIndex + 1) + ' / ' + photos.length"></p>
 <button @click="stepLightbox(1)" aria-label="Ảnh sau" class="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="photos.length &gt; 1">
@@ -296,7 +296,7 @@
 <template :key="member.id" x-for="member in visibleStaff()">
 <a :href="'ho-so-chuyen-gia.html?id=' + member.id" class="bg-surface-container-low rounded-xl overflow-hidden group block" style="color:inherit;text-decoration:none">
 <div class="h-64 overflow-hidden">
-<img :alt="member.name" :src="member.image" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
+<img loading="lazy" :alt="member.name" :src="member.image" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
 </div>
 <div class="p-6">
 <div class="flex justify-between items-start mb-2">
@@ -347,7 +347,7 @@
 <div class="border-b border-outline-variant/30 pb-6">
 <div class="flex items-center gap-3 mb-2">
 <div class="w-10 h-10 rounded-full overflow-hidden bg-surface-variant shrink-0">
-<img :alt="review.user.name" :src="review.user.avatar" class="w-full h-full object-cover" x-show="review.user.avatar"/>
+<img loading="lazy" :alt="review.user.name" :src="review.user.avatar" class="w-full h-full object-cover" x-show="review.user.avatar"/>
 </div>
 <div>
 <p class="font-body-md text-body-md text-on-surface" x-text="review.user.name"></p>

@@ -127,7 +127,7 @@
 <article class="group relative">
 <a :href="salonUrl(salon)" class="block" style="color:inherit;text-decoration:none">
 <div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
-<img :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
 </div>
 <div class="flex justify-between items-start gap-3">
 <div class="min-w-0">
@@ -165,7 +165,7 @@
 <article class="group relative">
 <a :href="'chi-tiet-dich-vu.html?id=' + service.id" class="block" style="color:inherit;text-decoration:none">
 <div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
-<img :alt="service.name" :src="service.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="service.name" :src="service.image" class="w-full h-full object-cover">
 </div>
 <h3 class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="service.name"></h3>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1 mb-3">

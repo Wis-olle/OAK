@@ -140,7 +140,7 @@
 </div>
 </div>
 <!-- Banner artwork: in flow below the copy on mobile, behind it from md up -->
-<img alt="Người mẫu trong khung oval trên nền hồng phấn với cánh hoa hồng rơi" class="w-full h-[260px] object-cover object-right md:absolute md:inset-y-0 md:right-0 md:w-auto md:h-full md:object-contain md:[mask-image:linear-gradient(to_right,transparent,#000_64px)]" src="assets/images/hero-banner.webp">
+<img width="1672" height="941" alt="Người mẫu trong khung oval trên nền hồng phấn với cánh hoa hồng rơi" class="w-full h-[260px] object-cover object-right md:absolute md:inset-y-0 md:right-0 md:w-auto md:h-full md:object-contain md:[mask-image:linear-gradient(to_right,transparent,#000_64px)]" src="assets/images/hero-banner.webp">
 </section>
 <!-- Categories Section -->
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-section-gap">
@@ -194,7 +194,7 @@
 <template x-if="salons.length">
 <a :href="salonUrl(salons[0])" class="md:col-span-8 group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
 <div class="aspect-[16/9] w-full rounded-lg overflow-hidden img-hover-zoom mb-4 bg-surface-container">
-<img :alt="salons[0].name" :src="salons[0].image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="salons[0].name" :src="salons[0].image" class="w-full h-full object-cover">
 </div>
 <div class="flex justify-between items-start">
 <div>
@@ -222,7 +222,7 @@
 <template :key="salon.id" x-for="salon in salons.slice(1)">
 <a :href="salonUrl(salon)" class="group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
 <div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
-<img :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
 </div>
 <div class="flex justify-between items-start">
 <div>
@@ -258,7 +258,7 @@
 <a :href="salonUrl(salon)" class="group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
 <div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
 <template x-if="salon.image">
-<img :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
 </template>
 <template x-if="!salon.image">
 <div class="w-full h-full flex items-center justify-center bg-surface-container">

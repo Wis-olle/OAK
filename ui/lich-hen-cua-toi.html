@@ -151,7 +151,7 @@
 <template :key="booking.id" x-for="booking in bookings">
 <div class="group bg-surface-container-lowest p-4 md:p-6 flex flex-col md:flex-row gap-6 hover:bg-surface-container-low transition-colors rounded-lg border border-outline-variant/20">
 <div class="w-full md:w-48 h-48 md:h-32 shrink-0 rounded-md overflow-hidden bg-surface-variant">
-<img :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
 </div>
 <div class="flex-1 flex flex-col justify-between">
 <div class="flex justify-between items-start mb-2">

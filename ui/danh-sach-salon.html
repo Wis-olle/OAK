@@ -119,7 +119,7 @@
 <a :href="salonUrl(salon)" class="group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
 <div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
 <template x-if="salon.image">
-<img :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
 </template>
 <template x-if="!salon.image">
 <div class="w-full h-full flex items-center justify-center bg-surface-container">

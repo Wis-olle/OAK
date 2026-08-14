@@ -116,7 +116,7 @@
 <div class="md:col-span-4 flex flex-col gap-gutter h-[614px] md:h-[819px]">
 <template :key="photo.id" x-for="photo in photos.slice(1, 3)">
 <div class="flex-1 relative group overflow-hidden rounded">
-<img :alt="photo.caption" :src="photo.image" class="w-full h-full object-cover smooth-hover group-hover:scale-105">
+<img loading="lazy" :alt="photo.caption" :src="photo.image" class="w-full h-full object-cover smooth-hover group-hover:scale-105">
 </div>
 </template>
 </div>
@@ -140,7 +140,7 @@
 <section class="mb-section-gap text-center" x-cloak="" x-show="salon &amp;&amp; salon.tour_url">
 <h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary mb-12">Tham quan thực tế</h2>
 <div @click="window.open(salon.tour_url, '_blank', 'noopener')" class="relative w-full aspect-[21/9] rounded overflow-hidden cursor-pointer group">
-<img alt="360 Virtual Tour" class="w-full h-full object-cover smooth-hover group-hover:scale-105 group-hover:blur-sm" data-alt="A wide panoramic view of a high-end, modern minimalist beauty salon interior. Designed to look like a 360-degree virtual tour thumbnail. Soft natural light, organic textures, creamy off-whites, serene atmosphere, high architectural fidelity." src="assets/images/img-11f369ef67.jpg">
+<img loading="lazy" width="1024" height="434" alt="360 Virtual Tour" class="w-full h-full object-cover smooth-hover group-hover:scale-105 group-hover:blur-sm" data-alt="A wide panoramic view of a high-end, modern minimalist beauty salon interior. Designed to look like a 360-degree virtual tour thumbnail. Soft natural light, organic textures, creamy off-whites, serene atmosphere, high architectural fidelity." src="assets/images/img-11f369ef67.jpg">
 <div class="absolute inset-0 bg-black/20 flex items-center justify-center transition-all duration-300 group-hover:bg-black/40">
 <button aria-label="Mở tour 360 độ" class="bg-surface/90 text-primary p-6 rounded-full ambient-shadow flex items-center justify-center transform transition-transform group-hover:scale-110" type="button">
 <span class="material-symbols-outlined text-4xl">360</span>

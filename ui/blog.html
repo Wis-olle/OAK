@@ -148,7 +148,7 @@
 <a :href="'blog-chi-tiet.html?slug=' + encodeURIComponent(post.slug)" class="group block h-full" style="color:inherit;text-decoration:none"><article class="h-full flex flex-col">
 <div class="relative aspect-[16/9] w-full rounded-lg overflow-hidden img-hover-zoom mb-4 bg-surface-container">
 <template x-if="post.image">
-<img :alt="post.title" :src="post.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="post.title" :src="post.image" class="w-full h-full object-cover">
 </template>
 <template x-if="!post.image">
 <div class="w-full h-full flex items-center justify-center">
@@ -167,7 +167,7 @@
 <h2 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary transition-colors mb-2" x-text="post.title"></h2>
 <p class="font-body-md text-body-md text-on-surface-variant line-clamp-2 mb-4" x-text="post.excerpt || ''"></p>
 <div class="mt-auto flex items-center gap-3 pt-4 border-t border-outline-variant/30">
-<img :alt="post.author.name || 'Tác giả'" :src="avatarOf(post.author)" class="w-8 h-8 rounded-full object-cover bg-surface-variant shrink-0">
+<img loading="lazy" :alt="post.author.name || 'Tác giả'" :src="avatarOf(post.author)" class="w-8 h-8 rounded-full object-cover bg-surface-variant shrink-0">
 <div class="min-w-0">
 <p class="font-label-md text-label-md text-primary truncate" x-text="post.author.name || 'Cộng đồng OAK'"></p>
 <p class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(post.created_at)"></p>
@@ -225,7 +225,7 @@
 <p class="font-caption text-caption text-on-surface-variant mt-2" x-show="uploading">Đang tải ảnh lên…</p>
 <template x-if="form.image">
 <div class="aspect-[16/9] w-full rounded-lg overflow-hidden bg-surface-container mt-4">
-<img :src="form.image" alt="Ảnh bìa đã chọn" class="w-full h-full object-cover">
+<img loading="lazy" :src="form.image" alt="Ảnh bìa đã chọn" class="w-full h-full object-cover">
 </div>
 </template>
 </div>

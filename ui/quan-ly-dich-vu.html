@@ -149,7 +149,7 @@
 <div :class="service.active ? 'bg-surface-container-lowest' : 'bg-surface-container-lowest/50 opacity-75'" @click="openServiceCard(service)" class="group relative hover:bg-surface-container-low transition-colors duration-300 rounded-lg overflow-hidden border border-transparent hover:border-outline-variant/30 flex flex-col h-full cursor-pointer">
 <div class="aspect-[4/3] w-full overflow-hidden relative bg-surface-container-low">
 <template x-if="service.image">
-<img :class="service.active ? '' : 'grayscale opacity-80 group-hover:grayscale-0'" :src="service.image" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
+<img loading="lazy" :class="service.active ? '' : 'grayscale opacity-80 group-hover:grayscale-0'" :src="service.image" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
 </template>
 <template x-if="!service.image">
 <div class="w-full h-full flex items-center justify-center text-outline-variant">
@@ -191,7 +191,7 @@
 <div :class="index === 0 ? 'md:col-span-2 bg-surface-container-high' : 'bg-surface-container border border-outline-variant/20 hover:border-outline-variant'" class="rounded-xl p-8 flex flex-col justify-between relative overflow-hidden group transition-colors">
 <template x-if="index === 0 && promotion.image">
 <div class="absolute inset-0 z-0">
-<img :src="promotion.image" alt="" class="w-full h-full object-cover opacity-20 mix-blend-multiply transition-transform duration-1000 group-hover:scale-105"/>
+<img loading="lazy" :src="promotion.image" alt="" class="w-full h-full object-cover opacity-20 mix-blend-multiply transition-transform duration-1000 group-hover:scale-105"/>
 </div>
 </template>
 <div class="relative z-10 flex justify-between items-start gap-4">
@@ -265,7 +265,7 @@
 <div class="flex items-center gap-4">
 <div class="w-24 h-20 bg-surface-container-low border border-outline-variant/30 overflow-hidden flex items-center justify-center shrink-0">
 <template x-if="serviceForm.image">
-<img :src="serviceForm.image" alt="" class="w-full h-full object-cover"/>
+<img loading="lazy" :src="serviceForm.image" alt="" class="w-full h-full object-cover"/>
 </template>
 <template x-if="!serviceForm.image">
 <span class="material-symbols-outlined text-outline-variant">image</span>
@@ -365,7 +365,7 @@
 <div class="flex items-center gap-4">
 <div class="w-24 h-20 bg-surface-container-low border border-outline-variant/30 overflow-hidden flex items-center justify-center shrink-0">
 <template x-if="promotionForm.image">
-<img :src="promotionForm.image" alt="" class="w-full h-full object-cover"/>
+<img loading="lazy" :src="promotionForm.image" alt="" class="w-full h-full object-cover"/>
 </template>
 <template x-if="!promotionForm.image">
 <span class="material-symbols-outlined text-outline-variant">image</span>

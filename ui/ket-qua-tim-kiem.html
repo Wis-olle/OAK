@@ -192,7 +192,7 @@
 <article :class="hovered === salon.id ? 'bg-surface-container-low border-outline-variant/20' : 'border-transparent'" @click="openSalon(salon)" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="flex flex-col sm:flex-row gap-6 p-4 rounded-xl hover:bg-surface-container-low transition-colors group cursor-pointer border hover:border-outline-variant/20">
 <div class="w-full sm:w-48 sm:h-auto shrink-0 relative rounded-lg overflow-hidden">
 <template x-if="salon.image">
-<img :alt="salon.name" :src="salon.image" class="w-full h-auto sm:h-full object-cover transition-transform duration-500 group-hover:scale-105">
+<img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-auto sm:h-full object-cover transition-transform duration-500 group-hover:scale-105">
 </template>
 <template x-if="!salon.image">
 <div class="w-full h-32 sm:h-full flex items-center justify-center bg-surface-container">

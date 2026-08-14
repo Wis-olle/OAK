@@ -146,7 +146,7 @@
 <div @click="openStaffCard(member)" class="group bg-surface-container-lowest border border-outline-variant/20 hover:border-outline/40 transition-colors flex flex-col cursor-pointer">
 <div class="aspect-[4/3] w-full relative overflow-hidden bg-surface-container-low">
 <template x-if="member.image">
-<img :src="member.image" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-in-out"/>
+<img loading="lazy" :src="member.image" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-in-out"/>
 </template>
 <template x-if="!member.image">
 <div class="w-full h-full flex items-center justify-center text-outline-variant">
@@ -218,7 +218,7 @@
 <div class="flex items-center gap-4">
 <div class="w-14 h-14 rounded-full bg-surface-container-low border border-outline-variant/30 overflow-hidden flex items-center justify-center shrink-0">
 <template x-if="form.image">
-<img :src="form.image" alt="" class="w-full h-full object-cover"/>
+<img loading="lazy" :src="form.image" alt="" class="w-full h-full object-cover"/>
 </template>
 <template x-if="!form.image">
 <span class="material-symbols-outlined text-outline-variant">person</span>

@@ -122,7 +122,7 @@
 <!-- Booking summary -->
 <div class="flex gap-4 items-center bg-surface-container-lowest rounded-lg p-4 border border-outline-variant/20 mb-6">
 <div class="w-20 h-20 shrink-0 rounded-md overflow-hidden bg-surface-variant">
-<img :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
 </div>
 <div class="min-w-0">
 <h3 class="font-headline-sm text-[20px] text-primary mb-1" x-text="booking.service.name"></h3>
@@ -160,7 +160,7 @@
 <template :key="item.id" x-for="item in pending">
 <div class="bg-surface-container-lowest p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 rounded-lg border border-outline-variant/20">
 <div class="w-full md:w-32 h-32 md:h-20 shrink-0 rounded-md overflow-hidden bg-surface-variant">
-<img :alt="item.salon.name" :src="item.salon.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="item.salon.name" :src="item.salon.image" class="w-full h-full object-cover">
 </div>
 <div class="flex-1 min-w-0">
 <h3 class="font-headline-sm text-[20px] text-primary mb-1" x-text="item.service.name"></h3>

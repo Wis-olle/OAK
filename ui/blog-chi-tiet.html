@@ -168,7 +168,7 @@
 <div class="space-y-8 mb-10">
 <template :key="comment.id" x-for="comment in post.comments">
 <div class="flex gap-4">
-<img :alt="comment.user.name || 'Người dùng'" :src="avatarOf(comment.user)" class="w-10 h-10 rounded-full object-cover bg-surface-variant shrink-0">
+<img loading="lazy" :alt="comment.user.name || 'Người dùng'" :src="avatarOf(comment.user)" class="w-10 h-10 rounded-full object-cover bg-surface-variant shrink-0">
 <div class="min-w-0">
 <div class="flex flex-wrap items-baseline gap-x-3">
 <p class="font-label-md text-label-md text-primary" x-text="comment.user.name || 'Người dùng OAK'"></p>
@@ -209,7 +209,7 @@
 <a :href="'blog-chi-tiet.html?slug=' + encodeURIComponent(item.slug)" class="group flex gap-4" style="color:inherit;text-decoration:none">
 <div class="relative w-24 h-20 rounded-lg overflow-hidden img-hover-zoom bg-surface-container shrink-0">
 <template x-if="item.image">
-<img :alt="item.title" :src="item.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="item.title" :src="item.image" class="w-full h-full object-cover">
 </template>
 <template x-if="!item.image">
 <div class="w-full h-full flex items-center justify-center">

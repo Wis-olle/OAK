@@ -215,7 +215,7 @@
 <td class="p-4">
 <div class="flex items-center gap-3">
 <template x-if="booking.customer.avatar">
-<img :src="booking.customer.avatar" alt="" class="w-8 h-8 rounded-full object-cover"/>
+<img loading="lazy" :src="booking.customer.avatar" alt="" class="w-8 h-8 rounded-full object-cover"/>
 </template>
 <template x-if="!booking.customer.avatar">
 <div class="w-8 h-8 rounded-full bg-surface-variant flex items-center justify-center text-secondary font-bold" x-text="initial(booking.customer.name)"></div>
@@ -249,7 +249,7 @@
 <div class="flex items-center gap-4">
 <div class="relative">
 <template x-if="member.image">
-<img :src="member.image" alt="" class="w-12 h-12 rounded-full object-cover"/>
+<img loading="lazy" :src="member.image" alt="" class="w-12 h-12 rounded-full object-cover"/>
 </template>
 <template x-if="!member.image">
 <div class="w-12 h-12 rounded-full bg-surface-variant flex items-center justify-center text-secondary font-bold" x-text="initial(member.name)"></div>

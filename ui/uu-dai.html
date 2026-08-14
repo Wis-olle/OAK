@@ -121,7 +121,7 @@
 <p class="font-label-md text-label-md text-primary mt-8" x-cloak="" x-show="promotions.length" x-text="promotions.length + ' ưu đãi đang áp dụng'"></p>
 </div>
 </div>
-<img alt="Bàn tay với bộ móng tông hồng nude bên cạnh hoa tươi" class="w-full h-[220px] object-cover object-center md:absolute md:inset-y-0 md:right-0 md:w-[46%] md:h-full md:[mask-image:linear-gradient(to_right,transparent,#000_96px)]" src="assets/images/img-064bab706d.jpg">
+<img width="1024" height="572" alt="Bàn tay với bộ móng tông hồng nude bên cạnh hoa tươi" class="w-full h-[220px] object-cover object-center md:absolute md:inset-y-0 md:right-0 md:w-[46%] md:h-full md:[mask-image:linear-gradient(to_right,transparent,#000_96px)]" src="assets/images/img-064bab706d.jpg">
 </section>
 <!-- Platform-wide promotions -->
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-section-gap" x-cloak="" x-show="platform.length">
@@ -133,7 +133,7 @@
 <template :key="promotion.id" x-for="promotion in platform">
 <article class="bg-surface-container-lowest rounded-lg border border-outline-variant/20 overflow-hidden flex flex-col group">
 <div class="relative aspect-[16/9] w-full overflow-hidden img-hover-zoom bg-surface-container">
-<img :alt="promotion.title" :src="promotion.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="promotion.title" :src="promotion.image" class="w-full h-full object-cover">
 <span class="absolute top-3 left-3 bg-tertiary-fixed text-on-tertiary-fixed-variant px-3 py-1 text-caption font-caption rounded-full" x-text="typeLabel(promotion)"></span>
 </div>
 <div class="p-6 flex flex-col flex-1 gap-3">
@@ -167,7 +167,7 @@
 <template :key="promotion.id" x-for="promotion in salonOffers">
 <article class="bg-surface-container-lowest rounded-lg border border-outline-variant/20 overflow-hidden flex flex-col group">
 <div class="relative aspect-[16/9] w-full overflow-hidden img-hover-zoom bg-surface-container">
-<img :alt="promotion.title" :src="promotion.image" class="w-full h-full object-cover">
+<img loading="lazy" :alt="promotion.title" :src="promotion.image" class="w-full h-full object-cover">
 <span class="absolute top-3 left-3 bg-tertiary-fixed text-on-tertiary-fixed-variant px-3 py-1 text-caption font-caption rounded-full" x-text="typeLabel(promotion)"></span>
 </div>
 <div class="p-6 flex flex-col flex-1 gap-3">
