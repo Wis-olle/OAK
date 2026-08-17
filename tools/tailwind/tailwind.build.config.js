@@ -25,6 +25,7 @@ module.exports = {
         // The only hand-written JS that builds class strings; the vendored bundles
         // (alpine, leaflet, tailwind) are deliberately not scanned.
         `${ui}/assets/js/oak-api.js`,
+        `${ui}/assets/js/oak-i18n.js`,
     ],
     plugins: [
         require('@tailwindcss/forms'),

@@ -1,0 +1,46 @@
+{
+  "Tổng quan - OAK Beauty": "Overview - OAK Beauty",
+
+  "Tổng quan": "Overview",
+  "Lịch hẹn": "Appointments",
+  "Dịch vụ": "Services",
+  "Nhân viên": "Staff",
+  "Báo cáo": "Reports",
+  "Cài đặt": "Settings",
+  "Xem trang khách": "View customer site",
+  "Đăng xuất": "Sign out",
+  "Đặt lịch mới": "New appointment",
+  "Tìm kiếm": "Search",
+  "Tìm lịch hẹn, dịch vụ, nhân viên...": "Search appointments, services, staff...",
+  "Không tìm thấy kết quả phù hợp.": "No matching results found.",
+  "Thông báo": "Notifications",
+  "Tài khoản": "Account",
+  "Ảnh đại diện chủ salon": "Salon owner avatar",
+  "Đối tác": "Partner",
+
+  "Doanh thu hôm nay": "Revenue today",
+  "so với hôm qua": "vs yesterday",
+  "Chưa có doanh thu hôm qua để so sánh": "No revenue yesterday to compare",
+  "Tổng lịch hẹn": "Total appointments",
+  "Khách hàng mới": "New customers",
+  "Khách đặt lịch lần đầu tại salon": "Customers booking at the salon for the first time",
+  "Đánh giá trung bình": "Average rating",
+  "Chưa có đánh giá": "No reviews yet",
+
+  "Lịch hẹn hôm nay": "Today's appointments",
+  "Xem tất cả": "View all",
+  "Thời gian": "Time",
+  "Khách hàng": "Customer",
+  "Trạng thái": "Status",
+  "Hôm nay chưa có lịch hẹn nào.": "No appointments today yet.",
+
+  "Trạng thái nhân viên": "Staff status",
+  "Đang phục vụ": "Serving",
+  "Rảnh": "Available",
+  "Chưa có nhân viên nào.": "No staff yet.",
+
+  "Chờ xác nhận": "Pending confirmation",
+  "Đã xác nhận": "Confirmed",
+  "Đã hoàn thành": "Completed",
+  "Đã hủy": "Cancelled"
+}
