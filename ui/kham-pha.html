@@ -22,6 +22,116 @@
         }
         input.nl-input:focus { outline: none; box-shadow: none; }
         input.nl-input::placeholder { font-size: 14px; }
+
+        /* Beauty map hotspots (this page only). Each pin is one <a> laid out as a thin bar
+           over the photo: a dot at one end, a label pill at the other, a hairline between.
+           The bar's ends are given in per-cent of the figure in the markup, so every pin
+           tracks its feature as the responsive photo resizes. */
+        .beauty-pin { position: absolute; display: block; }
+        .beauty-pin--left, .beauty-pin--right { height: 0; }
+        .beauty-pin--up { width: 0; }
+
+        /* Runs the full bar; the pill's opaque background hides the end it covers. */
+        .beauty-pin__line {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.9);
+            /* Warm dark glow: the same hairline has to read on dark hair, bare skin
+               and the near-white backdrop of both photos. */
+            box-shadow: 0 0 2px rgba(60, 40, 20, 0.55);
+        }
+        .beauty-pin--left .beauty-pin__line,
+        .beauty-pin--right .beauty-pin__line { left: 0; right: 0; top: 0; height: 1px; }
+        .beauty-pin--up .beauty-pin__line { left: 0; top: 0; bottom: 0; width: 1px; }
+
+        .beauty-pin__dot {
+            position: absolute; width: 11px; height: 11px; border-radius: 9999px;
+            background-color: #ffffff;
+            box-shadow: 0 0 0 1px rgba(60, 40, 20, 0.28), 0 2px 10px rgba(60, 40, 20, 0.45);
+        }
+        .beauty-pin--left .beauty-pin__dot { right: 0; top: 0; transform: translate(50%, -50%); }
+        .beauty-pin--right .beauty-pin__dot { left: 0; top: 0; transform: translate(-50%, -50%); }
+        .beauty-pin--up .beauty-pin__dot { left: 0; bottom: 0; transform: translate(-50%, 50%); }
+        /* Soft halo around the core */
+        .beauty-pin__dot::before {
+            content: ''; position: absolute; inset: -9px; border-radius: inherit;
+            background-image: radial-gradient(circle, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 70%);
+        }
+        /* Transparent padding: the dot stays 11px, the tap target clears 44px. */
+        .beauty-pin__dot::after { content: ''; position: absolute; inset: -16.5px; }
+
+        /* Two concentric rings, hidden until the pin is hovered or focused. */
+        .beauty-pin__ripple { position: absolute; inset: 0; }
+        .beauty-pin__ripple::before,
+        .beauty-pin__ripple::after {
+            content: ''; position: absolute; border-radius: 9999px; opacity: 0;
+            border: 1px solid rgba(255, 255, 255, 0.75);
+            box-shadow: 0 0 4px rgba(60, 40, 20, 0.25);
+        }
+        .beauty-pin__ripple::before { inset: -5px; }
+        .beauty-pin__ripple::after { inset: -11px; }
+        /* Static double rings: also the whole effect for prefers-reduced-motion. */
+        .beauty-pin:hover .beauty-pin__ripple::before,
+        .beauty-pin:focus-visible .beauty-pin__ripple::before { opacity: 0.5; }
+        .beauty-pin:hover .beauty-pin__ripple::after,
+        .beauty-pin:focus-visible .beauty-pin__ripple::after { opacity: 0.3; }
+
+        .beauty-pin__card {
+            position: absolute; top: -14px; height: 28px;
+            display: flex; align-items: center; white-space: nowrap;
+            padding: 0 12px; border-radius: 9999px;
+            font-size: 12px; font-weight: 600;
+            background-color: rgba(255, 252, 248, 0.94);
+            box-shadow: 0 1px 2px rgba(60, 40, 20, 0.14), 0 5px 14px rgba(60, 40, 20, 0.16);
+        }
+        /* Transparent padding: the pill stays slim, the tap target clears 44px. */
+        .beauty-pin__card::before { content: ''; position: absolute; inset: -11px -8px; }
+        .beauty-pin--left .beauty-pin__card { left: 0; }
+        .beauty-pin--right .beauty-pin__card { right: 0; }
+        .beauty-pin--up .beauty-pin__card { left: 0; transform: translateX(-50%); }
+
+        .beauty-pin:hover .beauty-pin__dot,
+        .beauty-pin:focus-visible .beauty-pin__dot {
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 3px rgba(60, 40, 20, 0.25),
+                        0 2px 12px rgba(60, 40, 20, 0.5);
+        }
+        .beauty-pin:hover .beauty-pin__card,
+        .beauty-pin:focus-visible .beauty-pin__card {
+            background-color: #fffdfa;
+            box-shadow: 0 2px 4px rgba(60, 40, 20, 0.16), 0 10px 24px rgba(60, 40, 20, 0.26);
+            transform: translateY(-2px);
+        }
+        .beauty-pin--up:hover .beauty-pin__card,
+        .beauty-pin--up:focus-visible .beauty-pin__card { transform: translate(-50%, -2px); }
+        .beauty-pin:focus { outline: none; }
+        .beauty-pin:focus-visible .beauty-pin__card { outline: 2px solid #171818; outline-offset: 2px; }
+
+        @media (prefers-reduced-motion: no-preference) {
+            .beauty-pin__card { transition: box-shadow 200ms ease, transform 200ms ease, background-color 200ms ease; }
+            .beauty-pin__dot { transition: box-shadow 200ms ease; }
+            .beauty-pin:hover .beauty-pin__ripple::before,
+            .beauty-pin:hover .beauty-pin__ripple::after,
+            .beauty-pin:focus-visible .beauty-pin__ripple::before,
+            .beauty-pin:focus-visible .beauty-pin__ripple::after {
+                animation: beauty-pin-ripple 2.4s ease-out infinite;
+            }
+            .beauty-pin:hover .beauty-pin__ripple::after,
+            .beauty-pin:focus-visible .beauty-pin__ripple::after { animation-delay: 1.2s; }
+            /* No hover to reveal them, so a slow idle pulse marks every dot as tappable. */
+            @media (hover: none) {
+                .beauty-pin__ripple::before,
+                .beauty-pin__ripple::after { animation: beauty-pin-ripple 2.4s ease-out infinite; }
+                .beauty-pin__ripple::after { animation-delay: 1.2s; }
+            }
+        }
+        /* Touch with reduced motion: no hover and no pulse, so the rings stay on statically. */
+        @media (hover: none) and (prefers-reduced-motion: reduce) {
+            .beauty-pin__ripple::before { opacity: 0.5; }
+            .beauty-pin__ripple::after { opacity: 0.3; }
+        }
+        @keyframes beauty-pin-ripple {
+            0% { opacity: 0.5; transform: scale(0.6); }
+            100% { opacity: 0; transform: scale(2.2); }
+        }
     </style>
 <title>Khám phá - OAK Beauty</title>
 
@@ -54,7 +164,7 @@
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="cham-soc-da.html">SKINCARE</a>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
+<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-mi.html">EYELASH</a>
 <div class="border-t border-outline-variant/30 my-1"></div>
 <a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
@@ -102,7 +212,7 @@
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html?category=eyelash">EYELASH</a>
+<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-mi.html">EYELASH</a>
 <a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
 <a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
@@ -167,10 +277,52 @@
 <span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="self_improvement">self_improvement</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Massage</span>
 </a>
-<a class="flex flex-col items-center justify-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="ket-qua-tim-kiem.html?category=eyelash">
+<a class="flex flex-col items-center justify-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="dich-vu-mi.html">
 <span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="visibility">visibility</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Eyelash</span>
 </a>
+</div>
+</section>
+<!-- Beauty Map Section -->
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-section-gap">
+<div class="mb-8 border-b border-outline-variant/30 pb-4">
+<h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary">Chọn vùng bạn muốn làm đẹp</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2">Chạm vào tóc, mắt, da hay móng để xem dịch vụ phù hợp</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<!-- Face panel -->
+<div class="bg-surface-container-low rounded-lg p-4">
+<figure class="relative rounded-lg overflow-hidden bg-surface-container">
+<img width="900" height="1028" loading="lazy" alt="Chân dung người mẫu tóc nâu dài, dùng để chọn vùng tóc, mắt hoặc da mặt" class="w-full" src="assets/images/beauty-map-face.webp">
+<!-- Each bar is inset in per-cent: the far end carries the pill, the near end the dot. -->
+<a aria-label="Tóc — xem dịch vụ tóc" class="beauty-pin beauty-pin--left" href="dich-vu-toc-chuyen-sau.html" style="left:3%;right:70%;top:60%">
+<span aria-hidden="true" class="beauty-pin__line"></span>
+<span aria-hidden="true" class="beauty-pin__dot"><span class="beauty-pin__ripple"></span></span>
+<span class="beauty-pin__card font-label-md uppercase tracking-wider text-primary">Tóc</span>
+</a>
+<a aria-label="Mắt / Mi — xem dịch vụ nối mi" class="beauty-pin beauty-pin--left" href="dich-vu-mi.html" style="left:3%;right:58.6%;top:39.3%">
+<span aria-hidden="true" class="beauty-pin__line"></span>
+<span aria-hidden="true" class="beauty-pin__dot"><span class="beauty-pin__ripple"></span></span>
+<span class="beauty-pin__card font-label-md uppercase tracking-wider text-primary">Mắt / Mi</span>
+</a>
+<a aria-label="Da mặt — xem dịch vụ chăm sóc da" class="beauty-pin beauty-pin--right" href="cham-soc-da.html" style="left:69%;right:3%;top:52%">
+<span aria-hidden="true" class="beauty-pin__line"></span>
+<span aria-hidden="true" class="beauty-pin__dot"><span class="beauty-pin__ripple"></span></span>
+<span class="beauty-pin__card font-label-md uppercase tracking-wider text-primary">Da mặt</span>
+</a>
+</figure>
+</div>
+<!-- Hand panel -->
+<div class="bg-surface-container-low rounded-lg p-4">
+<figure class="relative rounded-lg overflow-hidden bg-surface-container">
+<img width="900" height="1024" loading="lazy" alt="Bàn tay với bộ móng sơn màu nude bóng, dùng để chọn dịch vụ móng" class="w-full" src="assets/images/beauty-map-hand.webp">
+<a aria-label="Móng — xem dịch vụ nail" class="beauty-pin beauty-pin--up" href="dich-vu-nail.html" style="left:45%;top:15%;bottom:59%">
+<span aria-hidden="true" class="beauty-pin__line"></span>
+<span aria-hidden="true" class="beauty-pin__dot"><span class="beauty-pin__ripple"></span></span>
+<span class="beauty-pin__card font-label-md uppercase tracking-wider text-primary">Móng</span>
+</a>
+</figure>
+</div>
 </div>
 </section>
 <!-- Featured Salons Section (Bento/Asymmetric Layout) -->
