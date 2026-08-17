@@ -93,6 +93,8 @@ The static site in `ui/` ships prebuilt assets. After editing, run the matching 
 
 When unsure whether the CSS is stale, `npm run check:css` in `tools/tailwind/` answers without overwriting anything. There is no CI safety net: a missed rebuild ships silently as an unstyled element or a blank icon.
 
+Gotcha: the Tailwind extractor scans `ui/*.html` as plain text, including comments — a bare utility word like "invisible" in a CSS/HTML comment emits that utility into the artifact and flips `check:css` to stale. If `check:css` goes stale after a comment-only edit, reword the comment instead of rebuilding.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
