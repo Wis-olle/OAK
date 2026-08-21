@@ -169,8 +169,8 @@
     [/^Bạn có (\d+) thông báo chưa đọc\.$/, function (all, count) {
       return 'You have ' + plural(count, 'unread notification', 'unread notifications') + '.';
     }],
-    [/^Tìm thấy (\d+) salon phù hợp với yêu cầu của bạn$/, function (all, count) {
-      return 'Found ' + plural(count, 'salon', 'salons') + ' matching your request';
+    [/^Tìm thấy (\d+) salon$/, function (all, count) {
+      return 'Found ' + plural(count, 'salon', 'salons');
     }],
     [/^Bình luận \((\d+)\)$/, 'Comments ($1)'],
     // The filter chips of the partner console: "Tất cả (12)", "Nối mi (3)".
@@ -241,6 +241,7 @@
     [/^(\d{1,2}:\d{2}) \(Kín\)$/, '$1 (Full)'],
 
     [/^Không tải được salon nổi bật\. (.+)$/, 'Could not load the featured salons. $1'],
+    [/^Không tải được salon mới\. (.+)$/, 'Could not load the new salons. $1'],
   ];
 
   // NOSCRIPT is markup, not text, until scripting is off — and if it were off none of this
@@ -253,10 +254,11 @@
   var VALUE_TYPES = { submit: true, button: true };
 
   // aria-label is translated one beat after everything else: oak-api.js finds the notification
-  // bell, the region button and the account link by their Vietnamese aria-label, and it does
-  // so only once /api/auth/me has answered. Renaming the labels before that pass would make
-  // those querySelector calls miss, and the unread dot and the saved-district label would
-  // quietly stop appearing on the English site.
+  // bell and the area button by their Vietnamese aria-label — both entries of the customer
+  // menu — and on the partner console its account link the same way, and it does so only once
+  // /api/auth/me has answered. Renaming the labels before that pass would make those
+  // querySelector calls miss, and the unread mark and the saved-district wording would quietly
+  // stop appearing on the English site.
   var ariaReady = false;
 
   function has(key) {
@@ -383,6 +385,17 @@
     }
   }
 
+  /**
+   * The English for a string that oak-api.js is about to write into an attribute. The observer
+   * below watches nodes and text, not attribute writes, so a name written after the pass has
+   * gone by — the one the unread mark puts on the menu button — has to ask for its own English.
+   * Bare, like all the shared chrome: no page may relabel a control every page carries.
+   */
+  function label(text) {
+    var english = lang === 'en' ? lookup(text, true) : null;
+    return english === null ? text : english;
+  }
+
   function translateAttribute(element, name) {
     var value = element.getAttribute(name);
     var english = value === null ? null : lookup(value, shared(element));
@@ -481,8 +494,10 @@
    */
   var HEADER_SKIN = {
     group: 'flex items-center gap-1 font-label-md text-label-md shrink-0',
-    current: 'font-bold text-primary',
-    other: 'text-on-surface-variant hover:text-primary transition-colors',
+    // Each code is a tap target in its own right, so both clear the 44px floor.
+    current: 'inline-flex items-center min-h-[44px] px-2 font-bold text-primary',
+    other: 'inline-flex items-center min-h-[44px] px-2 text-on-surface-variant ' +
+      'hover:text-primary transition-colors',
     divider: 'text-on-surface-variant',
   };
 
@@ -538,12 +553,17 @@
   }
 
   /**
-   * Both headers on the site — the customer top bar and the partner console's — end in a flex
-   * row of controls whose last item is the account link, which is where the language pair
-   * belongs and where it stays visible at every breakpoint. sitemap.html has no header and
-   * gets the pill instead.
+   * Three homes, tried in order. The customer top bar keeps an empty slot for the pair at the
+   * foot of its menu (see assets/js/oak-header.js), which is where a reader on any width can
+   * reach it. The partner console has no such slot: there the pair goes ahead of the account
+   * link that ends its own bar. sitemap.html has no bar at all and gets the pill instead.
    */
   function initToggle() {
+    var slot = document.querySelector('header [data-oak-lang]');
+    if (slot) {
+      slot.appendChild(langToggle(HEADER_SKIN));
+      return;
+    }
     var account = document.querySelector('header a[aria-label="Tài khoản"]');
     if (account) {
       account.parentNode.insertBefore(langToggle(HEADER_SKIN), account);
@@ -579,7 +599,7 @@
     document.documentElement.lang = 'en';
   }
 
-  window.OAKI18N = { lang: lang, set: set };
+  window.OAKI18N = { lang: lang, set: set, label: label };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', start);

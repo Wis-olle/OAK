@@ -36,7 +36,7 @@ const engineSource = fs.readFileSync(path.join(js, 'oak-i18n.js'), 'utf8');
 function load(page) {
     let captured = null;
     const source = engineSource.replace(
-        'window.OAKI18N = { lang: lang, set: set };',
+        'window.OAKI18N = { lang: lang, set: set, label: label };',
         'window.__probe({ ruled: ruled, lookup: lookup, RULES: RULES });'
     );
     const sandbox = {
@@ -128,7 +128,8 @@ const cases = [
     ['3 lịch sắp tới', '3 upcoming appointments'],
     ['6 ưu đãi đang áp dụng', '6 offers running'],
     ['Bạn có 2 thông báo chưa đọc.', 'You have 2 unread notifications.'],
-    ['Tìm thấy 12 salon phù hợp với yêu cầu của bạn', 'Found 12 salons matching your request'],
+    ['Tìm thấy 12 salon', 'Found 12 salons'],
+    ['Tìm thấy 1 salon', 'Found 1 salon'],
     ['Bình luận (4)', 'Comments (4)'],
     ['Tất cả (12)', 'All (12)'],
     ['Nối mi (3)', 'Eyelash extensions (3)'],
@@ -141,6 +142,13 @@ const cases = [
     ['Tiêu chí: Chăm sóc da • Quận 1 • dưới 500.000đ',
         'Criteria: Skincare • District 1 • under 500.000đ'],
     ['Tiêu chí: Quận 1', 'Criteria: District 1'],
+    // the typed query is the visitor's own words: quoted, and copied across as it stands
+    ['Tiêu chí: "cắt tóc nam" • Quận 1 • Đang mở cửa',
+        'Criteria: "cắt tóc nam" • District 1 • Open now'],
+    // the rating and distance pieces are the filter chips' own labels, so pieced() resolves
+    // them straight out of the dictionary rather than needing a rule apiece
+    ['Tiêu chí: "cắt tóc" • Quận 1 • Từ 4.5 sao • Trong 3km • Đang mở cửa',
+        'Criteria: "cắt tóc" • District 1 • 4.5 stars and up • Within 3km • Open now'],
     ['Tiêu chí: Chăm sóc da • Thứ Hai, 10/08/2026', 'Criteria: Skincare • Monday, 10/08/2026'],
     ['Quận 1 • 2.5km', 'District 1 • 2.5km'],
     ['Quận 1 • từ 350.000đ', 'District 1 • from 350.000đ'],
@@ -177,6 +185,8 @@ const cases = [
     ['14:30 (Kín)', '14:30 (Full)'],
     ['Không tải được salon nổi bật. Network error',
         'Could not load the featured salons. Network error'],
+    ['Không tải được salon mới. Network error',
+        'Could not load the new salons. Network error'],
     // server data and English output: neither may be touched
     ['Chào mừng thành viên mới - Giảm 20%', 'Chào mừng thành viên mới - Giảm 20%'],
     ['Nhớ mang theo mã đặt chỗ. Vui lòng đến sớm 10 phút.',

@@ -20,88 +20,8 @@
 </head>
 <body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
 <!-- TopNavBar -->
-<header @keydown.escape.window="menuOpen = false" class="glass-nav fixed top-0 w-full z-50 transition-colors" x-data="{ menuOpen: false }">
-<div class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
-<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed hover:opacity-80 transition-opacity shrink-0" href="index.html">OAK Beauty</a>
-<nav aria-label="Điều hướng chính" class="hidden md:flex items-center gap-8">
-<div class="relative group">
-<a class="flex items-center gap-1 font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="kham-pha.html">Khám phá<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
-<div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
-<div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="index.html">Trang chủ</a>
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html">Bản đồ salon</a>
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="gioi-thieu.html">Về chúng tôi</a>
-</div>
-</div>
-</div>
-<div class="relative group">
-<a class="flex items-center gap-1 font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="ket-qua-tim-kiem.html">Dịch vụ<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
-<div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
-<div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-nail.html">NAIL</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="cham-soc-da.html">SKINCARE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-mi.html">EYELASH</a>
-<div class="border-t border-outline-variant/30 my-1"></div>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-</div>
-</div>
-</div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
-</nav>
-<div class="flex items-center gap-4">
-<a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
-<span class="material-symbols-outlined" data-icon="search">search</span>
-</a>
-<button aria-label="Chọn khu vực" class="hidden xl:flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" type="button">
-<span class="material-symbols-outlined text-[20px]" data-icon="location_on">location_on</span>
-<span class="font-label-md text-label-md">Chọn khu vực</span>
-<span class="material-symbols-outlined text-[16px]">expand_more</span>
-</button>
-<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
-<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</a>
-<a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
-<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
-</a>
-<a class="hidden md:inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="dat-lich.html">Đặt lịch</a>
-<a aria-label="Tài khoản" class="flex items-center justify-center w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/30 shrink-0" href="dang-nhap-nguoi-dung.html">
-<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant" data-oak-avatar-icon>person</span>
-<img alt="Ảnh đại diện người dùng" class="w-full h-full object-cover hidden" data-oak-avatar-img>
-</a>
-<button :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen" aria-controls="mobile-menu" aria-expanded="false" aria-label="Menu" class="md:hidden flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
-<span class="material-symbols-outlined" data-icon="menu" x-show="!menuOpen">menu</span>
-<span class="material-symbols-outlined" data-icon="close" x-cloak="" x-show="menuOpen">close</span>
-</button>
-</div>
-</div>
-<!-- Mobile menu panel -->
-<div @click.outside="menuOpen = false" class="md:hidden bg-surface border-b border-outline-variant/30 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain" id="mobile-menu" x-cloak="" x-show="menuOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-end="opacity-100 translate-y-0" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:leave="transition ease-in duration-150" x-transition:leave-end="opacity-0 -translate-y-2" x-transition:leave-start="opacity-100 translate-y-0">
-<nav @click="menuOpen = false" aria-label="Điều hướng di động" class="flex flex-col px-margin-mobile py-2">
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="kham-pha.html">Khám phá</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="index.html">Trang chủ</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">Bản đồ salon</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="gioi-thieu.html">Về chúng tôi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-nail.html">NAIL</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-mi.html">EYELASH</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
-<a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
-</nav>
-</div>
-</header>
+<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
+<script src="assets/js/oak-header.js"></script>
 <!-- Main Content -->
 <main class="pt-24 flex-grow pb-section-gap" x-data="oakSalonDirectory()">
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
@@ -113,8 +33,17 @@
 <template x-if="loading &amp;&amp; !salons.length">
 <p class="font-body-md text-body-md text-on-surface-variant">Đang tải...</p>
 </template>
-<template x-if="!loading &amp;&amp; !salons.length">
+<template x-if="!loading &amp;&amp; !loadError &amp;&amp; !salons.length">
 <p class="font-body-md text-body-md text-on-surface-variant">Không tìm thấy salon nào.</p>
+</template>
+<template x-if="!loading &amp;&amp; loadError">
+<div class="flex flex-col items-start gap-3 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
+<div class="flex items-center gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-surface">Không tải được danh sách salon.</p>
+</div>
+<button @click="load(1)" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+</div>
 </template>
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
 <template :key="salon.id" x-for="salon in salons">
@@ -207,6 +136,8 @@
             total: 0,
             page: 1,
             loading: true,
+            /* An empty list means "nothing matched"; this means "we never got an answer". */
+            loadError: false,
 
             init() {
                 this.q = new URLSearchParams(location.search).get('q') || '';
@@ -227,10 +158,12 @@
                     this.page = page;
                     this.total = data.meta.total;
                     this.salons = append ? this.salons.concat(data) : data;
+                    this.loadError = false;
                 } catch (error) {
                     if (!append) {
                         this.salons = [];
                         this.total = 0;
+                        this.loadError = true;
                     }
                     OAK.toast(error.message, 'error');
                 } finally {

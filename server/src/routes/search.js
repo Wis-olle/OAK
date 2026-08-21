@@ -266,10 +266,30 @@ router.get('/salons', async (req, res, next) => {
         matched_service: pickMatchedService(services, category, normalizedQuery),
       });
     }
-    const filtered = candidates
+    let filtered = candidates
       // A radius cannot filter anything when the caller gave no position to measure from.
       .filter((item) => radiusKm === null || item.distance_km === null || item.distance_km <= radiusKm)
       .filter((item) => ratingMin === null || item.rating >= ratingMin);
+
+    // A date the caller asked for is part of matching, so it has to narrow the set before the
+    // page slice — meta.total comes from filtered.length. It runs last of the filters and only
+    // over what the cheap ones left, because each call fans out into a query per service.
+    if (date) {
+      // Today only has the hours it has left: POST /api/bookings refuses an hour that has
+      // already started, so a salon whose last free slot was this morning is not a match at
+      // 21:00 — offering it would send the customer into a wizard that cannot finish.
+      // 'HH:MM' is zero-padded, so the later of the two is a plain string comparison.
+      const now = fromMinutes(nowMinutes());
+      const effectiveFrom =
+        date === todayISO() ? (timeFrom && timeFrom > now ? timeFrom : now) : timeFrom;
+      const withSlots = [];
+      for (const item of filtered) {
+        if (await hasSlotsInRange(item.id, date, effectiveFrom, timeTo)) {
+          withSlots.push(item);
+        }
+      }
+      filtered = withSlots;
+    }
 
     const comparator = Object.hasOwn(SORTS, req.query.sort) ? SORTS[req.query.sort] : BY_RELEVANCE;
     filtered.sort(comparator);
@@ -278,18 +298,14 @@ router.get('/salons', async (req, res, next) => {
     const data = [];
     for (const item of filtered.slice(offset, offset + limit)) {
       const { score, matched_service: matchedService, ...card } = item;
-      const availability = date ? await hasSlotsInRange(item.id, date, timeFrom, timeTo) : null;
       const result = {
         ...card,
-        match_reason: buildMatchReason(
-          card,
-          item.distance_km,
-          matchedService,
-          availability ? slotLabel : '',
-        ),
+        // Resolved above, where it did the filtering: every survivor of a dated search has a
+        // free slot, and slotLabel is empty when no date was asked for.
+        match_reason: buildMatchReason(card, item.distance_km, matchedService, slotLabel),
       };
       if (date) {
-        result.availability = availability;
+        result.availability = true;
       }
       data.push(result);
     }

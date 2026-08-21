@@ -115,6 +115,8 @@ function oakBlogFeed() {
         page: 1,
         total: 0,
         loading: true,
+        /* An empty feed means "nothing posted yet"; this means "we never got an answer". */
+        loadError: false,
         loadToken: 0,
         user: null,
         salon: null,
@@ -160,6 +162,7 @@ function oakBlogFeed() {
                 this.posts = append ? this.posts.concat(rows) : rows;
                 this.total = rows.meta.total;
                 this.page = requestedPage;
+                this.loadError = false;
             } catch (error) {
                 if (token !== this.loadToken) {
                     return;
@@ -168,6 +171,7 @@ function oakBlogFeed() {
                     this.posts = [];
                     this.total = 0;
                     this.page = 1;
+                    this.loadError = true;
                 }
                 OAK.toast(error.message, 'error');
             } finally {
@@ -194,6 +198,7 @@ function oakBlogFeed() {
             this.posts = [];
             this.total = 0;
             this.page = 1;
+            this.loadError = false;
             await this.reloadFirstPage();
         },
 

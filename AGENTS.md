@@ -87,7 +87,7 @@ The static site in `ui/` ships prebuilt assets. After editing, run the matching 
 
 | Change made | Required step |
 |---|---|
-| Added a Tailwind class not previously used anywhere in `ui/*.html` / `ui/assets/js/oak-api.js` | `cd tools/tailwind && npm install` (first time) `&& npm run build:css`, commit the regenerated `ui/assets/css/oak-tailwind.css` together with the HTML |
+| Added a Tailwind class not previously used anywhere in `ui/*.html` or in the three scanned scripts (`ui/assets/js/oak-api.js`, `oak-header.js`, `oak-i18n.js` — the customer header lives entirely in `oak-header.js`, so its classes come from there, not from the pages) | `cd tools/tailwind && npm install` (first time) `&& npm run build:css`, commit the regenerated `ui/assets/css/oak-tailwind.css` together with the HTML |
 | Used a Material Symbols icon name not listed in `tools/icons/icon-names.txt` | Add the name to that file, regenerate the subset font per DEPLOY.md §5, commit both |
 | Added an image | No build step — but compress it first (WebP/JPG, never a multi-MB PNG) and add `loading="lazy"` if it sits below the fold |
 

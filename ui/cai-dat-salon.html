@@ -142,7 +142,10 @@
 </div>
 
 <p class="font-body-md text-body-md text-on-surface-variant" x-cloak x-show="loading">Đang tải thông tin salon…</p>
-<p class="font-body-md text-body-md text-error" x-cloak x-show="!loading && loadError" x-text="loadError"></p>
+<div class="flex flex-wrap items-center gap-4" role="alert" x-cloak x-show="!loading && loadError">
+<p class="font-body-md text-body-md text-error" x-text="loadError"></p>
+<button @click="loadSalon()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Thử lại</button>
+</div>
 
 <form @submit.prevent="save()" class="grid grid-cols-1 lg:grid-cols-3 gap-12" x-cloak x-show="!loading && !loadError">
 <!-- Left column: profile fields -->
@@ -301,11 +304,31 @@
 <section class="bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
 <p class="font-caption text-caption text-error mb-4" x-cloak x-show="error" x-text="error"></p>
 <button :disabled="saving || uploading" class="w-full bg-primary-container text-on-primary py-4 px-6 rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors disabled:opacity-60" type="submit" x-text="saving ? 'Đang lưu…' : 'Lưu thay đổi'">Lưu thay đổi</button>
-<button @click="fill(original)" class="w-full mt-3 py-4 px-6 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Hoàn tác</button>
+<button :disabled="!dirty" @click="confirmOpen = true" class="w-full mt-3 py-4 px-6 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">Hoàn tác</button>
 </section>
 </div>
 </form>
 </main>
+<!-- Confirm Undo Modal -->
+<div @keydown.escape.window="confirmOpen = false" aria-labelledby="confirm-title" aria-modal="true" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="confirmOpen">
+<div @click="confirmOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
+<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-md border border-outline-variant/20 flex flex-col" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="px-6 py-6 border-b border-outline-variant/20">
+<h3 class="font-headline-sm text-headline-sm text-primary" id="confirm-title">Xác nhận hoàn tác</h3>
+</div>
+<div class="px-6 py-6">
+<p class="font-body-md text-body-md text-on-surface-variant">Mọi thay đổi chưa lưu sẽ bị bỏ.</p>
+</div>
+<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4">
+<button @click="confirmOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+                    Giữ lại
+                </button>
+<button @click="undo()" class="px-8 py-3 bg-error text-on-error font-label-md text-label-md uppercase tracking-wider hover:bg-error/90 transition-colors rounded-full" type="button">
+                    Hoàn tác
+                </button>
+</div>
+</div>
+</div>
 <!-- BottomNavBar (Mobile Only) -->
 <nav class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-1 py-2 flex justify-between items-center">
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="tong-quan-doi-tac.html">
@@ -426,6 +449,8 @@
             slug: '',
             tagsText: '',
             original: null,
+            snapshot: '',
+            confirmOpen: false,
             geoResults: [],
             geoStatus: '',
             /* The address currently being looked up; empty when nothing is in flight. */
@@ -450,6 +475,12 @@
             async init() {
                 await OAK.requirePartner();
                 this.user = await OAK.me();
+                await this.loadSalon();
+            },
+
+            async loadSalon() {
+                this.loading = true;
+                this.loadError = '';
                 try {
                     var salon = await OAK.api('/api/partner/salon');
                     this.slug = salon.slug;
@@ -459,9 +490,13 @@
                     this.loadError = error.message;
                 }
                 this.loading = false;
-                /* The form is x-show'd, so the map container has no size until this flush. */
+                /* The form is x-show'd, so the map container has no size until this flush —
+                   and none at all while the error panel is up, so a failed load must not
+                   build a zero-size map that initMap() would then refuse to rebuild. */
                 this.$nextTick(function () {
-                    this.initMap();
+                    if (!this.loadError) {
+                        this.initMap();
+                    }
                 }.bind(this));
             },
 
@@ -727,6 +762,21 @@
                 this.tagsText = (salon.tags || []).join(', ');
                 this.error = '';
                 this.syncPin(false);
+                this.snapshot = this.formSnapshot();
+            },
+
+            formSnapshot() {
+                return JSON.stringify({ form: this.form, tagsText: this.tagsText });
+            },
+
+            get dirty() {
+                return this.snapshot !== '' && this.formSnapshot() !== this.snapshot;
+            },
+
+            undo() {
+                this.confirmOpen = false;
+                this.fill(this.original);
+                OAK.toast('Đã hoàn tác.');
             },
 
             /* One editable row per weekday; a salon with no hours yet opens every day. */

@@ -85,6 +85,70 @@ test('a failed mine request clears community rows and grants no management actio
   assert.equal(confirmed, false);
 });
 
+test('a failed first page raises loadError instead of the empty state, and retrying clears it', async () => {
+  const script = readUi('assets/js/oak-blog.js');
+  const rows = [{ id: 12, title: 'Chăm sóc da mùa hanh khô', can_manage: false }];
+  rows.meta = { page: 1, limit: 9, total: 1 };
+  let failing = true;
+  const context = {
+    URL,
+    FileReader: class {},
+    document: { getElementById: () => null },
+    OAK: {
+      api: async () => {
+        if (failing) {
+          throw new Error('Không kết nối được máy chủ.');
+        }
+        return rows;
+      },
+      toast: () => {},
+    },
+  };
+  vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
+  const state = context.result;
+  await state.loadPage(1, false);
+  assert.equal(state.loadError, true);
+  assert.equal(state.posts.length, 0);
+
+  failing = false;
+  await state.reloadFirstPage();
+  assert.equal(state.loadError, false);
+  assert.equal(state.posts.length, 1);
+
+  assert.match(readUi('blog.html'), /x-if="!loading &amp;&amp; !loadError &amp;&amp; !posts\.length"/);
+});
+
+test('a failed load more keeps the loaded rows, the page number and the non-error state', async () => {
+  const script = readUi('assets/js/oak-blog.js');
+  const rows = [{ id: 31, title: 'Xu hướng nail mùa thu', can_manage: false }];
+  rows.meta = { page: 1, limit: 9, total: 3 };
+  let failing = false;
+  const context = {
+    URL,
+    FileReader: class {},
+    document: { getElementById: () => null },
+    OAK: {
+      api: async () => {
+        if (failing) {
+          throw new Error('Máy chủ bận.');
+        }
+        return rows;
+      },
+      toast: () => {},
+    },
+  };
+  vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
+  const state = context.result;
+  await state.loadPage(1, false);
+  assert.equal(state.posts.length, 1);
+
+  failing = true;
+  await state.loadMore();
+  assert.equal(state.posts.length, 1);
+  assert.equal(state.loadError, false);
+  assert.equal(state.page, 1);
+});
+
 test('resetting the composer invalidates an abandoned image upload', async () => {
   const script = readUi('assets/js/oak-blog.js');
   let finishUpload;

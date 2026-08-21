@@ -131,6 +131,15 @@
 <button :class="view === 'week' ? 'bg-primary-container text-on-primary rounded-full shadow-sm hover:bg-primary' : 'text-on-surface-variant hover:text-primary'" @click="setView('week')" class="px-4 py-1.5 font-label-md text-label-md uppercase">Tuần</button>
 </div>
 <h3 class="font-headline-sm text-headline-sm text-primary ml-4" x-text="rangeLabel()"></h3>
+<div class="flex items-center gap-1">
+<button @click="shiftRange(-1)" aria-label="Khoảng thời gian trước" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high hover:text-primary transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined">chevron_left</span>
+</button>
+<button @click="goToday()" class="h-11 px-4 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Hôm nay</button>
+<button @click="shiftRange(1)" aria-label="Khoảng thời gian sau" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high hover:text-primary transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
 </div>
 <div class="flex flex-wrap gap-3">
 <input @change="load()" aria-label="Ngày" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded px-4 py-2 focus:ring-0 focus:border-secondary outline-none" type="date" x-model="date"/>
@@ -312,6 +321,9 @@
 </aside>
 </div>
 </main>
+<button @click="openCreate()" aria-label="Đặt lịch mới" class="md:hidden fixed bottom-24 right-4 z-50 w-14 h-14 rounded-full bg-primary-container text-on-primary shadow-lg flex items-center justify-center hover:bg-primary transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="add">add</span>
+</button>
 <!-- BottomNavBar (Mobile Only) -->
 <nav class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-1 py-2 flex justify-between items-center">
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="tong-quan-doi-tac.html">
@@ -628,6 +640,16 @@
 
             setView(view) {
                 this.view = view;
+                this.load();
+            },
+
+            shiftRange(direction) {
+                this.date = oakShiftDate(this.date, this.view === 'week' ? direction * 7 : direction);
+                this.load();
+            },
+
+            goToday() {
+                this.date = oakTodayISO();
                 this.load();
             },
 

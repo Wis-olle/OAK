@@ -222,8 +222,11 @@
   function toast(message, type) {
     var element = document.createElement('div');
     element.setAttribute('role', 'status');
+    // A page that pins its own booking bar to the bottom edge marks it, and the message
+    // clears that bar (~68px tall) instead of landing on top of it.
+    var offset = document.querySelector('[data-oak-sticky-cta]') ? 'bottom-24' : 'bottom-6';
     element.className =
-      'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] px-6 py-3 rounded-full ' +
+      'fixed ' + offset + ' left-1/2 -translate-x-1/2 z-50 max-w-[90vw] px-6 py-3 rounded-full ' +
       'shadow-lg font-body-md text-body-md text-center ' +
       (TOAST_COLORS[type] || TOAST_COLORS.success);
     element.textContent = message;
@@ -259,13 +262,18 @@
   }
 
   function initAccountLink(user) {
+    // The partner console hangs its photo off an account link; the customer bar hangs the
+    // same photo off the menu button, which carries no such link, so there the two data
+    // attributes are the only way in. Only the link is searched loosely for an <img> — a
+    // page-wide loose search would find the first picture of the article instead.
     var link = document.querySelector('a[aria-label="Tài khoản"]');
-    if (!link) {
-      return;
+    var image = link
+      ? link.querySelector('[data-oak-avatar-img], img')
+      : document.querySelector('[data-oak-avatar-img]');
+    var icon = (link || document).querySelector('[data-oak-avatar-icon]');
+    if (link) {
+      link.href = PROFILE_PAGE;
     }
-    link.href = PROFILE_PAGE;
-    var image = link.querySelector('[data-oak-avatar-img], img');
-    var icon = link.querySelector('[data-oak-avatar-icon]');
     if (image && user.avatar) {
       image.onerror = function () {
         image.classList.add('hidden');
@@ -279,6 +287,14 @@
         icon.classList.add('hidden');
       }
     }
+  }
+
+  // What the menu button is called once something is waiting to be read.
+  var UNREAD_MENU = 'Menu — có thông báo mới';
+
+  /** English for a name written after oak-i18n.js has made its pass; Vietnamese otherwise. */
+  function translated(text) {
+    return window.OAKI18N && window.OAKI18N.label ? window.OAKI18N.label(text) : text;
   }
 
   async function initNotificationBell() {
@@ -302,9 +318,24 @@
 
     bell.classList.add('relative');
     var dot = document.createElement('span');
-    dot.className = 'absolute top-0 right-0 w-2 h-2 rounded-full bg-error';
+    // A corner suits an icon, which is what the partner console gives this. A full-width row
+    // says where it wants the mark instead, because a corner there lands nowhere near it.
+    dot.className = (bell.getAttribute('data-oak-dot') || 'absolute top-0 right-0') +
+      ' w-2 h-2 rounded-full bg-error';
     dot.setAttribute('aria-label', 'Có thông báo mới');
     bell.appendChild(dot);
+
+    // On the customer bar the bell itself lives inside the menu, so news of an unread note
+    // would only ever be seen once the reader opened it. The mark on the button says so
+    // while the menu is still shut — and the button's own name has to say it too, because a
+    // control with an aria-label is announced by that label alone and never by what it holds.
+    Array.prototype.forEach.call(document.querySelectorAll('[data-oak-unread]'), function (mark) {
+      mark.classList.remove('hidden');
+      var owner = mark.closest ? mark.closest('[aria-label]') : null;
+      if (owner) {
+        owner.setAttribute('aria-label', translated(UNREAD_MENU));
+      }
+    });
   }
 
   function initLocationLabel(user) {
@@ -352,8 +383,9 @@
     return a.localeCompare(b, 'vi');
   }
 
-  // Resolved at most once per page load, and only from the first open: the header must not
-  // spend a request on a dropdown nobody has asked for.
+  // Resolved at most once per page load. The header waits for the first press, so a dropdown
+  // nobody has asked for costs nothing; kham-pha.html needs the same names for its own area
+  // field and asks as it starts, which warms this memo for the header too.
   var districtsPromise = null;
 
   function loadDistricts() {
@@ -396,10 +428,11 @@
     location.href = district ? SEARCH_PAGE + '?district=' + encodeURIComponent(district) : SEARCH_PAGE;
   }
 
-  // Same shape as the header's "Khám phá"/"Dịch vụ" menus, so the picker reads as native.
+  // Same shape as the entries of the header menu it opens inside, one step further in, and
+  // on the same 44px floor they keep.
   var MENU_ITEM_CLASS =
-    'block w-full text-left px-5 py-2.5 font-body-md text-body-md text-on-surface-variant ' +
-    'hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap';
+    'flex items-center w-full text-left min-h-[44px] px-8 py-2 font-body-md text-body-md ' +
+    'text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors';
 
   /** A real <button>, so the option is tab-reachable and Enter/Space activate it. */
   function districtOption(label, district) {
@@ -420,17 +453,18 @@
       return;
     }
 
-    // The button sits in a plain flex row, so it needs its own positioning context. The
-    // wrapper repeats the button's breakpoint visibility so the row's gap is unchanged.
+    // The button is one row of the header menu, so the wrapper only has to be a positioning
+    // context around it — no width or breakpoint of its own.
     var wrapper = document.createElement('div');
-    wrapper.className = 'relative hidden xl:block';
+    wrapper.className = 'relative';
     button.replaceWith(wrapper);
     wrapper.appendChild(button);
 
+    // The areas open as a nested part of that menu rather than as a second card floating
+    // beside it: the menu clips whatever leaves its bounds, so a card would be cut off.
     var panel = document.createElement('div');
     panel.className =
-      'hidden absolute right-0 top-full mt-3 z-50 bg-surface rounded-2xl ' +
-      'border border-outline-variant/30 shadow-lg py-2 min-w-[220px] max-h-[70vh] overflow-y-auto';
+      'hidden bg-surface-container-low py-1 max-h-[40vh] overflow-y-auto overscroll-contain';
     wrapper.appendChild(panel);
 
     button.setAttribute('aria-haspopup', 'true');
@@ -463,11 +497,14 @@
       }
     });
 
+    // In the capture phase: the header pill stops the press from bubbling (@click.stop), so a
+    // listener on the way back up never hears the press that shuts the menu around this list,
+    // and the list would be left open behind a closed menu.
     document.addEventListener('click', function (event) {
       if (!wrapper.contains(event.target)) {
         close();
       }
-    });
+    }, true);
 
     document.addEventListener('keydown', function (event) {
       if (event.key === 'Escape' && !panel.classList.contains('hidden')) {
@@ -478,26 +515,15 @@
     });
   }
 
-  function initMobileMenu() {
-    var link = document.querySelector('#mobile-menu a[href="' + LOGIN_PAGE + '"]');
-    if (!link) {
-      return;
-    }
-
-    // Cloned so both replacements keep the menu item styling of the link they replace.
-    var account = link.cloneNode(false);
-    account.href = PROFILE_PAGE;
-    account.textContent = 'Tài khoản của tôi';
-
-    var signOut = link.cloneNode(false);
-    signOut.href = '#';
-    signOut.textContent = 'Đăng xuất';
-    signOut.addEventListener('click', function (event) {
-      event.preventDefault();
-      logout();
+  /**
+   * The customer menu ships both readings of itself — the entries for a visitor who has not
+   * signed in, and the ones for a reader who has — and this keeps whichever applies. Called
+   * only once a real user is known, so the markup as authored is already the guest reading.
+   */
+  function initAuthMenu() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-oak-auth]'), function (group) {
+      group.classList.toggle('hidden', group.getAttribute('data-oak-auth') !== 'user');
     });
-
-    link.replaceWith(account, signOut);
   }
 
   async function initHeader() {
@@ -509,13 +535,14 @@
     }
     initAccountLink(user);
     initLocationLabel(user);
-    initMobileMenu();
+    initAuthMenu();
     initNotificationBell();
   }
 
   window.OAK = {
     api: api,
     me: me,
+    districts: loadDistricts,
     requireLogin: requireLogin,
     requirePartner: requirePartner,
     fmtPrice: fmtPrice,

@@ -20,6 +20,7 @@
   "Thông tin này hiển thị trên trang salon công khai của bạn.": "This information appears on your public salon page.",
   "Xem trang công khai": "View public page",
   "Đang tải thông tin salon…": "Loading salon information…",
+  "Thử lại": "Try again",
 
   "Thông tin cơ bản": "Basic information",
   "Tên salon": "Salon name",
@@ -116,12 +117,16 @@
   "Đang lưu…": "Saving…",
   "Lưu thay đổi": "Save changes",
   "Hoàn tác": "Undo",
+  "Xác nhận hoàn tác": "Confirm undo",
+  "Mọi thay đổi chưa lưu sẽ bị bỏ.": "All unsaved changes will be discarded.",
+  "Giữ lại": "Keep",
 
   "Ảnh vượt quá dung lượng tối đa 5MB.": "Image exceeds the 5MB maximum size.",
   "Không đọc được tệp ảnh.": "Could not read the image file.",
   "Đã tải ảnh lên, nhớ bấm Lưu thay đổi.": "Image uploaded — remember to click Save changes.",
   "Vui lòng nhập tên salon.": "Please enter the salon name.",
   "Đã lưu thông tin salon.": "Salon information saved.",
+  "Đã hoàn tác.": "Changes undone.",
   "Mạng xã hội": "Social media",
   "Thêm link trang hoặc hồ sơ chính thức của salon. Để trống nếu salon chưa dùng nền tảng đó.": "Add links to your salon's official pages or profiles. Leave a field blank if the salon does not use that platform."
 }

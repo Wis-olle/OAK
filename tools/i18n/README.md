@@ -71,6 +71,9 @@ i.e. everything that would stay Vietnamese on the English site. It is a text sca
 a page builds in JavaScript are invisible to it and a few of its hits are markup rather than
 copy.
 
+It scans `ui/*.html` plus `ui/assets/js/oak-header.js`, whose string literals hold the whole
+customer top bar — copy that is in no page at all, and so had no gate before.
+
 ## What is not in the dictionary
 
 `oak-i18n.js` carries a list of regex rules for strings a page assembles around runtime data,

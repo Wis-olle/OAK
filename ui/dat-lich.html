@@ -19,88 +19,8 @@
 </head>
 <body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
 <!-- TopNavBar -->
-<header @keydown.escape.window="menuOpen = false" class="glass-nav fixed top-0 w-full z-50 transition-colors" x-data="{ menuOpen: false }">
-<div class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
-<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed hover:opacity-80 transition-opacity shrink-0" href="index.html">OAK Beauty</a>
-<nav aria-label="Điều hướng chính" class="hidden md:flex items-center gap-8">
-<div class="relative group">
-<a class="flex items-center gap-1 font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="kham-pha.html">Khám phá<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
-<div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
-<div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="index.html">Trang chủ</a>
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html">Bản đồ salon</a>
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="gioi-thieu.html">Về chúng tôi</a>
-</div>
-</div>
-</div>
-<div class="relative group">
-<a class="flex items-center gap-1 font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="ket-qua-tim-kiem.html">Dịch vụ<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
-<div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
-<div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-nail.html">NAIL</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="cham-soc-da.html">SKINCARE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-mi.html">EYELASH</a>
-<div class="border-t border-outline-variant/30 my-1"></div>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-</div>
-</div>
-</div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
-</nav>
-<div class="flex items-center gap-4">
-<a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
-<span class="material-symbols-outlined" data-icon="search">search</span>
-</a>
-<button aria-label="Chọn khu vực" class="hidden xl:flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" type="button">
-<span class="material-symbols-outlined text-[20px]" data-icon="location_on">location_on</span>
-<span class="font-label-md text-label-md">Chọn khu vực</span>
-<span class="material-symbols-outlined text-[16px]">expand_more</span>
-</button>
-<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
-<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</a>
-<a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
-<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
-</a>
-<a class="hidden md:inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="dat-lich.html">Đặt lịch</a>
-<a aria-label="Tài khoản" class="flex items-center justify-center w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/30 shrink-0" href="dang-nhap-nguoi-dung.html">
-<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant" data-oak-avatar-icon>person</span>
-<img alt="Ảnh đại diện người dùng" class="w-full h-full object-cover hidden" data-oak-avatar-img>
-</a>
-<button :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen" aria-controls="mobile-menu" aria-expanded="false" aria-label="Menu" class="md:hidden flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
-<span class="material-symbols-outlined" data-icon="menu" x-show="!menuOpen">menu</span>
-<span class="material-symbols-outlined" data-icon="close" x-cloak="" x-show="menuOpen">close</span>
-</button>
-</div>
-</div>
-<!-- Mobile menu panel -->
-<div @click.outside="menuOpen = false" class="md:hidden bg-surface border-b border-outline-variant/30 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain" id="mobile-menu" x-cloak="" x-show="menuOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-end="opacity-100 translate-y-0" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:leave="transition ease-in duration-150" x-transition:leave-end="opacity-0 -translate-y-2" x-transition:leave-start="opacity-100 translate-y-0">
-<nav @click="menuOpen = false" aria-label="Điều hướng di động" class="flex flex-col px-margin-mobile py-2">
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="kham-pha.html">Khám phá</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="index.html">Trang chủ</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">Bản đồ salon</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="gioi-thieu.html">Về chúng tôi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-nail.html">NAIL</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-mi.html">EYELASH</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
-<a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
-</nav>
-</div>
-</header>
+<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
+<script src="assets/js/oak-header.js"></script>
 <!-- Main Content -->
 <main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full">
 <!-- The stepper and the grid share one scope so the stepper can follow the wizard. -->
@@ -185,7 +105,11 @@
 <h2 class="font-headline-sm text-headline-sm text-primary">Chọn dịch vụ</h2>
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-cloak="" x-show="salon">Đặt lịch tại <span class="font-medium" x-text="salon ? salon.name : ''"></span></p>
 </div>
-<p class="font-body-md text-body-md text-on-surface-variant" x-show="salon &amp;&amp; !optionsLoading &amp;&amp; !options.length">Chưa có dịch vụ nào để đặt lịch.</p>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="salon &amp;&amp; !optionsLoading &amp;&amp; !optionsError &amp;&amp; !options.length">Chưa có dịch vụ nào để đặt lịch.</p>
+<div class="flex flex-wrap items-center gap-4" x-cloak="" x-show="optionsError">
+<p class="font-body-md text-body-md text-error" x-text="optionsError"></p>
+<button :disabled="optionsLoading" @click="loadOptions(salon.id)" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors disabled:opacity-60" type="button">Thử lại</button>
+</div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4" :class="optionsLoading ? 'opacity-50' : ''">
 <template :key="option.id" x-for="option in options">
 <button :class="service &amp;&amp; service.id === option.id ? 'border-primary' : 'border-outline-variant'" @click="chooseService(option)" class="flex items-start justify-between gap-4 text-left p-4 border rounded-lg hover:border-primary transition-colors" type="button">
@@ -228,7 +152,11 @@
 <label class="font-label-md text-label-md text-outline block mb-2" for="booking-date">Ngày hẹn *</label>
 <input :min="today" @change="loadSlots()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors" id="booking-date" type="date" x-model="date"/>
 </div>
-<p class="font-body-md text-body-md text-on-surface-variant" x-show="!slotsLoading &amp;&amp; !slots.length">Ngày này chưa có khung giờ nào, vui lòng chọn ngày khác.</p>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!slotsLoading &amp;&amp; !slotsError &amp;&amp; !slots.length">Ngày này chưa có khung giờ nào, vui lòng chọn ngày khác.</p>
+<div class="flex flex-wrap items-center gap-4" x-cloak="" x-show="slotsError">
+<p class="font-body-md text-body-md text-error" x-text="slotsError"></p>
+<button :disabled="slotsLoading" @click="loadSlots()" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors disabled:opacity-60" type="button">Thử lại</button>
+</div>
 <div class="flex flex-wrap gap-3" :class="slotsLoading ? 'opacity-50' : ''">
 <template :key="slot.time" x-for="slot in slots">
 <button :class="time === slot.time ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" :disabled="!slot.available" @click="time = slot.time; stepError = ''" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors disabled:opacity-40 disabled:line-through disabled:hover:border-outline-variant" type="button" x-text="slot.time"></button>
@@ -347,7 +275,8 @@
 </div>
 <div class="flex flex-col gap-3" x-cloak="" x-show="step === 4">
 <p class="font-caption text-caption text-error-container" x-cloak="" x-show="formError" x-text="formError"></p>
-<button :disabled="busy || loading" @click="submit()" class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : 'Xác nhận đặt lịch'">Xác nhận đặt lịch</button>
+<p class="font-caption text-caption text-on-tertiary/80" x-cloak="" x-show="!loading &amp;&amp; !user">Bạn cần đăng nhập để hoàn tất đặt lịch — lựa chọn của bạn sẽ được giữ nguyên.</p>
+<button :disabled="busy || loading" @click="submit()" class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : (loading || user ? 'Xác nhận đặt lịch' : 'Đăng nhập &amp; xác nhận')">Xác nhận đặt lịch</button>
 </div>
 <div class="bg-on-tertiary/5 p-4 rounded space-y-2">
 <div class="flex items-start gap-2">
@@ -458,6 +387,7 @@
             service: null,
             options: [],        // step 2's grid: the chosen salon's own services
             optionsLoading: false,
+            optionsError: '',
             optionsToken: 0,
             staffList: [],
             staffId: null,
@@ -465,6 +395,7 @@
             time: '',
             slots: [],
             slotsLoading: false,
+            slotsError: '',
             slotsToken: 0,
 
             promo: '',
@@ -574,6 +505,7 @@
             async loadOptions(salonId) {
                 const token = ++this.optionsToken;
                 this.optionsLoading = true;
+                this.optionsError = '';
                 try {
                     const services = await OAK.api('/api/salons/' + salonId + '/services');
                     if (token !== this.optionsToken) {
@@ -583,6 +515,9 @@
                 } catch (error) {
                     if (token === this.optionsToken) {
                         this.options = [];
+                        // A constant sentence rather than error.message: the i18n dictionary
+                        // can translate this one, whereas a server reply has no entry.
+                        this.optionsError = 'Không tải được danh sách dịch vụ.';
                     }
                 } finally {
                     if (token === this.optionsToken) {
@@ -702,6 +637,7 @@
                 must not land: read as the other shape it would blank the grid entirely. */
             async loadSlots() {
                 const token = ++this.slotsToken;
+                this.slotsError = '';
                 if (!this.service || !this.date) {
                     this.slots = [];
                     // The request this call just made stale can no longer clear the flag itself.
@@ -732,6 +668,9 @@
                         return;
                     }
                     this.slots = [];
+                    // A constant sentence rather than error.message: the i18n dictionary
+                    // can translate this one, whereas a server reply has no entry.
+                    this.slotsError = 'Không tải được khung giờ trống.';
                 } finally {
                     if (token === this.slotsToken) {
                         this.slotsLoading = false;

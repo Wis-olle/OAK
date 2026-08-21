@@ -77,7 +77,7 @@ Không đặt `SUPABASE_URL` khi chạy local → ảnh upload rơi về thư m�
 
 Toàn bộ tooling build nằm ở `tools/tailwind/` (ngoài thư mục `ui/` — vì mọi thứ trong `ui/` đều được server phục vụ công khai).
 
-Chỉ cần chạy lại khi **thêm/đổi class Tailwind trong `ui/*.html` hoặc `ui/assets/js/oak-api.js`**, hoặc khi sửa token trong `ui/assets/js/oak-tailwind-config.js`:
+Chỉ cần chạy lại khi **thêm/đổi class Tailwind trong `ui/*.html` hoặc trong ba script được quét: `ui/assets/js/oak-api.js`, `oak-header.js`, `oak-i18n.js`** (header trang khách nằm trọn trong `oak-header.js` nên class của nó đến từ file đó, không phải từ HTML), hoặc khi sửa token trong `ui/assets/js/oak-tailwind-config.js`:
 
 ```powershell
 cd tools/tailwind

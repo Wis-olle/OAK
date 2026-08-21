@@ -180,7 +180,14 @@
 </div>
 </div>
 </template>
-<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading && services.length === 0">Chưa có dịch vụ nào phù hợp.</p>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading && !servicesError && services.length === 0">Chưa có dịch vụ nào phù hợp.</p>
+<div class="md:col-span-2 lg:col-span-3 flex flex-col items-start gap-3 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert" x-cloak="" x-show="servicesError">
+<div class="flex items-center gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-surface">Không tải được dịch vụ.</p>
+</div>
+<button @click="loadServices()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+</div>
 </div>
 <!-- Special Offers Section (Bento Grid Style) -->
 <div class="mb-section-gap">
@@ -219,7 +226,14 @@
 </div>
 </div>
 </template>
-<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading && promotions.length === 0">Chưa có ưu đãi nào.</p>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading && !promotionsError && promotions.length === 0">Chưa có ưu đãi nào.</p>
+<div class="md:col-span-3 flex flex-col items-start gap-3 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert" x-cloak="" x-show="promotionsError">
+<div class="flex items-center gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-surface">Không tải được ưu đãi.</p>
+</div>
+<button @click="loadPromotions()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+</div>
 </div>
 </div>
 </div>
@@ -518,6 +532,8 @@
             promotions: [],
             categories: {},
             loading: true,
+            servicesError: '',
+            promotionsError: '',
             saving: false,
             category: '',
             query: '',
@@ -553,9 +569,10 @@
                     var result = await OAK.api('/api/partner/services?' + params.toString());
                     this.services = result;
                     this.categories = result.meta.categories;
+                    this.servicesError = '';
                 } catch (error) {
                     this.services = [];
-                    OAK.toast(error.message, 'error');
+                    this.servicesError = error.message;
                 } finally {
                     this.loading = false;
                 }
@@ -708,9 +725,10 @@
             async loadPromotions() {
                 try {
                     this.promotions = await OAK.api('/api/partner/promotions');
+                    this.promotionsError = '';
                 } catch (error) {
                     this.promotions = [];
-                    OAK.toast(error.message, 'error');
+                    this.promotionsError = error.message;
                 }
             },
 

@@ -27,10 +27,13 @@
   "Hiện": "Show",
   "Xoá": "Delete",
   "Chưa có dịch vụ nào phù hợp.": "No matching services yet.",
+  "Không tải được dịch vụ.": "We couldn't load the services.",
+  "Thử lại": "Try again",
 
   "Ưu đãi & Combo": "Offers & combos",
   "Thêm ưu đãi": "Add offer",
   "Chưa có ưu đãi nào.": "No offers yet.",
+  "Không tải được ưu đãi.": "We couldn't load the offers.",
 
   "Sửa dịch vụ": "Edit service",
   "Tên dịch vụ": "Service name",

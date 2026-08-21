@@ -19,6 +19,9 @@
 
   "Ngày": "Day",
   "Tuần": "Week",
+  "Khoảng thời gian trước": "Previous period",
+  "Hôm nay": "Today",
+  "Khoảng thời gian sau": "Next period",
   "Lọc theo nhân viên": "Filter by staff",
   "Tất cả nhân viên": "All staff",
   "Lọc theo dịch vụ": "Filter by service",

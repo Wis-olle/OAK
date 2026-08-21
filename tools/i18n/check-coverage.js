@@ -6,7 +6,8 @@
    It is a text scan, not a parser: it sees the page the way a reader does (the text between
    tags, plus the attributes ui/assets/js/oak-i18n.js translates), which is close enough to
    the real text nodes to be useful and always exits 0. Strings a page builds in JavaScript
-   are invisible to it. */
+   are invisible to it — except the customer top bar, which is nothing but such strings and
+   is scanned out of ui/assets/js/oak-header.js at the end. */
 
 const fs = require('fs');
 const path = require('path');
@@ -39,28 +40,20 @@ function key(text) {
     return decode(text).replace(/\s+/g, ' ').trim();
 }
 
-let missing = 0;
-
-for (const file of fs.readdirSync(ui).filter((name) => name.endsWith('.html')).sort()) {
-    const source = fs.readFileSync(path.join(ui, file), 'utf8');
-    if (!source.includes('assets/js/oak-i18n.js')) {
-        continue;
-    }
-
-    const html = source
-        .replace(/<!--[\s\S]*?-->/g, '')
-        .replace(/<script\b[\s\S]*?<\/script>/gi, '')
-        .replace(/<style\b[\s\S]*?<\/style>/gi, '');
-
-    const strings = [];
+/** The text a reader sees in a run of markup, plus the attributes oak-i18n.js translates. */
+function textOf(markup) {
     // A NUL stands in for every tag, so splitting on it lands on the real text nodes.
-    for (const text of html.replace(TAG, '\u0000').split('\u0000')) {
-        strings.push(key(text));
-    }
-    for (const match of html.matchAll(ATTRIBUTES)) {
+    const strings = markup.replace(TAG, '\u0000').split('\u0000').map(key);
+    for (const match of markup.matchAll(ATTRIBUTES)) {
         strings.push(key(match[1]));
     }
+    return strings;
+}
 
+let missing = 0;
+
+/** Report, and count, the strings of one file that no part covers. */
+function report(file, strings) {
     const unknown = strings.filter((text, index) =>
         text &&
         DIACRITICS.test(text) &&
@@ -73,5 +66,47 @@ for (const file of fs.readdirSync(ui).filter((name) => name.endsWith('.html')).s
         unknown.forEach((text) => console.log(`  ${text}`));
     }
 }
+
+for (const file of fs.readdirSync(ui).filter((name) => name.endsWith('.html')).sort()) {
+    const source = fs.readFileSync(path.join(ui, file), 'utf8');
+    if (!source.includes('assets/js/oak-i18n.js')) {
+        continue;
+    }
+
+    const html = source
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+        .replace(/<style\b[\s\S]*?<\/style>/gi, '');
+
+    report(file, textOf(html));
+}
+
+/* The customer top bar is in no page: ui/assets/js/oak-header.js writes it, so its copy sits
+   in string literals. Each literal is one fragment of that markup, and a tag may open in one
+   fragment and close in another — so the half-tag at either end of a fragment is dropped
+   before the markup scan runs, along with any attribute it carried, which has already been
+   read for a translatable value of its own. */
+const HEADER = 'assets/js/oak-header.js';
+const LITERAL = /'((?:[^'\\]|\\.)*)'/g;
+const TAG_TAIL = /^[^<>]*>/;
+const TAG_HEAD = /<[^<>]*$/;
+const ATTRIBUTE = /[\w@:.-]+="[^"]*"/g;
+
+// Comments first: prose apostrophes would otherwise read as string literals of their own.
+const header = fs
+    .readFileSync(path.join(ui, HEADER), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+const headerStrings = [];
+for (const match of header.matchAll(LITERAL)) {
+    const fragment = match[1].replace(/\\(.)/g, '$1');
+    for (const attribute of fragment.matchAll(ATTRIBUTES)) {
+        headerStrings.push(key(attribute[1]));
+    }
+    const markup = fragment.replace(TAG_TAIL, '').replace(TAG_HEAD, '').replace(ATTRIBUTE, '');
+    headerStrings.push(...textOf(markup));
+}
+report(HEADER, headerStrings);
 
 console.log(missing ? `\n${missing} strings without an entry.` : '\nEvery Vietnamese string is covered.');

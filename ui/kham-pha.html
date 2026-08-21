@@ -12,18 +12,32 @@
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <style>
-        /* Natural language search input (this page only) */
-        .nl-input-wrapper {
-            position: relative; background-color: #ffffff; border: 1px solid #c4c7c7;
-            border-radius: 9999px; transition: border-color 0.3s ease;
+        /* Hero search segments (this page only). @tailwindcss/forms dresses inputs and selects
+           through [type=text] and element rules that the built stylesheet loads after this
+           <style>, so the reset is written as element.class to out-rank them — the same trick
+           oak-utils.css uses for its own fields. Nothing to the sides: the strip around each
+           field owns the horizontal spacing, so that the icon it starts with sits at the same
+           offset as the text of the field next to it. */
+        input.oak-search-field, select.oak-search-field {
+            width: 100%; min-height: 44px; padding: 10px 0;
+            border: none; background-color: transparent; box-shadow: none; border-radius: 9999px;
         }
-        .nl-input-wrapper:focus-within { border-color: #171818; }
-        input.nl-input {
-            border: none; background-color: transparent; appearance: none; box-shadow: none;
-            padding: 14px 52px 14px 20px; width: 100%;
+        input.oak-search-field:focus, select.oak-search-field:focus {
+            outline: none; box-shadow: none;
         }
-        input.nl-input:focus { outline: none; box-shadow: none; }
-        input.nl-input::placeholder { font-size: 14px; }
+        /* The reset above drops the plugin's ring, so put a visible one back — the same
+           kill-then-substitute the oak-utils.css fields do. Later in source order than the
+           :focus rule it has to beat, which ties with it on specificity. */
+        input.oak-search-field:focus-visible, select.oak-search-field:focus-visible {
+            outline: 2px solid #171818; outline-offset: -2px;
+        }
+        /* The whole pill answers, which a mark inside a single field cannot do: the edge
+           belongs to the bar, not to whichever segment happens to hold the caret. It is what
+           the wrapper the fields used to sit in gave them, kept now that they sit bare. */
+        .oak-search-bar:focus-within { border-color: #171818; }
+        /* The forms plugin paints its arrow in a 24px band ending 8px from the right edge, so
+           32px is exactly the room it needs — and at xl the segment can spare no more. */
+        select.oak-search-field { padding-right: 32px; }
 
         /* Beauty map hotspots (this page only). Each pin is one <a> laid out as a thin bar
            over the photo: a dot at one end, a label pill at the other, a hairline between.
@@ -199,110 +213,63 @@
 </head>
 <body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
 <!-- TopNavBar -->
-<header @keydown.escape.window="menuOpen = false" class="glass-nav fixed top-0 w-full z-50 transition-colors" x-data="{ menuOpen: false }">
-<div class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
-<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed hover:opacity-80 transition-opacity shrink-0" href="index.html">OAK Beauty</a>
-<nav aria-label="Điều hướng chính" class="hidden md:flex items-center gap-8">
-<div class="relative group">
-<a class="flex items-center gap-1 font-body-md text-body-md text-primary dark:text-primary-fixed font-bold border-b-2 border-primary pb-1 active:scale-95 duration-200" href="kham-pha.html">Khám phá<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
-<div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
-<div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="index.html">Trang chủ</a>
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="ket-qua-tim-kiem.html">Bản đồ salon</a>
-<a class="block px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="gioi-thieu.html">Về chúng tôi</a>
-</div>
-</div>
-</div>
-<div class="relative group">
-<a class="flex items-center gap-1 font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="ket-qua-tim-kiem.html">Dịch vụ<span aria-hidden="true" class="material-symbols-outlined text-[16px]">expand_more</span></a>
-<div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
-<div class="bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[220px]">
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-nail.html">NAIL</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="cham-soc-da.html">SKINCARE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dich-vu-mi.html">EYELASH</a>
-<div class="border-t border-outline-variant/30 my-1"></div>
-<a class="block px-5 py-2.5 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-</div>
-</div>
-</div>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="uu-dai.html">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant/70 hover:text-primary dark:hover:text-primary-fixed transition-colors pb-1 active:scale-95 duration-200" href="blog.html">Blog</a>
-</nav>
-<div class="flex items-center gap-4">
-<a aria-label="Tìm kiếm" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="tim-kiem-thong-minh.html">
-<span class="material-symbols-outlined" data-icon="search">search</span>
-</a>
-<button aria-label="Chọn khu vực" class="hidden xl:flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" type="button">
-<span class="material-symbols-outlined text-[20px]" data-icon="location_on">location_on</span>
-<span class="font-label-md text-label-md">Chọn khu vực</span>
-<span class="material-symbols-outlined text-[16px]">expand_more</span>
-</button>
-<a aria-label="Thông báo" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="thong-bao.html">
-<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
-</a>
-<a aria-label="Lịch hẹn của tôi" class="hidden md:flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="lich-hen-cua-toi.html">
-<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
-</a>
-<a class="hidden md:inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="dat-lich.html">Đặt lịch</a>
-<a aria-label="Tài khoản" class="flex items-center justify-center w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/30 shrink-0" href="dang-nhap-nguoi-dung.html">
-<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant" data-oak-avatar-icon>person</span>
-<img alt="Ảnh đại diện người dùng" class="w-full h-full object-cover hidden" data-oak-avatar-img>
-</a>
-<button :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen" aria-controls="mobile-menu" aria-expanded="false" aria-label="Menu" class="md:hidden flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
-<span class="material-symbols-outlined" data-icon="menu" x-show="!menuOpen">menu</span>
-<span class="material-symbols-outlined" data-icon="close" x-cloak="" x-show="menuOpen">close</span>
-</button>
-</div>
-</div>
-<!-- Mobile menu panel -->
-<div @click.outside="menuOpen = false" class="md:hidden bg-surface border-b border-outline-variant/30 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain" id="mobile-menu" x-cloak="" x-show="menuOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-end="opacity-100 translate-y-0" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:leave="transition ease-in duration-150" x-transition:leave-end="opacity-0 -translate-y-2" x-transition:leave-start="opacity-100 translate-y-0">
-<nav @click="menuOpen = false" aria-label="Điều hướng di động" class="flex flex-col px-margin-mobile py-2">
-<a class="font-body-md text-body-md text-primary font-bold hover:text-primary transition-colors py-3" href="kham-pha.html">Khám phá</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="index.html">Trang chủ</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="tim-kiem-thong-minh.html">Tìm kiếm AI</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="ket-qua-tim-kiem.html">Bản đồ salon</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="gioi-thieu.html">Về chúng tôi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="ket-qua-tim-kiem.html">Dịch vụ</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-nail.html">NAIL</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-toc-chuyen-sau.html">HAIR</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="cham-soc-da.html">SKINCARE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="spa-massage.html">SPA &amp; MASSAGE</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dich-vu-mi.html">EYELASH</a>
-<a class="font-body-md text-body-md text-on-surface-variant/70 hover:text-primary transition-colors py-2 pl-4" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="uu-dai.html">Ưu đãi</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="blog.html">Blog</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="thong-bao.html">Thông báo</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>
-<a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 my-2" href="dat-lich.html">Đặt lịch</a>
-<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors py-3" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
-</nav>
-</div>
-</header>
+<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
+<script src="assets/js/oak-header.js"></script>
 <!-- Main Content -->
 <main class="pt-20 flex-grow pb-section-gap">
 <!-- Hero Banner -->
 <section class="relative w-full overflow-hidden bg-[#f6ece9] mb-section-gap">
 <!-- Copy: rides the empty left half of the artwork -->
 <div class="relative z-10 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex items-center py-12 md:py-16 md:min-h-[420px] lg:min-h-[660px] xl:min-h-[720px] 2xl:min-h-[760px]">
-<div class="w-full min-w-0 md:max-w-[48%]" x-data="oakSearchBox()">
+<div class="w-full min-w-0 md:max-w-[48%] xl:max-w-[780px]" x-data="oakSearchBox()">
 <h1 class="font-headline-lg-mobile text-headline-lg-mobile md:text-headline-lg lg:text-display-lg text-primary mb-8 leading-tight">
                         Chạm đến <br>vẻ đẹp tự nhiên
                     </h1>
-<!-- Natural Language Input -->
-<div class="nl-input-wrapper mb-6 relative">
-<input @keydown.enter.prevent="search(query)" class="nl-input font-body-md text-body-md text-primary placeholder:text-on-surface-variant/50" placeholder="Thử 'Cắt tóc nam Quận 3' hoặc 'Massage thư giãn dưới 500k'..." type="text" x-model="query">
-<button @click="search(query)" aria-label="Tìm kiếm" class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center text-primary hover:text-secondary transition-colors" type="button">
-<span class="material-symbols-outlined text-3xl" data-icon="arrow_forward">arrow_forward</span>
-</button>
+<!-- One search bar, three segments: what, where, when. Every segment is a fixed-height strip
+     with its icon first, so the icons line up whichever way the segments run. They run down
+     the card until xl, because up to that point the copy column is 430px at most and four
+     zones side by side would each be too narrow to read; from xl the column widens to 780px
+     and the same three strips sit on one line, divided by hairlines.
+
+     The two pickers are given the width their longest label measures (Inter 16px: 111.9px for
+     "Tất cả khu vực", 120.6px for "Thời gian bất kỳ") plus their icon, their own spacing and
+     the 32px the arrow takes. What is left over goes to the service field, which is the one
+     that should be widest — 221 of the 762px inside the pill, against 212 and 204. -->
+<form @submit.prevent="submit()" aria-label="Tìm kiếm salon và dịch vụ" class="oak-search-bar mb-3 flex flex-col p-2 bg-surface-container-lowest border border-outline-variant/50 rounded-3xl shadow-[0_6px_24px_rgba(23,24,24,0.10)] xl:flex-row xl:items-center xl:min-h-[64px] xl:rounded-[9999px]" role="search">
+<div class="flex items-center gap-2 px-3 min-h-[48px] xl:flex-1 xl:min-w-0">
+<span aria-hidden="true" class="material-symbols-outlined shrink-0 text-[20px] text-on-surface-variant" data-icon="search">search</span>
+<input aria-label="Tìm kiếm dịch vụ hoặc salon" class="oak-search-field min-w-0 font-body-md text-body-md text-primary placeholder:text-on-surface-variant/50" placeholder="Dịch vụ, salon…" type="text" x-model="q" x-ref="service">
 </div>
+<div class="h-px mx-3 shrink-0 bg-outline-variant/30 xl:mx-0 xl:h-8 xl:w-px"></div>
+<!-- Fixed width from xl: the options arrive from the network, so anything content-sized
+     would be 0 wide until they land. -->
+<div class="flex items-center gap-2 px-3 min-h-[48px] xl:w-[204px] xl:shrink-0">
+<span aria-hidden="true" class="material-symbols-outlined shrink-0 text-[20px] text-on-surface-variant" data-icon="location_on">location_on</span>
+<select aria-label="Khu vực" class="oak-search-field min-w-0 font-body-md text-body-md text-primary" x-model="district">
+<option value="">Tất cả khu vực</option>
+<template :key="name" x-for="name in districts">
+<option :value="name" x-text="name"></option>
+</template>
+</select>
+</div>
+<div class="h-px mx-3 shrink-0 bg-outline-variant/30 xl:mx-0 xl:h-8 xl:w-px"></div>
+<div class="flex items-center gap-2 px-3 min-h-[48px] xl:w-[212px] xl:shrink-0">
+<span aria-hidden="true" class="material-symbols-outlined shrink-0 text-[20px] text-on-surface-variant" data-icon="calendar_month">calendar_month</span>
+<select aria-label="Thời gian" class="oak-search-field min-w-0 font-body-md text-body-md text-primary" x-model="when">
+<option value="">Thời gian bất kỳ</option>
+<option value="today">Hôm nay</option>
+<option value="tomorrow">Ngày mai</option>
+<option value="open_now">Đang mở cửa</option>
+</select>
+</div>
+<button class="mt-2 min-h-[48px] px-6 flex items-center justify-center rounded-[9999px] bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors xl:mt-0 xl:ml-2 xl:shrink-0" type="submit">Tìm kiếm</button>
+</form>
+<a :href="assistantUrl" class="font-label-md text-label-md text-primary hover:text-secondary underline underline-offset-4 transition-colors" href="tim-kiem-thong-minh.html">Hỏi Trợ lý AI</a>
 <!-- Search Suggestions -->
 <div class="flex flex-wrap gap-3 mt-8" x-cloak="" x-show="chips.length">
 <span class="font-caption text-caption text-on-surface-variant uppercase tracking-widest mr-2 py-2">Gợi ý:</span>
 <template :key="chip" x-for="chip in chips">
-<button @click="search(chip)" class="bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary px-4 py-2 rounded-full font-label-md text-label-md transition-all duration-300" type="button" x-text="chip"></button>
+<button @click="fill(chip)" class="bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary inline-flex items-center min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-all duration-300" type="button" x-text="chip"></button>
 </template>
 </div>
 </div>
@@ -472,7 +439,13 @@
 <div class="flex justify-between items-end mb-8 border-b border-outline-variant/30 pb-4">
 <h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary">Salon mới tham gia</h2>
 </div>
-<template x-if="!loading &amp;&amp; !salons.length">
+<template x-if="error">
+<div>
+<p class="font-body-md text-body-md text-error mb-4" x-text="error"></p>
+<button @click="load()" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" type="button">Thử lại</button>
+</div>
+</template>
+<template x-if="!loading &amp;&amp; !error &amp;&amp; !salons.length">
 <p class="font-body-md text-body-md text-on-surface-variant">Chưa có salon mới.</p>
 </template>
 <div class="grid grid-cols-2 md:grid-cols-4 gap-gutter" x-show="salons.length">
@@ -550,22 +523,62 @@
     /* Inline scripts run before deferred ones, so these factories exist by the time Alpine boots. */
     function oakSearchBox() {
         return {
-            query: '',
+            q: '',
+            district: '',
+            when: '',
+            districts: [],
             chips: [],
 
             async init() {
+                /* Started ahead of the chips rather than behind them: the two answers are
+                   independent, so the requests travel at once. It carries its own fallback
+                   list, so it never rejects. */
+                const districts = OAK.districts();
                 try {
                     this.chips = (await OAK.api('/api/search/suggestions')).chips;
                 } catch (error) {
                     this.chips = [];
                 }
+                this.districts = await districts;
             },
 
-            search(text) {
-                const query = (text || '').trim();
-                location.href = query
+            /* The assistant keeps whatever has been typed so far — the entry point the
+               arrow button used to be. */
+            get assistantUrl() {
+                const query = this.q.trim();
+                return query
                     ? 'tim-kiem-thong-minh.html?q=' + encodeURIComponent(query)
                     : 'tim-kiem-thong-minh.html';
+            },
+
+            /* Local parts, never toISOString(): that one reads the day in UTC, and an hour
+               past midnight in Vietnam it would ask for yesterday. */
+            isoDate(daysAhead) {
+                const day = new Date();
+                day.setDate(day.getDate() + daysAhead);
+                return day.getFullYear() + '-'
+                    + String(day.getMonth() + 1).padStart(2, '0') + '-'
+                    + String(day.getDate()).padStart(2, '0');
+            },
+
+            submit() {
+                const params = new URLSearchParams();
+                const query = this.q.trim();
+                if (query) { params.set('q', query); }
+                if (this.district) { params.set('district', this.district); }
+                if (this.when === 'open_now') {
+                    params.set('open_now', '1');
+                } else if (this.when) {
+                    params.set('date', this.isoDate(this.when === 'tomorrow' ? 1 : 0));
+                }
+                const search = params.toString();
+                location.href = 'ket-qua-tim-kiem.html' + (search ? '?' + search : '');
+            },
+
+            /* A suggestion is a starting point to edit, not a search of its own. */
+            fill(chip) {
+                this.q = chip;
+                this.$refs.service.focus();
             },
         };
     }
@@ -609,12 +622,22 @@
         return {
             salons: [],
             loading: true,
+            error: '',
 
-            async init() {
+            init() {
+                this.load();
+            },
+
+            /* A failed call leaves the list unknown, so it says so and offers a retry
+               instead of falling through to the "nothing here" message. */
+            async load() {
+                this.loading = true;
+                this.error = '';
                 try {
                     this.salons = await OAK.api('/api/salons?sort=newest&limit=8');
                 } catch (error) {
-                    OAK.toast(error.message, 'error');
+                    this.salons = [];
+                    this.error = 'Không tải được salon mới. ' + error.message;
                 } finally {
                     this.loading = false;
                 }
