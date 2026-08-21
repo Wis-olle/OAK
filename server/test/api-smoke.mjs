@@ -1267,11 +1267,14 @@ async function groupPromotions() {
 async function groupPosts() {
   const guest = session('guest');
   const customer = session('customer');
+  const partnerA = session('partnerA');
+  const partnerB = session('partnerB');
 
   const listResponse = await guest.fetch('/api/posts');
   const list = ok(listResponse, 'GET /api/posts');
   assert(list.length > 0, 'posts: expected a feed', listResponse);
   assert('comment_count' in list[0] && 'author' in list[0], 'posts: expected comment_count and author', listResponse);
+  assert(list.every((post) => post.can_manage !== true), 'public posts: must never expose a true management capability', listResponse);
 
   const videoResponse = await guest.fetch('/api/posts?type=video');
   const videos = ok(videoResponse, 'GET /api/posts?type=video');
@@ -1285,6 +1288,7 @@ async function groupPosts() {
   const detail = ok(detailResponse, 'GET /api/posts/:slug');
   assert(typeof detail.content === 'string', 'post detail: expected full content', detailResponse);
   assert(detail.comments.length >= 2, 'post detail: expected the seeded comments', detailResponse);
+  assert(detail.source === null && detail.salon === null, 'legacy post: social attribution must be null', detailResponse);
 
   const title = 'Bài viết trùng tên từ bộ kiểm thử';
   const first = ok(
@@ -1296,6 +1300,220 @@ async function groupPosts() {
     'POST /api/posts (same title)',
   );
   assert(first.slug !== second.slug, 'posts: two posts sharing a title must get distinct slugs');
+  assert(first.source === null && first.salon === null, 'normal post: social attribution must stay optional');
+
+  const socialUrl = 'https://www.instagram.com/p/oak-smoke-test/';
+  expectError(
+    await customer.fetch('/api/posts', {
+      method: 'POST',
+      json: {
+        type: 'article',
+        title: 'Nguồn xã hội từ tài khoản khách',
+        content: 'Không được phép.',
+        source_platform: 'instagram',
+        source_url: socialUrl,
+      },
+    }),
+    403,
+    'FORBIDDEN',
+    'POST /api/posts social source as customer',
+  );
+
+  for (const [label, source_platform, source_url] of [
+    ['an unsupported platform', 'threads', 'https://threads.net/@oak/post/123'],
+    ['an insecure URL', 'facebook', 'http://facebook.com/oak/posts/123'],
+    ['a mismatched domain', 'instagram', 'https://facebook.com/oak/posts/123'],
+    ['a deceptive domain', 'facebook', 'https://facebook.com.evil.example/oak/posts/123'],
+    ['a Facebook redirector', 'facebook', 'https://l.facebook.com/l.php?u=https%3A%2F%2Fevil.example'],
+    ['a platform homepage', 'youtube', 'https://www.youtube.com/'],
+    ['a profile instead of a post', 'instagram', 'https://www.instagram.com/oak'],
+  ]) {
+    expectError(
+      await partnerA.fetch('/api/posts', {
+        method: 'POST',
+        json: {
+          type: 'article',
+          title: `Bài nguồn ${label}`,
+          content: 'Nội dung kiểm thử.',
+          source_platform,
+          source_url,
+        },
+      }),
+      400,
+      'VALIDATION_ERROR',
+      `POST /api/posts social source with ${label}`,
+    );
+  }
+
+  expectError(
+    await partnerA.fetch('/api/posts', {
+      method: 'POST',
+      json: {
+        type: 'article',
+        title: 'Sai nền tảng khai báo',
+        content: 'Nội dung kiểm thử.',
+        source_platform: 'facebook',
+        source_url: 'https://www.instagram.com/p/mismatch',
+      },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'POST /api/posts with a mismatched optional platform claim',
+  );
+
+  const social = ok(
+    await partnerA.fetch('/api/posts', {
+      method: 'POST',
+      json: {
+        type: 'article',
+        title: 'Mẫu nail mới từ Instagram',
+        content: 'Nội dung do salon biên tập cho OAK.',
+        excerpt: 'Xu hướng mới từ trang Instagram của salon.',
+        source_url: socialUrl,
+      },
+    }),
+    'POST /api/posts with social source as partner',
+  );
+  assert(
+    social.source?.platform === 'instagram' && social.source?.url === 'https://www.instagram.com/p/oak-smoke-test',
+    'social post: source must be normalized and returned',
+  );
+  assert(social.salon?.id && social.salon?.name && social.salon?.slug, 'social post: salon attribution is required');
+
+  const socialDetail = ok(
+    await guest.fetch(`/api/posts/${encodeURIComponent(social.slug)}`),
+    'GET /api/posts/:slug for social post',
+  );
+  assert(
+    socialDetail.source?.url === social.source.url && socialDetail.salon?.id === social.salon.id,
+    'social post detail: source and salon must survive reload',
+  );
+  const socialList = ok(await guest.fetch('/api/posts?limit=50'), 'GET /api/posts after social post');
+  const listedSocial = socialList.find((item) => item.id === social.id);
+  assert(
+    listedSocial?.source?.platform === 'instagram' && listedSocial?.salon?.id === social.salon.id,
+    'social post list: source and salon attribution must be public',
+  );
+
+  expectError(
+    await partnerA.fetch('/api/posts', {
+      method: 'POST',
+      json: {
+        type: 'article',
+        title: 'Bản nhập trùng',
+        content: 'Nội dung trùng nguồn.',
+        source_platform: 'instagram',
+        source_url: `${socialUrl}?foo=one#comments`,
+      },
+    }),
+    409,
+    'DUPLICATE_SOURCE',
+    'POST /api/posts with a duplicate source in the same salon',
+  );
+
+  expectError(
+    await partnerB.fetch('/api/posts', {
+      method: 'POST',
+      json: {
+        type: 'article',
+        title: 'Cùng nguồn từ salon khác',
+        content: 'Nguồn đã tồn tại trên toàn blog.',
+        source_url: 'https://instagram.com/p/oak-smoke-test?foo=another-value#comments',
+      },
+    }),
+    409,
+    'DUPLICATE_SOURCE',
+    'POST /api/posts with a duplicate canonical source in another salon',
+  );
+
+  if (!EXTERNAL_URL) {
+    const otherSalon = ok(await partnerB.fetch('/api/partner/salon'), 'partner B salon for DB constraints');
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      let uniqueError = null;
+      try {
+        await directClient.query(
+          `INSERT INTO posts
+             (author_id, salon_id, type, title, slug, content, source_platform, source_url, created_at)
+           SELECT owner_id, id, 'article', $1, $2, $3, 'instagram', $4, $5
+           FROM salons WHERE id = $6`,
+          [
+            'Race-safe duplicate',
+            `race-safe-duplicate-${Date.now()}`,
+            'The database index must reject this even without the route pre-check.',
+            social.source.url,
+            new Date().toISOString(),
+            otherSalon.id,
+          ],
+        );
+      } catch (error) {
+        uniqueError = error;
+      }
+      assert(
+        uniqueError?.code === '23505' && uniqueError?.constraint === 'idx_posts_source_url',
+        'posts DB: the global partial unique index must close the duplicate race',
+      );
+
+      let shapeError = null;
+      try {
+        await directClient.query(
+          `INSERT INTO posts (author_id, type, title, slug, content, source_platform, created_at)
+           SELECT owner_id, 'article', $1, $2, $3, 'instagram', $4
+           FROM salons WHERE id = $5`,
+          [
+            'Incomplete social fields',
+            `incomplete-social-fields-${Date.now()}`,
+            'The all-or-none constraint must reject this row.',
+            new Date().toISOString(),
+            otherSalon.id,
+          ],
+        );
+      } catch (error) {
+        shapeError = error;
+      }
+      assert(
+        shapeError?.code === '23514' && shapeError?.constraint === 'posts_social_fields_all_or_none',
+        'posts DB: source platform and URL must be paired and require salon attribution',
+      );
+      const constraintDefinition = await directClient.query(`
+        SELECT pg_get_constraintdef(oid) AS definition
+        FROM pg_constraint
+        WHERE conname = 'posts_social_fields_all_or_none' AND conrelid = 'posts'::regclass
+      `);
+      assert(
+        constraintDefinition.rows[0]?.definition.includes('source_platform IS NULL')
+          && !constraintDefinition.rows[0]?.definition.includes('salon_id IS NULL'),
+        'posts DB: native salon posts must be allowed without social source fields',
+      );
+
+      let platformError = null;
+      try {
+        await directClient.query(
+          `INSERT INTO posts
+             (author_id, salon_id, type, title, slug, content, source_platform, source_url, created_at)
+           SELECT owner_id, id, 'article', $1, $2, $3, 'threads', $4, $5
+           FROM salons WHERE id = $6`,
+          [
+            'Unsupported DB platform',
+            `unsupported-db-platform-${Date.now()}`,
+            'The platform check must reject this row.',
+            `https://threads.net/oak/${Date.now()}`,
+            new Date().toISOString(),
+            otherSalon.id,
+          ],
+        );
+      } catch (error) {
+        platformError = error;
+      }
+      assert(
+        platformError?.code === '23514' && platformError?.constraint === 'posts_source_platform_allowed',
+        'posts DB: source platform must stay inside the supported allowlist',
+      );
+    } finally {
+      await directClient.end();
+    }
+  }
 
   const comment = ok(
     await customer.fetch(`/api/posts/${first.id}/comments`, {
@@ -1305,6 +1523,145 @@ async function groupPosts() {
     'POST /api/posts/:id/comments',
   );
   assert(comment.content === 'Bình luận từ bộ kiểm thử.', 'post comment: expected the content back');
+
+  expectError(await guest.fetch('/api/posts/mine'), 401, 'UNAUTHENTICATED', 'guest GET /api/posts/mine');
+  const customerMineResponse = await customer.fetch('/api/posts/mine?limit=50');
+  const customerMine = ok(customerMineResponse, 'customer GET /api/posts/mine');
+  assert(
+    customerMine.some((post) => post.id === first.id) && customerMine.some((post) => post.id === second.id),
+    'posts mine: a customer must see their own posts',
+  );
+  assert(customerMine.every((post) => post.can_manage === true), 'posts mine: every owned row must carry a server-issued management capability');
+  assert(
+    customerMine.every((post) => post.author?.name && post.id !== social.id),
+    'posts mine: editable rows include author data and never leak another author',
+  );
+  const otherPost = ok(
+    await partnerB.fetch('/api/posts', {
+      method: 'POST',
+      json: { type: 'video', title: 'Video riêng của salon B', video_url: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
+    }),
+    'partner B creates a post for ownership tests',
+  );
+  assert(otherPost.salon?.id, 'partner native post: salon attribution must be derived by the server');
+  const mineResponse = await partnerA.fetch('/api/posts/mine?limit=1');
+  const mine = ok(mineResponse, 'GET /api/posts/mine with pagination');
+  assert(mineResponse.body.meta.page === 1 && mineResponse.body.meta.limit === 1, 'posts mine: pagination meta must be returned');
+  assert(mine.every((post) => post.can_manage === true), 'partner posts mine: every row must be explicitly manageable');
+  assert(mine.every((post) => post.id !== otherPost.id), 'posts mine: another author must never leak into the list');
+  const mineArticlesResponse = await partnerA.fetch('/api/posts/mine?type=article&limit=50');
+  const mineArticles = ok(mineArticlesResponse, 'GET /api/posts/mine?type=article');
+  assert(mineArticles.some((post) => post.id === social.id) && mineArticles.every((post) => post.type === 'article'), 'posts mine: type filter and author scope must both apply');
+
+  const customerPatched = ok(
+    await customer.fetch(`/api/posts/${first.id}`, {
+      method: 'PATCH',
+      json: { title: 'Bài của tôi đã cập nhật', content: 'Nội dung của khách đã cập nhật.' },
+    }),
+    'customer PATCH own post',
+  );
+  assert(customerPatched.slug === first.slug && customerPatched.type === first.type, 'customer patch: slug and type stay immutable');
+  const customerPersisted = ok(await guest.fetch(`/api/posts/${first.slug}`), 'GET customer patched post publicly');
+  assert(customerPersisted.title === customerPatched.title, 'customer patch: public detail must persist edits');
+  expectError(
+    await customer.fetch(`/api/posts/${first.id}`, { method: 'PATCH', json: { source_url: socialUrl } }),
+    403,
+    'FORBIDDEN',
+    'customer PATCH own social source',
+  );
+  expectError(await guest.fetch(`/api/posts/${social.id}`, { method: 'DELETE' }), 401, 'UNAUTHENTICATED', 'guest DELETE /api/posts/:id');
+  expectError(await partnerB.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { title: 'No' } }), 404, 'NOT_FOUND', 'other owner PATCH /api/posts/:id');
+  expectError(await partnerB.fetch(`/api/posts/${first.id}`, { method: 'DELETE' }), 404, 'NOT_FOUND', 'other owner DELETE /api/posts/:id');
+  expectError(await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { type: 'video' } }), 400, 'VALIDATION_ERROR', 'PATCH /api/posts/:id attempting to mutate type');
+  expectError(await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { content: '' } }), 400, 'VALIDATION_ERROR', 'PATCH /api/posts/:id with invalid article content');
+
+  const changedSource = 'https://www.facebook.com/oak/posts/partner-management-smoke';
+  const patchedPost = ok(
+    await partnerA.fetch(`/api/posts/${social.id}`, {
+      method: 'PATCH',
+      json: { title: 'Mẫu nail đã cập nhật', content: 'Nội dung mới.', source_url: changedSource },
+    }),
+    'PATCH /api/posts/:id as owner',
+  );
+  assert(patchedPost.slug === social.slug, 'post patch: slug must remain stable');
+  assert(patchedPost.source?.platform === 'facebook', 'post patch: platform must be derived from the source URL');
+  const persisted = ok(await guest.fetch(`/api/posts/${social.slug}`), 'GET patched post publicly');
+  assert(persisted.title === 'Mẫu nail đã cập nhật' && persisted.source.url === changedSource, 'post patch: public detail must persist edits');
+  const ordinaryPartnerEdit = ok(
+    await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { excerpt: 'Chỉ đổi mô tả.' } }),
+    'PATCH partner post without touching attribution',
+  );
+  assert(
+    ordinaryPartnerEdit.source?.url === changedSource && ordinaryPartnerEdit.salon?.id === social.salon.id,
+    'post patch: an ordinary edit must preserve source and salon attribution',
+  );
+
+  const duplicateTarget = ok(
+    await partnerB.fetch('/api/posts', { method: 'POST', json: { type: 'article', title: 'Nguồn khác', content: 'Nguồn khác.', source_url: 'https://www.instagram.com/p/oak-other-source' } }),
+    'create another source for patch duplicate test',
+  );
+  expectError(
+    await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { source_url: duplicateTarget.source.url } }),
+    409,
+    'DUPLICATE_SOURCE',
+    'PATCH /api/posts/:id with a duplicate source',
+  );
+  const selfSource = ok(
+    await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { source_url: changedSource } }),
+    'PATCH /api/posts/:id retaining its own source URL',
+  );
+  assert(selfSource.source.url === changedSource, 'post patch: duplicate check must exclude the current id');
+  const clearedSource = ok(
+    await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { source_url: '' } }),
+    'PATCH /api/posts/:id clearing its social source',
+  );
+  assert(
+    clearedSource.source === null && clearedSource.salon?.id === social.salon.id,
+    'post patch: clearing source must retain immutable salon attribution',
+  );
+  expectError(
+    await partnerA.fetch(`/api/posts/${social.id}`, {
+      method: 'PATCH',
+      json: { source_url: '', source_platform: 'threads' },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/posts/:id clearing source with a non-empty platform claim',
+  );
+
+  if (!EXTERNAL_URL) {
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      const legacy = await directClient.query(
+        `INSERT INTO posts (author_id, type, title, slug, content, created_at)
+         SELECT owner_id, 'article', $1, $2, $3, $4 FROM salons WHERE id = $5 RETURNING id, slug`,
+        ['Legacy partner post', `legacy-partner-post-${Date.now()}`, 'Legacy content.', new Date().toISOString(), social.salon.id],
+      );
+      const legacyPost = legacy.rows[0];
+      const attributed = ok(
+        await partnerA.fetch(`/api/posts/${legacyPost.id}`, {
+          method: 'PATCH',
+          json: { source_url: `https://www.facebook.com/oak/posts/legacy-${Date.now()}` },
+        }),
+        'PATCH a legacy partner post to add social source',
+      );
+      assert(
+        attributed.salon?.id === social.salon.id && attributed.source?.platform === 'facebook',
+        'post patch: adding a source to a legacy partner row derives its owned salon',
+      );
+      ok(await partnerA.fetch(`/api/posts/${legacyPost.id}`, { method: 'DELETE' }), 'delete legacy partner smoke post');
+    } finally {
+      await directClient.end();
+    }
+  }
+
+  ok(await customer.fetch(`/api/posts/${first.id}`, { method: 'DELETE' }), 'customer DELETE own post with comments');
+  expectError(await guest.fetch(`/api/posts/${first.slug}`), 404, 'NOT_FOUND', 'customer-deleted post public detail');
+  ok(await customer.fetch(`/api/posts/${social.id}/comments`, { method: 'POST', json: { content: 'Sẽ bị xoá cùng bài.' } }), 'comment before owned post deletion');
+  ok(await partnerA.fetch(`/api/posts/${social.id}`, { method: 'DELETE' }), 'DELETE /api/posts/:id as owner');
+  expectError(await guest.fetch(`/api/posts/${social.slug}`), 404, 'NOT_FOUND', 'deleted post public detail');
+  expectError(await partnerA.fetch(`/api/posts/${social.id}`, { method: 'DELETE' }), 404, 'NOT_FOUND', 'deleting an already deleted post');
 }
 
 /* ============================================================================
@@ -1781,6 +2138,55 @@ async function groupPartner() {
     await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { tags: salon.tags } }),
     'PATCH /api/partner/salon (restore)',
   );
+
+  const socialLinks = {
+    facebook: 'https://m.facebook.com/LalaNail/?utm_source=smoke#about',
+    instagram: 'https://instagram.com/lala.nail/?igsh=smoke',
+    tiktok: 'https://m.tiktok.com/@lalanail/?lang=vi',
+    youtube: 'https://m.youtube.com/@LalaNail/videos?si=smoke',
+    zalo: 'https://zalo.me/lalanail/?utm_campaign=smoke',
+  };
+  const withSocial = ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { social_links: socialLinks } }),
+    'PATCH /api/partner/salon (social links)',
+  );
+  assert(
+    JSON.stringify(withSocial.social_links) === JSON.stringify({
+      facebook: 'https://www.facebook.com/LalaNail',
+      instagram: 'https://www.instagram.com/lala.nail',
+      tiktok: 'https://www.tiktok.com/@lalanail',
+      youtube: 'https://www.youtube.com/@LalaNail/videos',
+      zalo: 'https://zalo.me/lalanail',
+    }),
+    'partner salon social links: all five links must normalize and round-trip',
+  );
+  const publicWithSocial = ok(await session('guest').fetch(`/api/salons/${salon.slug}`), 'public salon with social links');
+  assert(publicWithSocial.social_links.instagram === withSocial.social_links.instagram, 'public salon: social links must be exposed');
+  for (const [label, json] of [
+    ['unknown platform', { social_links: { linkedin: 'https://linkedin.com/company/oak' } }],
+    ['non-string link', { social_links: { facebook: 42 } }],
+    ['wrong platform', { social_links: { facebook: 'https://instagram.com/lalanail' } }],
+    ['homepage', { social_links: { youtube: 'https://www.youtube.com/' } }],
+  ]) {
+    expectError(await partner.fetch('/api/partner/salon', { method: 'PATCH', json }), 400, 'VALIDATION_ERROR', `PATCH partner salon social links: ${label}`);
+  }
+  expectError(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { name: salon.name, owner_id: 999999 },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH partner salon with a valid field plus an unknown top-level field',
+  );
+  expectError(await session('customer').fetch('/api/partner/salon', { method: 'PATCH', json: { social_links: {} } }), 403, 'FORBIDDEN', 'customer PATCH partner salon social links');
+  expectError(await session('guest').fetch('/api/partner/salon', { method: 'PATCH', json: { social_links: {} } }), 401, 'UNAUTHENTICATED', 'guest PATCH partner salon social links');
+  const clearedSocial = ok(await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { social_links: {} } }), 'clear partner salon social links');
+  assert(Object.values(clearedSocial.social_links).every((value) => value === null), 'partner salon social links: empty full replacement must clear every platform');
+  ok(await partner.fetch('/api/partner/salon', {
+    method: 'PATCH',
+    json: { social_links: Object.fromEntries(Object.entries(salon.social_links).map(([platform, url]) => [platform, url || ''])) },
+  }), 'restore partner salon social links');
 
   // Map coordinates: without these two columns the salon never gets a pin on the search map.
   const located = ok(

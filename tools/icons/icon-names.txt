@@ -23,6 +23,7 @@ close
 content_copy
 content_cut
 dashboard
+delete
 directions
 edit
 event

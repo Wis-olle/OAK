@@ -5,6 +5,11 @@ import { withBookingCode } from '../lib/booking-code.js';
 import { notifyUser } from '../lib/notify.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
 import {
+  SOCIAL_PROFILE_PLATFORMS,
+  SocialProfileError,
+  validateSocialProfile,
+} from '../lib/social-profile.js';
+import {
   addDaysISO,
   fromMinutes,
   isHHMM,
@@ -335,6 +340,17 @@ const selectSalonHours = db.prepare(`
   SELECT weekday, "start" AS start, "end" AS end, is_off
   FROM salon_hours WHERE salon_id = ? ORDER BY weekday
 `);
+const selectSalonSocialLinks = db.prepare(
+  'SELECT platform, url FROM salon_social_links WHERE salon_id = ? ORDER BY platform',
+);
+
+async function socialLinksForSalon(salonId) {
+  const links = Object.fromEntries(SOCIAL_PROFILE_PLATFORMS.map((platform) => [platform, null]));
+  for (const row of await selectSalonSocialLinks.all(salonId)) {
+    links[row.platform] = row.url;
+  }
+  return links;
+}
 
 async function salonShape(row) {
   return {
@@ -360,6 +376,7 @@ async function salonShape(row) {
     tags: parseJsonArray(row.tags),
     amenities: parseJsonArray(row.amenities),
     tour_url: row.tour_url,
+    social_links: await socialLinksForSalon(row.id),
     created_at: row.created_at,
   };
 }
@@ -1512,6 +1529,9 @@ const INSERT_SALON_HOURS =
   'INSERT INTO salon_hours (salon_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)';
 const DELETE_SALON_HOURS = 'DELETE FROM salon_hours WHERE salon_id = ?';
 const UPDATE_SALON_SUMMARY = 'UPDATE salons SET open_time = ?, close_time = ? WHERE id = ?';
+const DELETE_SALON_SOCIAL_LINKS = 'DELETE FROM salon_social_links WHERE salon_id = ?';
+const INSERT_SALON_SOCIAL_LINK =
+  'INSERT INTO salon_social_links (salon_id, platform, url) VALUES (?, ?, ?) RETURNING platform';
 
 const SALON_COLUMNS = {
   name: (value) => requireText(value, 'tên salon'),
@@ -1527,6 +1547,35 @@ const SALON_COLUMNS = {
   tags: (value) => requireJsonStringArray(value, 'Thẻ phân loại'),
   tour_url: (value) => optionalHttpsUrl(value, 'Đường dẫn tour 360'),
 };
+
+function parseSocialLinks(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Mạng xã hội phải là một đối tượng.');
+  }
+  const unknown = Object.keys(value).filter(
+    (platform) => !SOCIAL_PROFILE_PLATFORMS.includes(platform),
+  );
+  if (unknown.length > 0) {
+    throw httpError(400, 'VALIDATION_ERROR', `Mạng xã hội không được hỗ trợ: ${unknown[0]}.`);
+  }
+  return SOCIAL_PROFILE_PLATFORMS.flatMap((platform) => {
+    const raw = Object.hasOwn(value, platform) ? value[platform] : '';
+    if (typeof raw !== 'string') {
+      throw httpError(400, 'VALIDATION_ERROR', `Link ${platform} phải là chuỗi ký tự.`);
+    }
+    if (raw.trim() === '') {
+      return [];
+    }
+    try {
+      return [{ platform, url: validateSocialProfile(raw, platform) }];
+    } catch (error) {
+      if (error instanceof SocialProfileError) {
+        throw httpError(400, 'VALIDATION_ERROR', error.message);
+      }
+      throw error;
+    }
+  });
+}
 
 /**
  * Validate a full-replace opening-hours payload: the whole week, one row per weekday.
@@ -1588,6 +1637,11 @@ router.patch('/salon', async (req, res, next) => {
   try {
     const salon = await ownedSalon(req);
     const body = req.body ?? {};
+    const allowedFields = new Set([...Object.keys(SALON_COLUMNS), 'hours', 'social_links']);
+    const unknownFields = Object.keys(body).filter((field) => !allowedFields.has(field));
+    if (unknownFields.length > 0) {
+      throw httpError(400, 'VALIDATION_ERROR', `Trường không được hỗ trợ: ${unknownFields[0]}.`);
+    }
     // A coordinate is a pair. Letting half of one through would leave the salon pinned
     // on a meridian somewhere, so both columns move together or neither does.
     if (Object.hasOwn(body, 'lat') !== Object.hasOwn(body, 'lng')) {
@@ -1603,12 +1657,13 @@ router.patch('/salon', async (req, res, next) => {
       }
     }
     const hours = body.hours === undefined ? null : parseSalonHours(body.hours);
+    const socialLinks = body.social_links === undefined ? null : parseSocialLinks(body.social_links);
     // buildPatch refuses an empty SET clause, so it only runs when the body really
     // names a column — `hours` alone is a valid update, and so is a column alone.
     const patch = Object.keys(SALON_COLUMNS).some((column) => Object.hasOwn(body, column))
       ? await buildPatch(body, SALON_COLUMNS)
       : null;
-    if (!patch && !hours) {
+    if (!patch && !hours && !socialLinks) {
       throw httpError(400, 'VALIDATION_ERROR', 'Không có thông tin nào để cập nhật.');
     }
 
@@ -1628,6 +1683,12 @@ router.patch('/salon', async (req, res, next) => {
           await tx.run(INSERT_SALON_HOURS, salon.id, day.weekday, day.start, day.end, day.is_off);
         }
         await tx.run(UPDATE_SALON_SUMMARY, ...hoursSummary(hours), salon.id);
+      }
+      if (socialLinks) {
+        await tx.run(DELETE_SALON_SOCIAL_LINKS, salon.id);
+        for (const link of socialLinks) {
+          await tx.run(INSERT_SALON_SOCIAL_LINK, salon.id, link.platform, link.url);
+        }
       }
     });
 

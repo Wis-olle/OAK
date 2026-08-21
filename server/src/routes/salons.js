@@ -8,6 +8,7 @@ import {
   toServiceCard,
 } from '../lib/cards.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
+import { SOCIAL_PROFILE_PLATFORMS } from '../lib/social-profile.js';
 import { httpError } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -42,6 +43,17 @@ const selectSalonHours = db.prepare(`
   SELECT weekday, "start" AS start, "end" AS end, is_off
   FROM salon_hours WHERE salon_id = ? ORDER BY weekday
 `);
+const selectSalonSocialLinks = db.prepare(
+  'SELECT platform, url FROM salon_social_links WHERE salon_id = ? ORDER BY platform',
+);
+
+async function socialLinksForSalon(salonId) {
+  const links = Object.fromEntries(SOCIAL_PROFILE_PLATFORMS.map((platform) => [platform, null]));
+  for (const row of await selectSalonSocialLinks.all(salonId)) {
+    links[row.platform] = row.url;
+  }
+  return links;
+}
 
 const selectPhotos = db.prepare(
   'SELECT id, image, caption, sort FROM salon_photos WHERE salon_id = ? ORDER BY sort, id',
@@ -101,6 +113,7 @@ async function toSalonProfile(row) {
     flagship: Boolean(row.flagship),
     amenities: parseJsonArray(row.amenities),
     tour_url: row.tour_url,
+    social_links: await socialLinksForSalon(row.id),
     created_at: row.created_at,
   };
 }

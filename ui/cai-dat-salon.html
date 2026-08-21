@@ -188,6 +188,19 @@
 </section>
 
 <section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Mạng xã hội</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Thêm link trang hoặc hồ sơ chính thức của salon. Để trống nếu salon chưa dùng nền tảng đó.</p>
+<div class="space-y-8">
+<template :key="social.platform" x-for="social in socialPlatforms">
+<div class="relative">
+<input :id="'salon-social-' + social.platform" :placeholder="social.placeholder" class="input-minimal always-raised font-body-md text-body-md text-primary" type="url" x-model="form.social_links[social.platform]"/>
+<label :for="'salon-social-' + social.platform" class="floating-label font-label-md uppercase tracking-widest" x-text="social.label"></label>
+</div>
+</template>
+</div>
+</section>
+
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
 <h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Vị trí trên bản đồ</h3>
 <p class="font-caption text-caption text-on-surface-variant mb-6">Tìm theo tên đường, chợ hay toà nhà rồi kéo ghim cho đúng cửa tiệm. Chưa có toạ độ thì salon không hiện trên bản đồ tìm kiếm.</p>
 <!-- Deliberately not a form element: this sits inside the page's save form, and a
@@ -423,7 +436,16 @@
                 name: '', description: '', address: '', district: '', city: '',
                 phone: '', image: '', tour_url: '', lat: '', lng: '',
                 amenities: [], hours: [],
+                social_links: { facebook: '', instagram: '', tiktok: '', youtube: '', zalo: '' },
             },
+
+            socialPlatforms: [
+                { platform: 'facebook', label: 'Facebook', placeholder: 'https://www.facebook.com/ten-salon' },
+                { platform: 'instagram', label: 'Instagram', placeholder: 'https://www.instagram.com/ten-salon' },
+                { platform: 'tiktok', label: 'TikTok', placeholder: 'https://www.tiktok.com/@ten-salon' },
+                { platform: 'youtube', label: 'YouTube', placeholder: 'https://www.youtube.com/@ten-salon' },
+                { platform: 'zalo', label: 'Zalo', placeholder: 'https://zalo.me/ten-salon' },
+            ],
 
             async init() {
                 await OAK.requirePartner();
@@ -693,9 +715,12 @@
             fill(salon) {
                 var self = this;
                 Object.keys(this.form).forEach(function (field) {
-                    if (field !== 'amenities' && field !== 'hours') {
+                    if (field !== 'amenities' && field !== 'hours' && field !== 'social_links') {
                         self.form[field] = salon[field] || '';
                     }
+                });
+                Object.keys(this.form.social_links).forEach(function (platform) {
+                    self.form.social_links[platform] = (salon.social_links && salon.social_links[platform]) || '';
                 });
                 this.form.amenities = (salon.amenities || []).slice();
                 this.form.hours = this.buildHours(salon.hours || []);
@@ -797,6 +822,7 @@
                             lat: this.hasPin ? Number(this.form.lat) : null,
                             lng: this.hasPin ? Number(this.form.lng) : null,
                             amenities: this.form.amenities,
+                            social_links: Object.assign({}, this.form.social_links),
                             hours: this.form.hours.map(function (day) {
                                 return {
                                     weekday: day.weekday,

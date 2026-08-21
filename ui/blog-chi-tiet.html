@@ -146,6 +146,17 @@
 <p class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(post.created_at)"></p>
 </div>
 </div>
+<template x-if="post.source &amp;&amp; post.salon &amp;&amp; safeSourceUrl">
+<div class="flex flex-wrap items-center gap-3 p-4 rounded-xl bg-surface-container-low mb-8">
+<span class="font-body-md text-body-md text-on-surface-variant">Bài viết từ</span>
+<a :href="salonUrl(post.salon)" class="font-label-md text-label-md text-primary font-bold hover:text-secondary transition-colors" x-text="post.salon.name"></a>
+<a :href="safeSourceUrl" class="inline-flex items-center gap-1 font-label-md text-label-md text-primary hover:text-secondary transition-colors" rel="noopener noreferrer" target="_blank">
+<span>Xem bài gốc</span>
+<span x-text="'(' + platformLabel(post.source.platform) + ')'" aria-hidden="true"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="open_in_new">open_in_new</span>
+</a>
+</div>
+</template>
 <!-- Video player -->
 <template x-if="post.type === 'video' &amp;&amp; embedUrl">
 <div class="aspect-[16/9] w-full rounded-lg overflow-hidden bg-primary mb-8">
@@ -289,6 +300,76 @@
     const OAK_DEFAULT_AVATAR = 'assets/images/img-b79c0642dd.jpg';
     const OAK_RELATED_LIMIT = 4;
 
+    function oakPostYoutubeId(parsed) {
+        if (parsed.hostname === 'youtu.be') {
+            return parsed.pathname.split('/').filter(Boolean)[0] || null;
+        }
+        if (parsed.pathname === '/watch') {
+            return parsed.searchParams.get('v');
+        }
+        const match = parsed.pathname.match(/^\/(?:shorts|embed|live)\/([\w-]+)\/?$/);
+        return match ? match[1] : null;
+    }
+
+    function oakIsPostSourceResource(parsed, platform) {
+        if (platform === 'facebook') {
+            if (/^\/(?:reel|reels)\/[\w.-]+\/?$/.test(parsed.pathname) ||
+                /^\/[\w.-]+\/(?:posts|videos)\/[\w.-]+\/?$/.test(parsed.pathname)) {
+                return true;
+            }
+            if (parsed.pathname === '/watch' || parsed.pathname === '/watch/') {
+                return /^[\w.-]+$/.test(parsed.searchParams.get('v') || '');
+            }
+            const required = {
+                '/story.php': 'story_fbid',
+                '/permalink.php': 'story_fbid',
+                '/photo.php': 'fbid',
+            }[parsed.pathname];
+            return required ? /^[\w.-]+$/.test(parsed.searchParams.get(required) || '') : false;
+        }
+        if (platform === 'instagram') {
+            return /^\/(?:p|reel|reels|tv)\/[\w.-]+\/?$/.test(parsed.pathname);
+        }
+        if (platform === 'youtube') {
+            return /^[\w-]+$/.test(oakPostYoutubeId(parsed) || '');
+        }
+        if (platform === 'tiktok') {
+            if (parsed.hostname === 'vm.tiktok.com' || parsed.hostname === 'vt.tiktok.com') {
+                return /^\/[\w-]{4,}\/?$/.test(parsed.pathname);
+            }
+            return /^\/@[^/]+\/(?:video|photo)\/[\w.-]+\/?$/.test(parsed.pathname);
+        }
+        return platform === 'zalo' &&
+            /^\/(?:s|article|post|posts|video|photo)\/[\w.-]+(?:\/[^?#]*)?$/.test(parsed.pathname);
+    }
+
+    function oakSafePostSourceUrl(url) {
+        const hosts = {
+            'facebook.com': 'facebook', 'www.facebook.com': 'facebook',
+            'm.facebook.com': 'facebook', 'mobile.facebook.com': 'facebook',
+            'instagram.com': 'instagram', 'www.instagram.com': 'instagram',
+            'm.instagram.com': 'instagram',
+            'tiktok.com': 'tiktok', 'www.tiktok.com': 'tiktok', 'm.tiktok.com': 'tiktok',
+            'vm.tiktok.com': 'tiktok', 'vt.tiktok.com': 'tiktok',
+            'youtube.com': 'youtube', 'www.youtube.com': 'youtube',
+            'm.youtube.com': 'youtube', 'youtu.be': 'youtube',
+            'zalo.me': 'zalo', 'www.zalo.me': 'zalo',
+            'zalo.com': 'zalo', 'www.zalo.com': 'zalo',
+        };
+        let parsed;
+        try {
+            parsed = new URL((url || '').trim());
+        } catch (error) {
+            return '';
+        }
+        const platform = hosts[parsed.hostname] || null;
+        const safe = parsed.protocol === 'https:' && !parsed.username && !parsed.password && !parsed.port &&
+            platform && oakIsPostSourceResource(parsed, platform);
+        return safe
+            ? parsed.toString()
+            : '';
+    }
+
     function oakPostDetail() {
         return {
             post: null,
@@ -344,6 +425,25 @@
             get embedUrl() {
                 const url = (this.post && this.post.video_url) || '';
                 return url.startsWith('https://') ? url : '';
+            },
+
+            get safeSourceUrl() {
+                const url = (this.post && this.post.source && this.post.source.url) || '';
+                return oakSafePostSourceUrl(url);
+            },
+
+            salonUrl(salon) {
+                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+            },
+
+            platformLabel(platform) {
+                return {
+                    facebook: 'Facebook',
+                    instagram: 'Instagram',
+                    tiktok: 'TikTok',
+                    youtube: 'YouTube',
+                    zalo: 'Zalo',
+                }[platform] || platform;
             },
 
             avatarOf(person) {

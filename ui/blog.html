@@ -135,6 +135,13 @@
             </button>
 </div>
 </section>
+<!-- Feed scope -->
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-6">
+<div aria-label="Phạm vi bài viết" class="flex flex-wrap gap-3" role="group">
+<button :aria-pressed="scope === 'community'" :class="scope === 'community' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectScope('community')" class="px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button">Cộng đồng</button>
+<button :aria-pressed="scope === 'mine'" :class="scope === 'mine' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectScope('mine')" class="px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button" x-cloak="" x-show="user">Bài viết của tôi</button>
+</div>
+</section>
 <!-- Filter tabs -->
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-8">
 <div aria-label="Lọc theo loại bài" class="flex flex-wrap gap-3" role="group">
@@ -147,7 +154,9 @@
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <div :class="loading ? 'opacity-50' : ''" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter transition-opacity">
 <template :key="post.id" x-for="post in posts">
-<a :href="'blog-chi-tiet.html?slug=' + encodeURIComponent(post.slug)" class="group block h-full" style="color:inherit;text-decoration:none"><article class="h-full flex flex-col">
+<article class="group relative h-full flex flex-col">
+<a :aria-label="post.title" :href="'blog-chi-tiet.html?slug=' + encodeURIComponent(post.slug)" class="absolute inset-0 z-10" style="color:inherit;text-decoration:none"><span class="sr-only" x-text="post.title"></span></a>
+<div class="pointer-events-none h-full flex flex-col">
 <div class="relative aspect-[16/9] w-full rounded-lg overflow-hidden img-hover-zoom mb-4 bg-surface-container">
 <template x-if="post.image">
 <img loading="lazy" :alt="post.title" :src="post.image" class="w-full h-full object-cover">
@@ -167,7 +176,27 @@
 </div>
 <span class="font-caption text-caption uppercase tracking-widest text-on-surface-variant mb-2" x-text="post.type === 'video' ? 'Video' : 'Bài viết'"></span>
 <h2 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary transition-colors mb-2" x-text="post.title"></h2>
+<template x-if="post.source &amp;&amp; post.salon &amp;&amp; safeSourceUrl(post.source)">
+<div class="flex flex-wrap items-center gap-2 mb-3 font-caption text-caption text-on-surface-variant">
+<a :href="salonUrl(post.salon)" class="relative z-20 pointer-events-auto font-bold hover:text-primary transition-colors" x-text="post.salon.name"></a>
+<span aria-hidden="true">•</span>
+<a :href="safeSourceUrl(post.source)" class="relative z-20 pointer-events-auto inline-flex items-center gap-1 hover:text-primary transition-colors" rel="noopener noreferrer" target="_blank">
+<span x-text="platformLabel(post.source.platform)"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="open_in_new">open_in_new</span>
+</a>
+</div>
+</template>
 <p class="font-body-md text-body-md text-on-surface-variant line-clamp-2 mb-4" x-text="post.excerpt || ''"></p>
+<div class="relative z-20 pointer-events-auto flex items-center gap-2 mb-4" x-show="canManage(post)">
+<button @click.stop="editPost(post)" class="inline-flex items-center gap-1 px-3 py-2 rounded-full border border-outline-variant text-primary font-label-md text-label-md hover:bg-surface-container-low transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]" data-icon="edit">edit</span>
+<span>Sửa</span>
+</button>
+<button :disabled="deletingId === post.id" @click.stop="removePost(post)" class="inline-flex items-center gap-1 px-3 py-2 rounded-full border border-outline-variant text-error font-label-md text-label-md hover:bg-surface-container-low transition-colors disabled:opacity-50" type="button">
+<span class="material-symbols-outlined text-[18px]" data-icon="delete">delete</span>
+<span x-text="deletingId === post.id ? 'Đang xoá…' : 'Xoá'"></span>
+</button>
+</div>
 <div class="mt-auto flex items-center gap-3 pt-4 border-t border-outline-variant/30">
 <img loading="lazy" :alt="post.author.name || 'Tác giả'" :src="avatarOf(post.author)" class="w-8 h-8 rounded-full object-cover bg-surface-variant shrink-0">
 <div class="min-w-0">
@@ -179,7 +208,8 @@
 <span class="font-caption text-caption" x-text="post.comment_count"></span>
 </span>
 </div>
-</article></a>
+</div>
+</article>
 </template>
 </div>
 <!-- Empty state -->
@@ -196,21 +226,41 @@
 </div>
 </section>
 <!-- Composer modal -->
-<div @keydown.escape.window="composerOpen = false" class="fixed inset-0 z-[60] flex items-end md:items-center justify-center" x-cloak="" x-show="composerOpen">
-<div @click="composerOpen = false" class="absolute inset-0 bg-primary/50"></div>
+<div @keydown.escape.window="closeComposer()" class="fixed inset-0 z-[60] flex items-end md:items-center justify-center" x-cloak="" x-show="composerOpen">
+<div @click="closeComposer()" class="absolute inset-0 bg-primary/50"></div>
 <div aria-labelledby="composer-title" aria-modal="true" class="relative w-full md:max-w-[640px] max-h-[92dvh] overflow-y-auto bg-surface rounded-t-2xl md:rounded-2xl border border-outline-variant/30 shadow-lg p-6 md:p-8" role="dialog">
 <div class="flex items-start justify-between gap-4 mb-6">
-<h2 class="font-headline-sm text-headline-sm text-primary" id="composer-title">Chia sẻ với cộng đồng</h2>
-<button @click="composerOpen = false" aria-label="Đóng" class="text-on-surface-variant hover:text-primary transition-colors" type="button">
+<h2 class="font-headline-sm text-headline-sm text-primary" id="composer-title" x-text="editingPost ? 'Chỉnh sửa bài viết' : 'Chia sẻ với cộng đồng'"></h2>
+<button @click="closeComposer()" aria-label="Đóng" class="text-on-surface-variant hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined" data-icon="close">close</span>
 </button>
 </div>
 <!-- Type toggle -->
-<div class="flex gap-3 mb-8">
+<div class="flex gap-3 mb-8" x-show="!previewing &amp;&amp; !editingPost">
 <button :class="form.type === 'article' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="form.type = 'article'" class="px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button">Bài viết</button>
 <button :class="form.type === 'video' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="form.type = 'video'" class="px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button">Video</button>
 </div>
-<form @submit.prevent="submit()" novalidate="">
+<template x-if="user &amp;&amp; user.role === 'partner' &amp;&amp; !previewing">
+<div class="mb-8 p-4 rounded-xl bg-surface-container-low">
+<label class="flex items-center gap-3 font-label-md text-label-md text-primary">
+<input type="checkbox" x-model="form.has_social_source">
+<span>Đưa bài từ mạng xã hội của salon</span>
+</label>
+<p class="font-caption text-caption text-on-surface-variant mt-2">Bài viết vẫn được biên tập trên OAK và có liên kết đến bài gốc.</p>
+</div>
+</template>
+<form @submit.prevent="showPreview()" novalidate="">
+<div x-show="!previewing">
+<div class="relative mb-8" x-show="user &amp;&amp; user.role === 'partner' &amp;&amp; form.has_social_source">
+<input class="input-minimal font-body-md text-body-md text-primary" id="post-source-url" maxlength="2048" placeholder=" " type="url" x-model="form.source_url">
+<label class="floating-label font-body-md text-body-md" for="post-source-url">Link bài viết gốc</label>
+<template x-if="form.source_url &amp;&amp; detectedPlatform">
+<p class="font-caption text-caption text-on-surface-variant mt-2"><span>Đã nhận diện:</span> <span x-text="platformLabel(detectedPlatform)"></span></p>
+</template>
+<template x-if="form.source_url &amp;&amp; !detectedPlatform">
+<p class="font-caption text-caption text-error mt-2">Không nhận diện được nền tảng từ link này.</p>
+</template>
+</div>
 <div class="relative mb-8">
 <input class="input-minimal font-body-md text-body-md text-primary" id="post-title" placeholder=" " required="" type="text" x-model="form.title">
 <label class="floating-label font-body-md text-body-md" for="post-title">Tiêu đề</label>
@@ -243,10 +293,57 @@
 <label class="floating-label font-body-md text-body-md" for="post-excerpt">Mô tả ngắn</label>
 </div>
 </div>
+</div>
+<div data-oak-post-preview x-show="previewing">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-6">Xem trước bài viết</h3>
+<template x-if="previewPayload">
+<div class="space-y-5">
+<template x-if="previewPayload.source_url &amp;&amp; salon">
+<div class="p-4 rounded-xl bg-surface-container-low">
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Salon</p>
+<p class="font-label-md text-label-md text-primary mt-1" x-text="salon.name"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-3"><span>Nguồn:</span> <span x-text="platformLabel(oakDetectSocialPlatform(previewPayload.source_url))"></span></p>
+<a :href="safeSourceUrl({ url: previewPayload.source_url })" class="inline-flex items-center gap-1 font-caption text-caption text-primary hover:text-secondary mt-1" rel="noopener noreferrer" target="_blank">
+<span>Kiểm tra link bài gốc</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="open_in_new">open_in_new</span>
+</a>
+</div>
+</template>
+<div>
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Tiêu đề</p>
+<p class="font-headline-sm text-headline-sm text-primary mt-1" x-text="previewPayload.title"></p>
+</div>
+<template x-if="previewPayload.image">
+<img :alt="previewPayload.title" :src="previewPayload.image" class="w-full aspect-[16/9] object-cover rounded-lg">
+</template>
+<div>
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Mô tả ngắn</p>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1" x-text="previewPayload.excerpt || 'Không có mô tả ngắn.'"></p>
+</div>
+<div>
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Loại nội dung</p>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1" x-text="previewPayload.type === 'video' ? 'Video' : 'Bài viết'"></p>
+</div>
+<template x-if="previewPayload.type === 'article'">
+<div>
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Nội dung</p>
+<p class="font-body-md text-body-md text-on-surface-variant whitespace-pre-line mt-1" x-text="previewPayload.content"></p>
+</div>
+</template>
+<template x-if="previewPayload.type === 'video' &amp;&amp; safePreviewVideoUrl">
+<a :href="safePreviewVideoUrl" class="inline-flex items-center gap-1 font-label-md text-label-md text-primary hover:text-secondary" rel="noopener noreferrer" target="_blank">Xem video YouTube</a>
+</template>
+</div>
+</template>
+</div>
 <p class="font-body-md text-body-md text-error mb-6" x-cloak="" x-show="error" x-text="error"></p>
-<div class="flex flex-col-reverse md:flex-row md:justify-end gap-3">
-<button @click="composerOpen = false" class="inline-flex items-center justify-center border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" type="button">Huỷ</button>
-<button :disabled="saving" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-50" type="submit" x-text="saving ? 'Đang đăng…' : 'Đăng bài'"></button>
+<div class="flex flex-col-reverse md:flex-row md:justify-end gap-3" x-show="!previewing">
+<button @click="closeComposer()" class="inline-flex items-center justify-center border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" type="button">Huỷ</button>
+<button :disabled="uploading" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-50" data-oak-preview-button type="submit">Xem trước</button>
+</div>
+<div class="flex flex-col-reverse md:flex-row md:justify-end gap-3" x-show="previewing">
+<button @click="previewing = false" class="inline-flex items-center justify-center border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" data-oak-edit-button type="button">Quay lại chỉnh sửa</button>
+<button :disabled="saving" @click="publish()" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-50" data-oak-publish-button type="button" x-text="saving ? 'Đang lưu…' : (editingPost ? 'Lưu thay đổi' : 'Đăng bài')"></button>
 </div>
 </form>
 </div>
@@ -294,214 +391,5 @@
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
-<script>
-    /* Inline scripts run before deferred ones, so these factories exist by the time Alpine boots. */
-    const OAK_BLOG_PAGE_SIZE = 9;
-    const OAK_DEFAULT_AVATAR = 'assets/images/img-b79c0642dd.jpg';
-
-    /* youtube.com/watch?v=, /shorts/ and youtu.be links all become the /embed/ form the
-       detail page can put in an iframe. Anything unrecognised yields null so the composer
-       refuses it — an arbitrary URL must never reach the iframe. */
-    function oakToEmbedUrl(url) {
-        const raw = (url || '').trim();
-        const patterns = [
-            /youtube\.com\/watch\?(?:[^#]*&)?v=([\w-]+)/i,
-            /youtube\.com\/(?:embed|shorts|live)\/([\w-]+)/i,
-            /youtu\.be\/([\w-]+)/i,
-        ];
-        for (const pattern of patterns) {
-            const match = raw.match(pattern);
-            if (match) {
-                return 'https://www.youtube.com/embed/' + match[1];
-            }
-        }
-        return null;
-    }
-
-    function oakBlogFeed() {
-        return {
-            tabs: [
-                { value: '', label: 'Tất cả' },
-                { value: 'article', label: 'Bài viết' },
-                { value: 'video', label: 'Video' },
-            ],
-            posts: [],
-            type: '',
-            page: 1,
-            total: 0,
-            loading: true,
-            loadToken: 0,
-            user: null,
-            composerOpen: false,
-            saving: false,
-            uploading: false,
-            error: '',
-            form: { type: 'article', title: '', content: '', video_url: '', excerpt: '', image: '' },
-
-            async init() {
-                this.user = await OAK.me();
-                this.load();
-            },
-
-            /* Two tab switches in flight at once resolve in any order, so only the newest
-               one is allowed to land — otherwise the older list overwrites the newer. */
-            async load() {
-                const token = ++this.loadToken;
-                this.loading = true;
-                try {
-                    let path = '/api/posts?limit=' + OAK_BLOG_PAGE_SIZE + '&page=' + this.page;
-                    if (this.type) {
-                        path += '&type=' + this.type;
-                    }
-                    const rows = await OAK.api(path);
-                    if (token !== this.loadToken) {
-                        return;
-                    }
-                    this.posts = this.page === 1 ? rows : this.posts.concat(rows);
-                    this.total = rows.meta.total;
-                } catch (error) {
-                    if (token !== this.loadToken) {
-                        return;
-                    }
-                    OAK.toast(error.message, 'error');
-                } finally {
-                    if (token === this.loadToken) {
-                        this.loading = false;
-                    }
-                }
-            },
-
-            selectType(value) {
-                if (this.type === value) {
-                    return;
-                }
-                this.type = value;
-                this.page = 1;
-                this.load();
-            },
-
-            loadMore() {
-                this.page += 1;
-                this.load();
-            },
-
-            avatarOf(author) {
-                return (author && author.avatar) || OAK_DEFAULT_AVATAR;
-            },
-
-            /* Guests are sent to the login page and never come back from this call. */
-            async openComposer() {
-                if (!this.user) {
-                    await OAK.requireLogin();
-                    return;
-                }
-                this.error = '';
-                this.composerOpen = true;
-            },
-
-            async uploadImage(event) {
-                const file = event.target.files && event.target.files[0];
-                if (!file) {
-                    return;
-                }
-                this.uploading = true;
-                try {
-                    const data = await new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve(reader.result);
-                        reader.onerror = () => reject(new Error('Không đọc được tệp ảnh.'));
-                        reader.readAsDataURL(file);
-                    });
-                    const upload = await OAK.api('/api/uploads', {
-                        method: 'POST',
-                        body: { filename: file.name, data },
-                    });
-                    this.form.image = upload.url;
-                } catch (error) {
-                    OAK.toast(error.message, 'error');
-                } finally {
-                    this.uploading = false;
-                }
-            },
-
-            /* The list card shows an excerpt, so an article gets one derived from its opening lines. */
-            excerptFrom(content) {
-                const text = content.replace(/\s+/g, ' ').trim();
-                return text.length > 180 ? text.slice(0, 177) + '…' : text;
-            },
-
-            buildPayload() {
-                const title = this.form.title.trim();
-                if (!title) {
-                    return { error: 'Vui lòng nhập tiêu đề bài viết.' };
-                }
-                if (this.form.type === 'article') {
-                    const content = this.form.content.trim();
-                    if (!content) {
-                        return { error: 'Vui lòng nhập nội dung bài viết.' };
-                    }
-                    return {
-                        body: {
-                            type: 'article',
-                            title: title,
-                            content: content,
-                            excerpt: this.excerptFrom(content),
-                            image: this.form.image || null,
-                        },
-                    };
-                }
-
-                const videoUrl = oakToEmbedUrl(this.form.video_url);
-                if (!videoUrl) {
-                    return { error: 'Vui lòng nhập đường dẫn video YouTube.' };
-                }
-                return {
-                    body: {
-                        type: 'video',
-                        title: title,
-                        video_url: videoUrl,
-                        excerpt: this.form.excerpt.trim() || null,
-                    },
-                };
-            },
-
-            async submit() {
-                const payload = this.buildPayload();
-                if (payload.error) {
-                    this.error = payload.error;
-                    return;
-                }
-
-                this.error = '';
-                this.saving = true;
-                try {
-                    const post = await OAK.api('/api/posts', { method: 'POST', body: payload.body });
-                    /* The create response is the detail shape; the grid needs the card shape. */
-                    if (!this.type || this.type === post.type) {
-                        this.posts.unshift({
-                            id: post.id,
-                            slug: post.slug,
-                            type: post.type,
-                            title: post.title,
-                            excerpt: post.excerpt,
-                            image: post.image,
-                            video_url: post.video_url,
-                            created_at: post.created_at,
-                            author: post.author,
-                            comment_count: 0,
-                        });
-                        this.total += 1;
-                    }
-                    this.composerOpen = false;
-                    this.form = { type: this.form.type, title: '', content: '', video_url: '', excerpt: '', image: '' };
-                    OAK.toast('Đã đăng bài viết của bạn.');
-                } catch (error) {
-                    this.error = error.message;
-                } finally {
-                    this.saving = false;
-                }
-            },
-        };
-    }
-</script>
+<script src="assets/js/oak-blog.js"></script>
 </body></html>

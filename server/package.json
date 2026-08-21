@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node test/api-smoke.mjs"
+    "test": "node --test test/*.test.mjs && node test/api-smoke.mjs",
+    "test:unit": "node --test test/*.test.mjs",
+    "test:coverage": "node --test --experimental-test-coverage test/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

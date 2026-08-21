@@ -121,5 +121,7 @@
   "Không đọc được tệp ảnh.": "Could not read the image file.",
   "Đã tải ảnh lên, nhớ bấm Lưu thay đổi.": "Image uploaded — remember to click Save changes.",
   "Vui lòng nhập tên salon.": "Please enter the salon name.",
-  "Đã lưu thông tin salon.": "Salon information saved."
+  "Đã lưu thông tin salon.": "Salon information saved.",
+  "Mạng xã hội": "Social media",
+  "Thêm link trang hoặc hồ sơ chính thức của salon. Để trống nếu salon chưa dùng nền tảng đó.": "Add links to your salon's official pages or profiles. Leave a field blank if the salon does not use that platform."
 }
