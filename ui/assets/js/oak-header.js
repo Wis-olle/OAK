@@ -159,6 +159,7 @@
       /* The mark oak-api.js adds belongs at the end of this row, not over its first word. */
       entry('thong-bao.html', 'Thông báo', null, null,
         ' aria-label="Thông báo" data-oak-dot="absolute right-4 top-1/2 -translate-y-1/2"') +
+      entry('cai-dat.html', 'Cài đặt') +
     '</div>';
 
   /* Signing out is not a place, so it never counts as where the reader is. */

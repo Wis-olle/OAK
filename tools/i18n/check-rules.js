@@ -271,9 +271,9 @@ const scope = [
     // this fragment disappears. The bare entry it falls back to is the one check-coverage.js
     // needs to see the string as covered at all.
     ['dang-nhap-doi-tac.html', 'của chúng tôi.', '', '.'],
-    // The profile page's own heading is about account security; the footer link of the
+    // The settings page's own heading is about account security; the footer link of the
     // same two words is the privacy policy, and shared chrome never sees the scoped entry.
-    ['ho-so-ca-nhan.html', 'Bảo mật', 'Security', 'Privacy Policy'],
+    ['cai-dat.html', 'Bảo mật', 'Security', 'Privacy Policy'],
     // a page with no scoped entry of its own answers from the bare key either way
     ['kham-pha.html', 'Đặt lịch', 'Book now', 'Book now'],
     ['kham-pha.html', 'Lịch hẹn', 'Appointments', 'Appointments'],

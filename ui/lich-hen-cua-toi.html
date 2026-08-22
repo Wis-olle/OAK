@@ -35,7 +35,7 @@
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
 <div class="pt-24 flex-1 flex max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop gap-gutter pb-section-gap" x-data="oakMyBookings()">
-<!-- AccountNav, desktop rail. Byte-for-byte the same on the five account pages;
+<!-- AccountNav, desktop rail. Byte-for-byte the same on the six account pages;
      the page it sits on is the one carrying aria-current. -->
 <aside class="hidden md:block w-72 shrink-0 sticky top-28 self-start" data-oak-account-nav="">
 <nav aria-label="Tài khoản của tôi" class="bg-surface-container-low rounded-lg shadow-sm flex flex-col gap-2 p-4">
@@ -59,6 +59,10 @@ Thông báo
 <span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="person">person</span>
 Hồ sơ cá nhân
 </a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="cai-dat.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span>
+Cài đặt
+</a>
 </nav>
 </aside>
 <!-- Main Content -->
@@ -69,7 +73,7 @@ Hồ sơ cá nhân
 <p class="font-body-md text-body-md text-on-surface-variant">Quản lý và theo dõi các dịch vụ chăm sóc sắc đẹp sắp tới.</p>
 </div>
 </div>
-<!-- AccountNav, mobile strip. Byte-for-byte the same on the five account pages;
+<!-- AccountNav, mobile strip. Byte-for-byte the same on the six account pages;
      the page it sits on is the one carrying aria-current. -->
 <nav aria-label="Tài khoản của tôi" class="md:hidden -mx-margin-mobile px-margin-mobile mb-8 overflow-x-auto" data-oak-account-tabs="">
 <div class="flex gap-2 w-max pb-2">
@@ -92,6 +96,10 @@ Thông báo
 <a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="ho-so-ca-nhan.html">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="person">person</span>
 Hồ sơ cá nhân
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="cai-dat.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="settings">settings</span>
+Cài đặt
 </a>
 </div>
 </nav>

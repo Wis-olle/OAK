@@ -5,6 +5,10 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
+/* The bug the pinned assertion below guards is a calendar-day rollover, so the day has to be
+   pinned as well as the instant: in UTC the buggy and the correct answer are the same string. */
+process.env.TZ = 'Asia/Ho_Chi_Minh';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const page = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 
@@ -12,6 +16,9 @@ const loginHtml = page('dang-nhap-nguoi-dung.html');
 const registerHtml = page('dang-ky.html');
 const resetHtml = page('dat-lai-mat-khau.html');
 const profileHtml = page('ho-so-ca-nhan.html');
+const settingsHtml = page('cai-dat.html');
+const sitemapHtml = page('sitemap.html');
+const headerSource = fs.readFileSync(path.join(root, 'ui/assets/js/oak-header.js'), 'utf8');
 const authSource = fs.readFileSync(path.join(root, 'server/src/routes/auth.js'), 'utf8');
 const middlewareSource = fs.readFileSync(path.join(root, 'server/src/middleware/auth.js'), 'utf8');
 const schemaSource = fs.readFileSync(path.join(root, 'server/src/db.js'), 'utf8');
@@ -25,10 +32,13 @@ function factory(html, from, call, extra = {}) {
   const context = {
     toasts: [],
     replaced: [],
+    langSet: [],
     location: { href: '', pathname: '/' + (extra.pathname || 'page.html') },
     history: { replaceState: (state, title, url) => context.replaced.push(url) },
     // The login page points its register link from module scope, outside any factory.
     document: { querySelector: () => ({ href: '' }) },
+    // The settings page reads the language engine off `window`, which a fresh vm has none of.
+    window: { OAKI18N: { lang: 'vi', set: (code) => context.langSet.push(code) } },
     OAK: {
       api: extra.api,
       toast: (message, type) => context.toasts.push([message, type]),
@@ -41,6 +51,7 @@ function factory(html, from, call, extra = {}) {
   vm.runInNewContext(`${script}\nresult = ${call};`, context);
   context.result.toasts = context.toasts;
   context.result.replaced = context.replaced;
+  context.result.langSet = context.langSet;
   return context.result;
 }
 
@@ -52,7 +63,8 @@ const resetPage = (api, token) =>
   });
 const loginPage = (api) =>
   factory(loginHtml, 'const OAK_NEXT_PAGE =', 'oakCustomerLogin()', { api });
-const profilePage = (api) => factory(profileHtml, 'function oakProfile(', 'oakProfile()', { api });
+const settingsPage = (api) =>
+  factory(settingsHtml, 'function oakSettings(', 'oakSettings()', { api });
 
 /** A login form with its email box focusable, the way Alpine would supply x-ref. */
 function loginWithRefs(api) {
@@ -276,11 +288,11 @@ test('the consent line points at the two documents it names, in a new tab', () =
   );
 });
 
-// ------------------------------------------------------------------ ho-so-ca-nhan
+// ------------------------------------------------------------------ cai-dat
 
 test('the security form validates its three boxes before it asks the server', async () => {
   let calls = 0;
-  const state = profilePage(async () => {
+  const state = settingsPage(async () => {
     calls += 1;
     return { ok: true };
   });
@@ -300,10 +312,11 @@ test('the security form validates its three boxes before it asks the server', as
 
 test('a change posts the snake_case pair and clears the three boxes on success', async () => {
   const calls = [];
-  const state = profilePage(async (path, options) => {
+  const state = settingsPage(async (path, options) => {
     calls.push([path, options.method, options.body]);
     return { ok: true };
   });
+  await state.init();
   state.currentPassword = 'oldpassword';
   state.newPassword = 'longenough1';
   state.confirmPassword = 'longenough1';
@@ -319,11 +332,11 @@ test('a change posts the snake_case pair and clears the three boxes on success',
   assert.equal(state.passwordNotice, 'Đã đổi mật khẩu.');
   // Inline, not a toast: the outcome belongs beside the fields it is about.
   assert.deepEqual(state.toasts, []);
-  assert.match(profileHtml, /x-text="passwordNotice"/);
+  assert.match(settingsHtml, /x-text="passwordNotice"/);
 });
 
 test('a wrong current password keeps the two new ones, so only that box is retyped', async () => {
-  const state = profilePage(async () => {
+  const state = settingsPage(async () => {
     throw new Error('Mật khẩu hiện tại không đúng.');
   });
   state.currentPassword = 'wrong';
@@ -338,17 +351,99 @@ test('a wrong current password keeps the two new ones, so only that box is retyp
   assert.equal(state.passwordBusy, false);
 });
 
-test('the security block is the only thing added to the profile page below the nav', () => {
-  // The rail and the tab strip are byte-compared across five pages by tai-khoan-ui;
-  // this only asserts the new block landed outside both of them.
-  const security = profileHtml.indexOf('<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Bảo mật</h2>');
-  assert.ok(security > profileHtml.indexOf('data-oak-account-tabs=""'));
-  assert.ok(security > profileHtml.indexOf('data-oak-account-nav=""'));
+test('the security block lives on the settings page, outside both nav blocks', () => {
+  // The rail and the tab strip are byte-compared across six pages by tai-khoan-ui;
+  // this only asserts the block landed outside both of them.
+  const security = settingsHtml.indexOf('<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Bảo mật</h2>');
+  assert.ok(security > settingsHtml.indexOf('data-oak-account-tabs=""'));
+  assert.ok(security > settingsHtml.indexOf('data-oak-account-nav=""'));
+});
+
+test('the profile page kept none of it — one page changes a password, not two', () => {
+  assert.equal(profileHtml.includes('/api/auth/change-password'), false);
+  assert.equal(profileHtml.includes('changePassword('), false);
+  assert.equal(
+    profileHtml.includes('<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Bảo mật</h2>'),
+    false,
+  );
+});
+
+test('the settings page carries the same head and shell contract as the other pages', () => {
+  for (const tag of [
+    '<script src="assets/js/oak-api.js"></script>',
+    '<script src="assets/js/oak-i18n.js"></script>',
+    '<script src="assets/js/oak-header.js"></script>',
+    '<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>',
+    '<title>Cài đặt - OAK Beauty</title>',
+  ]) {
+    assert.ok(settingsHtml.includes(tag), 'missing ' + tag);
+  }
+  const loader = /<script>\n\(function \(\) \{[\s\S]*?\}\)\(\);\n<\/script>/;
+  assert.equal(settingsHtml.match(loader)[0], loginHtml.match(loader)[0]);
+});
+
+// ------------------------------------------------------------------ the language section
+
+test('choosing the other language hands it to the engine, which stores it and reloads', () => {
+  const state = settingsPage(async () => assert.fail('no request may be made'));
+
+  assert.equal(state.lang, 'vi');
+  state.setLang('en');
+  assert.deepEqual(state.langSet, ['en']);
+});
+
+test('choosing the language already in use does nothing, so the page does not reload', () => {
+  const state = settingsPage(async () => assert.fail('no request may be made'));
+
+  state.setLang('vi');
+  assert.deepEqual(state.langSet, []);
+});
+
+test('both choices are buttons that say which one is in force', () => {
+  assert.match(settingsHtml, /:aria-pressed="lang === 'vi'"[\s\S]*?>Tiếng Việt<\/button>/);
+  assert.match(settingsHtml, /:aria-pressed="lang === 'en'"[\s\S]*?>English<\/button>/);
+  assert.match(settingsHtml, /@click="setLang\('vi'\)"/);
+  assert.match(settingsHtml, /@click="setLang\('en'\)"/);
+  assert.match(settingsHtml, /role="group"/);
+});
+
+test('a change stamps the same cut-off the server did, so the line above the form is right', async () => {
+  const state = settingsPage(async () => ({ ok: true }));
+  await state.init();
+  state.currentPassword = 'oldpassword';
+  state.newPassword = 'longenough1';
+  state.confirmPassword = 'longenough1';
+
+  const before = Math.floor(Date.now() / 1000);
+  await state.changePassword();
+
+  // Epoch seconds, the unit the users row and the JWT iat are both compared in.
+  assert.ok(state.user.password_changed_at >= before);
+  assert.ok(state.user.password_changed_at <= Math.floor(Date.now() / 1000));
+  // Pinned, because comparing the method to a rebuild of itself would pass on any rule.
+  // 1787342400 is 2026-08-21T20:00Z — 03:00 on the 22nd in ICT, the small hours a UTC
+  // calendar day reports as the day before. The stub echoes its argument, so what comes
+  // back is the ISO string fmtDate was handed.
+  const pinned = 1787342400;
+  state.user.password_changed_at = pinned;
+  assert.equal(state.lastPasswordChange().split('T')[0], '2026-08-22');
+  assert.match(settingsHtml, /x-text="lastPasswordChange\(\)"/);
+  assert.match(settingsHtml, /x-show="user\.password_changed_at"/);
+});
+
+test('the settings page is reachable from the account menu and the sitemap', () => {
+  const mine = headerSource.slice(
+    headerSource.indexOf("entry('thong-bao.html'"),
+    headerSource.indexOf('var signOut ='),
+  );
+  assert.match(mine, /entry\('cai-dat\.html', 'Cài đặt'\)/);
+  assert.ok(sitemapHtml.includes('href="cai-dat.html">Cài đặt</a>'));
 });
 
 // ------------------------------------------------------------------ the toggle and its icon
 
 test('every password box on the four pages can be revealed, and the icon is subsetted', () => {
+  // Four: the three auth pages and the settings page. The profile page has none left.
   // Trimmed per line, the way tools/icons/subset_icons.py reads the same file.
   const names = fs
     .readFileSync(path.join(root, 'tools/icons/icon-names.txt'), 'utf8')
@@ -363,7 +458,8 @@ test('every password box on the four pages can be revealed, and the icon is subs
   assert.equal(toggles(loginHtml).length, 1);
   assert.equal(toggles(registerHtml).length, 2);
   assert.equal(toggles(resetHtml).length, 2);
-  assert.equal(toggles(profileHtml).length, 3);
+  assert.equal(toggles(profileHtml).length, 0);
+  assert.equal(toggles(settingsHtml).length, 3);
 });
 
 // ------------------------------------------------------------------ the server contract

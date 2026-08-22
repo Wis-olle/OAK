@@ -68,9 +68,10 @@ const ACCOUNT_PAGES = [
   'danh-gia-cua-toi.html',
   'thong-bao.html',
   'ho-so-ca-nhan.html',
+  'cai-dat.html',
 ];
 
-/** One nav block, with the active marker normalised away so the five can be compared. */
+/** One nav block, with the active marker normalised away so the six can be compared. */
 function navBlock(html, startPattern, end) {
   const match = html.match(startPattern);
   assert.ok(match, 'no block matching ' + startPattern);
@@ -82,7 +83,7 @@ for (const [kind, startPattern, end] of [
   ['desktop', /<aside class="[^"]*" data-oak-account-nav="">/, '</aside>'],
   ['mobile', /<nav aria-label="[^"]*" class="[^"]*" data-oak-account-tabs="">/, '</nav>'],
 ]) {
-  test(`the ${kind} account nav is the same markup on all five pages`, () => {
+  test(`the ${kind} account nav is the same markup on all six pages`, () => {
     const blocks = ACCOUNT_PAGES.map((name) => navBlock(page(name), startPattern, end));
 
     blocks.forEach((block, index) => {
@@ -92,18 +93,21 @@ for (const [kind, startPattern, end] of [
     });
 
     const normalised = new Set(blocks.map((block) => block.replaceAll(' aria-current="page"', '')));
-    assert.equal(normalised.size, 1, 'the five blocks are not byte-identical');
+    assert.equal(normalised.size, 1, 'the six blocks are not byte-identical');
   });
 }
 
-test('every account page links to all five destinations under one set of names', () => {
+test('every account page links to all six destinations under one set of names', () => {
   const block = navBlock(page('yeu-thich.html'), /<aside class="[^"]*" data-oak-account-nav="">/, '</aside>');
   for (const name of ACCOUNT_PAGES) {
     assert.ok(block.includes(`href="${name}"`), 'missing link to ' + name);
   }
-  // One name for the profile page, everywhere: "Cài đặt"/"Tài khoản của tôi" are gone.
+  // One name per destination, everywhere: the profile page is never "Tài khoản của tôi".
   assert.ok(block.includes('Hồ sơ cá nhân'));
-  assert.equal(block.includes('Cài đặt'), false);
+  assert.match(
+    block,
+    /href="cai-dat\.html">\s*<span[^>]*data-icon="settings">settings<\/span>\s*Cài đặt\s*<\/a>/,
+  );
 });
 
 // ------------------------------------------------------------------ lich-hen-cua-toi
