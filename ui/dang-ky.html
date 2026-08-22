@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -52,37 +63,43 @@
 <form @submit.prevent="submit()" class="space-y-8" method="POST" novalidate x-data="oakRegister()">
 <!-- Name Input -->
 <div class="relative pt-4">
-<input class="input-minimal font-body-md text-body-md text-primary" id="name" name="name" placeholder=" " required="" type="text" x-model="name">
+<input @input="delete errors.name" autocomplete="name" class="input-minimal font-body-md text-body-md text-primary" id="name" name="name" placeholder=" " required="" type="text" x-model="name">
 <label class="floating-label font-label-md uppercase tracking-widest" for="name">Họ và tên</label>
 <p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="errors.name" x-text="errors.name"></p>
 </div>
 <!-- Email Input -->
 <div class="relative pt-4">
-<input class="input-minimal font-body-md text-body-md text-primary" id="email" name="email" placeholder=" " required="" type="email" x-model="email">
+<input @input="delete errors.email" autocomplete="email" class="input-minimal font-body-md text-body-md text-primary" id="email" name="email" placeholder=" " required="" type="email" x-model="email">
 <label class="floating-label font-label-md uppercase tracking-widest" for="email">Email</label>
 <p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="errors.email" x-text="errors.email"></p>
 </div>
 <!-- Phone Input -->
 <div class="relative pt-4">
-<input class="input-minimal font-body-md text-body-md text-primary" id="phone" name="phone" placeholder=" " type="tel" x-model="phone">
-<label class="floating-label font-label-md uppercase tracking-widest" for="phone">Số điện thoại</label>
+<input @input="delete errors.phone" autocomplete="tel" class="input-minimal font-body-md text-body-md text-primary" id="phone" name="phone" placeholder=" " type="tel" x-model="phone">
+<label class="floating-label font-label-md uppercase tracking-widest" for="phone">Số điện thoại (không bắt buộc)</label>
 <p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="errors.phone" x-text="errors.phone"></p>
 </div>
 <!-- Password Input -->
 <div class="relative pt-4">
-<input class="input-minimal font-body-md text-body-md text-primary" id="password" name="password" placeholder=" " required="" type="password" x-model="password">
+<input :type="showPassword ? 'text' : 'password'" @input="delete errors.password" autocomplete="new-password" class="input-minimal font-body-md text-body-md text-primary pr-10" id="password" name="password" placeholder=" " required="" x-model="password">
 <label class="floating-label font-label-md uppercase tracking-widest" for="password">Mật khẩu</label>
+<button :aria-pressed="showPassword" @click="showPassword = !showPassword" aria-label="Hiện mật khẩu" class="absolute right-0 top-4 h-12 flex items-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]" x-text="showPassword ? 'visibility_off' : 'visibility'"></span>
+</button>
 <p class="font-caption text-caption text-on-surface-variant mt-2" x-cloak="" x-show="!errors.password">Tối thiểu 8 ký tự.</p>
 <p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="errors.password" x-text="errors.password"></p>
 </div>
 <!-- Confirm Password Input -->
 <div class="relative pt-4">
-<input class="input-minimal font-body-md text-body-md text-primary" id="confirm" name="confirm" placeholder=" " required="" type="password" x-model="confirm">
+<input :type="showConfirm ? 'text' : 'password'" @input="delete errors.confirm" autocomplete="new-password" class="input-minimal font-body-md text-body-md text-primary pr-10" id="confirm" name="confirm" placeholder=" " required="" x-model="confirm">
 <label class="floating-label font-label-md uppercase tracking-widest" for="confirm">Xác nhận mật khẩu</label>
+<button :aria-pressed="showConfirm" @click="showConfirm = !showConfirm" aria-label="Hiện mật khẩu" class="absolute right-0 top-4 h-12 flex items-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]" x-text="showConfirm ? 'visibility_off' : 'visibility'"></span>
+</button>
 <p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="errors.confirm" x-text="errors.confirm"></p>
 </div>
 <!-- Inline error -->
-<p class="font-caption text-caption text-error" x-cloak="" x-show="error" x-text="error"></p>
+<p class="font-caption text-caption text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
 <!-- Submit Button -->
 <div class="pt-6">
 <button :disabled="busy" class="w-full bg-primary-container text-on-primary py-4 px-6 rounded-full flex items-center justify-center font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors duration-300 disabled:opacity-60" type="submit" x-text="busy ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'">
@@ -90,7 +107,7 @@
                 </button>
 </div>
 <p class="font-caption text-caption text-on-surface-variant text-center">
-                Khi đăng ký, bạn đồng ý với Điều khoản sử dụng và Chính sách bảo mật của OAK Beauty.
+                Khi đăng ký, bạn đồng ý với <a class="underline hover:text-primary transition-colors" href="dieu-khoan.html" rel="noopener noreferrer" target="_blank">Điều khoản sử dụng</a> và <a class="underline hover:text-primary transition-colors" href="bao-mat.html" rel="noopener noreferrer" target="_blank">Chính sách bảo mật</a> của OAK Beauty.
             </p>
 </form>
 <!-- Divider -->
@@ -102,7 +119,7 @@
 <!-- Partner Sign Up -->
 <div class="space-y-4">
 <a class="w-full bg-transparent border border-outline-variant py-3 px-6 rounded-full flex items-center justify-center font-label-md text-label-md text-primary hover:border-primary transition-colors duration-300" href="dang-nhap-doi-tac.html">
-<span class="material-symbols-outlined text-[20px] mr-3" data-icon="storefront">storefront</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[20px] mr-3" data-icon="storefront">storefront</span>
                 Đăng ký tài khoản đối tác
             </a>
 </div>
@@ -116,7 +133,7 @@
 </div>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -133,12 +150,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -153,7 +172,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -186,6 +205,8 @@
             phone: '',
             password: '',
             confirm: '',
+            showPassword: false,
+            showConfirm: false,
             errors: {},
             error: '',
             busy: false,

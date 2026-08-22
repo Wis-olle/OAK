@@ -1,0 +1,226 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
+<script src="assets/js/oak-i18n.js"></script>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
+<style>
+        /* Underlined inputs with floating labels (shared with the auth pages) */
+        .input-minimal {
+            border: none; border-bottom: 1px solid #c4c7c7; background-color: transparent;
+            padding: 12px 0; border-radius: 0; outline: none; box-shadow: none;
+            transition: border-color 0.3s ease; width: 100%;
+        }
+        .input-minimal:focus { border-bottom-color: #171818; box-shadow: none; }
+        .floating-label {
+            position: absolute; top: 12px; left: 0; pointer-events: none;
+            transition: 0.3s ease all; color: #747878;
+        }
+        .input-minimal:focus ~ .floating-label,
+        .input-minimal:not(:placeholder-shown) ~ .floating-label {
+            top: -12px; font-size: 12px; color: #171818;
+        }
+    </style>
+<title>Đặt lại mật khẩu - OAK Beauty</title>
+<!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
+<link href="assets/css/oak-tailwind.css" rel="stylesheet">
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
+<!-- TopNavBar -->
+<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
+<script src="assets/js/oak-header.js"></script>
+<main class="pt-24 flex-grow flex">
+<!-- Left side: Image -->
+<div class="hidden lg:block lg:w-1/2 relative bg-surface-container-high">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="A striking, high-end editorial fashion photography shot of a serene, minimalist beauty setup. The composition features a carefully curated collection of luxury skincare bottles arranged elegantly on a textured, creamy stone surface. Soft, natural sunlight filters through, casting long, delicate shadows and creating a bright, modern aesthetic. The color palette focuses on pristine whites, soft beige, and subtle tertiary cream tones, embodying the sophisticated, exclusive vibe of a premium beauty brand like OAK Beauty. The mood is calm, professional, and refined." style="background-image: url(&quot;assets/images/img-9c7add0d36.jpg&quot;); background-position: center center;"></div>
+<!-- Subtle overlay to ensure it feels integrated and not just a raw image -->
+<div class="absolute inset-0 bg-gradient-to-r from-transparent to-surface/40"></div>
+</div>
+<!-- Right side: Form -->
+<div class="w-full lg:w-1/2 flex flex-col justify-center px-margin-mobile md:px-margin-desktop py-12 max-w-2xl mx-auto" x-data="oakResetPassword()">
+<div class="mb-12">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Đặt lại mật khẩu</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Chọn một mật khẩu mới cho tài khoản của bạn.</p>
+</div>
+<!-- No token in the link, or the server refused it: the only way forward is a new link. -->
+<div class="bg-error-container text-on-error-container rounded-lg p-6" x-cloak="" x-show="!token || tokenDead">
+<p class="font-body-md text-body-md">Liên kết đặt lại không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu một liên kết mới.</p>
+<a class="font-label-md text-label-md underline inline-block mt-4 uppercase tracking-widest" href="dang-nhap-nguoi-dung.html">Yêu cầu liên kết mới</a>
+</div>
+<!-- Done: the password is changed, so the form is gone and only the way on remains. -->
+<div class="bg-secondary-container text-on-secondary-container rounded-lg p-6" x-cloak="" x-show="done">
+<p class="font-body-md text-body-md">Mật khẩu đã được cập nhật.</p>
+<a class="font-label-md text-label-md underline inline-block mt-4 uppercase tracking-widest" href="dang-nhap-nguoi-dung.html">Đăng nhập ngay</a>
+</div>
+<form @submit.prevent="submit()" class="space-y-8" method="POST" novalidate x-cloak="" x-show="token &amp;&amp; !tokenDead &amp;&amp; !done">
+<!-- New Password Input -->
+<div class="relative pt-4">
+<input :type="showPassword ? 'text' : 'password'" @input="delete errors.password" autocomplete="new-password" class="input-minimal font-body-md text-body-md text-primary pr-10" id="password" name="password" placeholder=" " required="" x-model="password">
+<label class="floating-label font-label-md uppercase tracking-widest" for="password">Mật khẩu mới</label>
+<button :aria-pressed="showPassword" @click="showPassword = !showPassword" aria-label="Hiện mật khẩu" class="absolute right-0 top-4 h-12 flex items-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]" x-text="showPassword ? 'visibility_off' : 'visibility'"></span>
+</button>
+<p class="font-caption text-caption text-on-surface-variant mt-2" x-cloak="" x-show="!errors.password">Tối thiểu 8 ký tự.</p>
+<p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="errors.password" x-text="errors.password"></p>
+</div>
+<!-- Confirm Password Input -->
+<div class="relative pt-4">
+<input :type="showConfirm ? 'text' : 'password'" @input="delete errors.confirm" autocomplete="new-password" class="input-minimal font-body-md text-body-md text-primary pr-10" id="confirm" name="confirm" placeholder=" " required="" x-model="confirm">
+<label class="floating-label font-label-md uppercase tracking-widest" for="confirm">Xác nhận mật khẩu mới</label>
+<button :aria-pressed="showConfirm" @click="showConfirm = !showConfirm" aria-label="Hiện mật khẩu" class="absolute right-0 top-4 h-12 flex items-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]" x-text="showConfirm ? 'visibility_off' : 'visibility'"></span>
+</button>
+<p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="errors.confirm" x-text="errors.confirm"></p>
+</div>
+<!-- Inline error -->
+<p class="font-caption text-caption text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
+<!-- Submit Button -->
+<div class="pt-6">
+<button :disabled="busy" class="w-full bg-primary-container text-on-primary py-4 px-6 rounded-full flex items-center justify-center font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors duration-300 disabled:opacity-60" type="submit" x-text="busy ? 'Đang cập nhật...' : 'Đặt lại mật khẩu'">
+                    Đặt lại mật khẩu
+                </button>
+</div>
+</form>
+<!-- Sign In Link -->
+<div class="mt-12 text-center">
+<p class="font-body-md text-body-md text-on-surface-variant">
+                Đã nhớ mật khẩu?
+                <a class="font-label-md text-label-md text-primary underline ml-1 hover:text-secondary transition-colors uppercase tracking-widest" href="dang-nhap-nguoi-dung.html">Đăng nhập</a>
+</p>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<!-- Brand Column -->
+<div class="col-span-1 md:col-span-1 flex flex-col gap-4">
+<span class="font-headline-sm text-headline-sm text-on-tertiary font-bold">OAK Beauty</span>
+<p class="font-caption text-caption text-on-tertiary/70 mt-4 max-w-xs">
+                    Nâng tầm vẻ đẹp Việt.<br>
+                    Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
+                </p>
+</div>
+<!-- Links Columns -->
+<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
+</div>
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+</div>
+</div>
+<!-- Social/Contact -->
+<div class="col-span-1 flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
+<div class="flex gap-4">
+<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+</div>
+</div>
+</div>
+<!-- Copyright -->
+<div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
+</div>
+</footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+
+    function oakResetPassword() {
+        return {
+            // Read once, synchronously: which of the three states the page opens in
+            // depends on it, so it may not arrive a tick later than the first render.
+            token: OAK.qs('token') || '',
+            password: '',
+            confirm: '',
+            showPassword: false,
+            showConfirm: false,
+            errors: {},
+            error: '',
+            busy: false,
+            tokenDead: false,
+            done: false,
+
+            init() {
+                // The token is the whole reset secret. Once it is in state the URL has no
+                // further use for it, and leaving it there puts it in the address bar, in
+                // the history entry, and in the Referer of anything this page links out
+                // to. Nothing to strip when there was no token: the address stays as it is
+                // and the page still opens on the dead-link card.
+                if (this.token) {
+                    history.replaceState(null, '', location.pathname);
+                }
+            },
+
+            /** Client-side gate; the server validates all of this again. */
+            validate() {
+                const errors = {};
+                if (this.password.length < 8) {
+                    errors.password = 'Mật khẩu phải có ít nhất 8 ký tự.';
+                }
+                if (this.confirm !== this.password) {
+                    errors.confirm = 'Mật khẩu xác nhận không khớp.';
+                }
+                this.errors = errors;
+                return Object.keys(errors).length === 0;
+            },
+
+            async submit() {
+                this.error = '';
+                if (!this.validate()) {
+                    return;
+                }
+
+                this.busy = true;
+                try {
+                    await OAK.api('/api/auth/reset-password', {
+                        method: 'POST',
+                        body: { token: this.token, password: this.password },
+                    });
+                    this.done = true;
+                } catch (error) {
+                    // A spent, unknown or expired link is not a form error to correct:
+                    // nothing the reader types here can fix it, so the form gives way to
+                    // the one action that can.
+                    if (error.code === 'INVALID_RESET_TOKEN') {
+                        this.tokenDead = true;
+                    } else {
+                        this.error = error.message;
+                    }
+                } finally {
+                    this.busy = false;
+                }
+            },
+        };
+    }
+</script>
+</body></html>

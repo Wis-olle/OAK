@@ -4,8 +4,9 @@
    the parts are complete regardless of whether build.js has been run.
 
    It is a text scan, not a parser: it sees the page the way a reader does (the text between
-   tags, plus the attributes ui/assets/js/oak-i18n.js translates), which is close enough to
-   the real text nodes to be useful and always exits 0. Strings a page builds in JavaScript
+   tags, plus the attributes ui/assets/js/oak-i18n.js translates — its description among them,
+   which a search engine reads rather than a person), which is close enough to the real text
+   nodes to be useful and always exits 0. Strings a page builds in JavaScript
    are invisible to it — except the customer top bar, which is nothing but such strings and
    is scanned out of ui/assets/js/oak-header.js at the end. */
 
@@ -17,6 +18,12 @@ const ui = path.join(__dirname, '../../ui');
 
 const DIACRITICS = /[àảãáạăằẳẵắặâầẩẫấậèẻẽéẹêềểễếệìỉĩíịòỏõóọôồổỗốộơờởỡớợùủũúụưừửữứựỳỷỹýỵđ]/i;
 const ATTRIBUTES = /\s(?:placeholder|aria-label|title|alt)="([^"]*)"/g;
+/* translateHead() in oak-i18n.js looks up the page description as well as its <title>, and
+   that string sits in an attribute of a <meta> that the tag scan below discards along with
+   every other tag. The og: twin of the same sentence is left out on purpose: nothing
+   translates it, so asking for an entry it can never use would be a gap that cannot close. */
+const DESCRIPTION = /<meta\b[^>]*\bname="description"[^>]*>/gi;
+const CONTENT = /\bcontent="([^"]*)"/;
 // Attribute values may hold '>' (Alpine expressions do), so quoted runs are matched first.
 const TAG = /<\/?[a-zA-Z!][^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/g;
 const ENTITIES = {
@@ -50,6 +57,14 @@ function textOf(markup) {
     return strings;
 }
 
+/** The description a page hands a search engine, which oak-i18n.js translates in place. */
+function descriptionOf(markup) {
+    return (markup.match(DESCRIPTION) || [])
+        .map((tag) => tag.match(CONTENT))
+        .filter((content) => content !== null)
+        .map((content) => key(content[1]));
+}
+
 let missing = 0;
 
 /** Report, and count, the strings of one file that no part covers. */
@@ -78,7 +93,7 @@ for (const file of fs.readdirSync(ui).filter((name) => name.endsWith('.html')).s
         .replace(/<script\b[\s\S]*?<\/script>/gi, '')
         .replace(/<style\b[\s\S]*?<\/style>/gi, '');
 
-    report(file, textOf(html));
+    report(file, [...textOf(html), ...descriptionOf(html)]);
 }
 
 /* The customer top bar is in no page: ui/assets/js/oak-header.js writes it, so its copy sits

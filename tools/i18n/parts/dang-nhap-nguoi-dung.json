@@ -3,8 +3,16 @@
   "Đăng nhập": "Sign in",
   "Chào mừng bạn quay trở lại với không gian làm đẹp tinh tế.": "Welcome back to your refined beauty space.",
   "Mật khẩu": "Password",
+  "Hiện mật khẩu": "Show password",
   "Quên mật khẩu?": "Forgot your password?",
+  "Đang xử lý...": "Processing...",
+  "Mở trang đặt lại (demo)": "Open the reset page (demo)",
   "Đang đăng nhập...": "Signing in...",
   "Chưa có tài khoản?": "Don't have an account?",
-  "Đăng ký tài khoản mới": "Create a new account"
+  "Đăng ký tài khoản mới": "Create a new account",
+  "Vui lòng nhập email.": "Please enter your email.",
+  "Vui lòng nhập mật khẩu.": "Please enter your password.",
+  "Vui lòng nhập email để nhận liên kết đặt lại.": "Enter your email to get a reset link.",
+  "Nếu email tồn tại, liên kết đặt lại mật khẩu đã được tạo.": "If that email exists, a reset link has been created.",
+  "Email hoặc mật khẩu không đúng.": "That email or password is incorrect."
 }

@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -40,6 +51,34 @@
 <script src="assets/js/oak-header.js"></script>
 <!-- Main Content -->
 <main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full" x-data="oakProfile()">
+<div class="flex gap-gutter">
+<!-- AccountNav, desktop rail. Byte-for-byte the same on the five account pages;
+     the page it sits on is the one carrying aria-current. -->
+<aside class="hidden md:block w-72 shrink-0 sticky top-28 self-start" data-oak-account-nav="">
+<nav aria-label="Tài khoản của tôi" class="bg-surface-container-low rounded-lg shadow-sm flex flex-col gap-2 p-4">
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="lich-hen-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="calendar_month">calendar_month</span>
+Lịch hẹn của tôi
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="yeu-thich.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="favorite">favorite</span>
+Yêu thích
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="danh-gia-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="star_rate">star_rate</span>
+Đánh giá của tôi
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="notifications">notifications</span>
+Thông báo
+</a>
+<a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="ho-so-ca-nhan.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="person">person</span>
+Hồ sơ cá nhân
+</a>
+</nav>
+</aside>
+<div class="flex-1 min-w-0">
 <!-- x-if (not x-show): nothing inside may be evaluated until requireLogin has resolved. -->
 <template x-if="user">
 <div>
@@ -47,6 +86,32 @@
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Hồ sơ cá nhân</h1>
 <p class="font-body-md text-body-md text-on-surface-variant">Cập nhật thông tin để chúng tôi phục vụ bạn tốt hơn.</p>
 </div>
+<!-- AccountNav, mobile strip. Byte-for-byte the same on the five account pages;
+     the page it sits on is the one carrying aria-current. -->
+<nav aria-label="Tài khoản của tôi" class="md:hidden -mx-margin-mobile px-margin-mobile mb-8 overflow-x-auto" data-oak-account-tabs="">
+<div class="flex gap-2 w-max pb-2">
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="lich-hen-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="calendar_month">calendar_month</span>
+Lịch hẹn của tôi
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="yeu-thich.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="favorite">favorite</span>
+Yêu thích
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="danh-gia-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="star_rate">star_rate</span>
+Đánh giá của tôi
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="notifications">notifications</span>
+Thông báo
+</a>
+<a aria-current="page" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="ho-so-ca-nhan.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="person">person</span>
+Hồ sơ cá nhân
+</a>
+</div>
+</nav>
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
 <!-- Left: Profile card -->
 <aside class="lg:col-span-4">
@@ -112,31 +177,72 @@
 </div>
 </form>
 </div>
+<!-- Security. Its own form and its own button: an accidental Enter in the profile form
+     above must never be a password change, and the two report separately. -->
+<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-6 md:p-8 mt-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Bảo mật</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-8">Đổi mật khẩu đăng nhập của bạn.</p>
+<form @submit.prevent="changePassword()" class="grid grid-cols-1 md:grid-cols-2 gap-x-gutter gap-y-8">
+<div class="relative pt-4 md:col-span-2">
+<input :type="showCurrent ? 'text' : 'password'" @input="delete passwordErrors.current" autocomplete="current-password" class="input-minimal font-body-md text-body-md text-primary pr-10" id="profile-current-password" name="current_password" placeholder=" " required="" x-model="currentPassword">
+<label class="floating-label font-label-md uppercase tracking-widest" for="profile-current-password">Mật khẩu hiện tại</label>
+<button :aria-pressed="showCurrent" @click="showCurrent = !showCurrent" aria-label="Hiện mật khẩu" class="absolute right-0 top-4 h-12 flex items-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]" x-text="showCurrent ? 'visibility_off' : 'visibility'"></span>
+</button>
+<p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="passwordErrors.current" x-text="passwordErrors.current"></p>
+</div>
+<div class="relative pt-4">
+<input :type="showNew ? 'text' : 'password'" @input="delete passwordErrors.next" autocomplete="new-password" class="input-minimal font-body-md text-body-md text-primary pr-10" id="profile-new-password" name="new_password" placeholder=" " required="" x-model="newPassword">
+<label class="floating-label font-label-md uppercase tracking-widest" for="profile-new-password">Mật khẩu mới</label>
+<button :aria-pressed="showNew" @click="showNew = !showNew" aria-label="Hiện mật khẩu" class="absolute right-0 top-4 h-12 flex items-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]" x-text="showNew ? 'visibility_off' : 'visibility'"></span>
+</button>
+<p class="font-caption text-caption text-on-surface-variant mt-2" x-cloak="" x-show="!passwordErrors.next">Tối thiểu 8 ký tự.</p>
+<p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="passwordErrors.next" x-text="passwordErrors.next"></p>
+</div>
+<div class="relative pt-4">
+<input :type="showConfirm ? 'text' : 'password'" @input="delete passwordErrors.confirm" autocomplete="new-password" class="input-minimal font-body-md text-body-md text-primary pr-10" id="profile-confirm-password" name="confirm_password" placeholder=" " required="" x-model="confirmPassword">
+<label class="floating-label font-label-md uppercase tracking-widest" for="profile-confirm-password">Xác nhận mật khẩu mới</label>
+<button :aria-pressed="showConfirm" @click="showConfirm = !showConfirm" aria-label="Hiện mật khẩu" class="absolute right-0 top-4 h-12 flex items-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]" x-text="showConfirm ? 'visibility_off' : 'visibility'"></span>
+</button>
+<p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="passwordErrors.confirm" x-text="passwordErrors.confirm"></p>
+</div>
+<!-- Inline, not a toast: the outcome belongs beside the fields it is about. -->
+<p class="font-caption text-caption text-error md:col-span-2" role="alert" x-cloak="" x-show="passwordError" x-text="passwordError"></p>
+<p class="font-caption text-caption text-primary md:col-span-2" role="status" x-cloak="" x-show="passwordNotice" x-text="passwordNotice"></p>
+<div class="md:col-span-2 flex justify-end pt-2">
+<button :disabled="passwordBusy" class="bg-primary-container text-on-primary py-4 px-10 rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors duration-300 disabled:opacity-60" type="submit" x-text="passwordBusy ? 'Đang đổi mật khẩu...' : 'Đổi mật khẩu'">
+                            Đổi mật khẩu
+                        </button>
+</div>
+</form>
+</div>
 <!-- Account shortcuts -->
 <h2 class="font-headline-sm text-headline-sm text-primary mt-12 mb-6">Tài khoản của tôi</h2>
 <div class="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-gutter">
 <a class="flex flex-col items-center justify-center text-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="lich-hen-cua-toi.html">
-<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="calendar_month">calendar_month</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="calendar_month">calendar_month</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Lịch hẹn của tôi</span>
 </a>
 <a class="flex flex-col items-center justify-center text-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="yeu-thich.html">
-<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="favorite">favorite</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="favorite">favorite</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Yêu thích</span>
 </a>
 <a class="flex flex-col items-center justify-center text-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="danh-gia-cua-toi.html">
-<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="star_rate">star_rate</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="star_rate">star_rate</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Đánh giá của tôi</span>
 </a>
 <a class="flex flex-col items-center justify-center text-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="thong-bao.html">
-<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="notifications">notifications</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="notifications">notifications</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Thông báo</span>
 </a>
 <a class="flex flex-col items-center justify-center text-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="uu-dai.html">
-<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="local_offer">local_offer</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="local_offer">local_offer</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Ưu đãi</span>
 </a>
 <a class="flex flex-col items-center justify-center text-center p-6 bg-secondary-container text-on-secondary-container hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="tong-quan-doi-tac.html" x-show="user.role === 'partner'">
-<span class="material-symbols-outlined text-4xl mb-4 group-hover:text-on-tertiary transition-colors font-light" data-icon="storefront">storefront</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 group-hover:text-on-tertiary transition-colors font-light" data-icon="storefront">storefront</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Trang đối tác</span>
 </a>
 </div>
@@ -144,9 +250,11 @@
 </div>
 </div>
 </template>
+</div>
+</div>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -163,12 +271,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -183,7 +293,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -201,6 +311,16 @@
             },
             busy: false,
             uploading: false,
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: '',
+            showCurrent: false,
+            showNew: false,
+            showConfirm: false,
+            passwordErrors: {},
+            passwordError: '',
+            passwordNotice: '',
+            passwordBusy: false,
 
             async init() {
                 const user = await OAK.requireLogin();
@@ -231,6 +351,47 @@
                     OAK.toast(error.message, 'error');
                 } finally {
                     this.busy = false;
+                }
+            },
+
+            /** Client-side gate; the server checks the current password and the length again. */
+            async changePassword() {
+                this.passwordError = '';
+                this.passwordNotice = '';
+                const errors = {};
+                if (!this.currentPassword) {
+                    errors.current = 'Vui lòng nhập mật khẩu hiện tại.';
+                }
+                if (this.newPassword.length < 8) {
+                    errors.next = 'Mật khẩu mới phải có ít nhất 8 ký tự.';
+                }
+                if (this.confirmPassword !== this.newPassword) {
+                    errors.confirm = 'Mật khẩu xác nhận không khớp.';
+                }
+                this.passwordErrors = errors;
+                if (Object.keys(errors).length) {
+                    return;
+                }
+
+                this.passwordBusy = true;
+                try {
+                    await OAK.api('/api/auth/change-password', {
+                        method: 'POST',
+                        body: {
+                            current_password: this.currentPassword,
+                            new_password: this.newPassword,
+                        },
+                    });
+                    // Cleared on success only: after a wrong current password the reader
+                    // should not have to retype the two new ones as well.
+                    this.currentPassword = '';
+                    this.newPassword = '';
+                    this.confirmPassword = '';
+                    this.passwordNotice = 'Đã đổi mật khẩu.';
+                } catch (error) {
+                    this.passwordError = error.message;
+                } finally {
+                    this.passwordBusy = false;
                 }
             },
 

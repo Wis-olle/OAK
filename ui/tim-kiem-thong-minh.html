@@ -5,13 +5,30 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <title>Tìm kiếm thông minh - OAK Beauty</title>
+<meta content="Mô tả điều bạn muốn bằng lời thường ngày, trợ lý OAK sẽ gợi ý dịch vụ và salon phù hợp tại TP.HCM cùng khung giờ còn trống để bạn đặt lịch ngay." name="description">
+<meta content="Tìm kiếm thông minh - OAK Beauty" property="og:title">
+<meta content="Mô tả điều bạn muốn bằng lời thường ngày, trợ lý OAK sẽ gợi ý dịch vụ và salon phù hợp tại TP.HCM cùng khung giờ còn trống để bạn đặt lịch ngay." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/hero-banner.webp" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -27,6 +44,27 @@
 <h1 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Trợ lý Tìm kiếm</h1>
 <p class="font-body-lg text-body-lg text-on-surface-variant">Tôi có thể giúp bạn tìm kiếm dịch vụ hoàn hảo hôm nay.</p>
 </header>
+<!-- The transcript, announced as each turn lands -->
+<div aria-live="polite" class="flex flex-col gap-8" role="log">
+<!-- Opening turn: the assistant speaks first, so an untouched page is never empty -->
+<template x-if="!messages.length">
+<div class="flex flex-col items-start gap-2">
+<div class="flex items-end gap-3 max-w-full">
+<div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center shrink-0">
+<span aria-hidden="true" class="material-symbols-outlined text-on-tertiary-container text-sm">auto_awesome</span>
+</div>
+<div class="glass-panel rounded-2xl rounded-tl-sm p-6 max-w-full md:max-w-[90%]">
+<p class="font-body-md text-body-md text-on-surface mb-6">Chào bạn! Mình có thể giúp tìm salon và dịch vụ làm đẹp phù hợp. Bạn muốn làm gì hôm nay?</p>
+<div class="flex flex-wrap gap-3">
+<template :key="chip" x-for="chip in openingChips">
+<button :disabled="sending" @click="send(chip)" class="bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary inline-flex items-center min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-colors disabled:opacity-60" type="button" x-text="chip"></button>
+</template>
+</div>
+</div>
+</div>
+<span class="font-caption text-caption text-on-surface-variant/70 ml-12">OAK Assistant • Vừa xong</span>
+</div>
+</template>
 <template :key="index" x-for="(msg, index) in messages">
 <div>
 <!-- User Message -->
@@ -43,53 +81,61 @@
 <div class="flex flex-col items-start gap-2">
 <div class="flex items-end gap-3 max-w-full">
 <div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center shrink-0">
-<span class="material-symbols-outlined text-on-tertiary-container text-sm">auto_awesome</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-tertiary-container text-sm">auto_awesome</span>
 </div>
 <div class="glass-panel rounded-2xl rounded-tl-sm p-6 max-w-full md:max-w-[90%]">
-<p :class="{ 'mb-6': index === messages.length - 1 }" class="font-body-md text-body-md text-on-surface" x-text="msg.text"></p>
-<template x-if="index === messages.length - 1">
+<p :class="{ 'mb-6': index === lastSummaryIndex || (index === messages.length - 1 && msg.retry) }" class="font-body-md text-body-md text-on-surface" x-text="msg.text"></p>
+<template x-if="index === messages.length - 1 && msg.retry">
+<div class="flex flex-wrap gap-4">
+<button :disabled="sending" @click="resend(msg.retry)" class="bg-transparent border border-outline text-on-surface font-label-md text-label-md px-6 py-3 rounded-full uppercase tracking-wider hover:bg-surface-variant/30 transition-colors flex items-center gap-2 disabled:opacity-60" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-sm">send</span>
+                                Gửi lại
+                            </button>
+</div>
+</template>
+<template x-if="index === lastSummaryIndex">
 <div>
 <!-- Requirement Summary Bento Box -->
 <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
 <div class="bg-surface p-4 rounded-xl border border-outline-variant/10">
 <span class="block font-caption text-caption text-outline mb-1 uppercase tracking-wider">Dịch vụ</span>
 <span class="font-label-md text-label-md text-primary flex items-center gap-2">
-<span class="material-symbols-outlined text-lg">spa</span> <span x-text="summary.category"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-lg">spa</span> <span x-text="summary.category"></span>
                                 </span>
 </div>
 <div class="bg-surface p-4 rounded-xl border border-outline-variant/10">
 <span class="block font-caption text-caption text-outline mb-1 uppercase tracking-wider">Phong cách</span>
 <span class="font-label-md text-label-md text-primary flex items-center gap-2">
-<span class="material-symbols-outlined text-lg">palette</span> <span x-text="summary.style"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-lg">palette</span> <span x-text="summary.style"></span>
                                 </span>
 </div>
 <div class="bg-surface p-4 rounded-xl border border-outline-variant/10 col-span-2 md:col-span-1">
 <span class="block font-caption text-caption text-outline mb-1 uppercase tracking-wider">Khu vực</span>
 <span class="font-label-md text-label-md text-primary flex items-center gap-2">
-<span class="material-symbols-outlined text-lg">location_on</span> <span x-text="summary.district"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-lg">location_on</span> <span x-text="summary.district"></span>
                                 </span>
 </div>
 <div class="bg-surface p-4 rounded-xl border border-outline-variant/10 col-span-2 md:col-span-1">
 <span class="block font-caption text-caption text-outline mb-1 uppercase tracking-wider">Thời gian</span>
 <span class="font-label-md text-label-md text-primary flex items-center gap-2">
-<span class="material-symbols-outlined text-lg">schedule</span> <span x-text="summary.time"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-lg">schedule</span> <span x-text="summary.time"></span>
                                 </span>
 </div>
 <div class="bg-surface p-4 rounded-xl border border-outline-variant/10 col-span-2">
 <span class="block font-caption text-caption text-outline mb-1 uppercase tracking-wider">Ngân sách</span>
 <span class="font-label-md text-label-md text-primary flex items-center gap-2">
-<span class="material-symbols-outlined text-lg">payments</span> <span x-text="summary.budget"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-lg">payments</span> <span x-text="summary.budget"></span>
                                 </span>
 </div>
 </div>
 <!-- Actions -->
 <div class="flex flex-wrap gap-4 mt-6 border-t border-outline-variant/20 pt-6">
 <button @click="startSearch()" class="bg-primary-container text-on-primary font-label-md text-label-md px-6 py-3 rounded-full uppercase tracking-wider hover:bg-primary transition-colors flex items-center gap-2" type="button">
-<span class="material-symbols-outlined text-sm">search</span>
+<span aria-hidden="true" class="material-symbols-outlined text-sm">search</span>
                                 Bắt đầu tìm kiếm
                             </button>
 <button @click="editCriteria()" class="bg-transparent border border-outline text-on-surface font-label-md text-label-md px-6 py-3 rounded-full uppercase tracking-wider hover:bg-surface-variant/30 transition-colors flex items-center gap-2" type="button">
-<span class="material-symbols-outlined text-sm">edit</span>
+<span aria-hidden="true" class="material-symbols-outlined text-sm">edit</span>
                                 Chỉnh sửa tiêu chí
                             </button>
 </div>
@@ -102,9 +148,24 @@
 </template>
 </div>
 </template>
+<!-- Typing indicator: the assistant's turn is under way -->
+<template x-if="sending">
+<div class="flex items-end gap-3">
+<div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center shrink-0">
+<span aria-hidden="true" class="material-symbols-outlined text-on-tertiary-container text-sm">auto_awesome</span>
+</div>
+<div class="glass-panel rounded-2xl rounded-tl-sm px-6 py-4 flex items-center gap-1.5">
+<span class="sr-only">Trợ lý đang trả lời</span>
+<span aria-hidden="true" class="w-2 h-2 rounded-full bg-on-surface-variant animate-bounce motion-reduce:animate-none"></span>
+<span aria-hidden="true" class="w-2 h-2 rounded-full bg-on-surface-variant animate-bounce motion-reduce:animate-none [animation-delay:150ms]"></span>
+<span aria-hidden="true" class="w-2 h-2 rounded-full bg-on-surface-variant animate-bounce motion-reduce:animate-none [animation-delay:300ms]"></span>
+</div>
+</div>
+</template>
+</div>
 <!-- Chat Input Area -->
 <div class="mt-8 relative group">
-<input :disabled="sending" @keydown.enter.prevent="send(input)" class="w-full bg-surface-container-lowest border rounded-[9999px] border-outline-variant/50 focus:border-primary-container py-4 pl-5 pr-14 outline-none font-body-md text-body-md text-on-surface transition-colors disabled:opacity-60" placeholder="Nhập thêm yêu cầu..." type="text" x-model="input" x-ref="input">
+<input :disabled="sending" @keydown.enter.prevent="send(input)" class="w-full bg-surface-container-lowest border rounded-[9999px] border-outline-variant/50 focus:border-primary-container py-4 pl-5 pr-14 outline-none font-body-md text-body-md text-on-surface transition-colors disabled:opacity-60" :placeholder="placeholder" placeholder="Bạn muốn làm đẹp gì hôm nay?" type="text" x-model="input" x-ref="input">
 <button :disabled="sending || !input.trim()" @click="send(input)" aria-label="Gửi" class="absolute right-3 top-1/2 -translate-y-1/2 p-2 flex items-center justify-center text-primary-container hover:text-primary transition-colors disabled:opacity-60" type="button">
 <span class="material-symbols-outlined">send</span>
 </button>
@@ -114,14 +175,14 @@
 <aside class="w-full md:w-80 shrink-0 flex flex-col gap-6 sticky top-[100px] h-fit hidden md:flex">
 <div class="bg-tertiary p-6 rounded-2xl border border-outline-variant/10">
 <h3 class="font-headline-sm text-headline-sm text-on-tertiary mb-4 flex items-center gap-2">
-<span class="material-symbols-outlined">lightbulb</span> Gợi ý thêm
+<span aria-hidden="true" class="material-symbols-outlined">lightbulb</span> Gợi ý thêm
                 </h3>
 <p class="font-caption text-caption text-on-tertiary/80 mb-6">Chọn các tùy chọn dưới đây để thu hẹp kết quả tìm kiếm của bạn.</p>
 <div class="flex flex-col gap-3">
 <template :key="chip" x-for="chip in chips">
 <button :disabled="sending" @click="send(chip)" class="text-left bg-surface/10 hover:bg-surface/20 text-on-tertiary font-body-md text-body-md py-3 px-4 rounded-full transition-colors border border-on-tertiary/10 flex justify-between items-center group disabled:opacity-60" type="button">
 <span x-text="chip"></span>
-<span class="material-symbols-outlined text-on-tertiary/50 group-hover:text-on-tertiary transition-colors text-sm">add</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-tertiary/50 group-hover:text-on-tertiary transition-colors text-sm">add</span>
 </button>
 </template>
 <template x-if="!chips.length">
@@ -129,7 +190,7 @@
 </template>
 </div>
 </div>
-<div class="bg-surface-container-high rounded-2xl overflow-hidden shadow-sm">
+<a class="bg-surface-container-high rounded-2xl overflow-hidden shadow-sm" href="blog.html">
 <div class="h-32 w-full bg-surface-variant relative">
 <img loading="lazy" width="1024" height="558" alt="Nail inspiration" class="w-full h-full object-cover" data-alt="A beautifully manicured hand with minimalist, elegant Korean-style gel nails in soft pastel tones, resting on a clean white textured surface with soft, diffused editorial lighting." src="assets/images/img-f83d5d9339.jpg">
 </div>
@@ -137,11 +198,11 @@
 <span class="font-caption text-caption text-on-surface-variant uppercase tracking-wide block mb-1">Cảm hứng</span>
 <h4 class="font-label-md text-label-md text-primary">Xu hướng Nail Hàn Quốc 2024</h4>
 </div>
-</div>
+</a>
 </aside>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -158,12 +219,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -178,7 +241,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -201,18 +264,58 @@
            nothing — the results page would only be able to refuse it. */
         var SEARCH_KEYS = ['q', 'category', 'style', 'district', 'date', 'time_from', 'time_to', 'price_max', 'rating_min'];
 
+        /* The openers the greeting shows when /api/search/suggestions cannot be reached. Each
+           one is a word the dictionary already carries, so they read in English too. */
+        var OPENING_CHIPS = ['Nail', 'Tóc', 'Chăm sóc da', 'Nối mi'];
+        var MAX_OPENING_CHIPS = 4;
+        var FAILED_REPLY = 'Xin lỗi, mình chưa nhận được tin nhắn của bạn — thử lại nhé.';
+
         return {
             messages: [],
             criteria: {},
             chips: [],
+            openingChips: OPENING_CHIPS,
             input: '',
             sending: false,
 
-            init() {
+            async init() {
                 var query = OAK.qs('q');
                 if (query) {
                     this.send(query);
+                    return;
                 }
+                /* Kept apart from `chips`: those narrow a search already under way, these are
+                   what the assistant offers before a word has been said. Only fetched when the
+                   conversation starts here, so a reply's chips can never be overwritten. */
+                try {
+                    var chips = (await OAK.api('/api/search/suggestions')).chips;
+                    if (chips.length) {
+                        this.openingChips = chips.slice(0, MAX_OPENING_CHIPS);
+                    }
+                } catch (error) {
+                    /* the hand-written openers above carry the greeting instead */
+                }
+            },
+
+            /* Nothing said yet, so "thêm" would be asking to add to nothing. */
+            get placeholder() {
+                var vietnamese = this.messages.length
+                    ? 'Nhập thêm yêu cầu...'
+                    : 'Bạn muốn làm đẹp gì hôm nay?';
+                return window.OAKI18N ? window.OAKI18N.label(vietnamese) : vietnamese;
+            },
+
+            /* The bento belongs to the newest answer that actually carries criteria. An apology
+               for a turn that never reached the server parsed nothing, so it must not take the
+               tiles away from the answer before it. -1 while nothing has been answered. */
+            get lastSummaryIndex() {
+                var messages = this.messages;
+                for (var index = messages.length - 1; index >= 0; index -= 1) {
+                    if (messages[index].role === 'assistant' && !messages[index].retry) {
+                        return index;
+                    }
+                }
+                return -1;
             },
 
             /* The five bento tiles; every criterion the assistant has not parsed reads "—". */
@@ -250,10 +353,22 @@
                     this.chips = data.chips;
                     this.messages.push({ role: 'assistant', text: data.reply });
                 } catch (error) {
-                    OAK.toast(error.message, 'error');
+                    /* A toast fades and leaves the question hanging unanswered; the apology
+                       stays in the conversation and carries the way back with it. */
+                    this.messages.push({ role: 'assistant', text: FAILED_REPLY, retry: message });
                 } finally {
                     this.sending = false;
                 }
+            },
+
+            /* The failed turn is replaced rather than repeated: its two bubbles — the question
+               and the apology — give way to the same words asked again. */
+            resend(text) {
+                if (this.sending) {
+                    return;
+                }
+                this.messages.splice(-2, 2);
+                this.send(text);
             },
 
             startSearch() {

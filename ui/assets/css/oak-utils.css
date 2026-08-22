@@ -12,6 +12,46 @@
     display: none !important;
 }
 
+/* A visible keyboard focus ring, in two rules because form controls need a louder one.
+
+   The :where() rule carries NO specificity, so anything with a focus style of its own
+   keeps winning: `.beauty-pin:focus` (which clears the ring and outlines the card
+   instead) and every Tailwind `outline-none` / `focus:outline-none`. That is the right
+   trade for links, buttons and [tabindex] elements, none of which the vendored bundle
+   touches — for them this rule is simply the ring, and where a page styles focus itself
+   it stays in charge.
+
+   It is NOT enough for form controls. @tailwindcss/forms ships
+   `[type=text]:focus, select:focus, textarea:focus { outline: 2px solid transparent }`
+   inside oak-tailwind.css, which the pages link AFTER this file, so at (0,2,0) it erased
+   the ring on every input, select and textarea on the site. The second rule out-ranks it
+   through its :not() chain — each excluded class contributes its own (0,1,0).
+
+   Those exclusions are the three classes that already paint their own focus state, so
+   none of them ends up wearing two: `.input-minimal` and `.oak-field` thicken their
+   border below, and kham-pha's `.oak-search-field` draws an inset outline. Controls that
+   only shift a border colour on focus (the console filters) do gain the ring on top —
+   intended, a 3:1 colour shift alone is not a focus indicator. */
+:where(:focus-visible) {
+    outline: 2px solid #171818;
+    outline-offset: 2px;
+}
+
+input:not(.input-minimal):not(.oak-field):not(.oak-search-field):focus-visible,
+select:not(.input-minimal):not(.oak-search-field):focus-visible,
+textarea:not(.input-minimal):focus-visible {
+    outline: 2px solid #171818;
+    outline-offset: 2px;
+}
+
+/* The skip link hands focus to <main>, and oak-header.js gives it tabindex="-1" to make
+   that stick. Neither it nor the alert paragraphs that take focus on a failed submit are
+   controls, so a ring around them would just be a black frame around half the page. */
+[tabindex="-1"]:focus,
+[tabindex="-1"]:focus-visible {
+    outline: none;
+}
+
 /* Glassmorphism */
 .glass-nav {
     background-color: rgba(255, 248, 244, 0.9);
@@ -77,8 +117,18 @@ input.input-minimal {
     box-shadow: none;
 }
 
-input.input-minimal:focus {
+/* The underline doubles on focus, so the state reads without relying on colour alone;
+   padding-bottom drops the same 1px, keeping the field exactly as tall as it was.
+   All three tags, not just input: `.input-minimal` is on 35 inputs, 3 selects and 4
+   textareas. The base rule above stays input-only for the reason it gives — the plugin's
+   select/textarea rules are element-level and already lose to the class — but this one
+   has to beat the pages' own `.input-minimal:focus` (0,1,1), so each tag is named. */
+input.input-minimal:focus,
+select.input-minimal:focus,
+textarea.input-minimal:focus {
     border-bottom-color: #171818;
+    border-bottom-width: 2px;
+    padding-bottom: 11px;
     outline: none;
     box-shadow: none;
 }
@@ -92,8 +142,14 @@ input.oak-field {
     box-shadow: none;
 }
 
+/* The same "thicker on focus" signal as .input-minimal, adapted to the shape: this field
+   is a bordered rounded box, not an underline, so all four edges grow rather than the
+   bottom one alone — a single fat edge on a boxed field reads as a rendering fault.
+   Padding drops 1px each way to hold the box exactly where it was. */
 input.oak-field:focus {
     border-color: #171818;
+    border-width: 2px;
+    padding: 11px 15px;
     outline: none;
     box-shadow: none;
 }

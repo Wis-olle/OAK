@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -39,15 +50,15 @@
 <h2 class="font-headline-md text-headline-md text-white mb-4">Nâng tầm thương hiệu của bạn</h2>
 <div class="space-y-4 font-body-md text-body-md text-white/90">
 <div class="flex items-start gap-3">
-<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+<span aria-hidden="true" class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">trending_up</span>
 <p>Tiếp cận hàng nghìn khách hàng tiềm năng mới mỗi tháng qua nền tảng OAK Beauty.</p>
 </div>
 <div class="flex items-start gap-3">
-<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">manage_accounts</span>
+<span aria-hidden="true" class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">manage_accounts</span>
 <p>Công cụ quản lý lịch hẹn, nhân sự và doanh thu chuyên nghiệp, dễ sử dụng.</p>
 </div>
 <div class="flex items-start gap-3">
-<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">stars</span>
+<span aria-hidden="true" class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">stars</span>
 <p>Xây dựng hình ảnh thương hiệu cao cấp, tăng cường uy tín và lòng tin.</p>
 </div>
 </div>
@@ -94,9 +105,9 @@
 <input class="oak-field" id="partner-password" required="" type="password" x-model="form.password">
 </div>
 <div class="flex items-center justify-end">
-<a @click.prevent="forgotPassword()" class="font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors" href="#">Quên mật khẩu?</a>
+<button :disabled="busy || sending" @click="forgotPassword()" class="font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors disabled:opacity-60" type="button">Quên mật khẩu?</button>
 </div>
-<p class="font-caption text-caption text-error" x-cloak="" x-show="error" x-text="error"></p>
+<p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
 <button :disabled="busy" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="submit" x-text="busy ? 'Đang xử lý...' : 'Đăng nhập'">Đăng nhập</button>
 <button @click="show('menu')" class="w-full font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors" type="button">Quay lại</button>
 </form>
@@ -127,7 +138,7 @@
 <label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-confirm">Xác nhận mật khẩu</label>
 <input class="oak-field" id="register-confirm" minlength="8" required="" type="password" x-model="form.confirm">
 </div>
-<p class="font-caption text-caption text-error" x-cloak="" x-show="error" x-text="error"></p>
+<p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
 <button :disabled="busy" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="submit" x-text="busy ? 'Đang xử lý...' : 'Tạo tài khoản đối tác'">Tạo tài khoản đối tác</button>
 <button @click="show('menu')" class="w-full font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors" type="button">Quay lại</button>
 </form>
@@ -137,7 +148,7 @@
 </div>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -154,12 +165,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -174,7 +187,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -193,6 +206,9 @@
             mode: 'menu',
             error: '',
             busy: false,
+            /* Its own flag, not `busy`: the submit button renames itself to "Đang xử lý..."
+               off that one, and a password-reset request is not a sign-in attempt. */
+            sending: false,
             form: { name: '', salon_name: '', email: '', phone: '', password: '', confirm: '' },
 
             async init() {
@@ -228,15 +244,33 @@
                 }
             },
 
+            /* The reply is a toast, which says nothing about WHICH email it was sent to, so an
+               empty box has to be answered here rather than by the server's refusal. */
             async forgotPassword() {
+                const email = this.form.email.trim();
+                if (!email) {
+                    this.error = 'Nhập email của bạn rồi bấm lại.';
+                    const field = document.getElementById('partner-email');
+                    if (field) {
+                        field.focus();
+                    }
+                    return;
+                }
+                if (this.sending) {
+                    return;
+                }
+                this.error = '';
+                this.sending = true;
                 try {
                     const data = await OAK.api('/api/auth/forgot-password', {
                         method: 'POST',
-                        body: { email: this.form.email },
+                        body: { email: email },
                     });
                     OAK.toast(data.message);
                 } catch (error) {
                     OAK.toast(error.message, 'error');
+                } finally {
+                    this.sending = false;
                 }
             },
 

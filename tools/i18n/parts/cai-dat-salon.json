@@ -1,6 +1,5 @@
 {
   "Cài đặt salon - OAK Beauty": "Salon settings - OAK Beauty",
-  "OAK Beauty — Cài đặt salon": "OAK Beauty — Salon settings",
 
   "Tổng quan": "Overview",
   "Lịch hẹn": "Appointments",
@@ -120,6 +119,11 @@
   "Xác nhận hoàn tác": "Confirm undo",
   "Mọi thay đổi chưa lưu sẽ bị bỏ.": "All unsaved changes will be discarded.",
   "Giữ lại": "Keep",
+  "Có thay đổi chưa lưu": "You have unsaved changes",
+  "Rời trang khi chưa lưu?": "Leave without saving?",
+  "Mọi thay đổi chưa lưu sẽ bị mất.": "All unsaved changes will be lost.",
+  "Ở lại": "Stay",
+  "Rời trang": "Leave page",
 
   "Ảnh vượt quá dung lượng tối đa 5MB.": "Image exceeds the 5MB maximum size.",
   "Không đọc được tệp ảnh.": "Could not read the image file.",

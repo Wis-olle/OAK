@@ -13,14 +13,14 @@ const FEED_LIMIT = 30;
 
 // "read" is a SQL keyword, so it stays quoted in every statement that touches it.
 const selectFeed = db.prepare(`
-  SELECT id, title, body, type, "read", created_at
+  SELECT id, title, body, type, "read", booking_id, created_at
   FROM notifications
   WHERE user_id = ?
   ORDER BY created_at DESC, id DESC
   LIMIT ?
 `);
 const selectUnreadFeed = db.prepare(`
-  SELECT id, title, body, type, "read", created_at
+  SELECT id, title, body, type, "read", booking_id, created_at
   FROM notifications
   WHERE user_id = ? AND "read" = 0
   ORDER BY created_at DESC, id DESC
@@ -41,6 +41,9 @@ function toNotification(row) {
     body: row.body,
     type: row.type,
     read: Boolean(row.read),
+    // What the notification is about, when it is about a booking: the row then opens that
+    // booking rather than the list it lives in.
+    booking_id: row.booking_id ?? null,
     created_at: row.created_at,
   };
 }

@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -206,6 +217,12 @@
         }
     </style>
 <title>Khám phá - OAK Beauty</title>
+<meta content="Đặt lịch nail, tóc, chăm sóc da, spa và nối mi tại các salon tuyển chọn ở TP.HCM. Xem giá, đọc đánh giá thật và giữ chỗ chỉ trong vài thao tác." name="description">
+<meta content="Khám phá - OAK Beauty" property="og:title">
+<meta content="Đặt lịch nail, tóc, chăm sóc da, spa và nối mi tại các salon tuyển chọn ở TP.HCM. Xem giá, đọc đánh giá thật và giữ chỗ chỉ trong vài thao tác." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/hero-banner.webp" property="og:image">
 
 
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
@@ -283,27 +300,27 @@
 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-gutter">
 <!-- Category Item -->
 <a class="flex flex-col items-center justify-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="dich-vu-nail.html">
-<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="brush">brush</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="brush">brush</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Nail</span>
 </a>
 <a class="flex flex-col items-center justify-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="dich-vu-toc-chuyen-sau.html">
-<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="content_cut">content_cut</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="content_cut">content_cut</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Hair</span>
 </a>
 <a class="flex flex-col items-center justify-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="cham-soc-da.html">
-<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="face">face</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="face">face</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Skincare</span>
 </a>
 <a class="flex flex-col items-center justify-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="spa-massage.html">
-<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="spa">spa</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="spa">spa</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Spa</span>
 </a>
 <a class="flex flex-col items-center justify-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="spa-massage.html">
-<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="self_improvement">self_improvement</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="self_improvement">self_improvement</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Massage</span>
 </a>
 <a class="flex flex-col items-center justify-center p-6 bg-surface-container-low hover:bg-tertiary hover:text-on-tertiary rounded-lg transition-all duration-300 group" href="dich-vu-mi.html">
-<span class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="visibility">visibility</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl mb-4 text-primary group-hover:text-on-tertiary transition-colors font-light" data-icon="visibility">visibility</span>
 <span class="font-label-md text-label-md uppercase tracking-wider">Eyelash</span>
 </a>
 </div>
@@ -366,7 +383,7 @@
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <div class="flex justify-between items-end mb-8 border-b border-outline-variant/30 pb-4">
 <h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary">Salon nổi bật gần bạn</h2>
-<a class="font-label-md text-label-md text-primary hover:text-secondary uppercase tracking-wider hidden md:block" href="danh-sach-salon.html">Xem tất cả</a>
+<a class="font-label-md text-label-md text-primary hover:text-secondary uppercase tracking-wider hidden md:block" href="ket-qua-tim-kiem.html">Xem tất cả</a>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-12 gap-gutter" x-data="oakFeaturedSalons()">
 <!-- Load failure is its own state: the list is unknown, not empty -->
@@ -379,6 +396,26 @@
 <template x-if="!loading &amp;&amp; !error &amp;&amp; !salons.length">
 <p class="md:col-span-12 font-body-md text-body-md text-on-surface-variant">Chưa có salon nổi bật nào.</p>
 </template>
+<!-- First load: the same tiles at the same sizes, so nothing moves when the data lands. -->
+<template x-if="loading &amp;&amp; !salons.length">
+<div aria-hidden="true" class="md:col-span-8">
+<div class="aspect-[16/9] w-full rounded-lg bg-surface-container animate-pulse mb-4"></div>
+<div class="h-6 w-1/2 rounded bg-surface-container animate-pulse mb-2"></div>
+<div class="h-4 w-1/3 rounded bg-surface-container animate-pulse"></div>
+<div class="h-6 w-24 rounded-full bg-surface-container animate-pulse mt-4"></div>
+</div>
+</template>
+<template x-if="loading &amp;&amp; !salons.length">
+<div aria-hidden="true" class="md:col-span-4 flex flex-col gap-gutter">
+<template :key="row" x-for="row in 2">
+<div>
+<div class="aspect-[3/2] w-full rounded-lg bg-surface-container animate-pulse mb-3"></div>
+<div class="h-6 w-2/3 rounded bg-surface-container animate-pulse mb-2"></div>
+<div class="h-4 w-1/2 rounded bg-surface-container animate-pulse"></div>
+</div>
+</template>
+</div>
+</template>
 <!-- Large Featured Salon -->
 <template x-if="salons.length">
 <a :href="salonUrl(salons[0])" class="md:col-span-8 group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
@@ -389,12 +426,12 @@
 <div>
 <h3 class="font-headline-sm text-headline-sm text-primary mb-1 group-hover:text-secondary transition-colors" x-text="salons[0].name"></h3>
 <p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1">
-<span class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
 <span x-text="salons[0].address"></span>
 </p>
 </div>
 <div class="flex items-center gap-1 bg-surface-container-low px-3 py-1 rounded-full">
-<span class="material-symbols-outlined text-[16px] text-secondary" data-icon="star" data-weight="fill">star</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px] text-secondary" data-icon="star" data-weight="fill">star</span>
 <span class="font-label-md text-label-md text-primary" x-text="ratingOf(salons[0])"></span>
 <span class="font-caption text-caption text-on-surface-variant" x-text="'(' + salons[0].review_count + ')'"></span>
 </div>
@@ -407,7 +444,9 @@
 </article></a>
 </template>
 <!-- Side Featured Salons -->
-<div class="md:col-span-4 flex flex-col gap-gutter">
+<!-- Empty while the skeleton above stands in, and an empty grid child still takes a
+     gutter row of its own — so it steps aside until it has cards to hold. -->
+<div class="md:col-span-4 flex flex-col gap-gutter" x-show="salons.length">
 <template :key="salon.id" x-for="salon in salons.slice(1)">
 <a :href="salonUrl(salon)" class="group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
 <div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
@@ -417,12 +456,12 @@
 <div>
 <h3 class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="salon.name"></h3>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
 <span x-text="salon.address"></span>
 </p>
 </div>
 <div class="flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px] text-secondary" data-icon="star" data-weight="fill">star</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px] text-secondary" data-icon="star" data-weight="fill">star</span>
 <span class="font-label-md text-label-md text-primary" x-text="ratingOf(salon)"></span>
 </div>
 </div>
@@ -431,7 +470,7 @@
 </div>
 </div>
 <div class="mt-8 text-center md:hidden">
-<a class="inline-block border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" href="danh-sach-salon.html">Xem tất cả</a>
+<a class="inline-block border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" href="ket-qua-tim-kiem.html">Xem tất cả</a>
 </div>
 </section>
 <!-- Newest Salons Section -->
@@ -448,6 +487,20 @@
 <template x-if="!loading &amp;&amp; !error &amp;&amp; !salons.length">
 <p class="font-body-md text-body-md text-on-surface-variant">Chưa có salon mới.</p>
 </template>
+<!-- First load: the same tiles at the same sizes, so nothing moves when the data lands.
+     Eight of them, because that is the limit the request asks for — two desktop rows. -->
+<template x-if="loading &amp;&amp; !salons.length">
+<div aria-hidden="true" class="grid grid-cols-2 md:grid-cols-4 gap-gutter">
+<template :key="row" x-for="row in 8">
+<div>
+<div class="aspect-[3/2] w-full rounded-lg bg-surface-container animate-pulse mb-3"></div>
+<div class="h-6 w-2/3 rounded bg-surface-container animate-pulse mb-2"></div>
+<div class="h-4 w-1/2 rounded bg-surface-container animate-pulse mb-1"></div>
+<div class="h-4 w-1/3 rounded bg-surface-container animate-pulse"></div>
+</div>
+</template>
+</div>
+</template>
 <div class="grid grid-cols-2 md:grid-cols-4 gap-gutter" x-show="salons.length">
 <template :key="salon.id" x-for="salon in salons">
 <a :href="salonUrl(salon)" class="group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
@@ -457,17 +510,17 @@
 </template>
 <template x-if="!salon.image">
 <div class="w-full h-full flex items-center justify-center bg-surface-container">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant/50" data-icon="spa">spa</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant/50" data-icon="spa">spa</span>
 </div>
 </template>
 </div>
 <h3 class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="salon.name"></h3>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
 <span x-text="locationOf(salon)"></span>
 </p>
 <div class="flex items-center gap-1 mt-1" x-show="salon.review_count">
-<span class="material-symbols-outlined text-[14px] text-secondary" data-icon="star" data-weight="fill">star</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px] text-secondary" data-icon="star" data-weight="fill">star</span>
 <span class="font-label-md text-label-md text-primary" x-text="ratingOf(salon)"></span>
 <span class="font-caption text-caption text-on-surface-variant" x-text="'(' + salon.review_count + ')'"></span>
 </div>
@@ -478,7 +531,7 @@
 </section>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -495,12 +548,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -515,7 +570,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -609,7 +664,7 @@
             },
 
             salonUrl(salon) {
-                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+                return 'salon-profile.html?salon=' + encodeURIComponent(salon.slug);
             },
 
             ratingOf(salon) {
@@ -644,7 +699,7 @@
             },
 
             salonUrl(salon) {
-                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+                return 'salon-profile.html?salon=' + encodeURIComponent(salon.slug);
             },
 
             ratingOf(salon) {

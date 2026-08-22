@@ -3,7 +3,18 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -24,42 +35,66 @@
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
 <div class="pt-24 flex-1 flex max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop gap-gutter pb-section-gap" x-data="oakMyBookings()">
-<!-- SideNavBar -->
-<aside class="hidden md:flex bg-surface-container-low h-[calc(100vh-120px)] w-80 sticky top-28 shadow-sm flex-col gap-base p-6 rounded-lg">
-<div class="flex flex-col items-center mb-8 text-center">
-<div class="w-20 h-20 rounded-full bg-surface-variant border-2 border-surface mb-4 shadow-sm flex items-center justify-center" x-show="!(user &amp;&amp; user.avatar)">
-<span aria-hidden="true" class="material-symbols-outlined text-[40px] text-on-surface-variant">person</span>
-</div>
-<img :src="user &amp;&amp; user.avatar" alt="User Profile" class="w-20 h-20 rounded-full object-cover border-2 border-surface mb-4 shadow-sm" x-cloak="" x-show="user &amp;&amp; user.avatar">
-<h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="user ? user.name : ''"></h3>
-</div>
-<nav class="flex flex-col gap-2">
-<a class="flex items-center gap-4 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-full scale-[0.98] transition-transform font-label-md text-label-md" href="lich-hen-cua-toi.html">
-<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
-                    Lịch hẹn
-                </a>
-<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-full hover:bg-surface-container-high transition-all font-label-md text-label-md" href="yeu-thich.html">
-<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">favorite</span>
-                    Yêu thích
-                </a>
-<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-full hover:bg-surface-container-high transition-all font-label-md text-label-md" href="danh-gia-cua-toi.html">
-<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">star_rate</span>
-                    Đánh giá
-                </a>
-<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-full hover:bg-surface-container-high transition-all font-label-md text-label-md" href="ho-so-ca-nhan.html">
-<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">settings</span>
-                    Cài đặt
-                </a>
+<!-- AccountNav, desktop rail. Byte-for-byte the same on the five account pages;
+     the page it sits on is the one carrying aria-current. -->
+<aside class="hidden md:block w-72 shrink-0 sticky top-28 self-start" data-oak-account-nav="">
+<nav aria-label="Tài khoản của tôi" class="bg-surface-container-low rounded-lg shadow-sm flex flex-col gap-2 p-4">
+<a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="lich-hen-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="calendar_month">calendar_month</span>
+Lịch hẹn của tôi
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="yeu-thich.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="favorite">favorite</span>
+Yêu thích
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="danh-gia-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="star_rate">star_rate</span>
+Đánh giá của tôi
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="notifications">notifications</span>
+Thông báo
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="ho-so-ca-nhan.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="person">person</span>
+Hồ sơ cá nhân
+</a>
 </nav>
 </aside>
 <!-- Main Content -->
-<main class="flex-1 flex flex-col gap-8">
+<main class="flex-1 min-w-0 flex flex-col gap-8">
 <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-8 md:mt-0">
 <div>
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Lịch hẹn của bạn</h1>
 <p class="font-body-md text-body-md text-on-surface-variant">Quản lý và theo dõi các dịch vụ chăm sóc sắc đẹp sắp tới.</p>
 </div>
 </div>
+<!-- AccountNav, mobile strip. Byte-for-byte the same on the five account pages;
+     the page it sits on is the one carrying aria-current. -->
+<nav aria-label="Tài khoản của tôi" class="md:hidden -mx-margin-mobile px-margin-mobile mb-8 overflow-x-auto" data-oak-account-tabs="">
+<div class="flex gap-2 w-max pb-2">
+<a aria-current="page" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="lich-hen-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="calendar_month">calendar_month</span>
+Lịch hẹn của tôi
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="yeu-thich.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="favorite">favorite</span>
+Yêu thích
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="danh-gia-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="star_rate">star_rate</span>
+Đánh giá của tôi
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="notifications">notifications</span>
+Thông báo
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="ho-so-ca-nhan.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="person">person</span>
+Hồ sơ cá nhân
+</a>
+</div>
+</nav>
 <!-- Tabs -->
 <div class="flex gap-8 border-b border-outline-variant/30 mt-4">
 <button :class="tab === 'upcoming' ? 'active' : ''" @click="show('upcoming')" class="tab-button font-label-md text-label-md uppercase tracking-wider" type="button">Sắp tới</button>
@@ -68,7 +103,14 @@
 </div>
 <!-- Bookings List -->
 <p class="font-body-md text-body-md text-error mt-4" x-cloak="" x-show="error" x-text="error"></p>
-<p class="font-body-md text-body-md text-on-surface-variant mt-4" x-cloak="" x-show="!loading &amp;&amp; !bookings.length" x-text="emptyMessage()"></p>
+<p class="font-body-md text-body-md text-on-surface-variant mt-4" x-cloak="" x-show="loading">Đang tải lịch hẹn…</p>
+<template x-if="!loading &amp;&amp; !error &amp;&amp; !bookings.length">
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center mt-4">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="calendar_month">calendar_month</span>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-text="emptyMessage()"></p>
+<a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="kham-pha.html">Khám phá salon</a>
+</div>
+</template>
 <div class="flex flex-col gap-6 mt-4" :class="loading ? 'opacity-50' : ''">
 <template :key="booking.id" x-for="booking in bookings">
 <div class="group bg-surface-container-lowest p-4 md:p-6 flex flex-col md:flex-row gap-6 hover:bg-surface-container-low transition-colors rounded-lg border border-outline-variant/20">
@@ -78,12 +120,12 @@
 <div class="flex-1 flex flex-col justify-between">
 <div class="flex justify-between items-start mb-2">
 <div>
-<span class="inline-flex items-center gap-1 bg-tertiary-fixed text-on-tertiary-fixed font-caption text-caption px-2 py-1 rounded-sm mb-2">
-<span class="material-symbols-outlined text-[14px]" x-text="statusIcon(booking.status)"></span> <span x-text="statusLabel(booking.status)"></span>
+<span :class="statusClass(booking.status)" class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-sm mb-2">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" x-text="statusIcon(booking.status)"></span> <span x-text="statusLabel(booking.status)"></span>
 </span>
 <h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="booking.service.name"></h3>
 <p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-2">
-<span class="material-symbols-outlined text-[18px]">store</span> <span x-text="booking.salon.name"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">store</span> <span x-text="booking.salon.name"></span>
 </p>
 <p class="font-caption text-caption text-outline mt-1" x-text="'Mã đặt chỗ: ' + booking.code"></p>
 </div>
@@ -103,6 +145,9 @@
 <button @click="cancel(booking)" class="flex-1 md:flex-none border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" type="button" x-show="tab === 'upcoming'">
                                     Hủy lịch
                                 </button>
+<a :href="rescheduleUrl(booking)" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="tab === 'upcoming' &amp;&amp; canCancel(booking)">
+                                    Đổi lịch
+                                </a>
 <a :href="'tel:' + (booking.salon.phone || '').replace(/\s/g, '')" @click="showPhone(booking.salon.phone)" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="booking.salon.phone">
                                     Liên hệ
                                 </a>
@@ -129,16 +174,23 @@
 <!-- Modal Panel -->
 <div class="relative w-full sm:max-w-md bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-6 md:p-8" x-show="cancelTarget" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <h3 class="font-headline-sm text-headline-sm text-primary mb-3" id="cancel-title">Hủy lịch hẹn</h3>
-<p class="font-body-md text-body-md text-on-surface-variant mb-8" x-text="cancelTarget ? 'Bạn chắc chắn muốn hủy lịch hẹn ' + cancelTarget.code + '? Thao tác này không thể hoàn tác.' : ''"></p>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4" x-text="cancelTarget ? 'Bạn chắc chắn muốn hủy lịch hẹn ' + cancelTarget.code + '? Thao tác này không thể hoàn tác.' : ''"></p>
+<!-- The deadline is its own text node so the dictionary can translate the sentence
+     while the clock time beside it stays as the page computed it. -->
+<p class="font-caption text-caption text-on-surface-variant mb-8" x-show="cancelTarget &amp;&amp; !cancelExpired()">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px] align-middle" data-icon="schedule">schedule</span>
+                Có thể hủy miễn phí đến <span x-text="cancelDeadline()"></span>
+</p>
+<p class="font-caption text-caption text-error mb-8" x-cloak="" x-show="cancelTarget &amp;&amp; cancelExpired()">Đã quá hạn hủy online — vui lòng liên hệ salon.</p>
 <div class="flex flex-wrap justify-end gap-3">
 <button @click="cancelTarget = null" class="flex-1 sm:flex-none border border-outline text-primary font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-surface-variant/50 transition-colors active:scale-95 duration-200" type="button">Giữ lại</button>
-<button :disabled="cancelling" @click="confirmCancel()" class="flex-1 sm:flex-none bg-error text-on-error font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:opacity-90 transition-opacity active:scale-95 duration-200 disabled:opacity-50" type="button" x-text="cancelling ? 'Đang hủy…' : 'Hủy lịch hẹn'"></button>
+<button :disabled="cancelling || cancelExpired()" @click="confirmCancel()" class="flex-1 sm:flex-none bg-error text-on-error font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:opacity-90 transition-opacity active:scale-95 duration-200 disabled:opacity-50" type="button" x-text="cancelling ? 'Đang hủy…' : 'Hủy lịch hẹn'"></button>
 </div>
 </div>
 </div>
 </div>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -155,12 +207,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -175,7 +229,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -190,10 +244,21 @@
     };
 
     const OAK_EMPTY_MESSAGE = {
-        upcoming: 'Bạn chưa có lịch hẹn nào sắp tới.',
+        upcoming: 'Bạn chưa có lịch hẹn nào. Khám phá salon và đặt lịch đầu tiên nhé.',
         completed: 'Bạn chưa có lịch hẹn nào đã hoàn thành.',
         cancelled: 'Bạn chưa hủy lịch hẹn nào.',
     };
+
+    /* The chip tone per status. `completed` is deliberately absent: a finished appointment
+       needs no colour of its own, so it keeps the neutral default. */
+    const OAK_BOOKING_STATUS_CLASS = {
+        pending: 'bg-secondary-container text-on-secondary-container',
+        confirmed: 'bg-primary-container text-on-primary',
+        cancelled: 'bg-error-container text-on-error-container',
+    };
+
+    // dieu-khoan.html: an appointment can no longer be cancelled online inside this window.
+    const OAK_CANCEL_WINDOW_MS = 2 * 60 * 60 * 1000;
 
     /** 'HH:MM' + minutes -> 'HH:MM', wrapping at midnight the way a clock does. */
     function oakAddMinutes(time, minutes) {
@@ -205,23 +270,27 @@
 
     function oakMyBookings() {
         return {
-            user: null,
             tab: 'upcoming',
             bookings: [],
             reviewedIds: [],
             loading: true,
             error: '',
             cache: {},
+            tabToken: 0,
             cancelTarget: null,
             cancelling: false,
 
             async init() {
-                this.user = await OAK.requireLogin();
+                await OAK.requireLogin();
                 await this.show('upcoming');
             },
 
-            /** Each tab is fetched the first time it is opened, then served from the cache. */
+            /** Each tab is fetched the first time it is opened, then served from the cache.
+                Two tabs opened in quick succession leave both requests in flight and they
+                answer in any order, so only the newest one may land: a late reply would
+                otherwise fill the list — and the cache — with another tab's appointments. */
             async show(tab) {
+                const token = ++this.tabToken;
                 this.tab = tab;
                 this.error = '';
                 if (this.cache[tab]) {
@@ -229,18 +298,31 @@
                     return;
                 }
 
+                // Cleared before the request, not after it: the previous tab's rows are
+                // still in `bookings` and would otherwise read as this tab's own.
+                this.bookings = [];
                 this.loading = true;
                 try {
-                    this.bookings = await OAK.api('/api/bookings/mine?status=' + tab + '&limit=50');
-                    this.cache[tab] = this.bookings;
+                    const bookings = await OAK.api('/api/bookings/mine?status=' + tab + '&limit=50');
+                    if (token !== this.tabToken) {
+                        return;
+                    }
+                    this.bookings = bookings;
+                    this.cache[tab] = bookings;
                     if (tab === 'completed') {
                         await this.loadReviewed();
                     }
                 } catch (error) {
+                    if (token !== this.tabToken) {
+                        return;
+                    }
                     this.bookings = [];
                     this.error = error.message;
                 } finally {
-                    this.loading = false;
+                    // The request this call made stale can no longer clear the flag itself.
+                    if (token === this.tabToken) {
+                        this.loading = false;
+                    }
                 }
             },
 
@@ -265,6 +347,10 @@
                 return OAK_BOOKING_STATUS[status] ? OAK_BOOKING_STATUS[status].icon : 'event';
             },
 
+            statusClass(status) {
+                return OAK_BOOKING_STATUS_CLASS[status] || 'bg-tertiary-fixed text-on-tertiary-fixed';
+            },
+
             timeLabel(booking) {
                 return booking.time + ' - ' + oakAddMinutes(booking.time, booking.service.duration_min);
             },
@@ -284,6 +370,45 @@
 
             rebookUrl(booking) {
                 return 'dat-lich.html?service_id=' + booking.service.id + '&salon_id=' + booking.salon.id;
+            },
+
+            /** Same wizard as "Đặt lại", plus the booking the new one replaces: dat-lich.html
+                cancels that one once the replacement has actually been made. */
+            rescheduleUrl(booking) {
+                return this.rebookUrl(booking) + '&reschedule=' + booking.id;
+            },
+
+            /** The moment free cancellation closes: two hours before the appointment starts. */
+            cancelDeadlineAt(booking) {
+                const [year, month, day] = booking.date.split('-').map(Number);
+                const [hours, minutes] = booking.time.split(':').map(Number);
+                return new Date(year, month - 1, day, hours, minutes).getTime() - OAK_CANCEL_WINDOW_MS;
+            },
+
+            /** 'HH:MM, DD/MM' — digits only, so the English pass leaves it alone. */
+            cancelDeadline() {
+                if (!this.cancelTarget) {
+                    return '';
+                }
+                const at = new Date(this.cancelDeadlineAt(this.cancelTarget));
+                const pad = (value) => String(value).padStart(2, '0');
+                return pad(at.getHours()) + ':' + pad(at.getMinutes())
+                    + ', ' + pad(at.getDate()) + '/' + pad(at.getMonth() + 1);
+            },
+
+            /** Whether this appointment can still be dropped without calling the salon. It
+                gates "Đổi lịch" too: rescheduling ends in a cancel of this very booking, so
+                offering it past the deadline would leave the customer holding two live
+                appointments and no way to undo either one from here. */
+            canCancel(booking) {
+                return Date.now() < this.cancelDeadlineAt(booking);
+            },
+
+            /** Past the deadline the server refuses the cancel, so the dialog says so and
+                disables its own button rather than letting the click fail. Opening the
+                dialog stays allowed: it is where the explanation lives. */
+            cancelExpired() {
+                return !!this.cancelTarget && !this.canCancel(this.cancelTarget);
             },
 
             emptyMessage() {

@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -16,6 +27,12 @@
         input:not([type="checkbox"]):not([type="radio"]) { width: 100%; }
     </style>
 <title>Dịch vụ Tóc - OAK Beauty</title>
+<meta content="Cắt, uốn, nhuộm và phục hồi tóc cùng đội ngũ stylist giàu kinh nghiệm. Chọn salon tóc tại TP.HCM theo phong cách, mức giá và lịch trống của bạn." name="description">
+<meta content="Dịch vụ Tóc - OAK Beauty" property="og:title">
+<meta content="Cắt, uốn, nhuộm và phục hồi tóc cùng đội ngũ stylist giàu kinh nghiệm. Chọn salon tóc tại TP.HCM theo phong cách, mức giá và lịch trống của bạn." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/img-be07b123f6.jpg" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -26,16 +43,20 @@
 <!-- Main Canvas -->
 <main class="pt-24 w-full" x-data="oakHairPage()">
 <!-- Breadcrumb -->
-<div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-4 flex items-center space-x-2 text-on-surface-variant font-caption text-caption">
-<a class="hover:text-primary transition-colors" href="kham-pha.html">Khám phá</a>
-<span class="material-symbols-outlined text-[16px]">chevron_right</span>
-<span class="text-primary font-medium">Hair</span>
+<div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-4">
+<nav aria-label="Breadcrumb">
+<ol class="flex items-center space-x-2 font-caption text-caption text-on-surface-variant">
+<li><a class="hover:text-primary transition-colors" href="kham-pha.html">Khám phá</a></li>
+<li class="flex items-center"><span aria-hidden="true" class="material-symbols-outlined text-[16px]">chevron_right</span></li>
+<li aria-current="page" class="text-primary font-medium">Tóc</li>
+</ol>
+</nav>
 </div>
 <!-- Hero Section -->
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 md:py-16 mb-section-gap">
 <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter items-center">
 <div class="order-2 md:order-1">
-<h1 class="font-headline-lg-mobile text-headline-lg-mobile md:text-display-lg text-primary mb-6">Dịch vụ Tóc</h1>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile md:font-display-lg md:text-display-lg text-primary mb-6">Dịch vụ Tóc</h1>
 <p class="font-body-lg text-body-lg text-on-surface-variant mb-8 max-w-lg">
                         Trải nghiệm nghệ thuật chăm sóc và tạo kiểu tóc chuyên nghiệp. Đội ngũ stylist hàng đầu của chúng tôi cam kết mang đến diện mạo hoàn hảo, kết hợp tinh tế giữa xu hướng hiện đại và kỹ thuật truyền thống.
                     </p>
@@ -44,6 +65,7 @@
                     </button></a>
 <!-- Category Filter Chips -->
 <div class="flex flex-wrap gap-3">
+<button :class="subcategory ? 'text-on-surface hover:bg-surface-variant' : 'bg-primary-container text-on-primary'" @click="select('')" class="px-4 py-2 border border-outline/30 rounded-full font-label-md text-label-md transition-colors" type="button">Tất cả</button>
 <template :key="sub" x-for="sub in subcategories">
 <button :class="subcategory === sub ? 'bg-primary-container text-on-primary' : 'text-on-surface hover:bg-surface-variant'" @click="select(sub)" class="px-4 py-2 border border-outline/30 rounded-full font-label-md text-label-md transition-colors" x-text="sub"></button>
 </template>
@@ -58,21 +80,28 @@
 </section>
 <!-- Featured Salons -->
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
-<h2 class="font-headline-lg text-headline-md md:text-headline-lg text-primary mb-12 text-center">Salon Tóc nổi bật</h2>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<div class="flex justify-between items-end mb-12 border-b border-outline-variant/20 pb-4">
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">
+                    Salon Tóc nổi bật
+                </h2>
+<a class="font-label-md text-label-md text-primary hover:text-secondary-container transition-colors uppercase tracking-wider flex items-center gap-1" href="ket-qua-tim-kiem.html?category=hair">
+                    Xem tất cả <span aria-hidden="true" class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
 <template :key="salon.id" x-for="salon in salons">
 <div class="group cursor-pointer">
 <a :href="salonUrl(salon)" style="display:block;color:inherit;text-decoration:none">
 <div class="aspect-[16/9] rounded-xl overflow-hidden mb-6 relative">
 <img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
 <div class="absolute top-4 right-4 bg-surface/90 backdrop-blur px-3 py-1 rounded-full flex items-center space-x-1" x-show="salon.review_count">
-<span class="material-symbols-outlined text-[16px] text-secondary">star</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px] text-secondary">star</span>
 <span class="font-label-md font-bold" x-text="rating(salon)"></span>
 </div>
 </div>
 <h3 class="font-headline-md text-headline-sm text-primary mb-2" x-text="salon.name"></h3>
 <p class="text-on-surface-variant mb-4 flex items-center">
-<span class="material-symbols-outlined text-[18px] mr-2">location_on</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] mr-2">location_on</span>
 <span x-text="salon.district + ', ' + salon.city"></span>
 </p>
 </a>
@@ -81,30 +110,88 @@
                     </button></a>
 </div>
 </template>
-<template x-if="!loading &amp;&amp; !salons.length">
-<p class="md:col-span-2 text-on-surface-variant">Chưa có salon tóc nào.</p>
+<template x-if="!sideLoading &amp;&amp; !salons.length">
+<p class="md:col-span-3 text-on-surface-variant">Chưa có salon tóc nào.</p>
 </template>
 </div>
 </section>
 <!-- Popular Services -->
 <section class="bg-surface-container-low py-16 mb-section-gap">
 <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
-<h2 class="font-headline-lg text-headline-md md:text-headline-lg text-primary mb-12 text-center">Dịch vụ phổ biến</h2>
-<div class="max-w-3xl mx-auto divide-y divide-outline-variant/30">
-<template :key="service.id" x-for="service in services">
-<a :href="'chi-tiet-dich-vu.html?id=' + service.id" class="py-6 flex justify-between items-center group" style="color:inherit;text-decoration:none">
-<div>
-<h4 class="font-headline-sm text-[20px] text-primary mb-2 group-hover:text-secondary transition-colors" x-text="service.name"></h4>
-<p class="text-on-surface-variant font-caption text-caption" x-text="service.description"></p>
+<div class="flex flex-col md:flex-row justify-between md:items-end mb-12 border-b border-outline-variant/20 pb-4 gap-4">
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">
+                    Dịch vụ phổ biến
+                </h2>
+<!-- Filters -->
+<div class="flex gap-4 items-center">
+<select @change="reload()" class="bg-transparent border-none text-caption font-caption text-on-surface-variant focus:ring-0 cursor-pointer pr-8 py-0" x-model="sort">
+<option value="popular">Sắp xếp: Phổ biến</option>
+<option value="price_asc">Giá: Thấp đến cao</option>
+<option value="price_desc">Giá: Cao đến thấp</option>
+<option value="rating">Đánh giá cao</option>
+</select>
 </div>
-<div class="text-right">
-<span class="font-headline-md text-[24px] text-primary" x-text="price(service)"></span>
+</div>
+<!-- Service List -->
+<div class="flex flex-col">
+<template :key="service.id" x-for="service in services">
+<div @click="openService(service)" class="group flex flex-col md:flex-row gap-8 py-8 border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors px-4 -mx-4 md:px-6 md:-mx-6 rounded-lg cursor-pointer">
+<a :href="serviceUrl(service)" @click.stop="" style="display:contents;color:inherit;text-decoration:none">
+<div class="w-full md:w-48 h-48 md:h-32 rounded-lg overflow-hidden shrink-0">
+<img loading="lazy" :alt="service.name" :src="service.image" class="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-500">
 </div>
 </a>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<a :href="serviceUrl(service)" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary transition-colors" x-text="service.name"></h3></a>
+<span class="font-label-md text-label-md text-primary" x-text="price(service)"></span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 max-w-2xl" x-text="service.description"></p>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-4 text-caption font-caption text-on-surface-variant">
+<span class="flex items-center gap-1"><span aria-hidden="true" class="material-symbols-outlined text-[16px]">schedule</span> <span x-text="service.duration_min + ' phút'"></span></span>
+<span class="flex items-center gap-1"><span aria-hidden="true" class="material-symbols-outlined text-[16px]">storefront</span> <span x-text="service.salon.name"></span></span>
+</div>
+<a :href="bookingUrl(service)" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase hover:bg-primary transition-colors">
+                                Đặt lịch
+                            </button></a>
+</div>
+</div>
+</div>
 </template>
-<template x-if="!loading &amp;&amp; !services.length">
-<p class="py-6 text-on-surface-variant">Chưa có dịch vụ nào phù hợp.</p>
+<template x-if="loading &amp;&amp; !services.length">
+<div aria-hidden="true">
+<template :key="row" x-for="row in 3">
+<div class="flex flex-col md:flex-row gap-8 py-8 border-b border-outline-variant/10">
+<div class="w-full md:w-48 h-48 md:h-32 rounded-lg bg-surface-container animate-pulse shrink-0"></div>
+<div class="flex-1 flex flex-col gap-4 py-2">
+<div class="h-6 w-1/2 rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-3/4 rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-1/3 rounded bg-surface-container animate-pulse"></div>
+</div>
+</div>
 </template>
+</div>
+</template>
+<template x-if="!loading &amp;&amp; loadError">
+<div class="flex flex-col items-start gap-3 my-8 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
+<div class="flex items-center gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-surface">Không tải được danh sách dịch vụ.</p>
+</div>
+<button @click="reload()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+</div>
+</template>
+<template x-if="!loading &amp;&amp; !loadError &amp;&amp; !services.length">
+<p class="py-8 font-body-md text-body-md text-on-surface-variant">Chưa có dịch vụ nào phù hợp.</p>
+</template>
+</div>
+<div class="mt-12 text-center" x-cloak="" x-show="services.length &lt; total">
+<button :disabled="loading" @click="more()" class="border border-outline font-label-md text-label-md text-primary px-8 py-3 rounded-full hover:bg-surface-container transition-colors uppercase tracking-wider disabled:opacity-50" type="button">
+                    Tải thêm dịch vụ
+                </button>
 </div>
 </div>
 </section>
@@ -120,7 +207,7 @@
 <img loading="lazy" width="1024" height="558" alt="Salon detail" class="w-full h-full object-cover" src="assets/images/img-6b4e144c13.jpg">
 </div>
 <div class="aspect-[4/3] rounded-xl bg-surface-container flex flex-col justify-center items-center p-8 text-center">
-<span class="material-symbols-outlined text-[48px] text-secondary mb-4">self_improvement</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[48px] text-secondary mb-4">self_improvement</span>
 <h3 class="font-headline-sm text-primary mb-2">Trải nghiệm thượng lưu</h3>
 <p class="text-on-surface-variant text-sm">Không gian thiết kế sang trọng, yên tĩnh, mang lại cảm giác thư thái tuyệt đối.</p>
 </div>
@@ -129,7 +216,7 @@
 </section>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -146,12 +233,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -166,54 +255,76 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
 <script>
     /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
     function oakHairPage() {
-        const TOP_SERVICES = 4;
+        const PAGE_SIZE = 3;
 
         return {
             salons: [],
             services: [],
             subcategories: [],
             subcategory: '',
+            sort: 'popular',
+            page: 1,
+            total: 0,
             loading: true,
+            loadError: false,
             loadToken: 0,
+            // The featured salons come from their own one-off request, so they say for
+            // themselves when they are done — `loading` belongs to the service list.
+            sideLoading: true,
 
             async init() {
                 try {
-                    this.salons = await OAK.api('/api/salons?category=hair&limit=2');
+                    const [salons, catalogue] = await Promise.all([
+                        OAK.api('/api/salons?category=hair&sort=rating&limit=3'),
+                        OAK.api('/api/services?category=hair&limit=50'),
+                    ]);
+                    this.salons = salons;
+                    // The chips are the sub-categories the hair catalogue actually has.
+                    this.subcategories = [...new Set(catalogue.map((service) => service.subcategory).filter(Boolean))];
                 } catch (error) {
                     OAK.toast(error.message, 'error');
+                } finally {
+                    this.sideLoading = false;
                 }
-                // The chips are the sub-categories the hair catalogue actually has.
-                const catalogue = await this.load();
-                this.subcategories = [...new Set(catalogue.map((service) => service.subcategory).filter(Boolean))];
+                this.reload();
+            },
+
+            pageUrl(page) {
+                return '/api/services?category=hair&sort=' + this.sort +
+                    '&page=' + page + '&limit=' + PAGE_SIZE +
+                    (this.subcategory ? '&subcategory=' + encodeURIComponent(this.subcategory) : '');
             },
 
             /* Two chip taps in flight at once resolve in any order, so only the newest
                one is allowed to land — otherwise the older list overwrites the newer. */
-            async load() {
+            async reload() {
                 const token = ++this.loadToken;
+                this.page = 1;
                 this.loading = true;
                 try {
-                    const catalogue = await OAK.api(
-                        '/api/services?category=hair&sort=popular&limit=50' +
-                        (this.subcategory ? '&subcategory=' + encodeURIComponent(this.subcategory) : ''),
-                    );
+                    const services = await OAK.api(this.pageUrl(this.page));
                     if (token !== this.loadToken) {
-                        return [];
+                        return;
                     }
-                    this.services = catalogue.slice(0, TOP_SERVICES);
-                    return catalogue;
+                    this.total = services.meta.total;
+                    this.services = services;
+                    this.loadError = false;
                 } catch (error) {
-                    if (token === this.loadToken) {
-                        OAK.toast(error.message, 'error');
+                    if (token !== this.loadToken) {
+                        return;
                     }
-                    return [];
+                    // The rows the failed reload was meant to replace would otherwise stay up
+                    // underneath a message saying the list could not be loaded.
+                    this.services = [];
+                    this.loadError = true;
+                    OAK.toast(error.message, 'error');
                 } finally {
                     if (token === this.loadToken) {
                         this.loading = false;
@@ -221,13 +332,69 @@
                 }
             },
 
+            /* A reload already in flight owns the token, and letting a "load more" take it
+               would cancel that reload half-way: `loading` would stay true and page 2 of the
+               new sort would land under page 1 of the old one. */
+            async more() {
+                if (this.loading) {
+                    return;
+                }
+                const token = ++this.loadToken;
+                try {
+                    const services = await OAK.api(this.pageUrl(this.page + 1));
+                    if (token !== this.loadToken) {
+                        return;
+                    }
+                    this.page += 1;
+                    this.total = services.meta.total;
+                    this.services.push(...services);
+                } catch (error) {
+                    if (token !== this.loadToken) {
+                        return;
+                    }
+                    OAK.toast(error.message, 'error');
+                }
+            },
+
+            /* Pressing the chip that is already on asks for the list it is already showing,
+               and reloading would only throw away every page loaded past the first. */
             select(subcategory) {
-                this.subcategory = this.subcategory === subcategory ? '' : subcategory;
-                this.load();
+                const next = this.subcategory === subcategory ? '' : subcategory;
+                if (next === this.subcategory) {
+                    return;
+                }
+                this.subcategory = next;
+                this.reload();
             },
 
             salonUrl(salon) {
-                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+                return 'salon-profile.html?salon=' + encodeURIComponent(salon.slug);
+            },
+
+            serviceUrl(service) {
+                return 'chi-tiet-dich-vu.html?id=' + service.id;
+            },
+
+            /* Dragging to select text inside a row ends in a click, which must not navigate. */
+            isSelecting() {
+                const selection = window.getSelection();
+                return Boolean(selection) && !selection.isCollapsed && String(selection).trim() !== '';
+            },
+
+            /*
+             * The whole row carries the pointer cursor, so every part of it opens the service.
+             * The image and title are real links that navigate on their own, so they stop the
+             * click here and this only covers the rest of the row.
+             */
+            openService(service) {
+                if (this.isSelecting()) {
+                    return;
+                }
+                location.href = this.serviceUrl(service);
+            },
+
+            bookingUrl(service) {
+                return 'dat-lich.html?service_id=' + service.id + '&salon_id=' + service.salon.id;
             },
 
             rating(salon) {
@@ -235,7 +402,7 @@
             },
 
             price(service) {
-                return OAK.fmtPrice(service.price) + (service.price_is_from ? '+' : '');
+                return OAK.fmtPriceFrom(service.price, service.price_is_from);
             },
         };
     }

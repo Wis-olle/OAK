@@ -15,6 +15,10 @@ const selectBooking = db.prepare(
   'SELECT id, user_id, salon_id, service_id, staff_id, status FROM bookings WHERE id = ?',
 );
 const selectReviewOfBooking = db.prepare('SELECT id FROM reviews WHERE booking_id = ?');
+const selectReview = db.prepare('SELECT id, user_id FROM reviews WHERE id = ?');
+const updateReview = db.prepare(
+  'UPDATE reviews SET rating = ?, comment = ? WHERE id = ? AND user_id = ?',
+);
 const insertReview = db.prepare(`
   INSERT INTO reviews (user_id, salon_id, service_id, staff_id, booking_id, rating, comment, created_at)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -29,6 +33,16 @@ const selectMyReviews = db.prepare(`
   WHERE r.user_id = ?
   ORDER BY r.created_at DESC, r.id DESC
 `);
+
+/** The rating/comment checks POST and PATCH share, so an edit can never widen them. */
+function validateReviewBody(rating, comment) {
+  if (!Number.isInteger(rating) || rating < MIN_RATING || rating > MAX_RATING) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Điểm đánh giá phải là số nguyên từ 1 đến 5.');
+  }
+  if (comment != null && typeof comment !== 'string') {
+    throw httpError(400, 'VALIDATION_ERROR', 'Nội dung đánh giá phải là chuỗi ký tự.');
+  }
+}
 
 router.post('/', async (req, res, next) => {
   try {
@@ -50,12 +64,7 @@ router.post('/', async (req, res, next) => {
       );
     }
 
-    if (!Number.isInteger(rating) || rating < MIN_RATING || rating > MAX_RATING) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Điểm đánh giá phải là số nguyên từ 1 đến 5.');
-    }
-    if (comment != null && typeof comment !== 'string') {
-      throw httpError(400, 'VALIDATION_ERROR', 'Nội dung đánh giá phải là chuỗi ký tự.');
-    }
+    validateReviewBody(rating, comment);
 
     // Friendly 409 for the common case; the unique index idx_reviews_booking_id is the
     // real guard should two requests race past this check.
@@ -90,6 +99,32 @@ router.post('/', async (req, res, next) => {
     }
 
     res.json({ success: true, data: { id, booking_id: booking.id, rating } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Only the rating and the comment can change: salon/service/staff/booking come from the
+// booking the review was written against and stay as they were.
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const { rating, comment } = req.body ?? {};
+
+    const id = Number.parseInt(req.params.id, 10);
+    const review = Number.isInteger(id) ? await selectReview.get(id) : undefined;
+    if (!review) {
+      throw httpError(404, 'NOT_FOUND', 'Không tìm thấy đánh giá.');
+    }
+    // 403, not 404: the id is real, the caller simply did not write it.
+    if (review.user_id !== req.user.id) {
+      throw httpError(403, 'FORBIDDEN', 'Bạn không có quyền sửa đánh giá này.');
+    }
+
+    validateReviewBody(rating, comment);
+
+    await updateReview.run(rating, comment ?? null, review.id, req.user.id);
+
+    res.json({ success: true, data: { id: review.id, rating, comment: comment ?? null } });
   } catch (error) {
     next(error);
   }

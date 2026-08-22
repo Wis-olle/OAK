@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <!-- Not deferred either: the Alpine component builds the map inside its own init(). -->
 <script src="assets/js/leaflet-5a640ff863.js"></script>
@@ -20,7 +31,13 @@
            through while the OSM tiles are still on the wire. */
         .leaflet-container { background-color: transparent; }
     </style>
-<title>Kết quả tìm kiếm - OAK Beauty</title>
+<title>Tìm salon - OAK Beauty</title>
+<meta content="Lọc salon làm đẹp tại TP.HCM theo dịch vụ, khu vực, mức giá và giờ trống. Xem vị trí trên bản đồ, so sánh đánh giá rồi đặt lịch ngay trên OAK." name="description">
+<meta content="Tìm salon - OAK Beauty" property="og:title">
+<meta content="Lọc salon làm đẹp tại TP.HCM theo dịch vụ, khu vực, mức giá và giờ trống. Xem vị trí trên bản đồ, so sánh đánh giá rồi đặt lịch ngay trên OAK." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/img-1a264dff88.webp" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -29,17 +46,46 @@
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
 <!-- Main Content -->
-<main class="pt-24 flex-grow pb-section-gap flex flex-col md:flex-row h-screen" x-data="oakSearchResults()">
+<!-- Below md the 120px foot of a page this tall is room the two columns cannot spare, so the
+     clearance the floating list/map switch needs moves onto the result list itself. -->
+<main class="pt-24 flex-grow pb-section-gap max-md:pb-0 flex flex-col md:flex-row h-screen" x-data="oakSearchResults()">
 <!-- Left Column: Search Results -->
-<section :class="mobileView === 'map' ? 'max-md:hidden' : ''" class="w-full md:w-1/2 flex flex-col h-full bg-surface border-r border-outline-variant/30 overflow-hidden">
+<!-- Below md this column is the one scroll surface in list view, so a header taller than the
+     screen — which it is in landscape — never leaves the results unreachable. In map view it
+     shrinks to the two things worth pinning over a map, and the map gets the rest. -->
+<section :class="mobileView === 'map' ? 'max-md:h-auto max-md:shrink-0' : 'max-md:overflow-y-auto'" class="w-full md:w-1/2 flex flex-col h-full bg-surface border-r border-outline-variant/30 overflow-hidden">
 <!-- Header & Filters -->
-<div class="p-6 md:p-8 border-b border-outline-variant/10 shrink-0">
-<h1 class="font-headline-sm text-headline-sm text-on-surface mb-2" x-text="headline"></h1>
-<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-text="criteriaText"></p>
-<div class="flex flex-wrap gap-3">
+<div :class="mobileView === 'map' ? 'max-md:p-4' : ''" class="p-6 md:p-8 border-b border-outline-variant/10 shrink-0">
+<!-- The keyword is editable here, so a search can be corrected without going back. -->
+<form :class="mobileView === 'map' ? 'max-md:mb-3' : ''" @submit.prevent="applyQuery()" class="flex gap-2 mb-6">
+<div class="relative flex-grow">
+<span aria-hidden="true" class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant" data-icon="search">search</span>
+<input aria-label="Tìm dịch vụ hoặc salon" class="w-full pl-12 pr-4 py-3 rounded-full bg-surface-container-low border border-outline-variant/30 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary" placeholder="Dịch vụ, salon…" type="text" x-model="q">
+</div>
+<button class="shrink-0 px-6 py-3 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors" type="submit">Tìm</button>
+</form>
+<h1 :class="mobileView === 'map' ? 'max-md:hidden' : ''" class="font-headline-sm text-headline-sm text-on-surface mb-2" x-text="headline"></h1>
+<!-- Cloaked: until Alpine reads the query string this would claim every salon is in scope. -->
+<p :class="mobileView === 'map' ? 'max-md:hidden' : ''" class="font-body-md text-body-md text-on-surface-variant mb-6" x-cloak="" x-show="!chips.length">Tất cả salon trên OAK Beauty</p>
+<!-- One chip per criterion in force, each one removable — including the date, which had
+     no way off the page before. Last thing in the header over a map, so it drops its
+     own gap there and leans on the padding around it. -->
+<div :class="mobileView === 'map' ? 'max-md:mb-0' : ''" class="flex flex-wrap gap-2 mb-6" x-show="chips.length">
+<template :key="chip.key" x-for="chip in chips">
+<span class="inline-flex items-center gap-1 pl-4 pr-1 py-1 rounded-full bg-tertiary text-on-tertiary font-label-md text-label-md">
+<span x-text="chip.label"></span>
+<button @click="removeCriterion(chip.key)" aria-label="Xóa tiêu chí" class="w-6 h-6 rounded-full flex items-center justify-center hover:bg-on-tertiary/20 transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="close">close</span>
+</button>
+</span>
+</template>
+</div>
+<!-- Below md the filter row is what the map view spends on map height; the switch back to
+     the list is one tap away and brings the whole row with it. -->
+<div :class="mobileView === 'map' ? 'max-md:hidden' : ''" class="flex flex-wrap gap-3">
 <div class="relative">
 <button :class="filters.price_max ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'price' ? null : 'price'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
-                        Giá <span class="material-symbols-outlined text-sm">expand_more</span>
+                        Giá <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'price') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'price'">
 <template :key="option.label" x-for="option in priceOptions">
@@ -49,7 +95,7 @@
 </div>
 <div class="relative">
 <button :class="filters.radius_km ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'distance' ? null : 'distance'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
-                        Khoảng cách <span class="material-symbols-outlined text-sm">expand_more</span>
+                        Khoảng cách <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'distance') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'distance'">
 <template :key="option.label" x-for="option in distanceOptions">
@@ -59,7 +105,7 @@
 </div>
 <div class="relative">
 <button :class="filters.rating_min ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'rating' ? null : 'rating'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
-                        Đánh giá <span class="material-symbols-outlined text-sm">expand_more</span>
+                        Đánh giá <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'rating') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'rating'">
 <template :key="option.label" x-for="option in ratingOptions">
@@ -69,11 +115,11 @@
 </div>
 <div class="relative">
 <button :class="hasLocation ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'location' ? null : 'location'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2 max-w-[240px]" type="button">
-<span class="truncate" x-text="locationChip"></span> <span class="material-symbols-outlined text-sm">expand_more</span>
+<span class="truncate" x-text="locationChip"></span> <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'location') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg p-4 w-[300px]" x-cloak="" x-show="openFilter === 'location'">
 <button @click="locate()" class="w-full flex items-center gap-2 px-3 py-2.5 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors" type="button">
-<span class="material-symbols-outlined text-[18px]">my_location</span> Dùng vị trí của tôi
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">my_location</span> Dùng vị trí của tôi
                         </button>
 <!-- Nominatim asks callers not to look up on every keystroke, so this only submits. -->
 <form @submit.prevent="geocode()" class="flex gap-2 mt-3">
@@ -94,12 +140,41 @@
 <button :class="filters.open_now ? 'bg-tertiary text-on-tertiary hover:bg-tertiary/90' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="toggleOpenNow()" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Đang mở cửa
                     </button>
+<div class="relative">
+<button :class="filters.sort ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'sort' ? null : 'sort'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+                        Sắp xếp: <span x-text="sortLabel"></span> <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+<div @click.outside="if (openFilter === 'sort') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'sort'">
+<!-- Distance can only rank what it can measure, so it waits for a position. -->
+<template :key="option.value" x-for="option in sortOptions">
+<button :disabled="!sortable(option.value)" :title="sortable(option.value) ? '' : 'Cần vị trí của bạn để sắp xếp theo khoảng cách.'" @click="setSort(option.value)" class="block w-full text-left px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-on-surface-variant disabled:hover:bg-transparent" type="button" x-text="option.label"></button>
+</template>
+</div>
+</div>
 </div>
 </div>
 <!-- Salon List -->
-<div class="flex-grow overflow-y-auto p-6 md:p-8 space-y-6">
-<template x-if="loading">
+<!-- Below md the column around this one does the scrolling, and the foot of the list is
+     where the floating switch needs its clearance. -->
+<div :class="mobileView === 'map' ? 'max-md:hidden' : 'max-md:overflow-visible'" class="flex-grow overflow-y-auto p-6 md:p-8 max-md:pb-36 space-y-6">
+<!-- A rerun keeps the old results underneath, so a line of text is enough. -->
+<template x-if="loading &amp;&amp; salons.length">
 <p class="font-body-md text-body-md text-on-surface-variant">Đang tải kết quả...</p>
+</template>
+<!-- The first run has nothing underneath: cards at the size the real ones will be. -->
+<template x-if="loading &amp;&amp; !salons.length">
+<div aria-hidden="true" class="space-y-6">
+<template :key="row" x-for="row in 3">
+<div class="flex flex-col sm:flex-row gap-6 p-4 rounded-xl">
+<div class="w-full h-32 sm:w-48 shrink-0 rounded-lg bg-surface-container animate-pulse"></div>
+<div class="flex-grow flex flex-col gap-3 py-2">
+<div class="h-6 w-1/2 rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-1/3 rounded bg-surface-container animate-pulse"></div>
+<div class="h-16 w-full rounded-lg bg-surface-container animate-pulse"></div>
+</div>
+</div>
+</template>
+</div>
 </template>
 <template x-if="!loading &amp;&amp; loadError">
 <div class="p-6 rounded-xl border border-outline-variant/30 bg-surface-container-low">
@@ -122,7 +197,7 @@
 </div>
 </template>
 <div class="absolute top-2 left-2 bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs font-label-md text-primary flex items-center gap-1" x-show="salon.verified">
-<span class="material-symbols-outlined text-[14px]" data-weight="fill">verified</span> Đã xác minh
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-weight="fill">verified</span> Đã xác minh
                         </div>
 </div>
 <div class="flex-grow flex flex-col justify-between py-2">
@@ -130,14 +205,14 @@
 <div class="flex justify-between items-start mb-1">
 <h2 class="font-headline-sm text-headline-sm text-on-surface group-hover:text-primary transition-colors" x-text="salon.name"></h2>
 <div class="flex items-center gap-1 text-on-surface" x-show="salon.review_count">
-<span class="material-symbols-outlined text-primary text-sm" data-weight="fill">star</span>
+<span aria-hidden="true" class="material-symbols-outlined text-primary text-sm" data-weight="fill">star</span>
 <span class="font-label-md text-sm" x-text="ratingOf(salon)"></span>
 <span class="font-caption text-caption text-on-surface-variant" x-text="'(' + salon.review_count + ')'"></span>
 </div>
 <span class="font-caption text-caption text-on-surface-variant shrink-0" x-show="!salon.review_count">Chưa có đánh giá</span>
 </div>
 <p class="font-body-md text-sm text-on-surface-variant mb-3 flex items-center gap-1">
-<span class="material-symbols-outlined text-[16px]">location_on</span> <span x-text="locationOf(salon)"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]">location_on</span> <span x-text="locationOf(salon)"></span>
                             </p>
 <div class="bg-surface-container-low p-3 rounded-lg mb-4">
 <p class="font-caption text-caption text-on-surface-variant">
@@ -158,7 +233,7 @@
 <!-- The mobile default stays in the static class list: Alpine is deferred, so a :class-only
      default would paint both columns until it boots. `max-md:` sits in a media query, which
      outranks the plain `hidden` it has to beat. -->
-<section :class="mobileView === 'map' ? 'max-md:block' : ''" class="w-full md:w-1/2 h-full hidden md:block bg-surface-variant relative z-0">
+<section :class="mobileView === 'map' ? 'max-md:block max-md:h-auto max-md:flex-1 max-md:min-h-0' : ''" class="w-full md:w-1/2 h-full hidden md:block bg-surface-variant relative z-0">
 <!-- Leaflet canvas; the old static map stays behind it as the offline fallback. -->
 <div aria-label="Bản đồ các salon" class="w-full h-full bg-cover bg-center" style="background-image: url('assets/images/img-1a264dff88.webp')" x-ref="map"></div>
 <!-- Floating Map Controls: above Leaflet's own control layer, which sits at z-index 1000. -->
@@ -172,15 +247,15 @@
      way to the map. Sits above the toast strip at bottom-6. -->
 <div class="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-40 flex gap-1 p-1 rounded-full bg-surface border border-outline-variant/30 shadow-lg">
 <button :class="mobileView === 'list' ? 'bg-primary-container text-on-primary' : 'text-on-surface-variant hover:text-primary'" @click="mobileView = 'list'" class="flex items-center gap-1 px-4 py-2 rounded-full font-label-md text-label-md uppercase tracking-wider transition-colors" type="button">
-<span class="material-symbols-outlined text-[18px]">list</span> Danh sách
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">list</span> Danh sách
                 </button>
 <button :class="mobileView === 'map' ? 'bg-primary-container text-on-primary' : 'text-on-surface-variant hover:text-primary'" @click="showMap()" class="flex items-center gap-1 px-4 py-2 rounded-full font-label-md text-label-md uppercase tracking-wider transition-colors" type="button">
-<span class="material-symbols-outlined text-[18px]">map</span> Bản đồ
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">map</span> Bản đồ
                 </button>
 </div>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -197,12 +272,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -217,7 +294,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -231,11 +308,14 @@
             ['skincare', 'Chăm sóc da'],
             ['spa', 'Spa & Massage'],
             ['eyelash', 'Nối mi'],
+            ['amenity', 'Tiện ích'],
         ]);
         /* Where the map opens when no result carries coordinates: District 1, Ho Chi Minh City. */
         var MAP_FALLBACK = { center: [10.776, 106.700], zoom: 13 };
         /* Free OSM geocoder, so an address typed by hand can become coordinates. */
         var NOMINATIM = 'https://nominatim.openstreetmap.org/search?';
+        /* Where a tap has no hover to preview a pin with, so the pin answers with a bubble. */
+        var TOUCH = window.matchMedia('(hover: none)');
         /* Leaflet objects must stay out of the Alpine state, or its proxies break the map. */
         var map = null;
         var markers = new Map();   /* salon id -> Leaflet marker */
@@ -256,11 +336,41 @@
             };
         }
 
+        /* The hour window as one phrase. Both ends is a plain range, which reads the same in
+           either language; one end needs a word, and oak-i18n.js carries a rule for each. */
+        function timeLabel(from, to) {
+            if (from && to) {
+                return from + '–' + to;
+            }
+            return from ? 'Sau ' + from : 'Trước ' + to;
+        }
+
         /* Pin markup is built as a string, so salon names from the API must be escaped first. */
         function escapeHtml(value) {
             return String(value).replace(/[&<>"]/g, function (character) {
                 return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[character];
             });
+        }
+
+        /* The bubble a pin opens on a touch screen. Its link is the only way from the pin to
+           the salon there, because the tap that opened this no longer navigates on its own.
+           Leaflet's own `.leaflet-container a` rule outranks a single class, so the colour
+           rides on a span inside the link and the underline is turned off inline. */
+        function popupHtml(salon, url) {
+            var rating = salon.review_count
+                ? '<p class="flex items-center gap-1 mb-1">'
+                    + '<span class="material-symbols-outlined text-primary text-sm" data-weight="fill">star</span>'
+                    + '<span class="font-label-md text-sm text-on-surface">'
+                    + Number(salon.rating || 0).toFixed(1) + '</span></p>'
+                : '';
+            return '<div class="font-body-md text-body-md">'
+                + '<p class="font-headline-sm text-[16px] text-on-surface mb-1">' + escapeHtml(salon.name) + '</p>'
+                + rating
+                + '<p class="font-caption text-caption text-on-surface-variant mb-3">' + escapeHtml(salon.district || '') + '</p>'
+                + '<a class="inline-flex items-center px-4 py-2 rounded-full bg-primary-container" href="'
+                + escapeHtml(url) + '" style="text-decoration:none">'
+                + '<span class="text-on-primary font-label-md text-label-md uppercase tracking-wider">Xem salon</span>'
+                + '</a></div>';
         }
 
         return {
@@ -273,9 +383,12 @@
             openFilter: null,
             /* Below md only one column fits at a time: 'list' or 'map'. */
             mobileView: 'list',
-            /* The query string this page was opened with, kept as a plain object for the subtitle. */
+            /* The query string this page was opened with, kept as a plain object: the criteria
+               nothing on the page can set are read — and now switched off — from here. */
             incoming: {},
-            filters: { price_max: '', radius_km: '', rating_min: '', open_now: false },
+            /* What the search box holds; it only reaches `incoming.q` on submit. */
+            q: '',
+            filters: { price_max: '', radius_km: '', rating_min: '', open_now: false, sort: '' },
             coords: { lat: '', lng: '' },
             /* What the chip shows once a location is set; empty means it came from GPS. */
             locationLabel: '',
@@ -301,9 +414,17 @@
                 { label: 'Từ 4.0 sao', value: 4 },
                 { label: 'Từ 4.5 sao', value: 4.5 },
             ],
+            /* The keys GET /api/search/salons sorts by; the empty one is its own default. */
+            sortOptions: [
+                { label: 'Phù hợp nhất', value: '' },
+                { label: 'Đánh giá', value: 'rating' },
+                { label: 'Khoảng cách', value: 'distance' },
+                { label: 'Giá', value: 'price' },
+            ],
 
             init() {
                 this.incoming = Object.fromEntries(new URLSearchParams(location.search));
+                this.q = this.incoming.q || '';
                 this.filters.price_max = this.incoming.price_max || '';
                 this.filters.rating_min = this.incoming.rating_min || '';
                 this.filters.open_now = this.incoming.open_now === '1';
@@ -314,6 +435,13 @@
                 this.filters.radius_km = this.hasLocation ? (this.incoming.radius_km || '') : '';
                 if (this.incoming.radius_km && !this.hasLocation) {
                     OAK.toast('Cần vị trí của bạn để lọc theo bán kính, bạn chọn "Vị trí" nhé.', 'error');
+                }
+                /* Same rule for the order as for the radius: a key nobody offers, or a
+                   distance ranking with nothing to measure from, is dropped rather than sent
+                   — the comparator would otherwise sort the whole page on NaN. */
+                this.filters.sort = this.sortable(this.incoming.sort) ? (this.incoming.sort || '') : '';
+                if (this.incoming.sort === 'distance' && !this.hasLocation) {
+                    OAK.toast('Cần vị trí của bạn để sắp xếp theo khoảng cách.', 'error');
                 }
                 this.load();
 
@@ -383,7 +511,13 @@
                     }).addTo(map);
                     marker.on('mouseover', function () { self.hovered = salon.id; });
                     marker.on('mouseout', function () { self.hovered = null; });
-                    marker.on('click', function () { self.openSalon(salon); });
+                    /* A tap cannot hover first, so on a touch screen the pin answers with a
+                       summary and only its link leaves the map. A mouse keeps the old click. */
+                    if (TOUCH.matches) {
+                        marker.bindPopup(popupHtml(salon, self.salonUrl(salon)));
+                    } else {
+                        marker.on('click', function () { self.openSalon(salon); });
+                    }
                     markers.set(salon.id, marker);
                 });
                 this.drawUserMarker();
@@ -476,44 +610,109 @@
                 return match ? match.label : fallback;
             },
 
-            get criteriaText() {
-                var parts = [];
+            /* One rule for the order, read both by the dropdown and by whatever the URL
+               arrived with: the page's own default always stands, a key it does not offer
+               never does, and distance waits for a position to measure from. */
+            sortable(value) {
+                if (!value) {
+                    return true;
+                }
+                if (value === 'distance') {
+                    return this.hasLocation;
+                }
+                return this.sortOptions.some(function (option) {
+                    return option.value !== '' && option.value === value;
+                });
+            },
+
+            get sortLabel() {
+                var current = this.filters.sort;
+                var match = this.sortOptions.find(function (option) {
+                    return option.value === current;
+                });
+                return (match || this.sortOptions[0]).label;
+            },
+
+            /* Every criterion in force, each one labelled and removable. A label the options
+               above catalogue is a dictionary key of its own, which is what keeps the row
+               readable in English without a rule per shape. */
+            get chips() {
+                var list = [];
                 if (this.incoming.q) {
-                    parts.push('"' + this.incoming.q + '"');
+                    list.push({ key: 'q', label: '"' + this.incoming.q + '"' });
                 }
                 if (this.incoming.category) {
-                    parts.push(CATEGORY_LABELS.get(this.incoming.category) || this.incoming.category);
+                    list.push({
+                        key: 'category',
+                        label: CATEGORY_LABELS.get(this.incoming.category) || this.incoming.category,
+                    });
+                }
+                /* A style is free text the assistant read out of a sentence, so it is shown
+                   as it stands — there is no catalogue of styles to label it from. */
+                if (this.incoming.style) {
+                    list.push({ key: 'style', label: this.incoming.style });
                 }
                 if (this.incoming.district) {
-                    parts.push(this.incoming.district);
+                    list.push({ key: 'district', label: this.incoming.district });
                 }
                 if (this.incoming.date) {
-                    parts.push(OAK.fmtDate(this.incoming.date));
+                    list.push({ key: 'date', label: OAK.fmtDate(this.incoming.date) });
+                }
+                /* The hour window is one criterion in two parameters, so it is one chip —
+                   and only on a day, because that is the only place the search applies it.
+                   The assistant can read an hour out of a sentence that named no date. */
+                if (this.incoming.date && (this.incoming.time_from || this.incoming.time_to)) {
+                    list.push({ key: 'time', label: timeLabel(this.incoming.time_from, this.incoming.time_to) });
                 }
                 if (this.filters.open_now) {
-                    parts.push('Đang mở cửa');
+                    list.push({ key: 'open_now', label: 'Đang mở cửa' });
                 }
                 if (this.filters.rating_min) {
-                    parts.push(this.chipLabel(this.ratingOptions, this.filters.rating_min,
-                        'từ ' + this.filters.rating_min + ' sao'));
+                    list.push({
+                        key: 'rating_min',
+                        label: this.chipLabel(this.ratingOptions, this.filters.rating_min,
+                            'từ ' + this.filters.rating_min + ' sao'),
+                    });
                 }
                 if (this.filters.radius_km) {
-                    parts.push(this.chipLabel(this.distanceOptions, this.filters.radius_km,
-                        'trong ' + this.filters.radius_km + 'km'));
+                    list.push({
+                        key: 'radius_km',
+                        label: this.chipLabel(this.distanceOptions, this.filters.radius_km,
+                            'trong ' + this.filters.radius_km + 'km'),
+                    });
                 }
                 if (this.filters.price_max) {
-                    parts.push('dưới ' + OAK.fmtPrice(this.filters.price_max));
+                    list.push({
+                        key: 'price_max',
+                        label: this.chipLabel(this.priceOptions, this.filters.price_max,
+                            'dưới ' + OAK.fmtPrice(this.filters.price_max)),
+                    });
                 }
-                return parts.length
-                    ? 'Tiêu chí: ' + parts.join(' • ')
-                    : 'Tất cả salon trên OAK Beauty';
+                return list;
             },
 
             /* Everything the page was opened with rides along; the filter chips override their own keys. */
             query() {
                 var params = new URLSearchParams(location.search);
+                /* Every criterion that arrives in the URL rather than from a control here —
+                   the search box writes the first, the chip row switches any of them off.
+                   The list is the one tim-kiem-thong-minh.html sends, minus the filters
+                   below, so nothing the assistant asks for is beyond reach. */
+                var incoming = this.incoming;
+                ['q', 'category', 'style', 'district', 'date', 'time_from', 'time_to'].forEach(function (key) {
+                    if (incoming[key]) {
+                        params.set(key, incoming[key]);
+                    } else {
+                        params.delete(key);
+                    }
+                });
+                /* An hour window with no day to sit in is read by nobody, so it is not sent. */
+                if (!incoming.date) {
+                    params.delete('time_from');
+                    params.delete('time_to');
+                }
                 var filters = this.filters;
-                ['price_max', 'radius_km', 'rating_min'].forEach(function (key) {
+                ['price_max', 'radius_km', 'rating_min', 'sort'].forEach(function (key) {
                     if (filters[key]) {
                         params.set(key, filters[key]);
                     } else {
@@ -564,6 +763,52 @@
                 }
             },
 
+            /* The address bar mirrors the state, so a reload or a shared link repeats this
+               search. query() reads location.search back, but only ever with set/delete on
+               the keys it owns, so writing its own output there changes nothing next time. */
+            apply() {
+                var search = this.query().toString();
+                history.replaceState(null, '', search ? location.pathname + '?' + search : location.pathname);
+                this.load();
+            },
+
+            /* The box only reaches the search on submit; typing in it moves nothing. It is
+               then shown the keyword that actually ran, trimmed as the search saw it. */
+            applyQuery() {
+                this.incoming.q = this.q.trim();
+                this.q = this.incoming.q;
+                this.apply();
+            },
+
+            setSort(value) {
+                this.openFilter = null;
+                this.filters.sort = value;
+                this.apply();
+            },
+
+            removeCriterion(key) {
+                if (key === 'open_now') {
+                    this.filters.open_now = false;
+                } else if (key === 'time') {
+                    /* One chip stands for the pair, so it takes both ends with it. */
+                    this.incoming.time_from = '';
+                    this.incoming.time_to = '';
+                } else if (key === 'date') {
+                    /* And the day takes the hours away with it, since they only narrow a day. */
+                    this.incoming.date = '';
+                    this.incoming.time_from = '';
+                    this.incoming.time_to = '';
+                } else if (key in this.filters) {
+                    this.filters[key] = '';
+                } else {
+                    this.incoming[key] = '';
+                }
+                if (key === 'q') {
+                    this.q = '';
+                }
+                this.apply();
+            },
+
             setFilter(key, value) {
                 this.openFilter = null;
                 if (key === 'radius_km' && value && !this.coords.lat) {
@@ -571,12 +816,12 @@
                     return;
                 }
                 this.filters[key] = value;
-                this.load();
+                this.apply();
             },
 
             toggleOpenNow() {
                 this.filters.open_now = !this.filters.open_now;
-                this.load();
+                this.apply();
             },
 
             locate(radius) {
@@ -594,14 +839,14 @@
                         self.cancelGeocode();
                         if (radius) { self.filters.radius_km = radius; }
                         /* No pan: the refit now frames the user marker with the salons. */
-                        self.load();
+                        self.apply();
                     },
                     function () {
                         /* Only the radius-picking path was waiting on this position; a plain
                            locate() must not wipe a distance filter the list is showing. */
                         if (radius) {
                             self.filters.radius_km = '';
-                            self.load();
+                            self.apply();
                         }
                         OAK.toast('Không lấy được vị trí của bạn.', 'error');
                     },
@@ -668,7 +913,7 @@
                 this.geoResults = [];
                 this.geoStatus = '';
                 this.openFilter = null;
-                this.load();
+                this.apply();
             },
 
             /* Bumping the token strands any lookup still in flight so it cannot write back. */
@@ -687,12 +932,17 @@
                 this.cancelGeocode();
                 /* A radius around nowhere filters nothing, so it goes with the location. */
                 this.filters.radius_km = '';
+                /* And neither does a distance ranking: it would leave the comparator
+                   sorting on NaN, so it falls back to the page's own order. */
+                if (this.filters.sort === 'distance') {
+                    this.filters.sort = '';
+                }
                 this.openFilter = null;
-                this.load();
+                this.apply();
             },
 
             salonUrl(salon) {
-                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+                return 'salon-profile.html?salon=' + encodeURIComponent(salon.slug);
             },
 
             /* Dragging to select text inside a card ends in a click, which must not navigate. */

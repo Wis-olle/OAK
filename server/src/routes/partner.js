@@ -572,6 +572,12 @@ router.get('/bookings', async (req, res, next) => {
       params.push(term, term);
     }
 
+    // Newest first by default, as every list in the console reads. The dashboard's
+    // "needs attention" queue asks for the opposite: it shows the first page of the
+    // upcoming pending bookings, and those have to be the SOONEST ones, not the last
+    // ones of the furthest week. Two literals, never the raw query value.
+    const direction = req.query.order === 'asc' ? 'ASC' : 'DESC';
+
     const where = `WHERE ${conditions.join(' AND ')}`;
     const { total } = await db
       .prepare(`SELECT COUNT(*) AS total FROM bookings b ${where}`)
@@ -579,7 +585,8 @@ router.get('/bookings', async (req, res, next) => {
     const rows = await db
       .prepare(
         `SELECT ${BOOKING_COLUMNS} ${BOOKING_SOURCE} ${where}
-         ORDER BY b.date DESC, b.time DESC, b.id DESC LIMIT ? OFFSET ?`,
+         ORDER BY b.date ${direction}, b.time ${direction}, b.id ${direction}
+         LIMIT ? OFFSET ?`,
       )
       .all(...params, limit, offset);
 
@@ -750,7 +757,7 @@ router.patch('/bookings/:id', async (req, res, next) => {
           const updated = await tx.get(SELECT_OWNED_BOOKING_ROW, bookingId, salon.id);
           const { title, body: message, type } = notification(salon, updated);
           // No-op for walk-ins (user_id NULL), so this needs no guard of its own.
-          await notifyUser(tx, booking.user_id, title, message, type);
+          await notifyUser(tx, booking.user_id, title, message, type, bookingId);
         }
       });
     } catch (error) {

@@ -20,12 +20,14 @@ test('partner composer auto-detects a source platform without a platform select'
 });
 
 test('composer requires a preview and explicit confirmation before publishing', () => {
-  assert.match(blog, /@submit\.prevent="showPreview\(\)"/);
+  assert.match(blog, /@submit\.prevent="submitComposer\(\)"/);
   assert.match(blog, /Xem trước/);
   assert.match(blog, /Quay lại chỉnh sửa/);
   assert.match(blog, /@click="publish\(\)"/);
   assert.match(blog, /previewPayload/);
   assert.match(blog, /salon\.name/);
+  // An edit is the one exception: its author has already seen the post as it stands.
+  assert.match(blog, /Lưu thay đổi/);
 });
 
 test('feed and detail render safe external source links without raw HTML', () => {

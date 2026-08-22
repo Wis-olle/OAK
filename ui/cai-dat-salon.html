@@ -7,7 +7,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <!-- Not deferred either: the map picker is built from the component's own init(). -->
 <script src="assets/js/leaflet-5a640ff863.js"></script>
@@ -40,76 +51,79 @@
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
 <body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="salonSettings()">
-<h1 class="sr-only">OAK Beauty — Cài đặt salon</h1>
+<a class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary focus:border focus:border-outline-variant focus:shadow-lg font-body-md text-body-md" href="#main">Bỏ qua đến nội dung</a>
 <!-- SideNavBar -->
-<nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container p-gutter z-50">
+<nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low p-gutter z-50">
 <div class="mb-12">
-<h2 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h2>
+<p class="font-headline-sm text-headline-sm text-primary">OAK Beauty</p>
 <p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest" data-oak-salon-name x-text="original ? original.name : 'Partner Dashboard'">Partner Dashboard</p>
 </div>
 <ul class="flex flex-col gap-2 flex-grow">
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="tong-quan-doi-tac.html">
-<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="tong-quan-doi-tac.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
 <span class="font-body-md text-body-md">Tổng quan</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-lich-hen.html">
-<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="quan-ly-lich-hen.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
 <span class="font-body-md text-body-md">Lịch hẹn</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-dich-vu.html">
-<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="quan-ly-dich-vu.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
 <span class="font-body-md text-body-md">Dịch vụ</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-nhan-vien.html">
-<span class="material-symbols-outlined" data-icon="group">group</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="quan-ly-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="group">group</span>
 <span class="font-body-md text-body-md">Nhân viên</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
-<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
 <span class="font-body-md text-body-md">Báo cáo</span>
 </a>
 </li>
 <li>
-<a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim font-bold bg-surface-variant dark:bg-on-primary-fixed-variant scale-95 duration-150" href="cai-dat-salon.html">
-<span class="material-symbols-outlined fill" data-icon="settings">settings</span>
+<a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary font-bold bg-surface-variant scale-95 duration-150" href="cai-dat-salon.html">
+<span aria-hidden="true" class="material-symbols-outlined fill" data-icon="settings">settings</span>
 <span class="font-body-md text-body-md">Cài đặt</span>
 </a>
 </li>
 </ul>
 <div class="mt-auto pt-8 border-t border-outline-variant/30">
 <div class="flex flex-col gap-1 mb-4">
-<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="index.html">
-<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
+<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="index.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="storefront">storefront</span>
 <span class="font-body-md text-body-md">Xem trang khách</span>
 </a>
-<a @click.prevent="OAK.logout()" class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" data-oak-logout href="dang-nhap-doi-tac.html">
-<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<a @click.prevent="OAK.logout()" class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" data-oak-logout href="dang-nhap-doi-tac.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="logout">logout</span>
 <span class="font-body-md text-body-md">Đăng xuất</span>
 </a>
 </div>
 <a class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html?new=1">
-<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
                 Đặt lịch mới
             </a>
 </div>
 </nav>
 <!-- TopNavBar -->
-<header class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-gutter md:ml-64 md:w-[calc(100%-16rem)] bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl top-0 sticky border-b border-outline-variant/30 dark:border-outline/20 z-40">
+<header class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-gutter md:ml-64 md:w-[calc(100%-16rem)] bg-surface/80 backdrop-blur-xl top-0 sticky border-b border-outline-variant/30 z-40">
 <div class="flex items-center gap-4 min-w-0">
-<h2 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed truncate">Cài đặt salon</h2>
+<h1 class="font-headline-sm text-headline-sm text-primary truncate">Cài đặt salon</h1>
 </div>
 <div class="flex items-center gap-4 md:gap-6 shrink-0">
-<a aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" href="thong-bao.html">
-<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<!-- The console bell answers "what needs me", so it stays inside the console: the
+     customer notification page has no way back to the partner pages. -->
+<a aria-label="Lịch chờ xác nhận" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" data-oak-pending-bell href="quan-ly-lich-hen.html?status=pending">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span aria-hidden="true" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-error text-on-error font-caption text-[10px] hidden items-center justify-center" data-oak-pending-count></span>
 </a>
 <a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
 <span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 flex items-center justify-center">
@@ -128,14 +142,14 @@
 </header>
 
 <!-- Main Content -->
-<main class="md:ml-64 p-margin-mobile md:p-margin-desktop pb-24 md:pb-margin-desktop">
+<main class="md:ml-64 p-margin-mobile md:p-margin-desktop pb-24 md:pb-margin-desktop" id="main" tabindex="-1">
 <!-- Page Header -->
 <div class="mb-10 flex flex-wrap justify-between items-end gap-4">
 <div>
 <h2 class="font-headline-lg text-headline-lg text-on-background">Cài đặt salon</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mt-2">Thông tin này hiển thị trên trang salon công khai của bạn.</p>
 </div>
-<a :href="'salon-profile-lala-nail-studio.html?salon=' + slug" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" target="_blank" x-cloak x-show="slug">
+<a :href="'salon-profile.html?salon=' + slug" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" target="_blank" x-cloak x-show="slug">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">open_in_new</span>
                 Xem trang công khai
             </a>
@@ -147,7 +161,7 @@
 <button @click="loadSalon()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Thử lại</button>
 </div>
 
-<form @submit.prevent="save()" class="grid grid-cols-1 lg:grid-cols-3 gap-12" x-cloak x-show="!loading && !loadError">
+<form @submit.prevent="save()" class="grid grid-cols-1 lg:grid-cols-3 gap-12" id="salon-form" x-cloak x-show="!loading && !loadError">
 <!-- Left column: profile fields -->
 <div class="lg:col-span-2 space-y-12">
 <section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
@@ -309,6 +323,35 @@
 </div>
 </form>
 </main>
+<!-- Unsaved-changes bar. The Save button lives at the foot of the right-hand column,
+     which on a phone is five sections of scrolling away. Sits above the bottom nav. -->
+<div class="fixed left-0 right-0 bottom-16 md:bottom-0 z-40 md:ml-64 px-margin-mobile md:px-gutter py-3 bg-surface-container-lowest border-t border-outline-variant/30 shadow-[0_-4px_24px_rgba(44,44,44,0.08)] flex flex-wrap items-center justify-between gap-3" role="status" x-cloak x-show="dirty">
+<p class="font-body-md text-body-md text-on-surface-variant">Có thay đổi chưa lưu</p>
+<div class="flex items-center gap-3">
+<button @click="confirmOpen = true" class="min-h-[44px] px-5 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Hoàn tác</button>
+<button :disabled="saving || uploading" class="min-h-[44px] px-6 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors disabled:opacity-60" form="salon-form" type="submit" x-text="saving ? 'Đang lưu…' : 'Lưu thay đổi'">Lưu thay đổi</button>
+</div>
+</div>
+<!-- Confirm Leave Modal — a console link would drop whatever is typed without a word. -->
+<div @keydown.escape.window="leaveOpen = false" aria-labelledby="leave-title" aria-modal="true" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="leaveOpen">
+<div @click="leaveOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="leaveOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
+<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-md border border-outline-variant/20 flex flex-col" x-show="leaveOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="px-6 py-6 border-b border-outline-variant/20">
+<h3 class="font-headline-sm text-headline-sm text-primary" id="leave-title">Rời trang khi chưa lưu?</h3>
+</div>
+<div class="px-6 py-6">
+<p class="font-body-md text-body-md text-on-surface-variant">Mọi thay đổi chưa lưu sẽ bị mất.</p>
+</div>
+<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4">
+<button @click="leaveOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+                    Ở lại
+                </button>
+<button @click="leave()" class="px-8 py-3 bg-error text-on-error font-label-md text-label-md uppercase tracking-wider hover:bg-error/90 transition-colors rounded-full" type="button">
+                    Rời trang
+                </button>
+</div>
+</div>
+</div>
 <!-- Confirm Undo Modal -->
 <div @keydown.escape.window="confirmOpen = false" aria-labelledby="confirm-title" aria-modal="true" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="confirmOpen">
 <div @click="confirmOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
@@ -332,27 +375,27 @@
 <!-- BottomNavBar (Mobile Only) -->
 <nav class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-1 py-2 flex justify-between items-center">
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="tong-quan-doi-tac.html">
-<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Tổng quan</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-lich-hen.html">
-<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Lịch hẹn</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-dich-vu.html">
-<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Dịch vụ</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-nhan-vien.html">
-<span class="material-symbols-outlined" data-icon="group">group</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="group">group</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Nhân viên</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="bao-cao-doanh-thu.html">
-<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Báo cáo</span>
 </a>
 <a aria-current="page" class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-secondary font-bold" href="cai-dat-salon.html">
-<span class="material-symbols-outlined fill" data-icon="settings">settings</span>
+<span aria-hidden="true" class="material-symbols-outlined fill" data-icon="settings">settings</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
 </a>
 </nav>
@@ -432,6 +475,9 @@
     var pinMarker = null;
     /* Bumped per lookup so only the newest one is allowed to write its results. */
     var geoToken = 0;
+    /* The link the leave guard is holding back, kept out of the Alpine state so it stays a
+       real element rather than a proxy that cannot be clicked. */
+    var pendingLink = null;
 
     /** Keep the salon's own value in the list even when it is not one of the presets. */
     function withCurrent(options, current) {
@@ -451,6 +497,10 @@
             original: null,
             snapshot: '',
             confirmOpen: false,
+            leaveOpen: false,
+            /* True from the moment a guarded link has been let through, so neither the
+               guard nor beforeunload asks the same question a second time. */
+            leaving: false,
             geoResults: [],
             geoStatus: '',
             /* The address currently being looked up; empty when nothing is in flight. */
@@ -475,7 +525,75 @@
             async init() {
                 await OAK.requirePartner();
                 this.user = await OAK.me();
+                this.guardUnload();
                 await this.loadSalon();
+                OAK.pendingBadge();
+            },
+
+            /* Two ways off this page, two guards. A console link is caught here, in the
+               capture phase, so the page's own @click.prevent handlers (logout) never run
+               either; a reload or a typed url is only the browser's to ask about. */
+            guardUnload() {
+                var self = this;
+                document.addEventListener(
+                    'click',
+                    function (event) {
+                        // A modified click opens a new tab or window and leaves this one
+                        // exactly as it is, so there is nothing to warn about.
+                        if (
+                            event.button !== 0 ||
+                            event.metaKey ||
+                            event.ctrlKey ||
+                            event.shiftKey ||
+                            event.altKey
+                        ) {
+                            return;
+                        }
+                        var link = event.target.closest ? event.target.closest('a[href]') : null;
+                        if (
+                            !link ||
+                            !self.dirty ||
+                            link.target === '_blank' ||
+                            link.getAttribute('href').charAt(0) === '#'
+                        ) {
+                            return;
+                        }
+                        event.preventDefault();
+                        event.stopPropagation();
+                        pendingLink = link;
+                        self.leaveOpen = true;
+                    },
+                    true,
+                );
+                window.addEventListener('beforeunload', function (event) {
+                    if (self.dirty) {
+                        event.preventDefault();
+                        // Chrome still wants the legacy assignment to raise its own prompt.
+                        event.returnValue = '';
+                    }
+                });
+                // Coming back with the Back button restores this page from the bfcache with
+                // the edits still in the fields — but `leaving` latched on the way out, and
+                // would leave both guards switched off for the rest of the visit.
+                window.addEventListener('pageshow', function (event) {
+                    if (event.persisted) {
+                        self.leaving = false;
+                    }
+                });
+            },
+
+            /* Replay the click the guard swallowed: it was stopped in the capture phase, so
+               the link's own handlers never ran the first time. `leaving` clears `dirty`
+               first, so this time the guard lets the click through to them — which is what
+               makes logout work, since that is an @click.prevent handler, not a plain href. */
+            leave() {
+                this.leaveOpen = false;
+                this.leaving = true;
+                var link = pendingLink;
+                pendingLink = null;
+                if (link) {
+                    link.click();
+                }
             },
 
             async loadSalon() {
@@ -770,7 +888,9 @@
             },
 
             get dirty() {
-                return this.snapshot !== '' && this.formSnapshot() !== this.snapshot;
+                return (
+                    !this.leaving && this.snapshot !== '' && this.formSnapshot() !== this.snapshot
+                );
             },
 
             undo() {

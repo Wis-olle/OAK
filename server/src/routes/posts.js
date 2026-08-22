@@ -11,6 +11,9 @@ const router = express.Router();
 
 const DEFAULT_LIMIT = 9;
 const TYPES = ['article', 'video'];
+// The five service categories a post may be filed under, so the blog can point at the
+// matching salons. A post without one is still valid — the field is optional.
+const CATEGORIES = ['nail', 'hair', 'skincare', 'spa', 'eyelash'];
 
 // Only an https YouTube embed URL may reach the blog's <iframe :src>. Any other value
 // (javascript:, data:, an arbitrary site) would execute or frame attacker content for
@@ -19,7 +22,7 @@ const YOUTUBE_EMBED = /^https:\/\/www\.youtube\.com\/embed\/[\w-]+(\?[\w=&-]*)?$
 
 const selectPostBySlug = db.prepare(`
   SELECT p.id, p.slug, p.type, p.title, p.excerpt, p.content, p.video_url, p.image, p.created_at,
-         p.source_platform, p.source_url,
+         p.source_platform, p.source_url, p.category,
          u.name AS author_name, u.avatar AS author_avatar,
          s.id AS salon_id, s.name AS salon_name, s.slug AS salon_slug
   FROM posts p
@@ -48,7 +51,7 @@ const selectOtherSourceTaken = db.prepare('SELECT 1 FROM posts WHERE source_url 
 const selectOwnedPost = db.prepare('SELECT * FROM posts WHERE id = ? AND author_id = ?');
 
 const insertPost = db.prepare(
-  'INSERT INTO posts (author_id, salon_id, type, title, slug, excerpt, content, video_url, image, source_platform, source_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  'INSERT INTO posts (author_id, salon_id, type, title, slug, excerpt, content, video_url, image, source_platform, source_url, category, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 );
 const insertComment = db.prepare(
   'INSERT INTO post_comments (post_id, user_id, content, created_at) VALUES (?, ?, ?, ?)',
@@ -102,7 +105,14 @@ function validatePostFields(fields) {
   if (!isSafeMediaUrl(image)) {
     throw httpError(400, 'VALIDATION_ERROR', 'Đường dẫn ảnh không hợp lệ.');
   }
-  return { type: fields.type, title, excerpt: textField(fields.excerpt), content, video_url: videoUrl, image };
+  const category = textField(fields.category);
+  if (category && !CATEGORIES.includes(category)) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Chủ đề bài viết không hợp lệ.');
+  }
+  return {
+    type: fields.type, title, excerpt: textField(fields.excerpt), content,
+    video_url: videoUrl, image, category,
+  };
 }
 
 function validatedSocialSource(sourceUrl, claimedPlatform) {
@@ -152,6 +162,7 @@ async function loadPost(slug) {
     content: row.content,
     video_url: row.video_url,
     image: row.image,
+    category: row.category,
     created_at: row.created_at,
     author: { name: row.author_name, avatar: row.author_avatar },
     source: sourceOf(row),
@@ -171,6 +182,11 @@ router.get('/', async (req, res, next) => {
       params.push(req.query.type);
     }
 
+    if (CATEGORIES.includes(req.query.category)) {
+      conditions.push('p.category = ?');
+      params.push(req.query.category);
+    }
+
     // Posts have no tags column, so a tag is matched as free text over title and excerpt.
     const tag = textField(req.query.tag);
     if (tag) {
@@ -186,7 +202,7 @@ router.get('/', async (req, res, next) => {
     const rows = await db
       .prepare(
         `SELECT p.id, p.slug, p.type, p.title, p.excerpt, p.image, p.video_url, p.created_at,
-                p.source_platform, p.source_url,
+                p.source_platform, p.source_url, p.category,
                 u.name AS author_name, u.avatar AS author_avatar,
                 s.id AS salon_id, s.name AS salon_name, s.slug AS salon_slug,
                 (SELECT COUNT(*) FROM post_comments c WHERE c.post_id = p.id) AS comment_count
@@ -209,6 +225,7 @@ router.get('/', async (req, res, next) => {
         excerpt: row.excerpt,
         image: row.image,
         video_url: row.video_url,
+        category: row.category,
         created_at: row.created_at,
         author: { name: row.author_name, avatar: row.author_avatar },
         source: sourceOf(row),
@@ -234,6 +251,13 @@ router.get('/mine', requireAuth, async (req, res, next) => {
       conditions.push('p.type = ?');
       params.push(req.query.type);
     }
+    if (req.query.category !== undefined) {
+      if (!CATEGORIES.includes(req.query.category)) {
+        throw httpError(400, 'VALIDATION_ERROR', 'Chủ đề bài viết không hợp lệ.');
+      }
+      conditions.push('p.category = ?');
+      params.push(req.query.category);
+    }
     const where = `WHERE ${conditions.join(' AND ')}`;
     const { total } = await db.prepare(`SELECT COUNT(*) AS total FROM posts p ${where}`).get(...params);
     const rows = await db.prepare(`
@@ -257,6 +281,7 @@ router.get('/mine', requireAuth, async (req, res, next) => {
         content: row.content,
         video_url: row.video_url,
         image: row.image,
+        category: row.category,
         created_at: row.created_at,
         author: { name: row.author_name, avatar: row.author_avatar },
         source: sourceOf(row),
@@ -280,11 +305,12 @@ router.post('/', requireAuth, async (req, res, next) => {
       video_url: videoUrl,
       excerpt,
       image,
+      category,
       source_platform: sourcePlatform,
       source_url: sourceUrl,
     } = req.body ?? {};
 
-    const clean = validatePostFields({ type, title, content, video_url: videoUrl, excerpt, image });
+    const clean = validatePostFields({ type, title, content, video_url: videoUrl, excerpt, image, category });
 
     const hasSocialSource = sourcePlatform !== undefined || sourceUrl !== undefined;
     let source = null;
@@ -316,6 +342,7 @@ router.post('/', requireAuth, async (req, res, next) => {
         clean.image,
         source?.platform ?? null,
         source?.url ?? null,
+        clean.category,
         new Date().toISOString(),
       );
     } catch (error) {
@@ -339,7 +366,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy bài viết này.');
     }
     const body = req.body ?? {};
-    const allowed = ['title', 'excerpt', 'content', 'video_url', 'image', 'source_url', 'source_platform'];
+    const allowed = ['title', 'excerpt', 'content', 'video_url', 'image', 'category', 'source_url', 'source_platform'];
     for (const key of ['id', 'author_id', 'salon_id', 'slug', 'type']) {
       if (Object.hasOwn(body, key)) {
         throw httpError(400, 'VALIDATION_ERROR', `Không thể thay đổi ${key}.`);
@@ -369,6 +396,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
       content: Object.hasOwn(body, 'content') ? body.content : current.content,
       video_url: Object.hasOwn(body, 'video_url') ? body.video_url : current.video_url,
       image: Object.hasOwn(body, 'image') ? body.image : current.image,
+      category: Object.hasOwn(body, 'category') ? body.category : current.category,
     });
 
     let sourcePlatform = current.source_platform;
@@ -404,13 +432,14 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
 
     try {
       const result = await db.prepare(`UPDATE posts SET title = ?, excerpt = ?, content = ?, video_url = ?, image = ?,
-        salon_id = ?, source_platform = ?, source_url = ?
+        category = ?, salon_id = ?, source_platform = ?, source_url = ?
         WHERE id = ? AND author_id = ?`).run(
         merged.title,
         merged.excerpt,
         merged.content,
         merged.video_url,
         merged.image,
+        merged.category,
         salonId,
         sourcePlatform,
         sourceUrl,

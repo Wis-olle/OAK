@@ -5,13 +5,30 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <title>Liên hệ - OAK Beauty</title>
+<meta content="Cần hỗ trợ đặt lịch, muốn đưa salon của bạn lên nền tảng hay có góp ý cho sản phẩm? Liên hệ đội ngũ OAK Beauty qua hotline, email hoặc biểu mẫu." name="description">
+<meta content="Liên hệ - OAK Beauty" property="og:title">
+<meta content="Cần hỗ trợ đặt lịch, muốn đưa salon của bạn lên nền tảng hay có góp ý cho sản phẩm? Liên hệ đội ngũ OAK Beauty qua hotline, email hoặc biểu mẫu." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/img-11f369ef67.jpg" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -41,25 +58,29 @@
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
 <div class="bg-surface-container-low rounded-2xl p-8 flex flex-col gap-3">
-<span class="material-symbols-outlined text-[32px] text-secondary" data-icon="mail">mail</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary" data-icon="mail">mail</span>
 <h2 class="font-headline-sm text-headline-sm text-primary">Email</h2>
 <p class="font-body-md text-body-md text-on-surface-variant"><a class="underline hover:text-primary transition-colors" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a></p>
 <p class="font-body-md text-body-md text-on-surface-variant">Phản hồi trong vòng 24 giờ làm việc.</p>
 </div>
 <div class="bg-surface-container-low rounded-2xl p-8 flex flex-col gap-3">
-<span class="material-symbols-outlined text-[32px] text-secondary" data-icon="call">call</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary" data-icon="call">call</span>
 <h2 class="font-headline-sm text-headline-sm text-primary">Hotline</h2>
 <p class="font-body-md text-body-md text-on-surface-variant"><a class="underline hover:text-primary transition-colors" href="tel:19006035">1900 6035</a></p>
 <p class="font-body-md text-body-md text-on-surface-variant">Cước phí 1.000đ/phút.</p>
 </div>
 <div class="bg-surface-container-low rounded-2xl p-8 flex flex-col gap-3">
-<span class="material-symbols-outlined text-[32px] text-secondary" data-icon="location_on">location_on</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary" data-icon="location_on">location_on</span>
 <h2 class="font-headline-sm text-headline-sm text-primary">Văn phòng</h2>
 <p class="font-body-md text-body-md text-on-surface-variant">Tầng 8, 72 Lê Thánh Tôn,</p>
 <p class="font-body-md text-body-md text-on-surface-variant">Phường Bến Nghé, Quận 1, TP.HCM</p>
+<a class="inline-flex items-center gap-1 font-label-md text-label-md text-primary hover:text-secondary transition-colors" href="https://maps.google.com/?q=T%E1%BA%A7ng%208%2C%2072%20L%C3%AA%20Th%C3%A1nh%20T%C3%B4n%2C%20Ph%C6%B0%E1%BB%9Dng%20B%E1%BA%BFn%20Ngh%C3%A9%2C%20Qu%E1%BA%ADn%201%2C%20TP.HCM" rel="noopener noreferrer" target="_blank">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="directions">directions</span>
+<span>Chỉ đường</span>
+</a>
 </div>
 <div class="bg-surface-container-low rounded-2xl p-8 flex flex-col gap-3">
-<span class="material-symbols-outlined text-[32px] text-secondary" data-icon="schedule">schedule</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary" data-icon="schedule">schedule</span>
 <h2 class="font-headline-sm text-headline-sm text-primary">Giờ làm việc</h2>
 <p class="font-body-md text-body-md text-on-surface-variant">Thứ Hai – Thứ Sáu: 09:00 – 18:00</p>
 <p class="font-body-md text-body-md text-on-surface-variant">Thứ Bảy: 09:00 – 12:00</p>
@@ -75,10 +96,11 @@
 <p class="font-body-md text-body-md text-on-surface-variant mb-8">
                     Điền nội dung bên dưới rồi bấm <strong class="text-primary">Soạn email</strong>. Trình duyệt sẽ mở ứng dụng email của bạn với nội dung đã điền sẵn, gửi tới hello@oakbeauty.vn.
                 </p>
-<form @submit.prevent="compose()" class="flex flex-col gap-6">
+<form @submit.prevent="compose()" class="flex flex-col gap-6" novalidate="">
 <div>
 <label class="block font-label-md text-label-md uppercase tracking-wider text-on-surface-variant mb-2" for="contact-name">Họ và tên</label>
-<input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 font-body-md text-body-md text-primary focus:outline-none focus:border-primary transition-colors" id="contact-name" placeholder="Nguyễn Thị An" required type="text" x-model="name">
+<input :aria-invalid="errors.name ? 'true' : 'false'" :class="errors.name ? 'border-error' : 'border-outline-variant'" class="w-full bg-surface border rounded-lg px-4 py-3 font-body-md text-body-md text-primary focus:outline-none focus:border-primary transition-colors" id="contact-name" placeholder="Nguyễn Thị An" required type="text" x-model="name">
+<p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="errors.name" x-text="errors.name"></p>
 </div>
 <div>
 <label class="block font-label-md text-label-md uppercase tracking-wider text-on-surface-variant mb-2" for="contact-topic">Chủ đề</label>
@@ -91,16 +113,27 @@
 </div>
 <div>
 <label class="block font-label-md text-label-md uppercase tracking-wider text-on-surface-variant mb-2" for="contact-message">Nội dung</label>
-<textarea class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 font-body-md text-body-md text-primary focus:outline-none focus:border-primary transition-colors" id="contact-message" placeholder="Mô tả ngắn gọn điều bạn cần hỗ trợ..." required rows="6" x-model="message"></textarea>
+<textarea :aria-invalid="errors.message ? 'true' : 'false'" :class="errors.message ? 'border-error' : 'border-outline-variant'" class="w-full bg-surface border rounded-lg px-4 py-3 font-body-md text-body-md text-primary focus:outline-none focus:border-primary transition-colors" id="contact-message" placeholder="Mô tả ngắn gọn điều bạn cần hỗ trợ..." required rows="6" x-model="message"></textarea>
+<p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="errors.message" x-text="errors.message"></p>
 </div>
 <div class="flex flex-col sm:flex-row sm:items-center gap-4">
 <button class="inline-flex items-center justify-center gap-2 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-8 py-4 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="submit">
-<span class="material-symbols-outlined text-[18px]" data-icon="outgoing_mail">outgoing_mail</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="outgoing_mail">outgoing_mail</span>
                             Soạn email
                         </button>
 <p class="font-caption text-caption text-outline">Bản demo không lưu nội dung trên máy chủ.</p>
 </div>
 </form>
+<!-- The draft outlives the mailto: a mail client that never opened leaves no other trace of it. -->
+<div class="mt-8 pt-6 border-t border-outline-variant/30" x-cloak="" x-show="draft">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-2">Nội dung đã soạn</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4">Gửi tới <a class="underline hover:text-primary transition-colors" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>.</p>
+<pre class="bg-surface border border-outline-variant rounded-lg p-4 font-body-md text-body-md text-primary whitespace-pre-wrap break-words" x-text="draft"></pre>
+<button @click="copyDraft()" class="mt-4 inline-flex items-center gap-2 border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors active:scale-95 duration-200" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="content_copy">content_copy</span>
+                        Sao chép nội dung
+                    </button>
+</div>
 </div>
 <!-- Topics -->
 <div class="flex flex-col gap-gutter">
@@ -126,7 +159,7 @@
 </section>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -143,12 +176,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -163,7 +198,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -174,6 +209,10 @@ function oakContactForm() {
         name: '',
         topic: 'Hỗ trợ đặt lịch',
         message: '',
+        /* Kept on the page after the mailto so the visitor still has what they typed even
+           when no mail client answered — a failure the browser never reports. */
+        draft: '',
+        errors: { name: '', message: '' },
 
         /*
          * There is no contact API on this backend, so the form never pretends to send.
@@ -182,16 +221,32 @@ function oakContactForm() {
         compose() {
             const name = this.name.trim();
             const message = this.message.trim();
-            if (!name || !message) {
-                OAK.toast('Vui lòng nhập họ tên và nội dung.', 'error');
+            this.errors = {
+                name: name ? '' : 'Vui lòng nhập họ và tên.',
+                message: message ? '' : 'Vui lòng nhập nội dung.',
+            };
+            const firstInvalid = this.errors.name ? 'contact-name'
+                : (this.errors.message ? 'contact-message' : '');
+            if (firstInvalid) {
+                document.getElementById(firstInvalid).focus();
                 return;
             }
             const subject = '[' + this.topic + '] ' + name;
             const body = message + '\n\n--\n' + name + '\nGửi từ oakbeauty.vn';
+            this.draft = subject + '\n\n' + body;
             location.href = 'mailto:hello@oakbeauty.vn' +
                 '?subject=' + encodeURIComponent(subject) +
                 '&body=' + encodeURIComponent(body);
-            OAK.toast('Đang mở ứng dụng email của bạn...');
+            OAK.toast('Nếu ứng dụng email không mở, hãy sao chép nội dung bên dưới.');
+        },
+
+        async copyDraft() {
+            try {
+                await navigator.clipboard.writeText(this.draft);
+                OAK.toast('Đã sao chép nội dung.');
+            } catch (error) {
+                OAK.toast('Không sao chép được, vui lòng chọn và chép thủ công.', 'error');
+            }
         },
     };
 }

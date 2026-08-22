@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -27,11 +38,64 @@
 <script src="assets/js/oak-header.js"></script>
 <!-- Main Content -->
 <main class="pt-20 flex-grow pb-section-gap">
-<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto pt-12" x-data="oakFavorites()">
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto pt-12 flex gap-gutter" x-data="oakFavorites()">
+<!-- AccountNav, desktop rail. Byte-for-byte the same on the five account pages;
+     the page it sits on is the one carrying aria-current. -->
+<aside class="hidden md:block w-72 shrink-0 sticky top-28 self-start" data-oak-account-nav="">
+<nav aria-label="Tài khoản của tôi" class="bg-surface-container-low rounded-lg shadow-sm flex flex-col gap-2 p-4">
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="lich-hen-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="calendar_month">calendar_month</span>
+Lịch hẹn của tôi
+</a>
+<a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="yeu-thich.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="favorite">favorite</span>
+Yêu thích
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="danh-gia-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="star_rate">star_rate</span>
+Đánh giá của tôi
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="notifications">notifications</span>
+Thông báo
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="ho-so-ca-nhan.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="person">person</span>
+Hồ sơ cá nhân
+</a>
+</nav>
+</aside>
+<div class="flex-1 min-w-0">
 <div class="mb-8">
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Yêu thích</h1>
 <p class="font-body-md text-body-md text-on-surface-variant">Những salon và dịch vụ bạn đã lưu lại để quay lại sau.</p>
 </div>
+<!-- AccountNav, mobile strip. Byte-for-byte the same on the five account pages;
+     the page it sits on is the one carrying aria-current. -->
+<nav aria-label="Tài khoản của tôi" class="md:hidden -mx-margin-mobile px-margin-mobile mb-8 overflow-x-auto" data-oak-account-tabs="">
+<div class="flex gap-2 w-max pb-2">
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="lich-hen-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="calendar_month">calendar_month</span>
+Lịch hẹn của tôi
+</a>
+<a aria-current="page" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="yeu-thich.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="favorite">favorite</span>
+Yêu thích
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="danh-gia-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="star_rate">star_rate</span>
+Đánh giá của tôi
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="notifications">notifications</span>
+Thông báo
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="ho-so-ca-nhan.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="person">person</span>
+Hồ sơ cá nhân
+</a>
+</div>
+</nav>
 <!-- Tabs -->
 <div class="flex gap-8 border-b border-outline-variant/30">
 <button :class="tab === 'salons' ? 'active' : ''" @click="tab = 'salons'" class="tab-button font-label-md text-label-md uppercase tracking-wider" type="button">
@@ -55,12 +119,12 @@
 <div class="min-w-0">
 <h3 class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="salon.name"></h3>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
 <span x-text="salon.address"></span>
 </p>
 </div>
 <div class="flex items-center gap-1 shrink-0" x-show="salon.review_count">
-<span class="material-symbols-outlined text-[14px] text-secondary fill" data-icon="star">star</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px] text-secondary fill" data-icon="star">star</span>
 <span class="font-label-md text-label-md text-primary" x-text="ratingOf(salon)"></span>
 </div>
 <span class="font-caption text-caption text-on-surface-variant shrink-0" x-show="!salon.review_count">Chưa có đánh giá</span>
@@ -74,7 +138,7 @@
 </div>
 <template x-if="!loading &amp;&amp; !salons.length">
 <div class="bg-surface-container-low rounded-lg py-16 px-6 text-center">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="favorite">favorite</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="favorite">favorite</span>
 <p class="font-body-md text-body-md text-on-surface-variant mb-6">Bạn chưa lưu salon nào. Khám phá và chạm vào trái tim để lưu lại nhé.</p>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="kham-pha.html">Khám phá salon</a>
 </div>
@@ -91,7 +155,7 @@
 </div>
 <h3 class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="service.name"></h3>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1 mb-3">
-<span class="material-symbols-outlined text-[14px]" data-icon="store">store</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="store">store</span>
 <span x-text="service.salon.name + ' • ' + service.salon.district"></span>
 </p>
 <div class="flex items-center justify-between gap-3">
@@ -107,16 +171,17 @@
 </div>
 <template x-if="!loading &amp;&amp; !services.length">
 <div class="bg-surface-container-low rounded-lg py-16 px-6 text-center">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="spa">spa</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="spa">spa</span>
 <p class="font-body-md text-body-md text-on-surface-variant mb-6">Chưa có dịch vụ yêu thích nào. Tìm dịch vụ phù hợp và lưu lại để đặt lịch nhanh hơn.</p>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="ket-qua-tim-kiem.html">Tìm dịch vụ</a>
 </div>
 </template>
 </div>
+</div>
 </section>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -133,12 +198,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -153,7 +220,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -184,7 +251,7 @@
             },
 
             salonUrl(salon) {
-                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+                return 'salon-profile.html?salon=' + encodeURIComponent(salon.slug);
             },
 
             ratingOf(salon) {
@@ -203,9 +270,26 @@
 
                 try {
                     await OAK.api('/api/favorites?' + key + '=' + item.id, { method: 'DELETE' });
-                    OAK.toast('Đã bỏ khỏi danh sách yêu thích.');
+                    OAK.toast('Đã bỏ khỏi danh sách yêu thích.', 'success', {
+                        actionLabel: 'Hoàn tác',
+                        onAction: () => this.restore(list, item, index),
+                    });
                 } catch (error) {
                     this[list].splice(index, 0, item);
+                    OAK.toast(error.message, 'error');
+                }
+            },
+
+            /* Undo, the same way round: the card returns to the spot it left, and only
+               leaves again if the server refuses to take it back. */
+            async restore(list, item, index) {
+                const key = list === 'salons' ? 'salon_id' : 'service_id';
+                this[list].splice(index, 0, item);
+
+                try {
+                    await OAK.api('/api/favorites', { method: 'POST', body: { [key]: item.id } });
+                } catch (error) {
+                    this[list].splice(this[list].indexOf(item), 1);
                     OAK.toast(error.message, 'error');
                 }
             },

@@ -5,13 +5,30 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <title>Không gian &amp; Tiện ích - OAK Beauty</title>
+<meta content="Tham quan không gian salon qua tour 360 độ, xem tiện ích phòng chờ, chỗ để xe và trang thiết bị trước khi bạn quyết định đặt lịch tại OAK Beauty." name="description">
+<meta content="Không gian &amp; Tiện ích - OAK Beauty" property="og:title">
+<meta content="Tham quan không gian salon qua tour 360 độ, xem tiện ích phòng chờ, chỗ để xe và trang thiết bị trước khi bạn quyết định đặt lịch tại OAK Beauty." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/img-11f369ef67.jpg" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -24,6 +41,16 @@
 <header class="py-16 md:py-24 text-center max-w-3xl mx-auto">
 <h1 class="font-headline-lg-mobile text-headline-lg-mobile md:text-display-lg text-primary mb-6">Không gian &amp; Tiện ích</h1>
 <p class="font-body-lg text-body-lg text-on-surface-variant">Khám phá không gian thư giãn đẳng cấp tại OAK Beauty.</p>
+<!-- x-if, not x-show: a bound href is evaluated even while the element is out of view,
+     and salonUrl() has no salon to read until the flagship lookup answers. -->
+<template x-if="salon">
+<p class="mt-8">
+<a :href="salonUrl()" class="font-label-md text-label-md text-primary uppercase tracking-wider border-b border-primary pb-1 hover:text-secondary hover:border-secondary transition-colors inline-flex items-center gap-2">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="storefront">storefront</span>
+<span x-text="salon.name"></span>
+</a>
+</p>
+</template>
 </header>
 <!-- Large Hero Gallery Bento Grid -->
 <section class="grid grid-cols-1 md:grid-cols-12 gap-gutter mb-section-gap">
@@ -75,7 +102,7 @@
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter border-t border-outline-variant/30 pt-16">
 <template :key="amenity" x-for="amenity in amenities">
 <div class="flex flex-col items-start gap-4">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant" style="font-variation-settings: 'FILL' 0;" x-text="icon(amenity)"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant" style="font-variation-settings: 'FILL' 0;" x-text="icon(amenity)"></span>
 <h3 class="font-label-md text-label-md text-primary uppercase" x-text="amenity"></h3>
 </div>
 </template>
@@ -84,9 +111,17 @@
 </template>
 </div>
 </section>
+<!-- Booking CTA -->
+<template x-if="salon">
+<section class="text-center border-t border-outline-variant/30 pt-16">
+<a :href="bookingUrl()" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-8 py-4 rounded-full hover:bg-primary transition-colors" type="button">
+                Đặt lịch tại chi nhánh này
+            </button></a>
+</section>
+</template>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -103,12 +138,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -123,7 +160,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -165,6 +202,14 @@
 
             icon(amenity) {
                 return ICONS[amenity] || 'spa';
+            },
+
+            salonUrl() {
+                return 'salon-profile.html?salon=' + encodeURIComponent(this.salon.slug);
+            },
+
+            bookingUrl() {
+                return 'dat-lich.html?salon_id=' + this.salon.id;
             },
         };
     }

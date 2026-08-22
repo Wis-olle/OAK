@@ -5,7 +5,18 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -25,6 +36,11 @@
 <main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full">
 <!-- The stepper and the grid share one scope so the stepper can follow the wizard. -->
 <div class="scroll-mt-32" x-data="oakBookingForm()">
+<!-- Reschedule notice -->
+<div class="mb-8 max-w-3xl mx-auto flex items-start gap-3 bg-secondary-container text-on-secondary-container rounded-lg p-4" x-cloak="" x-show="reschedule">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="event">event</span>
+<p class="font-body-md text-body-md">Bạn đang đổi lịch hẹn — lịch cũ sẽ được hủy sau khi bạn xác nhận lịch mới.</p>
+</div>
 <!-- Stepper -->
 <div class="mb-12 max-w-3xl mx-auto" x-cloak="">
 <div class="flex items-center justify-between relative">
@@ -32,7 +48,7 @@
 <template :key="item.n" x-for="item in steps">
 <button :aria-current="step === item.n ? 'step' : false" :class="!loading &amp;&amp; stepOpen(item.n) ? 'hover:opacity-80 transition-opacity' : 'cursor-default'" :disabled="loading || !stepOpen(item.n)" @click="goTo(item.n)" class="flex flex-col items-center gap-2 bg-background px-4" type="button">
 <div :class="stepOpen(item.n) ? 'bg-primary-container text-on-primary' : 'bg-surface-variant text-on-surface-variant'" class="w-8 h-8 rounded-full flex items-center justify-center font-label-md text-label-md">
-<span class="material-symbols-outlined text-[16px]" data-icon="check" x-cloak="" x-show="stepDone(item.n)">check</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="check" x-cloak="" x-show="stepDone(item.n)">check</span>
 <span x-show="!stepDone(item.n)" x-text="item.n"></span>
 </div>
 <span :class="step === item.n ? 'font-label-md text-label-md text-primary font-bold' : 'font-caption text-caption text-on-surface-variant'" x-text="item.label"></span>
@@ -62,6 +78,19 @@
 <p class="font-body-md text-body-md text-error" x-text="salonsError"></p>
 <button :disabled="salonsLoading" @click="loadSalons(1)" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors disabled:opacity-60" type="button">Thử lại</button>
 </div>
+<!-- Nothing to dim on the first run, so the cards to come are drawn at their own size.
+     Six is a near enough hint and deliberately short of the twelve the page asks for:
+     mirroring the full page would push the picker's own controls off the screen. -->
+<div aria-hidden="true" class="grid grid-cols-1 sm:grid-cols-2 gap-4" x-cloak="" x-show="salonsLoading &amp;&amp; !salons.length">
+<template :key="row" x-for="row in 6">
+<div class="p-3 border border-outline-variant rounded-lg">
+<div class="aspect-[3/2] w-full rounded bg-surface-container animate-pulse mb-3"></div>
+<div class="h-5 w-2/3 rounded bg-surface-container animate-pulse mb-2"></div>
+<div class="h-4 w-1/2 rounded bg-surface-container animate-pulse mb-1"></div>
+<div class="h-4 w-1/3 rounded bg-surface-container animate-pulse"></div>
+</div>
+</template>
+</div>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" :class="salonsLoading ? 'opacity-50' : ''">
 <template :key="entry.id" x-for="entry in salons">
 <button :class="salon &amp;&amp; salon.id === entry.id ? 'border-primary' : 'border-outline-variant'" @click="chooseSalon(entry)" class="text-left p-3 border rounded-lg hover:border-primary transition-colors" type="button">
@@ -71,20 +100,20 @@
 </template>
 <template x-if="!entry.image">
 <span class="w-full h-full flex items-center justify-center">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant/50" data-icon="spa">spa</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant/50" data-icon="spa">spa</span>
 </span>
 </template>
 </span>
 <span class="flex items-start justify-between gap-2">
 <span class="font-body-md text-body-md font-medium" x-text="entry.name"></span>
-<span class="material-symbols-outlined text-[18px] text-primary shrink-0" data-icon="check_circle" x-cloak="" x-show="salon &amp;&amp; salon.id === entry.id">check_circle</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-primary shrink-0" data-icon="check_circle" x-cloak="" x-show="salon &amp;&amp; salon.id === entry.id">check_circle</span>
 </span>
 <span class="font-caption text-caption text-on-surface-variant flex items-center gap-1 mt-1">
-<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
 <span x-text="salonLocation(entry)"></span>
 </span>
 <span class="flex items-center gap-1 mt-1" x-show="entry.review_count">
-<span class="material-symbols-outlined text-[14px] text-secondary" data-icon="star" data-weight="fill">star</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px] text-secondary" data-icon="star" data-weight="fill">star</span>
 <span class="font-label-md text-label-md text-primary" x-text="salonRating(entry)"></span>
 <span class="font-caption text-caption text-on-surface-variant" x-text="'(' + entry.review_count + ')'"></span>
 </span>
@@ -110,6 +139,18 @@
 <p class="font-body-md text-body-md text-error" x-text="optionsError"></p>
 <button :disabled="optionsLoading" @click="loadOptions(salon.id)" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors disabled:opacity-60" type="button">Thử lại</button>
 </div>
+<!-- Nothing to dim on the first run, so the rows to come are drawn at their own size. -->
+<div aria-hidden="true" class="grid grid-cols-1 md:grid-cols-2 gap-4" x-cloak="" x-show="optionsLoading &amp;&amp; !options.length">
+<template :key="row" x-for="row in 4">
+<div class="flex items-start justify-between gap-4 p-4 border border-outline-variant rounded-lg">
+<div class="flex flex-col gap-2 w-1/2">
+<div class="h-5 w-full rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-1/2 rounded bg-surface-container animate-pulse"></div>
+</div>
+<div class="h-5 w-20 rounded bg-surface-container animate-pulse shrink-0"></div>
+</div>
+</template>
+</div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4" :class="optionsLoading ? 'opacity-50' : ''">
 <template :key="option.id" x-for="option in options">
 <button :class="service &amp;&amp; service.id === option.id ? 'border-primary' : 'border-outline-variant'" @click="chooseService(option)" class="flex items-start justify-between gap-4 text-left p-4 border rounded-lg hover:border-primary transition-colors" type="button">
@@ -119,14 +160,14 @@
 </span>
 <span class="flex items-center gap-2 shrink-0">
 <span class="font-label-md text-label-md text-primary" x-text="OAK.fmtPrice(option.price)"></span>
-<span class="material-symbols-outlined text-[18px] text-primary" data-icon="check_circle" x-cloak="" x-show="service &amp;&amp; service.id === option.id">check_circle</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-primary" data-icon="check_circle" x-cloak="" x-show="service &amp;&amp; service.id === option.id">check_circle</span>
 </span>
 </button>
 </template>
 </div>
 </div>
 <div class="flex flex-col gap-3">
-<p class="font-caption text-caption text-error" x-cloak="" x-show="stepError" x-text="stepError"></p>
+<p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="stepError" x-text="stepError"></p>
 <div class="flex flex-wrap items-center gap-4">
 <button @click="goTo(1)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
 <button :disabled="loading || optionsLoading" @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">Tiếp tục</button>
@@ -148,8 +189,17 @@
 <!-- Date + slot picker -->
 <div class="space-y-8" x-cloak="" x-show="service">
 <h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn thời gian</h2>
+<!-- The next seven days at a glance, each marked when it has nothing free. -->
+<div class="flex flex-wrap gap-2" x-cloak="" x-show="dayChips.length">
+<template :key="chip.date" x-for="chip in dayChips">
+<button :class="[date === chip.date ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant', chip.full ? 'line-through opacity-60' : '']" @click="pickDate(chip.date)" class="flex flex-col items-center justify-center min-h-[44px] px-4 py-2 border rounded-2xl hover:border-primary transition-colors" type="button">
+<span class="font-label-md text-label-md" x-text="chip.weekday"></span>
+<span class="font-caption text-caption" x-text="chip.day"></span>
+</button>
+</template>
+</div>
 <div class="relative md:max-w-xs">
-<label class="font-label-md text-label-md text-outline block mb-2" for="booking-date">Ngày hẹn *</label>
+<label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="booking-date">Ngày khác</label>
 <input :min="today" @change="loadSlots()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors" id="booking-date" type="date" x-model="date"/>
 </div>
 <p class="font-body-md text-body-md text-on-surface-variant" x-show="!slotsLoading &amp;&amp; !slotsError &amp;&amp; !slots.length">Ngày này chưa có khung giờ nào, vui lòng chọn ngày khác.</p>
@@ -157,14 +207,20 @@
 <p class="font-body-md text-body-md text-error" x-text="slotsError"></p>
 <button :disabled="slotsLoading" @click="loadSlots()" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors disabled:opacity-60" type="button">Thử lại</button>
 </div>
+<!-- Nothing to dim on the first run, so the chips to come are drawn at their own size. -->
+<div aria-hidden="true" class="flex flex-wrap gap-3" x-cloak="" x-show="slotsLoading &amp;&amp; !slots.length">
+<template :key="row" x-for="row in 8">
+<div class="h-10 w-24 rounded-full bg-surface-container animate-pulse"></div>
+</template>
+</div>
 <div class="flex flex-wrap gap-3" :class="slotsLoading ? 'opacity-50' : ''">
 <template :key="slot.time" x-for="slot in slots">
-<button :class="time === slot.time ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" :disabled="!slot.available" @click="time = slot.time; stepError = ''" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors disabled:opacity-40 disabled:line-through disabled:hover:border-outline-variant" type="button" x-text="slot.time"></button>
+<button :class="time === slot.time ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" :disabled="!slot.available" @click="pickTime(slot.time)" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors disabled:opacity-40 disabled:line-through disabled:hover:border-outline-variant" type="button" x-text="slot.time"></button>
 </template>
 </div>
 </div>
 <div class="flex flex-col gap-3">
-<p class="font-caption text-caption text-error" x-cloak="" x-show="stepError" x-text="stepError"></p>
+<p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="stepError" x-text="stepError"></p>
 <div class="flex flex-wrap items-center gap-4">
 <button @click="goTo(2)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
 <button :disabled="slotsLoading || loading" @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">Tiếp tục</button>
@@ -182,28 +238,28 @@
 <h2 class="font-headline-sm text-headline-sm text-primary mb-6 border-b border-outline-variant/20 pb-4">Tóm tắt dịch vụ</h2>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="flex gap-4">
-<span class="material-symbols-outlined text-outline mt-1" data-icon="storefront">storefront</span>
+<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1" data-icon="storefront">storefront</span>
 <div>
 <p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Salon</p>
 <p class="font-body-md text-body-md font-medium" x-text="salon ? salon.name : 'Chưa chọn'">Đang tải…</p>
 </div>
 </div>
 <div class="flex gap-4">
-<span class="material-symbols-outlined text-outline mt-1" data-icon="spa">spa</span>
+<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1" data-icon="spa">spa</span>
 <div>
 <p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Dịch vụ</p>
 <p class="font-body-md text-body-md font-medium" x-text="service ? service.name : 'Chưa chọn'">Đang tải…</p>
 </div>
 </div>
 <div class="flex gap-4">
-<span class="material-symbols-outlined text-outline mt-1" data-icon="person">person</span>
+<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1" data-icon="person">person</span>
 <div>
 <p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Nhân viên</p>
 <p class="font-body-md text-body-md font-medium" x-text="staffLabel()">Đang tải…</p>
 </div>
 </div>
 <div class="flex gap-4">
-<span class="material-symbols-outlined text-outline mt-1" data-icon="event">event</span>
+<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1" data-icon="event">event</span>
 <div>
 <p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Thời gian</p>
 <p class="font-body-md text-body-md font-medium" x-text="whenLabel()">Đang tải…</p>
@@ -216,16 +272,18 @@
 <h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Thông tin khách hàng</h2>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="relative">
-<label class="font-label-md text-label-md text-outline block mb-2" for="customer-name">Họ và tên *</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" id="customer-name" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
+<label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-name">Họ và tên *</label>
+<input :aria-invalid="fieldErrors.name ? 'true' : null" :class="fieldErrors.name ? 'border-error' : 'border-outline-variant'" @input="fieldErrors.name = ''" aria-describedby="customer-name-error" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" id="customer-name" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
+<p class="font-body-md text-sm text-error mt-2" id="customer-name-error" x-cloak="" x-show="fieldErrors.name" x-text="fieldErrors.name"></p>
 </div>
 <div class="relative">
-<label class="font-label-md text-label-md text-outline block mb-2" for="customer-phone">Số điện thoại *</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" id="customer-phone" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
+<label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-phone">Số điện thoại *</label>
+<input :aria-invalid="fieldErrors.phone ? 'true' : null" :class="fieldErrors.phone ? 'border-error' : 'border-outline-variant'" @input="fieldErrors.phone = ''" aria-describedby="customer-phone-error" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" id="customer-phone" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
+<p class="font-body-md text-sm text-error mt-2" id="customer-phone-error" x-cloak="" x-show="fieldErrors.phone" x-text="fieldErrors.phone"></p>
 </div>
 </div>
 <div class="relative">
-<label class="font-label-md text-label-md text-outline block mb-2" for="customer-note">Ghi chú đặc biệt (Không bắt buộc)</label>
+<label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-note">Ghi chú đặc biệt (Không bắt buộc)</label>
 <textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50 resize-none" id="customer-note" placeholder="Ví dụ: Da tay mỏng, cần làm nhẹ nhàng..." rows="3" x-model="form.note"></textarea>
 </div>
 </div>
@@ -234,7 +292,7 @@
 <h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Phương thức thanh toán</h2>
 <label class="flex items-center justify-between p-6 border border-primary rounded-lg bg-surface-container-low transition-all">
 <div class="flex items-center gap-4">
-<span class="material-symbols-outlined text-primary" data-icon="payments">payments</span>
+<span aria-hidden="true" class="material-symbols-outlined text-primary" data-icon="payments">payments</span>
 <span class="font-body-md text-body-md font-medium text-primary">Thanh toán tại salon</span>
 </div>
 <div class="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center">
@@ -274,13 +332,13 @@
 </div>
 </div>
 <div class="flex flex-col gap-3" x-cloak="" x-show="step === 4">
-<p class="font-caption text-caption text-error-container" x-cloak="" x-show="formError" x-text="formError"></p>
+<p class="font-body-md text-sm text-error-container" role="alert" x-cloak="" x-show="formError" x-text="formError"></p>
 <p class="font-caption text-caption text-on-tertiary/80" x-cloak="" x-show="!loading &amp;&amp; !user">Bạn cần đăng nhập để hoàn tất đặt lịch — lựa chọn của bạn sẽ được giữ nguyên.</p>
 <button :disabled="busy || loading" @click="submit()" class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : (loading || user ? 'Xác nhận đặt lịch' : 'Đăng nhập &amp; xác nhận')">Xác nhận đặt lịch</button>
 </div>
 <div class="bg-on-tertiary/5 p-4 rounded space-y-2">
 <div class="flex items-start gap-2">
-<span class="material-symbols-outlined text-[18px] mt-0.5 text-on-tertiary/80" data-icon="info">info</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] mt-0.5 text-on-tertiary/80" data-icon="info">info</span>
 <span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80">Chính sách hủy lịch</span>
 </div>
 <p class="font-caption text-caption text-on-tertiary/70 pl-6 leading-relaxed">
@@ -293,7 +351,7 @@
 </div>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -310,12 +368,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -330,7 +390,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -350,6 +410,11 @@
         const pad = (value) => String(value).padStart(2, '0');
         return pad(now.getHours()) + ':' + pad(now.getMinutes());
     }
+
+    // Each name is a dictionary key of its own, and the day beside it is digits, so the two
+    // sit in their own nodes and the strip reads in English without a rule for a built string.
+    const OAK_WEEKDAY_SHORT = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+    const OAK_DAY_STRIP_LEN = 7;
 
     const OAK_PROMO_LOGIN_MESSAGE = 'Vui lòng đăng nhập để áp dụng mã ưu đãi.';
     // Where the contact fields wait out a login round trip; the url carries the selection.
@@ -397,19 +462,35 @@
             slotsLoading: false,
             slotsError: '',
             slotsToken: 0,
+            dayChips: [],
+            chipsToken: 0,
 
             promo: '',
             promoError: '',
             quote: null,
             formError: '',
+            /* The summary above the confirm button sits in the sidebar, a screenful away
+               from the fields on a phone, so each field also names its own problem. */
+            fieldErrors: { name: '', phone: '' },
             form: { name: '', phone: '', note: '' },
+            // The appointment this booking replaces, when the visitor arrived from "Đổi lịch".
+            // It rides in the url, so it survives the login round trip like the selection does.
+            reschedule: null,
 
             async init() {
                 const serviceId = Number(OAK.qs('service_id')) || 0;
                 const salonId = Number(OAK.qs('salon_id')) || 0;
+                // Read once, up here, and never from the url again: OAK.qs() reads the LIVE
+                // location.search, and syncUrl() rewrites it as soon as the first request
+                // lands. Anything below that wants to know what the visitor arrived with has
+                // to ask these, or it will be asking the url this very page just rewrote.
+                const wantedTime = OAK.qs('time') || '';
+                const wantedDate = OAK.qs('date') || '';
+                // Same reason: selectionUrl() carries this one forward, but only from state.
+                this.reschedule = Number(OAK.qs('reschedule')) || null;
                 // Paint the step the url implies before anything is awaited, so a deep-linked
                 // visitor never sees a live step 1 they can click into a false error.
-                this.step = serviceId && OAK.qs('time') ? 4 : (serviceId ? 3 : (salonId ? 2 : 1));
+                this.step = serviceId && wantedTime ? 4 : (serviceId ? 3 : (salonId ? 2 : 1));
 
                 this.user = await OAK.me();
                 if (this.user) {
@@ -420,8 +501,12 @@
                 this.restoreForm();
 
                 this.promo = OAK.qs('promo') || '';
-                this.date = OAK.qs('date') || this.today;
-                this.time = OAK.qs('time') || '';
+                // A shared or bookmarked url carries an absolute date, so it goes stale on its
+                // own. A past one is dropped rather than loaded: slotOpen() only closes hours
+                // that have passed when the date IS today, so a past date would offer a full
+                // day of slots the server refuses at submit with nothing to explain it.
+                this.date = wantedDate >= this.today ? wantedDate : this.today;
+                this.time = wantedTime;
                 this.staffId = Number(OAK.qs('staff_id')) || null;
 
                 // Step 1 stays one stepper click away on every path, so its list always loads.
@@ -450,6 +535,12 @@
                 this.step = this.canEnter(4) ? 4 : (this.canEnter(3) ? 3 : (this.canEnter(2) ? 2 : 1));
                 this.stepError = '';
                 this.formError = '';
+                // A time carried in from the service page can be gone by the time it is
+                // checked. Say so on the step it sends them back to, rather than dropping
+                // them there in front of a grid that looks like they never chose anything.
+                if (wantedTime && !this.time) {
+                    this.stepError = 'Khung giờ bạn chọn không còn trống, vui lòng chọn giờ khác.';
+                }
             },
 
             /** Step 1's directory. `page` is committed only on success, so a failed "Xem thêm"
@@ -538,6 +629,9 @@
                     this.staffId = null;
                     this.time = '';
                     this.slots = [];
+                    // The strip belongs to the service it was built for: left up, its days
+                    // stay pressable and would answer for a salon nobody is looking at.
+                    this.dayChips = [];
                     this.quote = null;
                     this.promoError = '';
                     // Step 2 renders its own loading state, so it does not wait for this.
@@ -586,6 +680,7 @@
                 this.step = n;
                 this.stepError = '';
                 this.formError = '';
+                this.syncUrl();
                 this.$root.scrollIntoView({ behavior: 'smooth' });
             },
 
@@ -610,6 +705,9 @@
                     return;
                 }
                 this.service = service;
+                // Same reason as in chooseSalon: the old service's days must not stay up
+                // while the new one's are still being fetched.
+                this.dayChips = [];
                 // Only the ?service_id deep link arrives without a salon; a step 2 pick already
                 // has the richer card from the directory, so it wins over the service's stub.
                 this.salon = this.salon || service.salon;
@@ -623,13 +721,80 @@
                     this.staffId = null;
                 }
                 await this.loadSlots();
+                // The strip is a shortcut past the date field, so nothing waits for it.
+                this.loadDayChips();
                 await this.loadQuote();
             },
 
             setStaff(id) {
                 this.staffId = id;
                 this.loadSlots();
+                this.loadDayChips();
                 this.loadQuote();
+            },
+
+            /** A slot that can still be booked: free, and not an hour today that has passed. */
+            slotOpen(slot, date) {
+                return slot.available && !(date === this.today && slot.time <= oakNowTime());
+            },
+
+            /** The next seven days, each marked full when nothing on it can be booked any
+                more. Both endpoints answer ?days in the same week shape, so the strip costs
+                one round trip whether or not a technician has been chosen. */
+            async loadDayChips() {
+                const token = ++this.chipsToken;
+                if (!this.service) {
+                    this.dayChips = [];
+                    return;
+                }
+                const staffId = this.staffId;
+                const path = staffId
+                    ? '/api/staff/' + staffId + '/availability?days=' + OAK_DAY_STRIP_LEN
+                        + '&from=' + this.today + '&service_id=' + this.service.id
+                    : '/api/services/' + this.service.id + '/availability?days=' + OAK_DAY_STRIP_LEN
+                        + '&from=' + this.today;
+                try {
+                    const { week } = await OAK.api(path);
+                    if (token !== this.chipsToken) {
+                        return;
+                    }
+                    this.dayChips = week.map((day) => ({
+                        date: day.date,
+                        weekday: day.date === this.today
+                            ? 'Hôm nay'
+                            : OAK_WEEKDAY_SHORT[new Date(day.date + 'T00:00:00').getDay()],
+                        day: day.date.slice(8) + '/' + day.date.slice(5, 7),
+                        full: !day.slots.some((slot) => this.slotOpen(slot, day.date)),
+                    }));
+                } catch (error) {
+                    if (token === this.chipsToken) {
+                        // The strip is an extra: the date field under it still works, so a
+                        // failure takes the strip away instead of raising an error of its own.
+                        this.dayChips = [];
+                    }
+                }
+            },
+
+            /** Pick a day from the strip. A full one is still pickable — its grid then says
+                which hours are gone, which is more use than a chip that cannot be pressed. */
+            pickDate(value) {
+                this.stepError = '';
+                if (this.date !== value) {
+                    this.date = value;
+                    this.loadSlots();
+                }
+            },
+
+            pickTime(value) {
+                this.time = value;
+                this.stepError = '';
+                this.syncUrl();
+            },
+
+            /** Keep the url in step with the selection, so a reload or a Back button returns
+                to the same wizard instead of an empty step 1. */
+            syncUrl() {
+                history.replaceState(null, '', this.selectionUrl());
             },
 
             /** Step 3's grid. Changing the technician or the date leaves the previous request
@@ -648,9 +813,12 @@
                 // A chosen technician has their own calendar. The service endpoint ORs across
                 // everyone who performs it, so it would offer slots this one person cannot take.
                 const staffId = this.staffId;
+                // `date` is whatever the url or the date field handed over, so it is encoded
+                // rather than pasted into the query string as it stands.
+                const date = encodeURIComponent(this.date);
                 const path = staffId
-                    ? '/api/staff/' + staffId + '/availability?days=1&from=' + this.date + '&service_id=' + this.service.id
-                    : '/api/services/' + this.service.id + '/availability?date=' + this.date;
+                    ? '/api/staff/' + staffId + '/availability?days=1&from=' + date + '&service_id=' + this.service.id
+                    : '/api/services/' + this.service.id + '/availability?date=' + date;
                 try {
                     const data = await OAK.api(path);
                     if (token !== this.slotsToken) {
@@ -659,9 +827,8 @@
                     const slots = staffId ? data.week[0].slots : data.slots;
                     // An hour that has already started today cannot be booked any more; the
                     // server refuses it too, so offering it would only end in an error.
-                    const passed = this.date === this.today ? oakNowTime() : '';
                     this.slots = slots.map((slot) =>
-                        slot.time <= passed ? { ...slot, available: false } : slot,
+                        this.slotOpen(slot, this.date) ? slot : { ...slot, available: false },
                     );
                 } catch (error) {
                     if (token !== this.slotsToken) {
@@ -679,6 +846,8 @@
                 if (!this.slots.some((slot) => slot.time === this.time && slot.available)) {
                     this.time = '';
                 }
+                // Last, so the url is written once the dropped time is already gone from it.
+                this.syncUrl();
             },
 
             /** The sidebar total when the quote endpoint is out of reach. */
@@ -742,7 +911,14 @@
                 return this.date && this.time ? this.time + ', ' + OAK.fmtDate(this.date) : 'Chưa chọn';
             },
 
-            /** The current selection as a url, so a login round trip comes back to it. */
+            /**
+             * The current selection as a url, so a login round trip comes back to it.
+             *
+             * ALSO what syncUrl() writes on every selection change, which makes this the one
+             * list of query parameters this page keeps. A parameter the page reads but this
+             * does not write is erased at the visitor's first interaction — so anything new
+             * arriving in the url has to be added here as well, not only read in init().
+             */
             selectionUrl() {
                 const params = new URLSearchParams();
                 if (this.service) {
@@ -763,7 +939,15 @@
                 if (this.promo.trim()) {
                     params.set('promo', this.promo.trim());
                 }
-                return 'dat-lich.html?' + params;
+                // Not a selection, but the url is the only place it lives: syncUrl() overwrites
+                // location.search on the first request, so anything left out here is lost.
+                if (this.reschedule) {
+                    params.set('reschedule', this.reschedule);
+                }
+                // Now that every selection change writes this, an empty one has to stay clean:
+                // syncUrl() runs on step 1 too, before anything has been chosen.
+                const query = String(params);
+                return query ? 'dat-lich.html?' + query : 'dat-lich.html';
             },
 
             /** The contact fields the url cannot carry, picked back up once on the way back
@@ -786,6 +970,49 @@
                 }
             },
 
+            /** Retire the appointment this one replaces, once the replacement actually exists.
+                A failure here is not fatal — the new booking stands — so it is reported
+                rather than thrown: the id of the appointment still standing, or 0. A toast
+                would not survive the navigation that follows, so the confirmation page
+                carries the warning instead. */
+            async dropOldBooking() {
+                if (!this.reschedule) {
+                    return 0;
+                }
+                try {
+                    await OAK.api('/api/bookings/' + this.reschedule + '/cancel', { method: 'PATCH' });
+                    return 0;
+                } catch (error) {
+                    return this.reschedule;
+                }
+            },
+
+            /** Fill fieldErrors, put the caret on the first field that has one, and answer
+                whether the pair is good. The phone pattern is the one dang-ky.html uses, so
+                a number this page takes is a number that page would take too. */
+            checkContact() {
+                const errors = { name: '', phone: '' };
+                if (!this.form.name.trim()) {
+                    errors.name = 'Vui lòng nhập họ tên.';
+                }
+                const phone = this.form.phone.trim();
+                if (!phone) {
+                    errors.phone = 'Vui lòng nhập số điện thoại.';
+                } else if (!/^[\d\s+.-]{8,15}$/.test(phone)) {
+                    errors.phone = 'Số điện thoại không hợp lệ.';
+                }
+                this.fieldErrors = errors;
+                const first = errors.name ? 'customer-name' : (errors.phone ? 'customer-phone' : '');
+                if (first) {
+                    const field = document.getElementById(first);
+                    if (field) {
+                        field.focus();
+                    }
+                    return false;
+                }
+                return true;
+            },
+
             async submit() {
                 this.formError = '';
                 if (!this.service) {
@@ -796,8 +1023,8 @@
                     this.formError = 'Vui lòng chọn ngày và giờ hẹn.';
                     return;
                 }
-                if (!this.form.name.trim() || !this.form.phone.trim()) {
-                    this.formError = 'Vui lòng nhập họ tên và số điện thoại.';
+                if (!this.checkContact()) {
+                    this.formError = 'Vui lòng kiểm tra lại thông tin liên hệ.';
                     return;
                 }
 
@@ -831,7 +1058,9 @@
                             customer_phone: this.form.phone.trim(),
                         },
                     });
-                    location.href = 'xac-nhan-dat-lich.html?id=' + booking.id;
+                    const stranded = await this.dropOldBooking();
+                    location.href = 'xac-nhan-dat-lich.html?id=' + booking.id
+                        + (stranded ? '&reschedule_failed=' + stranded : '');
                 } catch (error) {
                     this.formError = error.message;
                     // Somebody took the slot between loading it and confirming. The refreshed

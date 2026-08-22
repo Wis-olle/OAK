@@ -5,13 +5,30 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <title>Dịch vụ Nail - OAK Beauty</title>
+<meta content="Từ thiết kế móng tối giản đến nghệ thuật vẽ móng tinh xảo. So sánh salon nail tại TP.HCM theo giá, đánh giá và khung giờ trống rồi đặt lịch ngay." name="description">
+<meta content="Dịch vụ Nail - OAK Beauty" property="og:title">
+<meta content="Từ thiết kế móng tối giản đến nghệ thuật vẽ móng tinh xảo. So sánh salon nail tại TP.HCM theo giá, đánh giá và khung giờ trống rồi đặt lịch ngay." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/img-b9e5f1c043.jpg" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -23,23 +40,26 @@
 <main class="pt-24 pb-section-gap min-h-screen" x-data="oakNailPage()">
 <!-- Breadcrumb -->
 <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-12 mt-8">
-<nav class="flex text-caption font-caption text-on-surface-variant gap-2 items-center">
-<a class="hover:text-primary transition-colors" href="kham-pha.html">Khám phá</a>
-<span class="material-symbols-outlined text-[14px]">chevron_right</span>
-<span class="text-primary font-medium">Nail</span>
+<nav aria-label="Breadcrumb">
+<ol class="flex items-center space-x-2 font-caption text-caption text-on-surface-variant">
+<li><a class="hover:text-primary transition-colors" href="kham-pha.html">Khám phá</a></li>
+<li class="flex items-center"><span aria-hidden="true" class="material-symbols-outlined text-[14px]">chevron_right</span></li>
+<li aria-current="page" class="text-primary font-medium">Nail</li>
+</ol>
 </nav>
 </div>
 <!-- Hero Section -->
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
 <div class="grid grid-cols-1 md:grid-cols-12 gap-gutter items-center">
 <div class="md:col-span-5 flex flex-col justify-center h-full gap-6 pr-0 md:pr-12">
-<h1 class="font-display-lg text-display-lg md:text-display-lg text-primary tracking-tight">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile md:font-display-lg md:text-display-lg text-primary tracking-tight">
                         Dịch vụ Nail
                     </h1>
 <p class="font-body-lg text-body-lg text-on-surface-variant max-w-md">
                         Trải nghiệm nghệ thuật chăm sóc móng đẳng cấp. Từ các thiết kế tối giản thanh lịch đến nghệ thuật vẽ móng tinh xảo, đội ngũ chuyên gia của chúng tôi mang đến vẻ đẹp hoàn mỹ cho đôi tay bạn.
                     </p>
 <div class="flex flex-wrap gap-4 mt-4">
+<button :class="subcategory ? 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high' : 'bg-primary-container text-on-primary'" @click="select('')" class="px-6 py-2 rounded-full font-label-md text-label-md transition-colors" type="button">Tất cả</button>
 <template :key="sub" x-for="sub in subcategories">
 <button :class="subcategory === sub ? 'bg-primary-container text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high'" @click="select(sub)" class="px-6 py-2 rounded-full font-label-md text-label-md transition-colors" x-text="sub"></button>
 </template>
@@ -58,7 +78,7 @@
                     Salon Nail nổi bật
                 </h2>
 <a class="font-label-md text-label-md text-primary hover:text-secondary-container transition-colors uppercase tracking-wider flex items-center gap-1" href="ket-qua-tim-kiem.html?category=nail">
-                    Xem tất cả <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+                    Xem tất cả <span aria-hidden="true" class="material-symbols-outlined text-[16px]">arrow_forward</span>
 </a>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-12 gap-gutter md:h-[600px]">
@@ -73,11 +93,11 @@
 <span class="bg-surface/90 backdrop-blur-sm text-primary px-3 py-1 rounded-full font-caption text-caption mb-3 inline-block">Đánh giá cao nhất</span>
 <h3 class="font-headline-md text-headline-md text-on-primary mb-2" x-text="salons[0].name"></h3>
 <p class="font-body-md text-body-md text-on-primary/80 flex items-center gap-2">
-<span class="material-symbols-outlined text-[16px]">location_on</span> <span x-text="salons[0].district + ', ' + salons[0].city"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]">location_on</span> <span x-text="salons[0].district + ', ' + salons[0].city"></span>
                                 </p>
 </div>
 <div class="flex items-center gap-1 bg-surface/20 backdrop-blur-md px-4 py-2 rounded-full border border-on-primary/20" x-show="salons[0].review_count">
-<span class="material-symbols-outlined text-[20px] text-surface-container-highest" style="font-variation-settings: 'FILL' 1;">star</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[20px] text-surface-container-highest" style="font-variation-settings: 'FILL' 1;">star</span>
 <span class="font-label-md text-label-md text-on-primary" x-text="rating(salons[0])"></span>
 </div>
 </div>
@@ -95,7 +115,7 @@
 <div class="flex justify-between items-center">
 <p class="font-caption text-caption text-on-primary/80" x-text="salon.district + ', ' + salon.city"></p>
 <div class="flex items-center gap-1" x-show="salon.review_count">
-<span class="material-symbols-outlined text-[14px] text-surface-container-highest" style="font-variation-settings: 'FILL' 1;">star</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px] text-surface-container-highest" style="font-variation-settings: 'FILL' 1;">star</span>
 <span class="font-caption text-caption text-on-primary" x-text="rating(salon)"></span>
 </div>
 </div>
@@ -140,32 +160,52 @@
 </div>
 <div class="flex justify-between items-center">
 <div class="flex items-center gap-4 text-caption font-caption text-on-surface-variant">
-<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> <span x-text="service.duration_min + ' phút'"></span></span>
-<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">storefront</span> <span x-text="service.salon.name"></span></span>
+<span class="flex items-center gap-1"><span aria-hidden="true" class="material-symbols-outlined text-[16px]">schedule</span> <span x-text="service.duration_min + ' phút'"></span></span>
+<span class="flex items-center gap-1"><span aria-hidden="true" class="material-symbols-outlined text-[16px]">storefront</span> <span x-text="service.salon.name"></span></span>
 </div>
-<a :href="bookingUrl(service)" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase hover:bg-primary transition-colors opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 duration-300 hidden md:block">
-                                Đặt lịch
-                            </button></a>
-<a :href="bookingUrl(service)" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase md:hidden hover:bg-primary">
+<a :href="bookingUrl(service)" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary rounded-full px-6 py-2 font-label-md text-label-md tracking-wider uppercase hover:bg-primary transition-colors">
                                 Đặt lịch
                             </button></a>
 </div>
 </div>
 </div>
 </template>
-<template x-if="!loading &amp;&amp; !services.length">
+<template x-if="loading &amp;&amp; !services.length">
+<div aria-hidden="true">
+<template :key="row" x-for="row in 3">
+<div class="flex flex-col md:flex-row gap-8 py-8 border-b border-outline-variant/10">
+<div class="w-full md:w-48 h-48 md:h-32 rounded-lg bg-surface-container animate-pulse shrink-0"></div>
+<div class="flex-1 flex flex-col gap-4 py-2">
+<div class="h-6 w-1/2 rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-3/4 rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-1/3 rounded bg-surface-container animate-pulse"></div>
+</div>
+</div>
+</template>
+</div>
+</template>
+<template x-if="!loading &amp;&amp; loadError">
+<div class="flex flex-col items-start gap-3 my-8 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
+<div class="flex items-center gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-surface">Không tải được danh sách dịch vụ.</p>
+</div>
+<button @click="reload()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+</div>
+</template>
+<template x-if="!loading &amp;&amp; !loadError &amp;&amp; !services.length">
 <p class="py-8 font-body-md text-body-md text-on-surface-variant">Chưa có dịch vụ nào phù hợp.</p>
 </template>
 </div>
-<div class="mt-12 text-center" x-show="services.length &lt; total">
-<button @click="more()" class="border border-outline font-label-md text-label-md text-primary px-8 py-3 rounded-full hover:bg-surface-container-low transition-colors uppercase tracking-wider">
+<div class="mt-12 text-center" x-cloak="" x-show="services.length &lt; total">
+<button :disabled="loading" @click="more()" class="border border-outline font-label-md text-label-md text-primary px-8 py-3 rounded-full hover:bg-surface-container-low transition-colors uppercase tracking-wider disabled:opacity-50" type="button">
                     Tải thêm dịch vụ
                 </button>
 </div>
 </section>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -182,12 +222,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -202,7 +244,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -233,6 +275,7 @@
             page: 1,
             total: 0,
             loading: true,
+            loadError: false,
             loadToken: 0,
 
             async init() {
@@ -269,10 +312,15 @@
                     }
                     this.total = services.meta.total;
                     this.services = services;
+                    this.loadError = false;
                 } catch (error) {
                     if (token !== this.loadToken) {
                         return;
                     }
+                    // The rows the failed reload was meant to replace would otherwise stay up
+                    // underneath a message saying the list could not be loaded.
+                    this.services = [];
+                    this.loadError = true;
                     OAK.toast(error.message, 'error');
                 } finally {
                     if (token === this.loadToken) {
@@ -281,7 +329,13 @@
                 }
             },
 
+            /* A reload already in flight owns the token, and letting a "load more" take it
+               would cancel that reload half-way: `loading` would stay true and page 2 of the
+               new sort would land under page 1 of the old one. */
             async more() {
+                if (this.loading) {
+                    return;
+                }
                 const token = ++this.loadToken;
                 try {
                     const services = await OAK.api(this.pageUrl(this.page + 1));
@@ -299,13 +353,19 @@
                 }
             },
 
+            /* Pressing the chip that is already on asks for the list it is already showing,
+               and reloading would only throw away every page loaded past the first. */
             select(subcategory) {
-                this.subcategory = this.subcategory === subcategory ? '' : subcategory;
+                const next = this.subcategory === subcategory ? '' : subcategory;
+                if (next === this.subcategory) {
+                    return;
+                }
+                this.subcategory = next;
                 this.reload();
             },
 
             salonUrl(salon) {
-                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+                return 'salon-profile.html?salon=' + encodeURIComponent(salon.slug);
             },
 
             serviceUrl(service) {
@@ -339,7 +399,7 @@
             },
 
             price(service) {
-                return OAK.fmtPrice(service.price) + (service.price_is_from ? '+' : '');
+                return OAK.fmtPriceFrom(service.price, service.price_is_from);
             },
         };
     }

@@ -129,10 +129,11 @@
 
   /**
    * Send the visitor to a login page carrying where they were headed, and hand back a
-   * promise that never settles so the caller's `await` stops there.
+   * promise that never settles so the caller's `await` stops there. `next` names that
+   * destination for a caller who wants to come back somewhere other than this very url.
    */
-  function redirectToLogin(page) {
-    location.href = page + '?next=' + encodeURIComponent(currentUrl());
+  function redirectToLogin(page, next) {
+    location.href = page + '?next=' + encodeURIComponent(next || currentUrl());
     return new Promise(function () {});
   }
 
@@ -156,12 +157,12 @@
     return new Promise(function () {});
   }
 
-  async function requireLogin() {
+  async function requireLogin(next) {
     var user = await me();
     if (serverUnreachable) {
       return reportServerUnreachable();
     }
-    return user || redirectToLogin(LOGIN_PAGE);
+    return user || redirectToLogin(LOGIN_PAGE, next);
   }
 
   async function requirePartner() {
@@ -180,6 +181,11 @@
       return '';
     }
     return number.toLocaleString('vi-VN') + 'đ';
+  }
+
+  /** 350000 → "Từ 350.000đ" for an opening price, "350.000đ" for an exact one. */
+  function fmtPriceFrom(value, isFrom) {
+    return (isFrom ? 'Từ ' : '') + fmtPrice(value);
   }
 
   /** "2026-08-10" (or a full ISO string) → "Thứ Hai, 10/08/2026". */
@@ -214,26 +220,170 @@
     return new URLSearchParams(location.search).get(name);
   }
 
+  /* Where each field of meta() lands. A page carries the tags it wants; the ones it left out
+     are skipped rather than created, so a page that shipped no og: block stays without one. */
+  var META_TAGS = {
+    description: ['meta[name="description"]', 'meta[property="og:description"]'],
+    image: ['meta[property="og:image"]'],
+  };
+
+  /** A description reads to about 160 characters, so a longer one is cut back to a space. */
+  function summarise(text) {
+    var flat = String(text).replace(/\s+/g, ' ').trim();
+    if (flat.length <= 160) {
+      return flat;
+    }
+    var cut = flat.slice(0, 157);
+    var space = cut.lastIndexOf(' ');
+    return (space > 0 ? cut.slice(0, space) : cut) + '…';
+  }
+
+  /**
+   * Restate the <head> of a detail page around the thing it turned out to be about. The markup
+   * is written before the salon, post or service is known, so it ships a sentence about the
+   * kind of page it is and this replaces it once the fetch lands.
+   *
+   * It runs after oak-i18n.js has been over the head and that pass never comes back, so every
+   * string it writes asks for its own English through translated(). Mostly that answers
+   * nothing: a salon's name and a post's summary are the subject's own words, which the
+   * English site leaves in Vietnamese too. It is the wording a page wraps around them — the
+   * "Hồ sơ chuyên gia" in front of a staff name — that would otherwise be the one Vietnamese
+   * left on an English page. A field with nothing behind it is left alone, and the page keeps
+   * the standing sentence it shipped with, translated.
+   */
+  function meta(values) {
+    if (values.title) {
+      document.title = translated(values.title);
+      setMetaTag('meta[property="og:title"]', document.title);
+    }
+    ['description', 'image'].forEach(function (field) {
+      if (!values[field]) {
+        return;
+      }
+      var value = field === 'image' ? values[field] : translated(summarise(values[field]));
+      META_TAGS[field].forEach(function (selector) {
+        setMetaTag(selector, value);
+      });
+    });
+  }
+
+  function setMetaTag(selector, value) {
+    var tag = document.querySelector(selector);
+    if (tag) {
+      tag.setAttribute('content', value);
+    }
+  }
+
   var TOAST_COLORS = {
     success: 'bg-primary text-on-primary',
     error: 'bg-error text-on-error',
   };
 
-  function toast(message, type) {
+  /**
+   * How long the message stays up. Three seconds reads "Đã lưu" but not a sentence saying
+   * why something failed, and a message offering a choice has to outlive the reading of it,
+   * so both start from five. Past 40 characters it buys 50ms of reading time each, to 8s.
+   */
+  function toastDuration(message, type, hasAction) {
+    var base = type === 'error' || hasAction ? 5000 : 3000;
+    return Math.min(8000, base + Math.max(0, String(message).length - 40) * 50);
+  }
+
+  // Focus leaving a message it had been holding does not start the clock over: it gets
+  // whatever is left of its window, and never less than this.
+  var TOAST_REARM_MIN = 2000;
+
+  // One message at a time. Two of them stack on the same spot and read as one sentence,
+  // and the second is the one the visitor just caused, so it takes the slot. The trade-off
+  // is that this displaces a message holding keyboard focus too — an undo lost that way is
+  // an undo the visitor stopped attending to.
+  var activeToast = null;
+
+  function closeToast(entry) {
+    clearTimeout(entry.timer);
+    entry.element.remove();
+    if (activeToast === entry) {
+      activeToast = null;
+    }
+  }
+
+  /** Hand the keyboard back what it was on, if that is still something on the page. */
+  function restoreToastFocus(anchor) {
+    if (anchor && typeof anchor.focus === 'function' && document.contains(anchor)) {
+      anchor.focus();
+    }
+  }
+
+  /**
+   * @param {string} [type] - 'error' paints it red and announces it as an alert.
+   * @param {object} [action] - {actionLabel, onAction}: a button inside the message that
+   *   runs onAction and dismisses. Callers that only report something leave it out.
+   */
+  function toast(message, type, action) {
+    var withAction = Boolean(action && action.actionLabel && action.onAction);
+    if (activeToast) {
+      closeToast(activeToast);
+    }
+
     var element = document.createElement('div');
-    element.setAttribute('role', 'status');
+    // An error interrupts; anything else is progress the visitor asked for.
+    element.setAttribute('role', type === 'error' ? 'alert' : 'status');
     // A page that pins its own booking bar to the bottom edge marks it, and the message
     // clears that bar (~68px tall) instead of landing on top of it.
     var offset = document.querySelector('[data-oak-sticky-cta]') ? 'bottom-24' : 'bottom-6';
     element.className =
       'fixed ' + offset + ' left-1/2 -translate-x-1/2 z-50 max-w-[90vw] px-6 py-3 rounded-full ' +
       'shadow-lg font-body-md text-body-md text-center ' +
+      (withAction ? 'flex items-center gap-4 ' : '') +
       (TOAST_COLORS[type] || TOAST_COLORS.success);
     element.textContent = message;
+
+    var entry = { element: element, timer: 0 };
+    var duration = toastDuration(message, type, withAction);
+    var shownAt = Date.now();
+    var arm = function (ms) {
+      clearTimeout(entry.timer);
+      entry.timer = setTimeout(function () {
+        closeToast(entry);
+      }, ms);
+    };
+    arm(duration);
+
+    if (withAction) {
+      // Where the keyboard was when this appeared. Escape and the button itself hand it
+      // back there, rather than dropping focus at the top of the document.
+      var anchor = document.activeElement;
+
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className =
+        'shrink-0 min-h-[44px] px-2 underline font-label-md text-label-md uppercase tracking-wider';
+      button.textContent = action.actionLabel;
+      button.addEventListener('click', function () {
+        closeToast(entry);
+        action.onAction();
+        restoreToastFocus(anchor);
+      });
+      element.appendChild(button);
+
+      // A countdown running out under the visitor's own hands is a trap: while the message
+      // holds focus it does not expire at all.
+      element.addEventListener('focusin', function () {
+        clearTimeout(entry.timer);
+      });
+      element.addEventListener('focusout', function () {
+        arm(Math.max(TOAST_REARM_MIN, duration - (Date.now() - shownAt)));
+      });
+      element.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          closeToast(entry);
+          restoreToastFocus(anchor);
+        }
+      });
+    }
+
     document.body.appendChild(element);
-    setTimeout(function () {
-      element.remove();
-    }, 3000);
+    activeToast = entry;
   }
 
   // Where signing out lands. A page's own [data-oak-logout] link already names it — the
@@ -318,8 +468,11 @@
 
     bell.classList.add('relative');
     var dot = document.createElement('span');
-    // A corner suits an icon, which is what the partner console gives this. A full-width row
-    // says where it wants the mark instead, because a corner there lands nowhere near it.
+    // The one bell answering to this name is the "Thông báo" entry oak-header.js writes into
+    // the customer menu, and it names its own spot through data-oak-dot: across a full-width
+    // menu entry a corner lands nowhere near the words. The default behind it is for a bell
+    // drawn as a lone glyph. Nothing in the partner console answers here — it counts pending
+    // bookings on a bell of its own, further down.
     dot.className = (bell.getAttribute('data-oak-dot') || 'absolute top-0 right-0') +
       ' w-2 h-2 rounded-full bg-error';
     dot.setAttribute('aria-label', 'Có thông báo mới');
@@ -336,6 +489,62 @@
         owner.setAttribute('aria-label', translated(UNREAD_MENU));
       }
     });
+  }
+
+  // The partner console's own bell, which counts something else entirely: bookings still
+  // waiting for the owner's decision. It is found by a data attribute and not by a
+  // Vietnamese aria-label, so initNotificationBell above can never claim it and send its
+  // href back to the customer notifications page.
+  var PENDING_BELL = '[data-oak-pending-bell]';
+  var PENDING_BADGE = '[data-oak-pending-count]';
+  var PENDING_LABEL = 'Lịch chờ xác nhận';
+  var PENDING_MAX = 99;
+
+  /** Today where the salon is. toISOString() is UTC — still yesterday here until 7am. */
+  function todayISO() {
+    var now = new Date();
+    var pad = function (value) {
+      return String(value).padStart(2, '0');
+    };
+    return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+  }
+
+  /**
+   * Put a count on the console bell: the badge, and the bell's own name — a control with an
+   * aria-label is announced by that label alone and never by what it holds.
+   * Exported because the dashboard already reads that very list, and asking again for a
+   * number it is holding would be a second request for nothing.
+   */
+  function setPendingBadge(total) {
+    var bell = document.querySelector(PENDING_BELL);
+    if (!bell) {
+      return total;
+    }
+    bell.setAttribute(
+      'aria-label',
+      translated(total ? PENDING_LABEL + ': ' + total : PENDING_LABEL),
+    );
+    var badge = bell.querySelector(PENDING_BADGE);
+    if (badge) {
+      badge.textContent = total > PENDING_MAX ? PENDING_MAX + '+' : String(total);
+      badge.classList.toggle('hidden', total === 0);
+      badge.classList.toggle('flex', total > 0);
+    }
+    return total;
+  }
+
+  /** The one count request for the console pages that do not read that list themselves. */
+  async function pendingBadge() {
+    if (!document.querySelector(PENDING_BELL)) {
+      return 0;
+    }
+    try {
+      var rows = await api('/api/partner/bookings?status=pending&limit=1&from=' + todayISO());
+      return setPendingBadge((rows.meta && rows.meta.total) || 0);
+    } catch (error) {
+      // A bell with no number is the honest reading of "could not ask".
+      return 0;
+    }
   }
 
   function initLocationLabel(user) {
@@ -546,9 +755,14 @@
     requireLogin: requireLogin,
     requirePartner: requirePartner,
     fmtPrice: fmtPrice,
+    fmtPriceFrom: fmtPriceFrom,
     fmtDate: fmtDate,
     fmtTime: fmtTime,
+    todayISO: todayISO,
+    pendingBadge: pendingBadge,
+    setPendingBadge: setPendingBadge,
     qs: qs,
+    meta: meta,
     toast: toast,
     logout: logout,
   };

@@ -37,6 +37,36 @@
 
   var PAGE = location.pathname.split('/').pop() || 'index.html';
 
+  /*
+   * The bar is the first thing every keyboard reader meets, and on a phone its menu holds
+   * around twenty entries, so a way past it goes in ahead of it. Off-screen until it takes
+   * focus, then pinned over the bar (which is itself fixed at z-50).
+   *
+   * No customer page carries an id on its <main>, and stamping one here costs a line where
+   * a codemod over thirty files would not. It waits for DOMContentLoaded because this file
+   * is a plain tag halfway down the body — <main> is written after it and does not exist
+   * yet. tabIndex = -1 is what makes the jump actually move focus: without it the browser
+   * scrolls to the target and leaves the caret behind in the link, so the next Tab goes
+   * back into the bar.
+   */
+  var SKIP =
+    'sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] ' +
+    'focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary ' +
+    'focus:border focus:border-outline-variant focus:shadow-lg font-body-md text-body-md';
+
+  shell.insertAdjacentHTML(
+    'beforebegin',
+    '<a class="' + SKIP + '" href="#main">Bỏ qua đến nội dung</a>',
+  );
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var content = document.querySelector('main');
+    if (content && !content.id) {
+      content.id = 'main';
+      content.tabIndex = -1;
+    }
+  });
+
   /** Is this where the reader already is? An article counts as its own feed. */
   function isHere(href) {
     return href === PAGE || (href === 'blog.html' && PAGE === 'blog-chi-tiet.html');
@@ -45,8 +75,8 @@
   var TOP_BASE =
     'hidden md:inline-flex items-center h-11 px-2 font-body-md text-body-md ' +
     'transition-colors active:scale-95 duration-200 ';
-  var TOP = TOP_BASE + 'text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed';
-  var TOP_HERE = TOP_BASE + 'text-primary dark:text-primary-fixed font-bold border-b-2 border-primary';
+  var TOP = TOP_BASE + 'text-on-surface-variant hover:text-primary';
+  var TOP_HERE = TOP_BASE + 'text-primary font-bold border-b-2 border-primary';
 
   /* Every entry is its own tap target of at least 44px, and none of them is dimmed:
      on-surface-variant at full strength is what clears AA on this surface. */
@@ -97,10 +127,10 @@
 
   var everyone =
     entry('dat-lich.html', 'Đặt lịch') +
-    entry('danh-sach-salon.html', 'Tất cả salon') +
+    /* One page finds salons — list and map are a switch inside it, not two entries here. */
+    entry('ket-qua-tim-kiem.html', 'Tất cả salon') +
     entry('uu-dai.html', 'Ưu đãi') +
     entry('tim-kiem-thong-minh.html', 'Trợ lý tìm kiếm AI') +
-    entry('ket-qua-tim-kiem.html', 'Bản đồ salon') +
     area;
 
   var categories =
@@ -184,7 +214,7 @@
   shell.innerHTML =
     '<div class="flex justify-between items-center gap-4 h-20 px-margin-mobile ' +
       'md:px-margin-desktop max-w-container-max mx-auto">' +
-      '<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed ' +
+      '<a class="font-headline-md text-headline-md font-bold text-primary ' +
         'hover:opacity-80 transition-opacity shrink-0" href="kham-pha.html">OAK Beauty</a>' +
       '<nav aria-label="Điều hướng chính" class="flex items-center gap-2 md:gap-6">' +
         topEntry('blog.html', 'Blog') +

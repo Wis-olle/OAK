@@ -2,7 +2,11 @@
   "Tìm kiếm thông minh - OAK Beauty": "Smart search - OAK Beauty",
   "Trợ lý Tìm kiếm": "Search assistant",
   "Tôi có thể giúp bạn tìm kiếm dịch vụ hoàn hảo hôm nay.": "I can help you find the perfect service today.",
+  "Chào bạn! Mình có thể giúp tìm salon và dịch vụ làm đẹp phù hợp. Bạn muốn làm gì hôm nay?": "Hi there! I can help you find the right salon and beauty service. What would you like to do today?",
   "Bạn • Vừa xong": "You • Just now",
+  "Gửi lại": "Send again",
+  "Xin lỗi, mình chưa nhận được tin nhắn của bạn — thử lại nhé.": "Sorry, your message did not reach me — let's try again.",
+  "Trợ lý đang trả lời": "The assistant is replying",
   "Dịch vụ": "Services",
   "Phong cách": "Style",
   "Khu vực": "Area",
@@ -12,6 +16,7 @@
   "Chỉnh sửa tiêu chí": "Edit criteria",
   "OAK Assistant • Vừa xong": "OAK Assistant • Just now",
   "Nhập thêm yêu cầu...": "Add more details...",
+  "Bạn muốn làm đẹp gì hôm nay?": "What beauty service are you after today?",
   "Gửi": "Send",
   "Gợi ý thêm": "More suggestions",
   "Chọn các tùy chọn dưới đây để thu hẹp kết quả tìm kiếm của bạn.": "Choose the options below to narrow down your search results.",
@@ -21,5 +26,6 @@
   "Nail": "Nails",
   "Tóc": "Hair",
   "Chăm sóc da": "Skincare",
-  "Nối mi": "Eyelash extensions"
+  "Nối mi": "Eyelash extensions",
+  "Mô tả điều bạn muốn bằng lời thường ngày, trợ lý OAK sẽ gợi ý dịch vụ và salon phù hợp tại TP.HCM cùng khung giờ còn trống để bạn đặt lịch ngay.": "Describe what you are after in your own words and the OAK assistant suggests the service, the salon and the free hours to book it in Ho Chi Minh City."
 }

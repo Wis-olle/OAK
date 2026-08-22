@@ -1,6 +1,16 @@
 const OAK_BLOG_PAGE_SIZE = 9;
 const OAK_DEFAULT_AVATAR = 'assets/images/img-b79c0642dd.jpg';
 
+/* The five service categories a post may be filed under, labelled the way the rest of the
+   site labels them, so one dictionary entry covers both. */
+const OAK_POST_CATEGORIES = [
+    { value: 'nail', label: 'Nail' },
+    { value: 'hair', label: 'Tóc' },
+    { value: 'skincare', label: 'Chăm sóc da' },
+    { value: 'spa', label: 'Spa & Massage' },
+    { value: 'eyelash', label: 'Nối mi' },
+];
+
 const OAK_SOCIAL_HOSTS = {
     'facebook.com': 'facebook', 'www.facebook.com': 'facebook',
     'm.facebook.com': 'facebook', 'mobile.facebook.com': 'facebook',
@@ -97,6 +107,7 @@ function oakEmptyPostForm(type = 'article') {
         video_url: '',
         excerpt: '',
         image: '',
+        category: '',
         has_social_source: false,
         source_url: '',
     };
@@ -109,9 +120,11 @@ function oakBlogFeed() {
             { value: 'article', label: 'Bài viết' },
             { value: 'video', label: 'Video' },
         ],
+        categories: OAK_POST_CATEGORIES,
         posts: [],
         scope: 'community',
         type: '',
+        category: '',
         page: 1,
         total: 0,
         loading: true,
@@ -155,6 +168,9 @@ function oakBlogFeed() {
                 if (this.type) {
                     path += '&type=' + encodeURIComponent(this.type);
                 }
+                if (this.category) {
+                    path += '&category=' + encodeURIComponent(this.category);
+                }
                 const rows = await OAK.api(path);
                 if (token !== this.loadToken) {
                     return;
@@ -195,6 +211,7 @@ function oakBlogFeed() {
             this.closeComposer();
             this.scope = value;
             this.type = '';
+            this.category = '';
             this.posts = [];
             this.total = 0;
             this.page = 1;
@@ -210,6 +227,20 @@ function oakBlogFeed() {
             await this.reloadFirstPage();
         },
 
+        async selectCategory(value) {
+            if (this.category === value) {
+                return;
+            }
+            this.category = value;
+            await this.reloadFirstPage();
+        },
+
+        /** The label for a stored category value; '' for a post filed under none. */
+        categoryLabel(value) {
+            const match = OAK_POST_CATEGORIES.find((item) => item.value === value);
+            return match ? match.label : '';
+        },
+
         loadMore() {
             if (!this.loading && this.posts.length < this.total) {
                 return this.loadPage(this.page + 1, true);
@@ -221,7 +252,7 @@ function oakBlogFeed() {
         },
 
         salonUrl(salon) {
-            return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+            return 'salon-profile.html?salon=' + encodeURIComponent(salon.slug);
         },
 
         platformLabel(platform) {
@@ -262,9 +293,15 @@ function oakBlogFeed() {
             }
         },
 
+        /* A guest comes back to the composer, not just to the feed: ?compose=1 is what
+           init() reads to reopen it once the round trip is done. The destination goes
+           through requireLogin so an unreachable server still says so instead of being
+           mistaken for a signed-out visitor. */
         async openComposer() {
             if (!this.user) {
-                await OAK.requireLogin();
+                const params = new URLSearchParams(location.search);
+                params.set('compose', '1');
+                await OAK.requireLogin('blog.html?' + params.toString());
                 return;
             }
             this.resetComposer();
@@ -285,6 +322,7 @@ function oakBlogFeed() {
                 video_url: post.video_url || '',
                 excerpt: post.excerpt || '',
                 image: post.image || '',
+                category: post.category || '',
                 has_social_source: this.user?.role === 'partner' && Boolean(post.source),
                 source_url: this.user?.role === 'partner' && post.source ? post.source.url : '',
             };
@@ -366,6 +404,7 @@ function oakBlogFeed() {
             if (social.error) {
                 return social;
             }
+            const category = this.form.category || null;
             if (this.form.type === 'article') {
                 const content = this.form.content.trim();
                 if (!content) {
@@ -373,7 +412,7 @@ function oakBlogFeed() {
                 }
                 return { body: {
                     type: 'article', title, content, excerpt: this.excerptFrom(content),
-                    image: this.form.image || null, ...social.body,
+                    image: this.form.image || null, category, ...social.body,
                 } };
             }
             const videoUrl = oakToEmbedUrl(this.form.video_url);
@@ -382,8 +421,25 @@ function oakBlogFeed() {
             }
             return { body: {
                 type: 'video', title, video_url: videoUrl,
-                excerpt: this.form.excerpt.trim() || null, ...social.body,
+                excerpt: this.form.excerpt.trim() || null, category, ...social.body,
             } };
+        },
+
+        /* A new post is published from its preview; an edit may be saved straight from the
+           form, because its author has already seen the post as it stands. */
+        submitComposer() {
+            if (!this.editingPost) {
+                this.showPreview();
+                return;
+            }
+            const payload = this.buildPayload();
+            if (payload.error) {
+                this.error = payload.error;
+                return;
+            }
+            this.error = '';
+            this.previewPayload = payload.body;
+            return this.publish();
         },
 
         showPreview() {

@@ -18,7 +18,7 @@ test('salon settings exposes all five social profile fields and saves the object
 });
 
 test('public salon profile renders only allowlisted links without x-html', () => {
-  const html = readUi('salon-profile-lala-nail-studio.html');
+  const html = readUi('salon-profile.html');
   assert.match(html, /safeSocialLinks\(\)/);
   assert.match(html, /rel="noopener noreferrer"/);
   assert.match(html, /target="_blank"/);

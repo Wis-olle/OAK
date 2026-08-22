@@ -19,7 +19,7 @@
   "Chọn kỹ thuật viên": "Choose a specialist",
   "Bất kỳ": "Any",
   "Chọn thời gian": "Choose a time",
-  "Ngày hẹn *": "Appointment date *",
+  "Ngày khác": "Another date",
   "Ngày này chưa có khung giờ nào, vui lòng chọn ngày khác.": "There are no time slots on this date, please choose another day.",
   "Không tải được khung giờ trống.": "We couldn't load the available time slots.",
   "Xác nhận": "Confirm",
@@ -53,8 +53,12 @@
   "Bạn có thể hủy hoặc thay đổi lịch hẹn miễn phí trước 2 tiếng so với giờ đặt. Hủy muộn hoặc không đến có thể ảnh hưởng đến hạng thẻ thành viên của bạn.": "You can cancel or reschedule free of charge up to 2 hours before your appointment. Late cancellations or no-shows may affect your membership tier.",
   "Vui lòng chọn dịch vụ.": "Please choose a service.",
   "Vui lòng chọn ngày và giờ hẹn.": "Please choose an appointment date and time.",
-  "Vui lòng nhập họ tên và số điện thoại.": "Please enter your full name and phone number.",
+  "Vui lòng nhập họ tên.": "Please enter your full name.",
+  "Vui lòng nhập số điện thoại.": "Please enter your phone number.",
+  "Vui lòng kiểm tra lại thông tin liên hệ.": "Please check your contact details.",
   "Vui lòng chọn dịch vụ trước khi áp dụng mã.": "Please choose a service before applying a code.",
   "Vui lòng đăng nhập để áp dụng mã ưu đãi.": "Please sign in to apply a promo code.",
-  "Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.": "This time slot has just been taken, please choose another time."
+  "Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.": "This time slot has just been taken, please choose another time.",
+  "Khung giờ bạn chọn không còn trống, vui lòng chọn giờ khác.": "The time you chose is no longer free, please choose another time.",
+  "Bạn đang đổi lịch hẹn — lịch cũ sẽ được hủy sau khi bạn xác nhận lịch mới.": "You are rescheduling — your old appointment will be cancelled once you confirm the new one."
 }

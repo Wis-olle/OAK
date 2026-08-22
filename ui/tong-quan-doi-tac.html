@@ -11,7 +11,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <title>Tổng quan - OAK Beauty</title>
 <!-- Material Symbols -->
@@ -24,77 +35,85 @@
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
 <body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="oakPartnerOverview()">
-<h1 class="sr-only">OAK Beauty — Partner Dashboard</h1>
+<a class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary focus:border focus:border-outline-variant focus:shadow-lg font-body-md text-body-md" href="#main">Bỏ qua đến nội dung</a>
 <!-- SideNavBar -->
-<nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container p-gutter z-50">
+<nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low p-gutter z-50">
 <div class="mb-12">
-<h1 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h1>
+<p class="font-headline-sm text-headline-sm text-primary">OAK Beauty</p>
 <p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest" data-oak-salon-name>Partner Dashboard</p>
 </div>
 <ul class="flex flex-col gap-2 flex-grow">
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim font-bold bg-surface-variant dark:bg-on-primary-fixed-variant scale-95 duration-150" href="tong-quan-doi-tac.html">
-<span class="material-symbols-outlined fill" data-icon="dashboard">dashboard</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary font-bold bg-surface-variant scale-95 duration-150" href="tong-quan-doi-tac.html">
+<span aria-hidden="true" class="material-symbols-outlined fill" data-icon="dashboard">dashboard</span>
 <span class="font-body-md text-body-md">Tổng quan</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-lich-hen.html">
-<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="quan-ly-lich-hen.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
 <span class="font-body-md text-body-md">Lịch hẹn</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-dich-vu.html">
-<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="quan-ly-dich-vu.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
 <span class="font-body-md text-body-md">Dịch vụ</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-nhan-vien.html">
-<span class="material-symbols-outlined" data-icon="group">group</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="quan-ly-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="group">group</span>
 <span class="font-body-md text-body-md">Nhân viên</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
-<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
 <span class="font-body-md text-body-md">Báo cáo</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="cai-dat-salon.html">
-<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="cai-dat-salon.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-body-md text-body-md">Cài đặt</span>
 </a>
 </li>
 </ul>
 <div class="mt-auto pt-8 border-t border-outline-variant/30">
 <div class="flex flex-col gap-1 mb-4">
-<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="index.html">
-<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
+<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="index.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="storefront">storefront</span>
 <span class="font-body-md text-body-md">Xem trang khách</span>
 </a>
-<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" data-oak-logout href="dang-nhap-doi-tac.html">
-<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" data-oak-logout href="dang-nhap-doi-tac.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="logout">logout</span>
 <span class="font-body-md text-body-md">Đăng xuất</span>
 </a>
 </div>
 <a class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html?new=1">
-<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
                 Đặt lịch mới
             </a>
 </div>
 </nav>
 <!-- TopNavBar -->
-<header class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-gutter md:ml-64 md:w-[calc(100%-16rem)] bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl top-0 sticky border-b border-outline-variant/30 dark:border-outline/20 z-40">
+<header class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-gutter md:ml-64 md:w-[calc(100%-16rem)] bg-surface/80 backdrop-blur-xl top-0 sticky border-b border-outline-variant/30 z-40">
 <div class="flex items-center gap-4 min-w-0">
-<h2 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed truncate">Tổng quan</h2>
+<h1 class="font-headline-sm text-headline-sm text-primary truncate">Tổng quan</h1>
 </div>
 <div class="flex items-center gap-4 md:gap-6 shrink-0">
-<div @click.outside="searchOpen = false" class="relative hidden lg:block w-72">
-<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
-<input @input.debounce.300ms="search()" aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm lịch hẹn, dịch vụ, nhân viên..." type="text" x-model="query"/>
+<!-- Below lg the header has no room for the field, so the icon opens it over the bar. -->
+<button @click.stop="openMobileSearch()" aria-label="Tìm kiếm" class="lg:hidden w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-secondary transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<div :class="mobileSearch ? 'absolute inset-x-0 top-0 z-50 h-20 flex items-center px-margin-mobile bg-surface' : 'hidden lg:block w-72'" @click.outside="closeSearch()" @keydown.escape="closeSearch()" x-cloak="">
+<div class="relative w-full">
+<span aria-hidden="true" class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
+<input @input.debounce.300ms="search()" aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-12 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm lịch hẹn, dịch vụ, nhân viên..." type="text" x-model="query" x-ref="searchInput"/>
+<button @click="closeSearch()" aria-label="Đóng tìm kiếm" class="absolute right-0 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button" x-cloak="" x-show="mobileSearch">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="close">close</span>
+</button>
 <div class="absolute left-0 right-0 top-full mt-2 bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-lg overflow-hidden z-50" x-cloak="" x-show="searchOpen">
 <template :key="item.type + '-' + item.id" x-for="item in results">
 <a :href="resultUrl(item)" class="flex items-center justify-between gap-3 px-4 py-3 hover:bg-surface-container-low transition-colors">
@@ -105,8 +124,12 @@
 <p class="px-4 py-3 font-body-md text-body-md text-on-surface-variant" x-show="results.length === 0">Không tìm thấy kết quả phù hợp.</p>
 </div>
 </div>
-<a aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" href="thong-bao.html">
-<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</div>
+<!-- The console bell answers "what needs me", so it stays inside the console: the
+     customer notification page has no way back to the partner pages. -->
+<a aria-label="Lịch chờ xác nhận" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" data-oak-pending-bell href="quan-ly-lich-hen.html?status=pending">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span aria-hidden="true" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-error text-on-error font-caption text-[10px] hidden items-center justify-center" data-oak-pending-count></span>
 </a>
 <a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
 <span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 flex items-center justify-center">
@@ -126,7 +149,7 @@
 
 <!-- Main Content Wrapper -->
 <!-- Dashboard Content -->
-<main class="md:ml-64 p-margin-mobile md:p-margin-desktop pb-24 md:pb-margin-desktop">
+<main class="md:ml-64 p-margin-mobile md:p-margin-desktop pb-24 md:pb-margin-desktop" id="main" tabindex="-1">
 <!-- Page Header -->
 <div class="mb-12 flex justify-between items-end">
 <div>
@@ -134,19 +157,56 @@
 <p class="font-body-md text-body-md text-on-surface-variant mt-2" x-text="overview ? OAK.fmtDate(overview.date) : ''"></p>
 </div>
 </div>
+<!-- Needs attention: every UPCOMING booking still waiting for a decision, not only
+     today's — a request for tomorrow was invisible on this page until now, and each
+     confirmation cost two page changes. -->
+<section class="mb-section-gap">
+<div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+<h3 class="font-headline-sm text-headline-sm text-on-background">Cần xử lý</h3>
+<a class="font-label-md text-label-md text-secondary uppercase hover:text-on-background transition-colors" href="quan-ly-lich-hen.html?status=pending" x-cloak="" x-show="pendingTotal > pending.length" x-text="'Xem tất cả (' + pendingTotal + ')'"></a>
+</div>
+<div class="bg-surface-container-lowest rounded-xl border border-surface-variant overflow-hidden shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<!-- The rows divide themselves; the three states below stay outside that rule, or a
+     hidden one would still put a separator above the first row. -->
+<div class="divide-y divide-surface-variant/60">
+<template :key="booking.id" x-for="booking in pending">
+<div class="p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4">
+<div class="min-w-0 flex-1">
+<p class="flex flex-wrap items-baseline gap-x-3 font-label-md text-label-md text-primary">
+<span x-text="timeRange(booking)"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(booking.date)"></span>
+</p>
+<p class="font-body-md text-body-md text-on-background mt-1 truncate" x-text="booking.customer.name"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1 truncate" x-text="booking.service ? booking.service.name : 'Dịch vụ đã xoá'"></p>
+</div>
+<div class="flex items-center gap-3 shrink-0">
+<button :disabled="acting !== 0" @click="decide(booking, 'cancelled')" class="min-h-[44px] px-5 rounded-full border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider hover:bg-surface-variant transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">Hủy</button>
+<button :disabled="acting !== 0" @click="decide(booking, 'confirmed')" class="min-h-[44px] px-6 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">Xác nhận</button>
+</div>
+</div>
+</template>
+</div>
+<p class="p-6 font-body-md text-body-md text-on-surface-variant" x-show="pendingLoading">Đang tải lịch chờ xác nhận…</p>
+<div class="p-6 flex flex-wrap items-center gap-4" role="alert" x-cloak="" x-show="!pendingLoading && pendingError">
+<p class="font-body-md text-body-md text-error" x-text="pendingError"></p>
+<button @click="loadPending()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Thử lại</button>
+</div>
+<p class="p-6 font-body-md text-body-md text-on-surface-variant" x-cloak="" x-show="!pendingLoading && !pendingError && pending.length === 0">Không có lịch chờ xác nhận.</p>
+</div>
+</section>
 <!-- Metrics Bento Grid -->
 <div :class="{ 'opacity-50': loading }" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-section-gap transition-opacity">
 <!-- Revenue Card -->
 <div class="bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)] relative overflow-hidden group hover:shadow-[0_8px_32px_rgba(44,44,44,0.08)] transition-shadow">
 <div class="flex justify-between items-start mb-4">
 <p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Doanh thu hôm nay</p>
-<span class="material-symbols-outlined text-secondary">payments</span>
+<span aria-hidden="true" class="material-symbols-outlined text-secondary">payments</span>
 </div>
 <h3 class="font-headline-md text-headline-md text-on-background mb-2" x-text="OAK.fmtPrice(overview ? overview.revenue_today : 0)"></h3>
 <div class="flex items-center gap-2 text-sm">
 <template x-if="hasDelta()">
 <span class="flex items-center gap-2">
-<span :class="deltaClass()" class="material-symbols-outlined text-[16px]" x-text="deltaIcon()"></span>
+<span :class="deltaClass()" aria-hidden="true" class="material-symbols-outlined text-[16px]" x-text="deltaIcon()"></span>
 <span :class="deltaClass()" class="font-medium" x-text="deltaText()"></span>
 <span class="text-on-surface-variant">so với hôm qua</span>
 </span>
@@ -157,32 +217,34 @@
 <!-- Appointments Card -->
 <div class="bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)] relative overflow-hidden group hover:shadow-[0_8px_32px_rgba(44,44,44,0.08)] transition-shadow">
 <div class="flex justify-between items-start mb-4">
-<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Tổng lịch hẹn</p>
-<span class="material-symbols-outlined text-secondary">calendar_month</span>
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Lịch hẹn hôm nay</p>
+<span aria-hidden="true" class="material-symbols-outlined text-secondary">calendar_month</span>
 </div>
 <h3 class="font-headline-md text-headline-md text-on-background mb-2" x-text="overview ? overview.bookings_today : ''"></h3>
 <div class="flex items-center gap-2 text-sm">
-<span class="material-symbols-outlined text-[16px] text-on-surface-variant">schedule</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px] text-on-surface-variant">schedule</span>
 <span class="text-on-surface-variant" x-text="(overview ? overview.upcoming_count : 0) + ' lịch sắp tới'"></span>
 </div>
 </div>
-<!-- New Customers Card -->
-<div class="bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)] relative overflow-hidden group hover:shadow-[0_8px_32px_rgba(44,44,44,0.08)] transition-shadow">
+<!-- Pending Card — the queue above, as a number, and a way straight into it. -->
+<a class="block bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)] relative overflow-hidden group hover:shadow-[0_8px_32px_rgba(44,44,44,0.08)] transition-shadow" href="quan-ly-lich-hen.html?status=pending">
 <div class="flex justify-between items-start mb-4">
-<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Khách hàng mới</p>
-<span class="material-symbols-outlined text-secondary">person_add</span>
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Chờ xác nhận</p>
+<!-- This card is the only metric that is a link, so its contents ARE its accessible
+     name and the two ligatures would be read out as "schedule" and "event_available". -->
+<span aria-hidden="true" class="material-symbols-outlined text-secondary">schedule</span>
 </div>
-<h3 class="font-headline-md text-headline-md text-on-background mb-2" x-text="overview ? overview.new_customers : ''"></h3>
+<h3 class="font-headline-md text-headline-md text-on-background mb-2" x-text="pendingLoading ? '' : pendingTotal"></h3>
 <div class="flex items-center gap-2 text-sm">
-<span class="material-symbols-outlined text-[16px] text-on-surface-variant">how_to_reg</span>
-<span class="text-on-surface-variant">Khách đặt lịch lần đầu tại salon</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px] text-on-surface-variant">event_available</span>
+<span class="text-on-surface-variant">Lịch sắp tới đang chờ bạn xác nhận</span>
 </div>
-</div>
+</a>
 <!-- Rating Card -->
 <div class="bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)] relative overflow-hidden group hover:shadow-[0_8px_32px_rgba(44,44,44,0.08)] transition-shadow">
 <div class="flex justify-between items-start mb-4">
 <p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Đánh giá trung bình</p>
-<span class="material-symbols-outlined text-secondary">star</span>
+<span aria-hidden="true" class="material-symbols-outlined text-secondary">star</span>
 </div>
 <h3 class="font-headline-md text-headline-md text-on-background mb-2" x-text="ratingValue()"></h3>
 <div class="flex items-center gap-2 text-sm">
@@ -201,7 +263,7 @@
 <a href="quan-ly-lich-hen.html" style="display:contents;color:inherit;text-decoration:none"><button class="font-label-md text-label-md text-secondary uppercase hover:text-on-background transition-colors">Xem tất cả</button></a>
 </div>
 <div class="bg-surface-container-lowest rounded-xl border border-surface-variant overflow-hidden shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
-<table class="w-full text-left border-collapse">
+<table class="w-full text-left border-collapse hidden md:table">
 <thead>
 <tr class="border-b border-surface-variant bg-surface-container-low/50">
 <th class="p-4 font-caption text-caption text-on-surface-variant uppercase tracking-wider">Thời gian</th>
@@ -212,8 +274,13 @@
 </thead>
 <tbody>
 <template :key="booking.id" x-for="booking in bookings">
-<tr @click="openBooking(booking)" class="border-b border-surface-variant/50 hover:bg-surface-container-low/30 transition-colors cursor-pointer">
-<td class="p-4 font-body-md text-body-md text-on-background" x-text="timeRange(booking)"></td>
+<!-- The whole row used to carry the click. A <tr> takes no focus and answers no key, so
+     the trip into the calendar is a real link in the first cell instead; the row keeps
+     only the hover tint that says the two belong together. -->
+<tr class="border-b border-surface-variant/50 hover:bg-surface-container-low/30 transition-colors">
+<td class="p-4 font-body-md text-body-md text-on-background">
+<a :aria-label="timeRange(booking) + ' — ' + booking.customer.name" :href="'quan-ly-lich-hen.html?booking_id=' + booking.id" class="block hover:text-primary hover:underline transition-colors" x-text="timeRange(booking)"></a>
+</td>
 <td class="p-4">
 <div class="flex items-center gap-3">
 <template x-if="booking.customer.avatar">
@@ -236,6 +303,20 @@
 </tr>
 </tbody>
 </table>
+<!-- The same rows below md: four columns inside this rounded box are crushed on a phone. -->
+<div class="md:hidden divide-y divide-surface-variant/60">
+<template :key="'row-' + booking.id" x-for="booking in bookings">
+<a :href="'quan-ly-lich-hen.html?booking_id=' + booking.id" class="p-4 flex items-center justify-between gap-3 hover:bg-surface-container-low/30 transition-colors">
+<div class="min-w-0">
+<p class="font-label-md text-label-md text-primary" x-text="timeRange(booking)"></p>
+<p class="font-body-md text-body-md text-on-background mt-1 truncate" x-text="booking.customer.name"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1 truncate" x-text="booking.service ? booking.service.name : ''"></p>
+</div>
+<span :class="statusClass(booking.status)" class="px-3 py-1 rounded-full font-caption text-caption shrink-0" x-text="statusLabel(booking.status)"></span>
+</a>
+</template>
+<p class="p-6 text-center font-body-md text-body-md text-on-surface-variant" x-show="!loading && bookings.length === 0">Hôm nay chưa có lịch hẹn nào.</p>
+</div>
 </div>
 <a class="inline-block mt-4 font-label-md text-label-md text-secondary hover:text-on-background transition-colors" href="quan-ly-lich-hen.html" x-show="bookingsTotal > bookings.length" x-text="'Xem tất cả (' + bookingsTotal + ') trong Quản lý lịch hẹn'"></a>
 </section>
@@ -275,27 +356,27 @@
 <!-- BottomNavBar (Mobile Only) -->
 <nav class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-1 py-2 flex justify-between items-center">
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-secondary font-bold" href="tong-quan-doi-tac.html">
-<span class="material-symbols-outlined fill" data-icon="dashboard">dashboard</span>
+<span aria-hidden="true" class="material-symbols-outlined fill" data-icon="dashboard">dashboard</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Tổng quan</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-lich-hen.html">
-<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Lịch hẹn</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-dich-vu.html">
-<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Dịch vụ</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-nhan-vien.html">
-<span class="material-symbols-outlined" data-icon="group">group</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="group">group</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Nhân viên</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="bao-cao-doanh-thu.html">
-<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Báo cáo</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="cai-dat-salon.html">
-<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
 </a>
 </nav>
@@ -314,6 +395,16 @@
         cancelled: 'bg-error-container text-on-error-container',
     };
     var OAK_SEARCH_TYPES = { booking: 'Lịch hẹn', service: 'Dịch vụ', staff: 'Nhân viên' };
+    // The only transitions the backend accepts; mirrors quan-ly-lich-hen.html.
+    var OAK_TRANSITIONS = {
+        pending: ['confirmed', 'cancelled'],
+        confirmed: ['completed', 'cancelled'],
+        completed: [],
+        cancelled: [],
+    };
+    /* How many of the waiting bookings the queue puts on the page; the rest are one
+       click away in Quản lý lịch hẹn. */
+    var OAK_PENDING_PAGE = 10;
 
     /* Partner chrome shared by all four console pages: owner name/avatar, salon name, logout. */
     function oakPartnerChrome() {
@@ -364,27 +455,105 @@
             query: '',
             results: [],
             searchOpen: false,
+            mobileSearch: false,
+            pending: [],
+            pendingTotal: 0,
+            pendingLoading: true,
+            pendingError: '',
+            /* The booking whose confirm/cancel request is in flight, 0 when none. */
+            acting: 0,
 
             async init() {
                 await OAK.requirePartner();
                 try {
                     this.overview = await OAK.api('/api/partner/overview');
                     this.staffStatus = this.overview.staff_status;
-                    // The overview carries the server's own "today", so both cards agree.
-                    // limit=50 is the server maximum: the default 20 silently truncated a busy day.
-                    var rows = await OAK.api(
-                        '/api/partner/bookings?limit=50&date=' + this.overview.date,
-                    );
-                    // The endpoint answers newest-first; the dashboard reads as a running day.
-                    rows.sort(function (left, right) {
-                        return left.time < right.time ? -1 : left.time > right.time ? 1 : 0;
-                    });
-                    this.bookingsTotal = rows.meta ? rows.meta.total : rows.length;
-                    this.bookings = rows;
+                    await this.loadToday();
                 } catch (error) {
                     OAK.toast(error.message, 'error');
                 } finally {
                     this.loading = false;
+                }
+                await this.loadPending();
+                this.watchViewport();
+            },
+
+            /* Crossing back above lg puts the search field in the header again, so the
+               overlay must not linger over it. A breakpoint listener, not resize: on Android
+               the soft keyboard fires resize, which would shut the overlay mid-typing. */
+            watchViewport() {
+                var self = this;
+                window.matchMedia('(min-width: 1024px)').addEventListener('change', function (event) {
+                    if (event.matches) {
+                        self.closeSearch();
+                    }
+                });
+            },
+
+            async loadToday() {
+                // The overview carries the server's own "today", so both cards agree.
+                // limit=50 is the server maximum: the default 20 silently truncated a busy day.
+                var rows = await OAK.api('/api/partner/bookings?limit=50&date=' + this.overview.date);
+                // The endpoint answers newest-first; the dashboard reads as a running day.
+                rows.sort(function (left, right) {
+                    return left.time < right.time ? -1 : left.time > right.time ? 1 : 0;
+                });
+                this.bookingsTotal = rows.meta ? rows.meta.total : rows.length;
+                this.bookings = rows;
+            },
+
+            /* Every upcoming booking still waiting for a decision — the table below only
+               ever shows today, so a request for tomorrow had nowhere to appear.
+               order=asc: the first page has to be the soonest ones, not the furthest. */
+            async loadPending() {
+                this.pendingLoading = true;
+                this.pendingError = '';
+                try {
+                    var rows = await OAK.api(
+                        '/api/partner/bookings?status=pending&order=asc&limit=' +
+                            OAK_PENDING_PAGE +
+                            '&from=' +
+                            OAK.todayISO(),
+                    );
+                    this.pendingTotal = rows.meta ? rows.meta.total : rows.length;
+                    this.pending = rows;
+                } catch (error) {
+                    this.pending = [];
+                    this.pendingTotal = 0;
+                    this.pendingError = error.message;
+                } finally {
+                    this.pendingLoading = false;
+                    // This page already knows the number the bell wants: no count request.
+                    OAK.setPendingBadge(this.pendingTotal);
+                }
+            },
+
+            /* Confirm or cancel without leaving the dashboard. One request at a time, so a
+               double tap cannot send a second transition the backend would then reject. */
+            async decide(booking, status) {
+                if (this.acting !== 0 || !OAK_TRANSITIONS[booking.status].includes(status)) {
+                    return;
+                }
+                this.acting = booking.id;
+                try {
+                    var updated = await OAK.api('/api/partner/bookings/' + booking.id, {
+                        method: 'PATCH',
+                        body: { status: status },
+                    });
+                    OAK.toast('Đã cập nhật lịch hẹn ' + updated.code + '.');
+                    await this.loadPending();
+                    // The metric cards count the very rows this changed — "lịch sắp tới"
+                    // drops with a cancellation — so the whole overview is re-read, not
+                    // just today's list.
+                    if (this.overview) {
+                        this.overview = await OAK.api('/api/partner/overview');
+                        this.staffStatus = this.overview.staff_status;
+                        await this.loadToday();
+                    }
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.acting = 0;
                 }
             },
 
@@ -419,20 +588,6 @@
                 return this.overview && this.overview.review_count
                     ? 'Dựa trên ' + this.overview.review_count + ' đánh giá'
                     : 'Chưa có đánh giá';
-            },
-
-            /* Dragging to select text inside a row ends in a click, which must not navigate. */
-            isSelecting() {
-                var selection = window.getSelection();
-                return Boolean(selection) && !selection.isCollapsed && String(selection).trim() !== '';
-            },
-
-            /* The whole booking row is clickable. */
-            openBooking(booking) {
-                if (this.isSelecting()) {
-                    return;
-                }
-                location.href = 'quan-ly-lich-hen.html?booking_id=' + booking.id;
             },
 
             timeRange(booking) {
@@ -471,6 +626,21 @@
                     this.results = [];
                 }
                 this.searchOpen = true;
+            },
+
+            openMobileSearch() {
+                this.mobileSearch = true;
+                this.$nextTick(
+                    function () {
+                        this.$refs.searchInput.focus();
+                    }.bind(this),
+                );
+            },
+
+            /* Shuts the results dropdown, and with it the mobile overlay it opened under. */
+            closeSearch() {
+                this.searchOpen = false;
+                this.mobileSearch = false;
             },
 
             resultType(type) {

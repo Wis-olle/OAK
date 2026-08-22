@@ -3,13 +3,30 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <title>Hồ sơ chuyên gia - Minh Anh - OAK Beauty</title>
+<meta content="Hồ sơ chuyên viên làm đẹp trên OAK Beauty: thế mạnh nghề nghiệp, số năm kinh nghiệm, dịch vụ nhận thực hiện, đánh giá của khách và lịch trống để đặt." name="description">
+<meta content="Hồ sơ chuyên gia - Minh Anh - OAK Beauty" property="og:title">
+<meta content="Hồ sơ chuyên viên làm đẹp trên OAK Beauty: thế mạnh nghề nghiệp, số năm kinh nghiệm, dịch vụ nhận thực hiện, đánh giá của khách và lịch trống để đặt." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/hero-banner.webp" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -109,7 +126,7 @@
 <div class="flex items-center justify-between gap-4 mb-2">
 <h3 class="font-headline-md text-headline-md">Khách hàng nói gì</h3>
 <div class="flex items-center gap-1 text-secondary" x-show="reviewMeta.total">
-<span :style="filled" class="material-symbols-outlined text-sm">star</span>
+<span :style="filled" aria-hidden="true" class="material-symbols-outlined text-sm">star</span>
 <span class="font-label-md text-label-md" x-text="Number(reviewMeta.average).toFixed(1)"></span>
 </div>
 </div>
@@ -118,9 +135,9 @@
 </template>
 <template :key="review.id" x-for="review in reviews">
 <div class="border-b border-outline-variant/30 pb-6">
-<div class="flex items-center gap-2 mb-2 text-secondary">
+<div :aria-label="review.rating + '/5'" class="flex items-center gap-2 mb-2 text-secondary" role="img">
 <template x-for="star in 5">
-<span :style="star &lt;= review.rating ? filled : ''" class="material-symbols-outlined text-sm">star</span>
+<span :style="star &lt;= review.rating ? filled : ''" aria-hidden="true" class="material-symbols-outlined text-sm">star</span>
 </template>
 </div>
 <p class="font-body-md text-body-md text-on-surface italic mb-4" x-text="review.comment"></p>
@@ -134,7 +151,7 @@
 </template>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -151,12 +168,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -171,7 +190,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -208,7 +227,15 @@
                     ]);
 
                     this.staff = profile;
-                    document.title = 'Hồ sơ chuyên gia - ' + profile.name + ' - OAK Beauty';
+                    /* The title is assembled around a name, so it can never be a dictionary
+                       key of its own — only the wording in front of the name can be. */
+                    const prefix = 'Hồ sơ chuyên gia';
+                    OAK.meta({
+                        title: (window.OAKI18N ? window.OAKI18N.label(prefix) : prefix)
+                            + ' - ' + profile.name + ' - OAK Beauty',
+                        description: profile.bio,
+                        image: profile.image,
+                    });
                     this.week = availability.week;
                     this.reviews = reviews;
                     this.reviewMeta = { total: reviews.meta.total, average: reviews.meta.average };

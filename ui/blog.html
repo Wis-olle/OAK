@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -29,6 +40,12 @@
         }
     </style>
 <title>Blog - OAK Beauty</title>
+<meta content="Bài viết và video từ chuyên gia cùng cộng đồng OAK: xu hướng làm đẹp, kinh nghiệm chăm sóc da, tóc, móng và những mẹo nhỏ hữu ích cho mỗi ngày." name="description">
+<meta content="Blog - OAK Beauty" property="og:title">
+<meta content="Bài viết và video từ chuyên gia cùng cộng đồng OAK: xu hướng làm đẹp, kinh nghiệm chăm sóc da, tóc, móng và những mẹo nhỏ hữu ích cho mỗi ngày." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/hero-banner.webp" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -50,7 +67,7 @@
 <p class="font-body-md text-body-md text-on-surface-variant">Bài viết và video từ chuyên gia cùng cộng đồng OAK: xu hướng, kinh nghiệm chăm sóc và những mẹo nhỏ hữu ích mỗi ngày.</p>
 </div>
 <button @click="openComposer()" class="inline-flex items-center justify-center gap-2 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 shrink-0" type="button">
-<span class="material-symbols-outlined text-[20px]" data-icon="edit">edit</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="edit">edit</span>
                 Đăng bài
             </button>
 </div>
@@ -67,6 +84,12 @@
 <div aria-label="Lọc theo loại bài" class="flex flex-wrap gap-3" role="group">
 <template :key="tab.value" x-for="tab in tabs">
 <button :aria-pressed="type === tab.value" :class="type === tab.value ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectType(tab.value)" class="px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button" x-text="tab.label"></button>
+</template>
+</div>
+<div aria-label="Lọc theo chủ đề" class="flex flex-wrap gap-3 mt-3" role="group">
+<button :aria-pressed="category === ''" :class="category === '' ? 'bg-secondary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectCategory('')" class="px-4 py-2 rounded-full font-caption text-caption transition-all duration-300" type="button">Mọi chủ đề</button>
+<template :key="item.value" x-for="item in categories">
+<button :aria-pressed="category === item.value" :class="category === item.value ? 'bg-secondary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectCategory(item.value)" class="px-4 py-2 rounded-full font-caption text-caption transition-all duration-300" type="button" x-text="item.label"></button>
 </template>
 </div>
 </section>
@@ -109,11 +132,11 @@
 <p class="font-body-md text-body-md text-on-surface-variant line-clamp-2 mb-4" x-text="post.excerpt || ''"></p>
 <div class="relative z-20 pointer-events-auto flex items-center gap-2 mb-4" x-show="canManage(post)">
 <button @click.stop="editPost(post)" class="inline-flex items-center gap-1 px-3 py-2 rounded-full border border-outline-variant text-primary font-label-md text-label-md hover:bg-surface-container-low transition-colors" type="button">
-<span class="material-symbols-outlined text-[18px]" data-icon="edit">edit</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="edit">edit</span>
 <span>Sửa</span>
 </button>
 <button :disabled="deletingId === post.id" @click.stop="removePost(post)" class="inline-flex items-center gap-1 px-3 py-2 rounded-full border border-outline-variant text-error font-label-md text-label-md hover:bg-surface-container-low transition-colors disabled:opacity-50" type="button">
-<span class="material-symbols-outlined text-[18px]" data-icon="delete">delete</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="delete">delete</span>
 <span x-text="deletingId === post.id ? 'Đang xoá…' : 'Xoá'"></span>
 </button>
 </div>
@@ -124,7 +147,7 @@
 <p class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(post.created_at)"></p>
 </div>
 <span class="ml-auto flex items-center gap-1 text-on-surface-variant shrink-0">
-<span class="material-symbols-outlined text-[16px]" data-icon="chat_bubble">chat_bubble</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="chat_bubble">chat_bubble</span>
 <span class="font-caption text-caption" x-text="post.comment_count"></span>
 </span>
 </div>
@@ -135,7 +158,7 @@
 <!-- Empty state -->
 <template x-if="!loading &amp;&amp; !loadError &amp;&amp; !posts.length">
 <div class="text-center py-16">
-<span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-4 block" data-icon="menu_book">menu_book</span>
+<span aria-hidden="true" class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-4 block" data-icon="menu_book">menu_book</span>
 <p class="font-body-md text-body-md text-on-surface-variant mb-6">Chưa có bài viết nào ở mục này. Hãy là người đầu tiên chia sẻ nhé!</p>
 <button @click="openComposer()" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="button">Đăng bài</button>
 </div>
@@ -153,6 +176,17 @@
 <!-- Load more -->
 <div class="mt-12 text-center" x-cloak="" x-show="posts.length &amp;&amp; posts.length &lt; total">
 <button :disabled="loading" @click="loadMore()" class="inline-block border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors disabled:opacity-50" type="button">Tải thêm</button>
+</div>
+<!-- End of feed: the way out of the blog and into a booking -->
+<div class="mt-16 rounded-2xl bg-surface-container-low p-8 flex flex-col md:flex-row md:items-center gap-6 justify-between">
+<div class="max-w-xl">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Đọc xong rồi, thử luôn nhé?</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Tìm salon phù hợp gần bạn và đặt lịch chỉ trong vài phút.</p>
+</div>
+<a class="inline-flex items-center justify-center gap-2 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 shrink-0" href="ket-qua-tim-kiem.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="event">event</span>
+                Tìm salon &amp; đặt lịch
+            </a>
 </div>
 </section>
 <!-- Composer modal -->
@@ -179,7 +213,7 @@
 <p class="font-caption text-caption text-on-surface-variant mt-2">Bài viết vẫn được biên tập trên OAK và có liên kết đến bài gốc.</p>
 </div>
 </template>
-<form @submit.prevent="showPreview()" novalidate="">
+<form @submit.prevent="submitComposer()" novalidate="">
 <div x-show="!previewing">
 <div class="relative mb-8" x-show="user &amp;&amp; user.role === 'partner' &amp;&amp; form.has_social_source">
 <input class="input-minimal font-body-md text-body-md text-primary" id="post-source-url" maxlength="2048" placeholder=" " type="url" x-model="form.source_url">
@@ -194,6 +228,16 @@
 <div class="relative mb-8">
 <input class="input-minimal font-body-md text-body-md text-primary" id="post-title" placeholder=" " required="" type="text" x-model="form.title">
 <label class="floating-label font-body-md text-body-md" for="post-title">Tiêu đề</label>
+</div>
+<div class="mb-8">
+<label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider block mb-3" for="post-category">Chủ đề (tùy chọn)</label>
+<select class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 font-body-md text-body-md text-primary focus:outline-none focus:border-primary transition-colors" id="post-category" x-model="form.category">
+<option value="">Không gắn chủ đề</option>
+<template :key="item.value" x-for="item in categories">
+<option :value="item.value" x-text="item.label"></option>
+</template>
+</select>
+<p class="font-caption text-caption text-on-surface-variant mt-2">Bài có chủ đề sẽ được gợi ý cùng các salon tương ứng.</p>
 </div>
 <!-- Article fields -->
 <div x-show="form.type === 'article'">
@@ -254,6 +298,10 @@
 <p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Loại nội dung</p>
 <p class="font-body-md text-body-md text-on-surface-variant mt-1" x-text="previewPayload.type === 'video' ? 'Video' : 'Bài viết'"></p>
 </div>
+<div>
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Chủ đề</p>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1" x-text="categoryLabel(previewPayload.category) || 'Không gắn chủ đề'"></p>
+</div>
 <template x-if="previewPayload.type === 'article'">
 <div>
 <p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Nội dung</p>
@@ -267,9 +315,10 @@
 </template>
 </div>
 <p class="font-body-md text-body-md text-error mb-6" x-cloak="" x-show="error" x-text="error"></p>
-<div class="flex flex-col-reverse md:flex-row md:justify-end gap-3" x-show="!previewing">
+<div class="flex flex-col-reverse md:flex-row md:items-center md:justify-end gap-3" x-show="!previewing">
 <button @click="closeComposer()" class="inline-flex items-center justify-center border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" type="button">Huỷ</button>
-<button :disabled="uploading" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-50" data-oak-preview-button type="submit">Xem trước</button>
+<button @click="showPreview()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline md:mr-3" type="button" x-show="editingPost">Xem trước</button>
+<button :disabled="uploading || saving" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-50" data-oak-preview-button type="submit" x-text="editingPost ? (saving ? 'Đang lưu…' : 'Lưu thay đổi') : 'Xem trước'"></button>
 </div>
 <div class="flex flex-col-reverse md:flex-row md:justify-end gap-3" x-show="previewing">
 <button @click="previewing = false" class="inline-flex items-center justify-center border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" data-oak-edit-button type="button">Quay lại chỉnh sửa</button>
@@ -280,7 +329,7 @@
 </div>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -297,12 +346,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -317,7 +368,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>

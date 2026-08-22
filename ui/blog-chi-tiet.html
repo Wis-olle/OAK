@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -29,6 +40,12 @@
         }
     </style>
 <title>Bài viết - OAK Beauty</title>
+<meta content="Bài viết từ chuyên gia và cộng đồng OAK Beauty: kinh nghiệm chăm sóc da, tóc, móng, xu hướng làm đẹp và những lời khuyên bạn có thể áp dụng ngay." name="description">
+<meta content="Bài viết - OAK Beauty" property="og:title">
+<meta content="Bài viết từ chuyên gia và cộng đồng OAK Beauty: kinh nghiệm chăm sóc da, tóc, móng, xu hướng làm đẹp và những lời khuyên bạn có thể áp dụng ngay." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/hero-banner.webp" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -41,13 +58,13 @@
 <div class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto pt-8 md:pt-12">
 <!-- Back to blog -->
 <a class="inline-flex items-center gap-2 font-label-md text-label-md text-on-surface-variant hover:text-primary uppercase tracking-wider transition-colors mb-8" href="blog.html">
-<span class="material-symbols-outlined text-[18px]" data-icon="arrow_back">arrow_back</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="arrow_back">arrow_back</span>
             Quay lại Blog
         </a>
 <!-- Not found -->
 <template x-if="!loading &amp;&amp; !post">
 <div class="text-center py-16">
-<span class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-4 block" data-icon="search_off">search_off</span>
+<span aria-hidden="true" class="material-symbols-outlined text-5xl text-on-surface-variant/40 mb-4 block" data-icon="search_off">search_off</span>
 <p class="font-body-md text-body-md text-on-surface-variant mb-6" x-text="error || 'Không tìm thấy bài viết này.'"></p>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="blog.html">Xem các bài viết khác</a>
 </div>
@@ -56,7 +73,12 @@
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter lg:gap-12">
 <!-- Article / video column -->
 <article class="lg:col-span-8 min-w-0">
-<span class="font-caption text-caption uppercase tracking-widest text-on-surface-variant mb-4 block" x-text="post.type === 'video' ? 'Video' : 'Bài viết'"></span>
+<div class="flex flex-wrap items-center gap-3 mb-4">
+<span class="font-caption text-caption uppercase tracking-widest text-on-surface-variant" x-text="post.type === 'video' ? 'Video' : 'Bài viết'"></span>
+<template x-if="categoryLabel">
+<a :href="categoryPageUrl" class="inline-flex items-center px-3 py-1 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" x-text="categoryLabel"></a>
+</template>
+</div>
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-6" x-text="post.title"></h1>
 <!-- Byline -->
 <div class="flex items-center gap-3 pb-8 mb-8 border-b border-outline-variant/30">
@@ -89,11 +111,24 @@
 <img :alt="post.title" :src="post.image" class="w-full h-full object-cover">
 </div>
 </template>
-<!-- Body copy -->
-<div class="space-y-6">
+<!-- Body copy: capped at a comfortable reading measure, unlike the blocks around it -->
+<div class="space-y-6 max-w-[65ch]">
 <template :key="index" x-for="(paragraph, index) in paragraphs">
 <p class="font-body-lg text-body-lg text-on-surface-variant" x-text="paragraph"></p>
 </template>
+</div>
+<!-- Where the article leads: the matching salons, or the whole catalogue -->
+<div class="mt-12 rounded-2xl bg-surface-container-low p-8 flex flex-col sm:flex-row sm:items-center gap-6 justify-between">
+<div class="min-w-0">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-2" x-show="categoryLabel">Muốn thử <span x-text="categoryLabel"></span>?</h2>
+<h2 class="font-headline-sm text-headline-sm text-primary mb-2" x-show="!categoryLabel">Muốn làm đẹp ngay hôm nay?</h2>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="categoryLabel">Tìm salon gần bạn và đặt lịch chỉ trong vài phút.</p>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!categoryLabel">Khám phá các salon đang được yêu thích trên OAK và đặt lịch chỉ trong vài phút.</p>
+</div>
+<a :href="ctaUrl" class="inline-flex items-center justify-center gap-2 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 shrink-0">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="storefront">storefront</span>
+<span x-text="categoryLabel ? 'Tìm salon gần bạn' : 'Khám phá salon'"></span>
+</a>
 </div>
 <!-- Comments -->
 <section class="mt-16 pt-8 border-t border-outline-variant/30">
@@ -136,7 +171,7 @@
 <!-- Sidebar -->
 <aside class="lg:col-span-4 min-w-0">
 <div class="lg:sticky lg:top-28">
-<h2 class="font-headline-sm text-headline-sm text-primary mb-6 border-b border-outline-variant/30 pb-4">Bài viết khác</h2>
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6 border-b border-outline-variant/30 pb-4" x-text="relatedByCategory ? 'Bài viết liên quan' : 'Bài viết khác'"></h2>
 <div class="space-y-6">
 <template :key="item.id" x-for="item in related">
 <a :href="'blog-chi-tiet.html?slug=' + encodeURIComponent(item.slug)" class="group flex gap-4" style="color:inherit;text-decoration:none">
@@ -146,13 +181,13 @@
 </template>
 <template x-if="!item.image">
 <div class="w-full h-full flex items-center justify-center">
-<span class="material-symbols-outlined text-2xl text-on-surface-variant/40" x-text="item.type === 'video' ? 'movie' : 'article'"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-2xl text-on-surface-variant/40" x-text="item.type === 'video' ? 'movie' : 'article'"></span>
 </div>
 </template>
 <template x-if="item.type === 'video'">
 <span aria-label="Video" class="absolute inset-0 flex items-center justify-center">
 <span class="w-8 h-8 rounded-full bg-primary/70 text-on-primary flex items-center justify-center">
-<span class="material-symbols-outlined text-[18px]" data-icon="play_arrow">play_arrow</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="play_arrow">play_arrow</span>
 </span>
 </span>
 </template>
@@ -174,7 +209,7 @@
 </div>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -191,12 +226,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -211,7 +248,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -219,6 +256,16 @@
     /* Inline scripts run before deferred ones, so these factories exist by the time Alpine boots. */
     const OAK_DEFAULT_AVATAR = 'assets/images/img-b79c0642dd.jpg';
     const OAK_RELATED_LIMIT = 4;
+    /* A post's category, as it is labelled everywhere else on the site and as the page that
+       lists the salons offering it. */
+    const OAK_POST_CATEGORY_LABELS = {
+        nail: 'Nail', hair: 'Tóc', skincare: 'Chăm sóc da',
+        spa: 'Spa & Massage', eyelash: 'Nối mi',
+    };
+    const OAK_POST_CATEGORY_PAGES = {
+        nail: 'dich-vu-nail.html', hair: 'dich-vu-toc-chuyen-sau.html',
+        skincare: 'cham-soc-da.html', spa: 'spa-massage.html', eyelash: 'dich-vu-mi.html',
+    };
 
     function oakPostYoutubeId(parsed) {
         if (parsed.hostname === 'youtu.be') {
@@ -294,6 +341,7 @@
         return {
             post: null,
             related: [],
+            relatedByCategory: false,
             user: null,
             loading: true,
             error: '',
@@ -316,7 +364,11 @@
 
                 try {
                     this.post = await OAK.api('/api/posts/' + encodeURIComponent(slug));
-                    document.title = this.post.title + ' - OAK Beauty';
+                    OAK.meta({
+                        title: this.post.title + ' - OAK Beauty',
+                        description: this.post.excerpt,
+                        image: this.post.image,
+                    });
                 } catch (error) {
                     this.error = error.message;
                 } finally {
@@ -326,13 +378,48 @@
                 this.loadRelated();
             },
 
+            /* Posts under the same category first; the latest posts when that finds nothing
+               to show, which is also what a post with no category gets. `relatedByCategory`
+               records which of the two the list came from, because the heading claims a
+               kinship only the first one has. */
             async loadRelated() {
+                const category = this.post && this.post.category;
+                this.relatedByCategory = false;
                 try {
-                    const rows = await OAK.api('/api/posts?limit=' + OAK_RELATED_LIMIT);
-                    this.related = rows.filter((item) => !this.post || item.id !== this.post.id);
+                    if (category) {
+                        this.related = this.others(await OAK.api(
+                            '/api/posts?limit=' + OAK_RELATED_LIMIT +
+                            '&category=' + encodeURIComponent(category)));
+                        if (this.related.length) {
+                            this.relatedByCategory = true;
+                            return;
+                        }
+                    }
+                    this.related = this.others(await OAK.api('/api/posts?limit=' + OAK_RELATED_LIMIT));
                 } catch (error) {
                     this.related = [];
                 }
+            },
+
+            /** Every row but the post being read. */
+            others(rows) {
+                return rows.filter((item) => !this.post || item.id !== this.post.id);
+            },
+
+            get categoryLabel() {
+                return (this.post && OAK_POST_CATEGORY_LABELS[this.post.category]) || '';
+            },
+
+            get categoryPageUrl() {
+                return (this.post && OAK_POST_CATEGORY_PAGES[this.post.category]) || 'kham-pha.html';
+            },
+
+            /* The salons that offer what the article is about, or the whole catalogue. */
+            get ctaUrl() {
+                const category = this.post && this.post.category;
+                return OAK_POST_CATEGORY_LABELS[category]
+                    ? 'ket-qua-tim-kiem.html?category=' + encodeURIComponent(category)
+                    : 'kham-pha.html';
             },
 
             /* Articles store their body in `content`; a video's blurb may live in either field. */
@@ -353,7 +440,7 @@
             },
 
             salonUrl(salon) {
-                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+                return 'salon-profile.html?salon=' + encodeURIComponent(salon.slug);
             },
 
             platformLabel(platform) {

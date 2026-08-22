@@ -3,13 +3,30 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
 <script defer src="assets/js/alpine-a18e64ece2.js"></script>
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
-<title>Nail Gel Hàn Quốc - OAK Beauty</title>
+<title>Dịch vụ - OAK Beauty</title>
+<meta content="Xem chi tiết dịch vụ làm đẹp trên OAK Beauty: mô tả, thời lượng, mức giá, chuyên viên thực hiện, đánh giá của khách và khung giờ trống để đặt lịch." name="description">
+<meta content="Dịch vụ - OAK Beauty" property="og:title">
+<meta content="Xem chi tiết dịch vụ làm đẹp trên OAK Beauty: mô tả, thời lượng, mức giá, chuyên viên thực hiện, đánh giá của khách và khung giờ trống để đặt lịch." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/hero-banner.webp" property="og:image">
 
 
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
@@ -20,6 +37,29 @@
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
 <main class="pt-24 pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto" x-data="oakServiceDetail()">
+<!-- Until the service lands there is nothing at all to show, so the page holds its own
+     layout rather than a blank stretch that jumps when the data arrives. `loading` alone
+     would not do: the service is the first await of five, and the four that follow it are
+     what clear the flag — the real page is already on screen under that whole window. -->
+<template x-if="loading &amp;&amp; !service">
+<div aria-label="Đang tải chi tiết dịch vụ" class="grid grid-cols-1 lg:grid-cols-12 gap-gutter animate-pulse" role="status">
+<div class="lg:col-span-7 flex flex-col gap-gutter">
+<div class="w-full aspect-[4/5] md:aspect-[3/2] rounded-xl bg-surface-container"></div>
+<div class="grid grid-cols-2 gap-gutter">
+<div class="aspect-square rounded-xl bg-surface-container"></div>
+<div class="aspect-square rounded-xl bg-surface-container"></div>
+</div>
+</div>
+<div class="lg:col-span-5 flex flex-col gap-4">
+<div class="h-10 w-2/3 rounded-lg bg-surface-container"></div>
+<div class="h-4 w-1/2 rounded bg-surface-container"></div>
+<div class="h-4 w-full rounded bg-surface-container"></div>
+<div class="h-4 w-5/6 rounded bg-surface-container"></div>
+<div class="h-48 w-full rounded-xl bg-surface-container mt-4"></div>
+<div class="h-14 w-full rounded-full bg-surface-container"></div>
+</div>
+</div>
+</template>
 <template x-if="!loading &amp;&amp; !service">
 <p class="font-body-md text-body-md text-on-surface-variant">Không tìm thấy dịch vụ này.</p>
 </template>
@@ -29,9 +69,9 @@
 <div class="mb-12 flex flex-col gap-4">
 <div class="flex items-center gap-2 text-on-surface-variant text-caption font-caption">
 <a class="hover:text-primary" href="ket-qua-tim-kiem.html">Dịch vụ</a>
-<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]">chevron_right</span>
 <a :href="category().url" class="hover:text-primary" x-text="category().label"></a>
-<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]">chevron_right</span>
 <span class="text-primary font-semibold" x-text="service.name"></span>
 </div>
 </div>
@@ -61,11 +101,11 @@
 </div>
 <div class="flex items-center gap-6 mb-8 pb-8 border-b border-outline-variant/30">
 <div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-outline">schedule</span>
+<span aria-hidden="true" class="material-symbols-outlined text-outline">schedule</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="service.duration_min + ' phút'"></span>
 </div>
 <div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-outline">payments</span>
+<span aria-hidden="true" class="material-symbols-outlined text-outline">payments</span>
 <span class="font-body-md text-body-md font-semibold text-primary" x-text="priceLabel()"></span>
 </div>
 </div>
@@ -76,7 +116,7 @@
 <div class="mb-10 p-6 bg-tertiary-fixed rounded-xl ambient-shadow">
 <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
 <h3 class="font-headline-sm text-headline-sm text-tertiary flex items-center gap-2">
-<span class="material-symbols-outlined">event_available</span>
+<span aria-hidden="true" class="material-symbols-outlined">event_available</span>
 <span x-text="slotHeading()"></span>
 </h3>
 <input :min="today" @change="loadSlots()" aria-label="Chọn ngày" class="px-3 py-1.5 rounded-full border border-outline/30 bg-transparent font-label-md text-label-md text-tertiary" type="date" x-model="date">
@@ -102,7 +142,7 @@
 <div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
 <template :key="member.id" x-for="member in staff">
 <div class="flex flex-col items-center group">
-<button @click="staffId = (staffId === member.id ? null : member.id)" class="flex flex-col items-center" type="button">
+<button @click="pickStaff(member.id)" class="flex flex-col items-center" type="button">
 <div :class="staffId === member.id ? 'ring-2 ring-primary' : ''" class="w-32 h-32 rounded-full overflow-hidden mb-4 bg-surface-container">
 <img loading="lazy" :alt="member.name" :src="member.image" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
 </div>
@@ -139,16 +179,16 @@
 </div>
 <p class="font-body-md text-body-md text-on-surface-variant" x-show="!reviews.length">Chưa có đánh giá nào. Hãy là người đầu tiên chia sẻ trải nghiệm của bạn.</p>
 <div class="flex items-center gap-3 mb-8" x-show="reviews.length">
-<span :style="filled" class="material-symbols-outlined text-secondary">star</span>
+<span :style="filled" aria-hidden="true" class="material-symbols-outlined text-secondary">star</span>
 <span class="font-headline-sm text-headline-sm text-primary" x-text="Number(reviewMeta.average).toFixed(1)"></span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="'(' + reviewMeta.total + ' đánh giá)'"></span>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter" x-show="reviews.length">
 <template :key="review.id" x-for="review in reviews">
 <div class="p-6 rounded-xl bg-surface-container-low">
-<div class="flex items-center gap-1 text-secondary mb-3">
+<div :aria-label="review.rating + '/5'" class="flex items-center gap-1 text-secondary mb-3" role="img">
 <template x-for="star in 5">
-<span :style="star &lt;= review.rating ? filled : ''" class="material-symbols-outlined text-sm">star</span>
+<span :style="star &lt;= review.rating ? filled : ''" aria-hidden="true" class="material-symbols-outlined text-sm">star</span>
 </template>
 </div>
 <p class="font-body-md text-body-md text-on-surface italic mb-4" x-text="review.comment"></p>
@@ -165,7 +205,7 @@
 </template>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -182,12 +222,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -202,11 +244,11 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
-<div aria-hidden="true" class="h-20 md:hidden bg-tertiary dark:bg-tertiary-container"></div>
+<div aria-hidden="true" class="h-20 md:hidden bg-tertiary"></div>
 <script>
     /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
     const OAK_CATEGORIES = {
@@ -224,6 +266,13 @@
         return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     }
 
+    /* Now as a local 'HH:MM', so an hour today that has already started is not offered. */
+    function oakNowTime() {
+        const now = new Date();
+        const pad = (value) => String(value).padStart(2, '0');
+        return pad(now.getHours()) + ':' + pad(now.getMinutes());
+    }
+
     function oakServiceDetail() {
         return {
             filled: "font-variation-settings: 'FILL' 1;",
@@ -238,13 +287,18 @@
             date: oakTodayISO(),
             time: '',
             staffId: null,
+            slotsToken: 0,
             isFavorite: false,
             loading: true,
 
             async init() {
                 try {
                     this.service = await OAK.api('/api/services/' + (await this.resolveId()));
-                    document.title = this.service.name + ' - OAK Beauty';
+                    OAK.meta({
+                        title: this.service.name + ' - OAK Beauty',
+                        description: this.service.description,
+                        image: this.service.image,
+                    });
 
                     const salonId = this.service.salon.id;
                     const [staff, photos, related, reviews] = await Promise.all([
@@ -291,7 +345,7 @@
             },
 
             priceLabel() {
-                return OAK.fmtPrice(this.service.price) + (this.service.price_is_from ? '+' : '');
+                return OAK.fmtPriceFrom(this.service.price, this.service.price_is_from);
             },
 
             slotHeading() {
@@ -300,19 +354,44 @@
 
             async loadSlots() {
                 this.time = '';
+                const token = ++this.slotsToken;
                 if (!this.date) {
                     this.slots = [];
                     return;
                 }
+                // A chosen technician has their own calendar. The service endpoint ORs across
+                // everyone who performs it, so it would offer times this one person cannot
+                // take. The two answer in different shapes, so the id is read once here: a
+                // reply must be read as the shape the request that earned it was sent for.
+                const staffId = this.staffId;
+                const path = staffId
+                    ? '/api/staff/' + staffId + '/availability?days=1&from=' + this.date
+                        + '&service_id=' + this.service.id
+                    : '/api/services/' + this.service.id + '/availability?date=' + this.date;
                 try {
-                    const data = await OAK.api(
-                        '/api/services/' + this.service.id + '/availability?date=' + this.date,
-                    );
-                    this.slots = data.slots.filter((slot) => slot.available);
+                    const data = await OAK.api(path);
+                    if (token !== this.slotsToken) {
+                        return;
+                    }
+                    // An hour that has already started today cannot be booked any more; the
+                    // server refuses it too, so offering it would only end in an error.
+                    const passed = this.date === this.today ? oakNowTime() : '';
+                    this.slots = (staffId ? data.week[0].slots : data.slots)
+                        .filter((slot) => slot.available && slot.time > passed);
                 } catch (error) {
+                    if (token !== this.slotsToken) {
+                        return;
+                    }
                     this.slots = [];
                     OAK.toast(error.message, 'error');
                 }
+            },
+
+            /** Picking a technician narrows the times above to that one person's calendar;
+                picking them again widens it out to everyone who performs the service. */
+            pickStaff(id) {
+                this.staffId = this.staffId === id ? null : id;
+                this.loadSlots();
             },
 
             /**

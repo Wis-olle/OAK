@@ -4,12 +4,18 @@ import { db } from '../db.js';
 import { SERVICE_CARD_COLUMNS, toServiceCard } from '../lib/cards.js';
 import { getServiceSlots } from '../lib/availability.js';
 import { parsePagination } from '../lib/query.js';
-import { isISODate } from '../lib/time.js';
+import { addDaysISO, isISODate, todayISO } from '../lib/time.js';
 import { httpError } from '../middleware/auth.js';
 
 const router = express.Router();
 
 const DEFAULT_LIMIT = 12;
+
+// The same window /api/staff/:id/availability allows, so a caller that offers a day strip
+// for either one is bounded the same way.
+const DEFAULT_DAYS = 1;
+const MIN_DAYS = 1;
+const MAX_DAYS = 14;
 
 // The six categories the schema allows, in display order, with Vietnamese labels.
 const CATEGORIES = [
@@ -159,9 +165,42 @@ router.get('/categories', async (req, res, next) => {
   }
 });
 
+/** Per-day slots for one service, in the same week shape /api/staff/:id returns. */
+async function getServiceWeek(serviceId, from, days) {
+  const week = [];
+  for (let offset = 0; offset < days; offset += 1) {
+    const date = addDaysISO(from, offset);
+    week.push({ date, slots: await getServiceSlots(serviceId, date) });
+  }
+  return week;
+}
+
+/**
+ * Two shapes, chosen by whether ?days is there at all.
+ *
+ * With it the answer is `{ from, week }`, which is what a day strip needs: seven days in
+ * one round trip rather than seven requests. Without it the answer stays `{ date, slots }`
+ * for the single ?date — every caller that predates this reads `slots` off the top level,
+ * so the older form cannot move. That is also why ?days=1 still answers in the week shape:
+ * the shape follows the question asked, not the size of the answer.
+ */
 router.get('/:id/availability', async (req, res, next) => {
   try {
     const serviceId = await serviceIdOrThrow(req.params.id);
+
+    if (req.query.days !== undefined) {
+      const from = req.query.from === undefined ? todayISO() : req.query.from;
+      if (!isISODate(from)) {
+        throw httpError(400, 'VALIDATION_ERROR', 'Ngày bắt đầu phải theo định dạng YYYY-MM-DD.');
+      }
+      const days = Math.min(
+        MAX_DAYS,
+        Math.max(MIN_DAYS, Number.parseInt(req.query.days, 10) || DEFAULT_DAYS),
+      );
+      res.json({ success: true, data: { from, week: await getServiceWeek(serviceId, from, days) } });
+      return;
+    }
+
     const { date } = req.query;
     if (!isISODate(date)) {
       throw httpError(400, 'VALIDATION_ERROR', 'Vui lòng chọn ngày hợp lệ theo định dạng YYYY-MM-DD.');

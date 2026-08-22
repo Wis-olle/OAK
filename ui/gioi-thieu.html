@@ -5,13 +5,30 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <title>Về chúng tôi - OAK Beauty</title>
+<meta content="OAK Beauty là nền tảng đặt lịch làm đẹp tại TP.HCM, kết nối bạn với các salon nail, tóc, chăm sóc da, spa và nối mi đã được tuyển chọn kỹ lưỡng." name="description">
+<meta content="Về chúng tôi - OAK Beauty" property="og:title">
+<meta content="OAK Beauty là nền tảng đặt lịch làm đẹp tại TP.HCM, kết nối bạn với các salon nail, tóc, chăm sóc da, spa và nối mi đã được tuyển chọn kỹ lưỡng." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/img-8432feb661.jpg" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -83,19 +100,19 @@
 <div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
 <div class="bg-surface-container-low rounded-2xl p-8 flex flex-col gap-4">
 <span class="font-caption text-caption text-secondary uppercase tracking-wider">Bước 1</span>
-<span class="material-symbols-outlined text-[40px] text-primary" data-icon="search">search</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[40px] text-primary" data-icon="search">search</span>
 <h3 class="font-headline-sm text-headline-sm text-primary">Tìm</h3>
 <p class="font-body-md text-body-md text-on-surface-variant">Mô tả nhu cầu bằng tiếng Việt tự nhiên — "cắt tóc nam Quận 3", "massage thư giãn dưới 500k" — hoặc duyệt theo chuyên mục nail, tóc, chăm sóc da, spa và nối mi.</p>
 </div>
 <div class="bg-surface-container-low rounded-2xl p-8 flex flex-col gap-4">
 <span class="font-caption text-caption text-secondary uppercase tracking-wider">Bước 2</span>
-<span class="material-symbols-outlined text-[40px] text-primary" data-icon="event_available">event_available</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[40px] text-primary" data-icon="event_available">event_available</span>
 <h3 class="font-headline-sm text-headline-sm text-primary">Đặt</h3>
 <p class="font-body-md text-body-md text-on-surface-variant">Chọn dịch vụ, chuyên viên và khung giờ còn trống. Lịch hẹn được xác nhận ngay và luôn nằm trong mục Lịch hẹn của tôi để bạn theo dõi hoặc huỷ.</p>
 </div>
 <div class="bg-surface-container-low rounded-2xl p-8 flex flex-col gap-4">
 <span class="font-caption text-caption text-secondary uppercase tracking-wider">Bước 3</span>
-<span class="material-symbols-outlined text-[40px] text-primary" data-icon="spa">spa</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[40px] text-primary" data-icon="spa">spa</span>
 <h3 class="font-headline-sm text-headline-sm text-primary">Tận hưởng</h3>
 <p class="font-body-md text-body-md text-on-surface-variant">Đến salon đúng giờ, thanh toán trực tiếp tại quầy. Sau buổi hẹn, bạn có thể để lại đánh giá giúp cộng đồng chọn đúng nơi phù hợp.</p>
 </div>
@@ -108,28 +125,28 @@
 </div>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-gutter">
 <div class="flex gap-6 bg-surface-container-low rounded-2xl p-8">
-<span class="material-symbols-outlined text-[32px] text-secondary shrink-0" data-icon="verified">verified</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary shrink-0" data-icon="verified">verified</span>
 <div>
 <h3 class="font-headline-sm text-headline-sm text-primary mb-2">Salon được tuyển chọn</h3>
 <p class="font-body-md text-body-md text-on-surface-variant">Mỗi đối tác đều được xét duyệt hồ sơ, dịch vụ và bảng giá trước khi xuất hiện trên OAK Beauty.</p>
 </div>
 </div>
 <div class="flex gap-6 bg-surface-container-low rounded-2xl p-8">
-<span class="material-symbols-outlined text-[32px] text-secondary shrink-0" data-icon="payments">payments</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary shrink-0" data-icon="payments">payments</span>
 <div>
 <h3 class="font-headline-sm text-headline-sm text-primary mb-2">Giá minh bạch</h3>
 <p class="font-body-md text-body-md text-on-surface-variant">Giá và thời lượng của từng dịch vụ được niêm yết công khai. Không phụ phí ẩn, không đặt cọc trước.</p>
 </div>
 </div>
 <div class="flex gap-6 bg-surface-container-low rounded-2xl p-8">
-<span class="material-symbols-outlined text-[32px] text-secondary shrink-0" data-icon="reviews">reviews</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary shrink-0" data-icon="reviews">reviews</span>
 <div>
 <h3 class="font-headline-sm text-headline-sm text-primary mb-2">Đánh giá thật</h3>
 <p class="font-body-md text-body-md text-on-surface-variant">Chỉ khách đã hoàn thành lịch hẹn mới được đánh giá, nên điểm số phản ánh đúng trải nghiệm thực tế.</p>
 </div>
 </div>
 <div class="flex gap-6 bg-surface-container-low rounded-2xl p-8">
-<span class="material-symbols-outlined text-[32px] text-secondary shrink-0" data-icon="schedule">schedule</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary shrink-0" data-icon="schedule">schedule</span>
 <div>
 <h3 class="font-headline-sm text-headline-sm text-primary mb-2">Linh hoạt</h3>
 <p class="font-body-md text-body-md text-on-surface-variant">Đổi ý là chuyện thường. Bạn có thể huỷ miễn phí cho tới trước giờ hẹn 2 tiếng.</p>
@@ -152,7 +169,7 @@
 </section>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -169,12 +186,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -189,7 +208,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>

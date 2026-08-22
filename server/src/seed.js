@@ -931,6 +931,8 @@ const NOTIFICATIONS = [
     body: 'Lala Nail Studio đã xác nhận lịch hẹn ngày 12/08/2026 lúc 10:00 với kỹ thuật viên Minh Anh.',
     type: 'booking',
     read: 0,
+    // Index into BOOKINGS; null where the notification is about nothing bookable.
+    booking: 0,
     created_at: '2026-08-05T02:35:00.000Z',
   },
   {
@@ -939,6 +941,7 @@ const NOTIFICATIONS = [
     body: 'Nhập mã OAKNEW20 khi đặt lịch để được giảm 20% cho buổi hẹn đầu tiên, áp dụng đến 30/09/2026.',
     type: 'promotion',
     read: 0,
+    booking: null,
     created_at: '2026-08-01T01:00:00.000Z',
   },
   {
@@ -947,6 +950,7 @@ const NOTIFICATIONS = [
     body: 'Bạn có lịch hẹn tại The Muse Beauty Bar vào ngày 25/08/2026 lúc 15:30. Vui lòng đến sớm 10 phút.',
     type: 'reminder',
     read: 1,
+    booking: 1,
     created_at: '2026-08-09T08:15:00.000Z',
   },
   {
@@ -955,6 +959,7 @@ const NOTIFICATIONS = [
     body: 'Buổi hẹn tại Lala Nail Studio đã hoàn tất. Hãy dành 1 phút đánh giá để giúp salon phục vụ tốt hơn nhé!',
     type: 'review',
     read: 1,
+    booking: 2,
     created_at: '2026-07-18T04:00:00.000Z',
   },
 ];
@@ -1065,6 +1070,7 @@ const POSTS = [
     type: 'article',
     title: 'Xu hướng nail Hàn Quốc 2026: Tối giản nhưng tinh tế',
     slug: 'xu-huong-nail-han-quoc-2026',
+    category: 'nail',
     excerpt:
       'Năm 2026 đánh dấu sự trở lại của những bộ móng tối giản: form ngắn, tone trong trẻo và điểm nhấn nhỏ đặt đúng chỗ.',
     content:
@@ -1078,6 +1084,7 @@ const POSTS = [
     type: 'article',
     title: 'Chăm sóc da mùa mưa Sài Gòn: 5 bước không thể bỏ qua',
     slug: 'cham-soc-da-mua-mua-sai-gon',
+    category: 'skincare',
     excerpt:
       'Độ ẩm cao, mưa bất chợt và máy lạnh cả ngày khiến da vừa bí vừa mất nước. Đây là quy trình tối giản mà hiệu quả cho mùa mưa.',
     content:
@@ -1091,6 +1098,7 @@ const POSTS = [
     type: 'article',
     title: 'Phục hồi tóc hư tổn sau nhuộm: Lộ trình 8 tuần',
     slug: 'phuc-hoi-toc-hu-ton-sau-nhuom',
+    category: 'hair',
     excerpt:
       'Tóc khô xơ, chẻ ngọn và mất độ đàn hồi sau khi tẩy nhuộm hoàn toàn có thể cải thiện, nhưng cần đúng thứ tự và đủ kiên nhẫn.',
     content:
@@ -1104,6 +1112,7 @@ const POSTS = [
     type: 'article',
     title: 'Chọn spa trị liệu: 6 tiêu chí người Sài Gòn nên biết',
     slug: 'chon-spa-tri-lieu-6-tieu-chi',
+    category: 'spa',
     excerpt:
       'Giữa hàng trăm lựa chọn, đâu là dấu hiệu của một spa trị liệu thực sự chỉn chu? Sáu tiêu chí dưới đây sẽ giúp bạn sàng lọc nhanh.',
     content:
@@ -1114,15 +1123,16 @@ const POSTS = [
   },
   {
     author: 'doitac@oak.vn',
-    type: 'video',
-    title: 'Video: Quy trình chăm sóc da cơ bản cho người mới bắt đầu',
-    slug: 'video-quy-trinh-cham-soc-da-co-ban',
+    type: 'article',
+    title: 'Giữ nếp mi sau khi nối: 5 thói quen nên bỏ',
+    slug: 'giu-nep-mi-sau-khi-noi',
+    category: 'eyelash',
     excerpt:
-      'Chỉ với vài bước nền tảng, người mới hoàn toàn có thể xây dựng một chu trình chăm sóc da gọn nhẹ mà vẫn hiệu quả.',
+      'Bộ mi nối bền được bao lâu phụ thuộc vào hai tuần đầu nhiều hơn là vào tay nghề của kỹ thuật viên.',
     content:
-      'Video hướng dẫn trọn vẹn các bước cơ bản của một chu trình chăm sóc da: làm sạch, cân bằng, dưỡng ẩm và chống nắng. Đây là bộ khung tối thiểu mà bất kỳ loại da nào cũng cần trước khi nghĩ tới các sản phẩm đặc trị.\n\nĐiểm mấu chốt nằm ở sự đều đặn chứ không phải số lượng sản phẩm. Hãy duy trì bộ bốn bước này ít nhất bốn tuần trước khi bổ sung thêm bất kỳ hoạt chất mới nào, để da có thời gian thích nghi và bạn dễ nhận ra sản phẩm nào thực sự phù hợp.',
-    video_url: 'https://www.youtube.com/embed/5JJ-cW4vYy0',
-    image: IMG('img-5b691ffccb.jpg'),
+      'Keo nối mi cần khoảng 24 giờ để khô hoàn toàn. Trong ngày đầu tiên, hãy tránh xông hơi, tắm nước quá nóng và mọi việc khiến vùng mắt đẫm hơi nước - đó là lý do phổ biến nhất khiến một bộ mi vừa làm đã rụng lác đác sau vài hôm.\n\nThói quen thứ hai nên bỏ là dụi mắt và nằm sấp úp mặt vào gối. Sợi mi nối chịu lực kém theo phương ngang, và phần lớn các khoảng trống lệch bên đều đến từ tư thế ngủ chứ không phải từ keo. Một chiếc vỏ gối lụa và thói quen nằm nghiêng vừa phải giúp ích nhiều hơn mọi loại dưỡng mi.\n\nBa thói quen còn lại nằm ở khâu làm sạch: dùng tẩy trang gốc dầu quanh mắt, chải mi khi mi còn ướt, và bỏ hẳn việc chải mascara lên phần mi đã nối. Thay vào đó, hãy rửa vùng mắt bằng sữa rửa mặt dịu nhẹ mỗi tối, thấm khô rồi chải nhẹ bằng lược mi sạch. Giữ được nếp mi, bạn thường chỉ cần dặm lại sau ba đến bốn tuần thay vì làm mới cả bộ.',
+    video_url: null,
+    image: IMG('img-9c7add0d36.jpg'),
     created_at: '2026-06-20T06:00:00.000Z',
   },
   {
@@ -1130,6 +1140,7 @@ const POSTS = [
     type: 'video',
     title: 'Video: Routine chăm sóc da phù hợp cho mọi loại da',
     slug: 'video-routine-cham-soc-da-moi-loai-da',
+    category: 'skincare',
     excerpt:
       'Da dầu, da khô hay da hỗn hợp đều dùng chung một bộ khung routine - khác biệt nằm ở kết cấu sản phẩm bạn chọn.',
     content:
@@ -1197,11 +1208,11 @@ const INSERT_REVIEW =
 const INSERT_FAVORITE =
   'INSERT INTO favorites (user_id, salon_id, created_at) VALUES (?, ?, ?)';
 const INSERT_NOTIFICATION =
-  'INSERT INTO notifications (user_id, title, body, type, "read", created_at) VALUES (?, ?, ?, ?, ?, ?)';
+  'INSERT INTO notifications (user_id, title, body, type, "read", booking_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)';
 const INSERT_PROMOTION =
   'INSERT INTO promotions (salon_id, code, type, title, description, discount_percent, discount_amount, original_price, sale_price, service_ids, image, starts_at, ends_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)';
 const INSERT_POST =
-  'INSERT INTO posts (author_id, type, title, slug, excerpt, content, video_url, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
+  'INSERT INTO posts (author_id, type, title, slug, excerpt, content, video_url, image, category, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 const INSERT_COMMENT =
   'INSERT INTO post_comments (post_id, user_id, content, created_at) VALUES (?, ?, ?, ?)';
 
@@ -1376,6 +1387,7 @@ export async function seed(db) {
         notification.body,
         notification.type,
         notification.read,
+        notification.booking === null ? null : bookingIds[notification.booking],
         notification.created_at,
       );
     }
@@ -1413,6 +1425,7 @@ export async function seed(db) {
         post.content,
         post.video_url,
         post.image,
+        post.category,
         post.created_at,
       );
       postIds.set(post.slug, Number(lastInsertRowid));

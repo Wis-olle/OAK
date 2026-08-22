@@ -126,6 +126,7 @@ const cases = [
     ['1 sao', '1 star'],
     ['+7 Ảnh', '+7 photos'],
     ['3 lịch sắp tới', '3 upcoming appointments'],
+    ['Lịch chờ xác nhận: 3', 'Pending appointments: 3'],
     ['6 ưu đãi đang áp dụng', '6 offers running'],
     ['Bạn có 2 thông báo chưa đọc.', 'You have 2 unread notifications.'],
     ['Tìm thấy 12 salon', 'Found 12 salons'],
@@ -138,18 +139,10 @@ const cases = [
     ['Từ 350.000đ', 'From 350.000đ'],
     ['Giảm 20%', 'Save 20%'],
     ['Giảm 100.000đ', 'Save 100.000đ'],
+    // the hour window of a search, one chip on ket-qua-tim-kiem.html
+    ['Sau 18:00', 'After 18:00'],
+    ['Trước 20:00', 'Before 20:00'],
     // the piece-by-piece lines
-    ['Tiêu chí: Chăm sóc da • Quận 1 • dưới 500.000đ',
-        'Criteria: Skincare • District 1 • under 500.000đ'],
-    ['Tiêu chí: Quận 1', 'Criteria: District 1'],
-    // the typed query is the visitor's own words: quoted, and copied across as it stands
-    ['Tiêu chí: "cắt tóc nam" • Quận 1 • Đang mở cửa',
-        'Criteria: "cắt tóc nam" • District 1 • Open now'],
-    // the rating and distance pieces are the filter chips' own labels, so pieced() resolves
-    // them straight out of the dictionary rather than needing a rule apiece
-    ['Tiêu chí: "cắt tóc" • Quận 1 • Từ 4.5 sao • Trong 3km • Đang mở cửa',
-        'Criteria: "cắt tóc" • District 1 • 4.5 stars and up • Within 3km • Open now'],
-    ['Tiêu chí: Chăm sóc da • Thứ Hai, 10/08/2026', 'Criteria: Skincare • Monday, 10/08/2026'],
     ['Quận 1 • 2.5km', 'District 1 • 2.5km'],
     ['Quận 1 • từ 350.000đ', 'District 1 • from 350.000đ'],
     ['Quận 1 • 2.5km • từ 350.000đ', 'District 1 • 2.5km • from 350.000đ'],
@@ -278,6 +271,9 @@ const scope = [
     // this fragment disappears. The bare entry it falls back to is the one check-coverage.js
     // needs to see the string as covered at all.
     ['dang-nhap-doi-tac.html', 'của chúng tôi.', '', '.'],
+    // The profile page's own heading is about account security; the footer link of the
+    // same two words is the privacy policy, and shared chrome never sees the scoped entry.
+    ['ho-so-ca-nhan.html', 'Bảo mật', 'Security', 'Privacy Policy'],
     // a page with no scoped entry of its own answers from the bare key either way
     ['kham-pha.html', 'Đặt lịch', 'Book now', 'Book now'],
     ['kham-pha.html', 'Lịch hẹn', 'Appointments', 'Appointments'],

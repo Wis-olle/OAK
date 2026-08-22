@@ -1,200 +1,22 @@
-<!DOCTYPE html><html lang="vi"><head>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
 <meta charset="utf-8">
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
-<script defer src="assets/js/alpine-a18e64ece2.js"></script>
-<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
-     window.OAK must already exist by then for x-data init() blocks to use it. -->
-<script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
-<script src="assets/js/oak-i18n.js"></script>
-<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
-<link href="assets/css/oak-fonts.css" rel="stylesheet">
-<link href="assets/css/oak-utils.css" rel="stylesheet">
+<meta http-equiv="refresh" content="0; url=ket-qua-tim-kiem.html">
 <link href="assets/images/favicon.png" rel="icon">
-<style>
-        .material-symbols-outlined[data-weight="fill"] { font-variation-settings: 'FILL' 1; }
-    </style>
 <title>Tất cả salon - OAK Beauty</title>
-<!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
-<link href="assets/css/oak-tailwind.css" rel="stylesheet">
-</head>
-<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
-<!-- TopNavBar -->
-<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
-<script src="assets/js/oak-header.js"></script>
-<!-- Main Content -->
-<main class="pt-24 flex-grow pb-section-gap" x-data="oakSalonDirectory()">
-<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
-<h1 class="font-headline-md text-headline-sm md:text-headline-md text-primary mb-8 border-b border-outline-variant/30 pb-4">Tất cả salon</h1>
-<form @submit.prevent="search()" class="flex flex-col sm:flex-row gap-3 mb-8">
-<input aria-label="Tìm salon theo tên" class="flex-grow border border-outline-variant bg-surface rounded-full px-6 py-3 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50" placeholder="Tìm salon theo tên..." type="text" x-model="q">
-<button class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors" type="submit">Tìm kiếm</button>
-</form>
-<template x-if="loading &amp;&amp; !salons.length">
-<p class="font-body-md text-body-md text-on-surface-variant">Đang tải...</p>
-</template>
-<template x-if="!loading &amp;&amp; !loadError &amp;&amp; !salons.length">
-<p class="font-body-md text-body-md text-on-surface-variant">Không tìm thấy salon nào.</p>
-</template>
-<template x-if="!loading &amp;&amp; loadError">
-<div class="flex flex-col items-start gap-3 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
-<div class="flex items-center gap-3">
-<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
-<p class="font-body-md text-body-md text-on-surface">Không tải được danh sách salon.</p>
-</div>
-<button @click="load(1)" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
-</div>
-</template>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
-<template :key="salon.id" x-for="salon in salons">
-<a :href="salonUrl(salon)" class="group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
-<div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
-<template x-if="salon.image">
-<img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
-</template>
-<template x-if="!salon.image">
-<div class="w-full h-full flex items-center justify-center bg-surface-container">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant/50" data-icon="spa">spa</span>
-</div>
-</template>
-</div>
-<h2 class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="salon.name"></h2>
-<p class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
-<span x-text="locationOf(salon)"></span>
-</p>
-<div class="flex items-center gap-1 mt-1" x-show="salon.review_count">
-<span class="material-symbols-outlined text-[14px] text-secondary" data-icon="star" data-weight="fill">star</span>
-<span class="font-label-md text-label-md text-primary" x-text="ratingOf(salon)"></span>
-<span class="font-caption text-caption text-on-surface-variant" x-text="'(' + salon.review_count + ')'"></span>
-</div>
-<span class="font-caption text-caption text-on-surface-variant mt-1 block" x-show="!salon.review_count">Chưa có đánh giá</span>
-<div class="flex flex-wrap gap-2 mt-3">
-<template :key="tag" x-for="tag in salon.tags">
-<span class="bg-tertiary-fixed text-on-tertiary-fixed-variant px-3 py-1 text-caption font-caption rounded-full" x-text="tag"></span>
-</template>
-</div>
-</article></a>
-</template>
-</div>
-<div class="mt-8 text-center" x-show="salons.length &lt; total">
-<button :disabled="loading" @click="loadMore()" class="inline-block border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" type="button">Xem thêm</button>
-</div>
-</section>
-</main>
-<!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
-<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
-<!-- Brand Column -->
-<div class="col-span-1 md:col-span-1 flex flex-col gap-4">
-<span class="font-headline-sm text-headline-sm text-on-tertiary font-bold">OAK Beauty</span>
-<p class="font-caption text-caption text-on-tertiary/70 mt-4 max-w-xs">
-                    Nâng tầm vẻ đẹp Việt.<br>
-                    Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
-                </p>
-</div>
-<!-- Links Columns -->
-<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
-<div class="flex flex-col gap-4">
-<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
-</div>
-<div class="flex flex-col gap-4">
-<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
-</div>
-</div>
-<!-- Social/Contact -->
-<div class="col-span-1 flex flex-col gap-4">
-<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
-</div>
-</div>
-</div>
-<!-- Copyright -->
-<div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
-<span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
-</div>
-</footer>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 44rem; padding: 0 1rem; line-height: 1.6; }
+</style>
+<!-- Finding a salon happens on one page now. This one stays behind so the links that were
+     handed out still arrive somewhere, and a keyword they carry rides across with them. -->
 <script>
-    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
-    function oakSalonDirectory() {
-        return {
-            q: '',
-            /* The submitted keyword, snapshotted away from `q`: "Xem thêm" must repeat the
-               search that produced page 1 even if the box has been edited since. */
-            applied: '',
-            salons: [],
-            total: 0,
-            page: 1,
-            loading: true,
-            /* An empty list means "nothing matched"; this means "we never got an answer". */
-            loadError: false,
-
-            init() {
-                this.q = new URLSearchParams(location.search).get('q') || '';
-                this.applied = this.q;
-                this.load(1);
-            },
-
-            /* `page` is committed only once the request resolves, so a failed "Xem thêm"
-               leaves the next click asking for the same page instead of skipping it. */
-            async load(page, append) {
-                this.loading = true;
-                try {
-                    var params = new URLSearchParams({ limit: 12, page: page });
-                    if (this.applied) {
-                        params.set('q', this.applied);
-                    }
-                    var data = await OAK.api('/api/salons?' + params);
-                    this.page = page;
-                    this.total = data.meta.total;
-                    this.salons = append ? this.salons.concat(data) : data;
-                    this.loadError = false;
-                } catch (error) {
-                    if (!append) {
-                        this.salons = [];
-                        this.total = 0;
-                        this.loadError = true;
-                    }
-                    OAK.toast(error.message, 'error');
-                } finally {
-                    this.loading = false;
-                }
-            },
-
-            /* Keep the address bar in sync so a reload or a shared link repeats the search. */
-            search() {
-                var query = this.q.trim();
-                this.applied = query;
-                history.replaceState(null, '', query ? '?q=' + encodeURIComponent(query) : location.pathname);
-                this.load(1);
-            },
-
-            loadMore() {
-                this.load(this.page + 1, true);
-            },
-
-            salonUrl(salon) {
-                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
-            },
-
-            ratingOf(salon) {
-                return Number(salon.rating || 0).toFixed(1);
-            },
-
-            locationOf(salon) {
-                return [salon.district, salon.city].filter(Boolean).join(', ');
-            },
-        };
-    }
+  var keyword = new URLSearchParams(location.search).get("q");
+  location.replace("ket-qua-tim-kiem.html" + (keyword ? "?q=" + encodeURIComponent(keyword) : ""));
 </script>
-</body></html>
+</head>
+<body>
+<p>Đang chuyển tới <a href="ket-qua-tim-kiem.html">trang tìm salon</a>.</p>
+</body>
+</html>

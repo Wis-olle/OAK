@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -20,7 +31,34 @@
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
 <!-- Main Content -->
-<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-4xl mx-auto w-full" x-cloak="" x-data="oakNotifications()" x-show="user">
+<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full flex gap-gutter" x-cloak="" x-data="oakNotifications()" x-show="user">
+<!-- AccountNav, desktop rail. Byte-for-byte the same on the five account pages;
+     the page it sits on is the one carrying aria-current. -->
+<aside class="hidden md:block w-72 shrink-0 sticky top-28 self-start" data-oak-account-nav="">
+<nav aria-label="Tài khoản của tôi" class="bg-surface-container-low rounded-lg shadow-sm flex flex-col gap-2 p-4">
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="lich-hen-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="calendar_month">calendar_month</span>
+Lịch hẹn của tôi
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="yeu-thich.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="favorite">favorite</span>
+Yêu thích
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="danh-gia-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="star_rate">star_rate</span>
+Đánh giá của tôi
+</a>
+<a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="notifications">notifications</span>
+Thông báo
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="ho-so-ca-nhan.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="person">person</span>
+Hồ sơ cá nhân
+</a>
+</nav>
+</aside>
+<div class="flex-1 min-w-0 max-w-4xl">
 <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-8 mb-8 border-b border-outline-variant/30 pb-4">
 <div>
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Thông báo</h1>
@@ -30,12 +68,43 @@
                 Đánh dấu tất cả đã đọc
             </button>
 </div>
+<!-- AccountNav, mobile strip. Byte-for-byte the same on the five account pages;
+     the page it sits on is the one carrying aria-current. -->
+<nav aria-label="Tài khoản của tôi" class="md:hidden -mx-margin-mobile px-margin-mobile mb-8 overflow-x-auto" data-oak-account-tabs="">
+<div class="flex gap-2 w-max pb-2">
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="lich-hen-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="calendar_month">calendar_month</span>
+Lịch hẹn của tôi
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="yeu-thich.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="favorite">favorite</span>
+Yêu thích
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="danh-gia-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="star_rate">star_rate</span>
+Đánh giá của tôi
+</a>
+<a aria-current="page" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="notifications">notifications</span>
+Thông báo
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="ho-so-ca-nhan.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="person">person</span>
+Hồ sơ cá nhân
+</a>
+</div>
+</nav>
 <!-- Notification list -->
 <div class="flex flex-col gap-3">
 <template :key="item.id" x-for="item in items">
-<button :class="rowClass(item)" @click="open(item)" class="w-full text-left flex items-start gap-4 p-4 md:p-6 rounded-lg border transition-colors" type="button">
+<div :class="rowClass(item)" class="w-full flex items-start gap-4 p-4 md:p-6 rounded-lg border transition-colors">
+<!-- The row itself only marks the notification read; the arrow beside it is what
+     navigates, so reading a notification never moves the reader off this page. -->
+<!-- Not [disabled]: a disabled button swallows selection, and the body of a notification
+     is exactly the sort of thing a reader wants to copy out of. -->
+<button :class="item.read ? 'cursor-default' : ''" @click="markRead(item)" class="flex-1 min-w-0 text-left flex items-start gap-4" type="button">
 <span class="w-12 h-12 shrink-0 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant flex items-center justify-center">
-<span class="material-symbols-outlined text-[22px]" x-text="iconFor(item.type)"></span>
+<span aria-hidden="true" class="material-symbols-outlined text-[22px]" x-text="iconFor(item.type)"></span>
 </span>
 <span class="flex-1 min-w-0">
 <span class="flex items-start justify-between gap-3 mb-1">
@@ -46,18 +115,25 @@
 <span class="block font-caption text-caption text-outline" x-text="relativeTime(item.created_at)"></span>
 </span>
 </button>
+<!-- The href is real, so the link opens in a new tab and reads to a screen reader the way
+     a link should; the handler exists only to mark the notification read on the way out. -->
+<a :aria-label="'Xem chi tiết: ' + item.title" :href="destination(item)" @click.prevent="open(item)" class="shrink-0 self-center w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors" x-show="destination(item)">
+<span class="material-symbols-outlined text-[20px]" data-icon="chevron_right">chevron_right</span>
+</a>
+</div>
 </template>
 </div>
 <!-- Empty state -->
 <div class="flex flex-col items-center text-center py-16" x-show="!loading &amp;&amp; !items.length">
-<span class="material-symbols-outlined text-5xl text-outline mb-4 font-light" data-icon="notifications_off">notifications_off</span>
+<span aria-hidden="true" class="material-symbols-outlined text-5xl text-outline mb-4 font-light" data-icon="notifications_off">notifications_off</span>
 <p class="font-headline-sm text-headline-sm text-primary mb-2">Chưa có thông báo nào</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-8">Đặt lịch đầu tiên của bạn để nhận nhắc hẹn và ưu đãi riêng từ OAK Beauty.</p>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-8 py-4 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="kham-pha.html">Khám phá salon</a>
 </div>
+</div>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -74,12 +150,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -94,7 +172,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -115,6 +193,11 @@
         reminder: 'lich-hen-cua-toi.html',
         review: 'danh-gia-cua-toi.html',
     };
+
+    /* Types whose notification.booking_id names the one appointment worth opening. A
+       'review' also carries a booking_id, but the reader is being asked to write, not
+       to look, so it still lands on the review page. */
+    var OAK_NOTIFICATION_BOOKING_TYPES = ['booking', 'reminder'];
 
     var MINUTE = 60 * 1000;
 
@@ -149,23 +232,27 @@
                 return OAK_NOTIFICATION_LINKS[type] || '';
             },
 
-            /** A read row of an unknown type has nothing left to do, so it stops looking clickable. */
-            rowClass(item) {
-                const tone = item.read
-                    ? 'bg-surface-container-lowest border-outline-variant/20'
-                    : 'bg-surface-container-low border-outline-variant/40';
-                return item.read && !this.linkFor(item.type)
-                    ? tone + ' cursor-default'
-                    : tone + ' hover:bg-surface-container';
+            /** Where the arrow beside a row goes: the one booking the notification is about
+                when it names one, otherwise the list its type belongs to. Notifications
+                written before the server carried booking_id fall back the same way. */
+            destination(item) {
+                return item.booking_id && OAK_NOTIFICATION_BOOKING_TYPES.indexOf(item.type) !== -1
+                    ? 'xac-nhan-dat-lich.html?id=' + item.booking_id
+                    : this.linkFor(item.type);
             },
 
-            /** Marking read is a side effect of opening what the notification is about. */
+            /** Follow the arrow, marking the notification read on the way. Reading it is a
+                side effect of acting on it; the row on its own only ever marks it read. */
             async open(item) {
                 await this.markRead(item);
-                const href = this.linkFor(item.type);
-                if (href) {
-                    location.href = href;
-                }
+                location.href = this.destination(item);
+            },
+
+            /** A read row has nothing left to do, so it stops looking clickable. */
+            rowClass(item) {
+                return item.read
+                    ? 'bg-surface-container-lowest border-outline-variant/20'
+                    : 'bg-surface-container-low border-outline-variant/40 hover:bg-surface-container';
             },
 
             /** Fresh notifications read better as an age; older ones as a date. */

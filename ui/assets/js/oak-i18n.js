@@ -2,7 +2,10 @@
  * OAK Beauty — runtime Vietnamese → English for the whole static site.
  *
  * Loaded WITHOUT `defer` on every wired page, immediately after oak-api.js and after its own
- * dictionary (assets/js/oak-i18n-en.js, generated — see tools/i18n/README.md). It must not be
+ * dictionary (assets/js/oak-i18n-en.js, generated — see tools/i18n/README.md). Each page now
+ * pulls that dictionary in only for a reader who has asked for English, so an empty DICTIONARY
+ * is the ordinary state of a Vietnamese reader and not a fault to guard against: every lookup
+ * below misses, and the markup is already the language it was written in. It must not be
  * deferred: `<html lang>` is settled while the document is still parsing, so the page is never
  * announced in the wrong language. The body itself is translated at DOMContentLoaded, so a
  * reader on a slow connection can still catch a moment of Vietnamese before the pass lands.
@@ -13,7 +16,7 @@
  * page — "xac-nhan-dat-lich.html::Lịch hẹn" — for the words whose English depends on where
  * they are read; the scoped entry is tried first, the bare one second. The language toggle it
  * injects is selector-based and null-checked in the same spirit as oak-api.js's header init,
- * because the partner console carries a different header and sitemap.html carries none at all.
+ * because the partner console carries a different top bar and a page may carry none at all.
  *
  * NOTE: this file is one of the content globs in tools/tailwind/tailwind.build.config.js, and
  * that scanner reads the comments as well as the code. Any word here that also names a
@@ -163,6 +166,10 @@
     [/^(\d+) lịch sắp tới$/, function (all, count) {
       return plural(count, 'upcoming appointment', 'upcoming appointments');
     }],
+    // The partner console bell names its own count, and an aria-label is written by
+    // oak-api.js rather than by a page, so it can never be a dictionary key. The bare
+    // "Lịch chờ xác nhận" is one, in _chrome.json, and is answered before this runs.
+    [/^Lịch chờ xác nhận: (\d+)$/, 'Pending appointments: $1'],
     [/^(\d+) ưu đãi đang áp dụng$/, function (all, count) {
       return plural(count, 'offer running', 'offers running');
     }],
@@ -183,12 +190,14 @@
     [/^Từ ([\d.]+đ)$/, 'From $1'],
     [/^Giảm ([\d.]+[%đ])$/, 'Save $1'],
 
-    /* -- the two lines assembled piece by piece. Each piece is a label the dictionary knows
+    /* -- the hour window of a search, as one chip on ket-qua-tim-kiem.html. Both ends is a
+          plain range and needs no rule; one end needs a word. --------------------------- */
+    [/^Sau (\d{1,2}:\d{2})$/, 'After $1'],
+    [/^Trước (\d{1,2}:\d{2})$/, 'Before $1'],
+
+    /* -- the lines assembled piece by piece. Each piece is a label the dictionary knows
           on its own, a date, or a price behind its own small prefix; a piece that is none of
           those is data and is copied across untouched. ---------------------------------- */
-    [/^Tiêu chí: (.+)$/, function (all, body) {
-      return 'Criteria: ' + pieced(body);
-    }],
     [/^([^•]+) • ([\d.]+km)$/, function (all, district, distance) {
       return labelled(district) + ' • ' + distance;
     }],
@@ -489,8 +498,8 @@
 
   /*
    * Two skins for one control. Inside a header it borrows the header's own type scale from
-   * oak-tailwind.css; the fallback pill is styled inline because the only page without a
-   * header — sitemap.html — is hand-written and does not load Tailwind at all.
+   * oak-tailwind.css; the fallback pill is styled inline so that it still reads on a page
+   * with no top bar, which may be hand-written and may load no CSS of ours at all.
    */
   var HEADER_SKIN = {
     group: 'flex items-center gap-1 font-label-md text-label-md shrink-0',
@@ -556,7 +565,7 @@
    * Three homes, tried in order. The customer top bar keeps an empty slot for the pair at the
    * foot of its menu (see assets/js/oak-header.js), which is where a reader on any width can
    * reach it. The partner console has no such slot: there the pair goes ahead of the account
-   * link that ends its own bar. sitemap.html has no bar at all and gets the pill instead.
+   * link that ends its own bar. A page with no top bar of either kind gets the pill instead.
    */
   function initToggle() {
     var slot = document.querySelector('header [data-oak-lang]');

@@ -5,13 +5,30 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <title>Điều khoản sử dụng - OAK Beauty</title>
+<meta content="Điều khoản sử dụng OAK Beauty: quyền và nghĩa vụ khi tạo tài khoản, đặt lịch, huỷ lịch, thanh toán và các quy định dành cho salon đối tác trên nền tảng." name="description">
+<meta content="Điều khoản sử dụng - OAK Beauty" property="og:title">
+<meta content="Điều khoản sử dụng OAK Beauty: quyền và nghĩa vụ khi tạo tài khoản, đặt lịch, huỷ lịch, thanh toán và các quy định dành cho salon đối tác trên nền tảng." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/hero-banner.webp" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -25,18 +42,27 @@
 <p class="font-label-md text-label-md uppercase tracking-wider text-secondary mb-4">OAK Beauty</p>
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-6">Điều khoản sử dụng</h1>
 <p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">Khi tạo tài khoản hoặc đặt lịch trên OAK Beauty, bạn đồng ý với các điều khoản dưới đây. Vui lòng đọc kỹ trước khi sử dụng dịch vụ.</p>
+<nav aria-label="Mục lục điều khoản" class="mt-8 flex flex-wrap gap-2 max-w-3xl">
+<a class="px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#ve-oak-beauty">Về OAK Beauty</a>
+<a class="px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#tai-khoan">Tài khoản của bạn</a>
+<a class="px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#huy-lich">Đặt lịch và huỷ lịch</a>
+<a class="px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#gia-va-thanh-toan">Giá và thanh toán</a>
+<a class="px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#noi-dung-nguoi-dung">Nội dung do người dùng đăng</a>
+<a class="px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#trach-nhiem">Trách nhiệm của các bên</a>
+<a class="px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#thay-doi-dieu-khoan">Thay đổi điều khoản</a>
+</nav>
 <p class="font-caption text-caption text-outline mt-6">Cập nhật lần cuối: 01/08/2026</p>
 </section>
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
 <div class="flex flex-col gap-gutter max-w-3xl">
 
-<article class="bg-surface-container-low rounded-2xl p-8">
+<article class="bg-surface-container-low rounded-2xl p-8 scroll-mt-24" id="ve-oak-beauty">
 <h2 class="font-headline-sm text-headline-sm text-primary mb-4">1. Về OAK Beauty</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">OAK Beauty là nền tảng trung gian kết nối khách hàng với các salon làm đẹp tại TP.HCM. Chúng tôi cung cấp công cụ tìm kiếm, đặt lịch và đánh giá; chúng tôi không trực tiếp thực hiện dịch vụ làm đẹp.</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Dịch vụ được thực hiện bởi salon đối tác. Chất lượng, tay nghề chuyên viên và điều kiện cơ sở vật chất thuộc trách nhiệm của salon đó.</p>
 </article>
 
-<article class="bg-surface-container-low rounded-2xl p-8">
+<article class="bg-surface-container-low rounded-2xl p-8 scroll-mt-24" id="tai-khoan">
 <h2 class="font-headline-sm text-headline-sm text-primary mb-4">2. Tài khoản của bạn</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Để đặt lịch, bạn cần tạo tài khoản với họ tên, email và số điện thoại chính xác. Số điện thoại là kênh salon dùng để liên hệ xác nhận, nên thông tin sai có thể khiến lịch hẹn bị huỷ.</p>
 <ul class="flex flex-col gap-2 font-body-md text-body-md text-on-surface-variant list-disc pl-5 mb-4 last:mb-0">
@@ -46,7 +72,7 @@
 </ul>
 </article>
 
-<article class="bg-surface-container-low rounded-2xl p-8">
+<article class="bg-surface-container-low rounded-2xl p-8 scroll-mt-24" id="huy-lich">
 <h2 class="font-headline-sm text-headline-sm text-primary mb-4">3. Đặt lịch và huỷ lịch</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Lịch hẹn được xác nhận ngay khi bạn hoàn tất đặt, dựa trên khung giờ còn trống của salon và chuyên viên bạn chọn. Bạn xem lại toàn bộ lịch hẹn của mình tại trang <a class="underline hover:text-primary transition-colors" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>.</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0"><strong class="text-primary">Chính sách huỷ:</strong> bạn có thể huỷ miễn phí cho tới trước giờ hẹn ít nhất <strong class="text-primary">2 tiếng</strong>. Trong vòng 2 tiếng trước giờ hẹn, hệ thống sẽ không cho phép huỷ trực tuyến — vui lòng liên hệ trực tiếp salon.</p>
@@ -54,14 +80,14 @@
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Salon có quyền huỷ hoặc đề nghị dời lịch trong trường hợp bất khả kháng. Khi đó bạn sẽ nhận được thông báo trong mục Thông báo.</p>
 </article>
 
-<article class="bg-surface-container-low rounded-2xl p-8">
+<article class="bg-surface-container-low rounded-2xl p-8 scroll-mt-24" id="gia-va-thanh-toan">
 <h2 class="font-headline-sm text-headline-sm text-primary mb-4">4. Giá và thanh toán</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Giá hiển thị trên OAK Beauty là giá niêm yết của salon cho dịch vụ tương ứng và đã bao gồm thuế nếu có. Chi phí phát sinh do bạn yêu cầu thêm tại chỗ sẽ được salon báo trước.</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0"><strong class="text-primary">Bạn thanh toán trực tiếp tại salon</strong> sau khi hoàn thành dịch vụ. OAK Beauty không thu tiền đặt cọc và không xử lý thanh toán trực tuyến.</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Ưu đãi và mã giảm giá áp dụng theo điều kiện ghi trên trang <a class="underline hover:text-primary transition-colors" href="uu-dai.html">Ưu đãi</a>, không quy đổi thành tiền mặt.</p>
 </article>
 
-<article class="bg-surface-container-low rounded-2xl p-8">
+<article class="bg-surface-container-low rounded-2xl p-8 scroll-mt-24" id="noi-dung-nguoi-dung">
 <h2 class="font-headline-sm text-headline-sm text-primary mb-4">5. Nội dung do người dùng đăng</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Đánh giá, bình luận và hình ảnh bạn đăng phải phản ánh trải nghiệm thật của chính bạn. Bạn chỉ có thể đánh giá một lịch hẹn đã hoàn thành.</p>
 <ul class="flex flex-col gap-2 font-body-md text-body-md text-on-surface-variant list-disc pl-5 mb-4 last:mb-0">
@@ -72,14 +98,14 @@
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Chúng tôi có quyền gỡ nội dung vi phạm mà không cần báo trước.</p>
 </article>
 
-<article class="bg-surface-container-low rounded-2xl p-8">
+<article class="bg-surface-container-low rounded-2xl p-8 scroll-mt-24" id="trach-nhiem">
 <h2 class="font-headline-sm text-headline-sm text-primary mb-4">6. Trách nhiệm của các bên</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">OAK Beauty chịu trách nhiệm vận hành nền tảng, bảo vệ dữ liệu của bạn và xử lý khiếu nại liên quan đến việc đặt lịch.</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Salon đối tác chịu trách nhiệm về chất lượng dịch vụ, an toàn vệ sinh và các cam kết đã niêm yết.</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Với các tranh chấp về chất lượng dịch vụ, chúng tôi hỗ trợ làm cầu nối giữa bạn và salon, nhưng không thay thế trách nhiệm dân sự của salon.</p>
 </article>
 
-<article class="bg-surface-container-low rounded-2xl p-8">
+<article class="bg-surface-container-low rounded-2xl p-8 scroll-mt-24" id="thay-doi-dieu-khoan">
 <h2 class="font-headline-sm text-headline-sm text-primary mb-4">7. Thay đổi điều khoản</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Chúng tôi có thể cập nhật các điều khoản này khi bổ sung tính năng mới. Bản cập nhật được đăng tại chính trang này kèm ngày hiệu lực. Việc bạn tiếp tục sử dụng OAK Beauty sau ngày đó đồng nghĩa với việc chấp nhận nội dung mới.</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Mọi thắc mắc, vui lòng gửi về <a class="underline hover:text-primary transition-colors" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>.</p>
@@ -92,7 +118,7 @@
 </section>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -109,12 +135,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -129,7 +157,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>

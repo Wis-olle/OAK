@@ -1,65 +1,144 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
+<!DOCTYPE html><html lang="vi"><head>
 <meta charset="utf-8">
-<script src="assets/js/oak-i18n-en.js"></script>
-<script src="assets/js/oak-i18n.js"></script>
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
-<title>OAK Beauty Platform Concept - Mục lục</title>
-<style>
-  body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 44rem; padding: 0 1rem; line-height: 1.6; }
-  h1, h2 { font-size: 1.25rem; }
-  ol { padding-left: 1.5rem; }
-  li { margin: .25rem 0; }
-  .back { display: inline-block; margin-bottom: 1.5rem; padding: .4rem .9rem; border: 1px solid currentColor; border-radius: 999px; text-decoration: none; color: inherit; }
-  .back:hover { text-decoration: underline; }
-</style>
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
+<script src="assets/js/oak-i18n.js"></script>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
+<title>Sơ đồ trang - OAK Beauty</title>
+<meta content="Toàn bộ các trang của OAK Beauty xếp theo việc bạn đang muốn làm: tìm salon và đặt lịch, xem danh mục dịch vụ, quản lý tài khoản hay tìm hiểu về nền tảng." name="description">
+<meta content="Sơ đồ trang - OAK Beauty" property="og:title">
+<meta content="Toàn bộ các trang của OAK Beauty xếp theo việc bạn đang muốn làm: tìm salon và đặt lịch, xem danh mục dịch vụ, quản lý tài khoản hay tìm hiểu về nền tảng." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/hero-banner.webp" property="og:image">
+<!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
+<link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
-<body>
-<a class="back" href="kham-pha.html">&larr; Về trang chủ OAK Beauty</a>
-<h1>OAK Beauty Platform Concept &mdash; 36 màn hình</h1>
-<h2>20 màn hình gốc</h2>
-<ol>
-<li><a href="dich-vu-toc-chuyen-sau.html">Dịch vụ Tóc Chuyên Sâu</a></li>
-<li><a href="tim-kiem-thong-minh.html">Tìm kiếm thông minh</a></li>
-<li><a href="ho-so-chuyen-gia.html">Hồ sơ chuyên gia</a></li>
-<li><a href="cham-soc-da.html">Chăm sóc Da</a></li>
-<li><a href="dat-lich.html">Đặt lịch</a></li>
-<li><a href="chi-tiet-dich-vu.html">Chi tiết dịch vụ</a></li>
-<li><a href="ket-qua-tim-kiem.html">Kết quả tìm kiếm</a></li>
-<li><a href="kham-pha.html">Khám phá</a></li>
-<li><a href="spa-massage.html">Spa &amp; Massage</a></li>
-<li><a href="quan-ly-dich-vu.html">Quản lý Dịch vụ</a></li>
-<li><a href="quan-ly-nhan-vien.html">Quản lý Nhân viên</a></li>
-<li><a href="xac-nhan-dat-lich.html">Xác nhận đặt lịch</a></li>
-<li><a href="dang-nhap-doi-tac.html">Đăng nhập &amp; Đối tác</a></li>
-<li><a href="dang-nhap-nguoi-dung.html">Đăng nhập người dùng</a></li>
-<li><a href="dich-vu-nail.html">Dịch vụ Nail</a></li>
-<li><a href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a></li>
-<li><a href="tong-quan-doi-tac.html">Tổng quan đối tác</a></li>
-<li><a href="quan-ly-lich-hen.html">Quản lý Lịch hẹn</a></li>
-<li><a href="khong-gian-tien-ich.html">Không gian &amp; Tiện ích</a></li>
-<li><a href="salon-profile-lala-nail-studio.html">Salon Profile - Lala Nail Studio</a></li>
-</ol>
-<h2>Trang bổ sung (phase 2)</h2>
-<ol start="21">
-<li><a href="dang-ky.html">Đăng ký tài khoản</a></li>
-<li><a href="ho-so-ca-nhan.html">Hồ sơ cá nhân</a></li>
-<li><a href="thong-bao.html">Thông báo</a></li>
-<li><a href="yeu-thich.html">Yêu thích</a></li>
-<li><a href="danh-gia-cua-toi.html">Đánh giá của tôi</a></li>
-<li><a href="uu-dai.html">Ưu đãi</a></li>
-<li><a href="blog.html">Blog</a></li>
-<li><a href="blog-chi-tiet.html">Blog - Chi tiết bài viết</a></li>
-<li><a href="bao-cao-doanh-thu.html">Báo cáo doanh thu</a></li>
-<li><a href="cai-dat-salon.html">Cài đặt salon</a></li>
-<li><a href="gioi-thieu.html">Về chúng tôi</a></li>
-<li><a href="dieu-khoan.html">Điều khoản sử dụng</a></li>
-<li><a href="bao-mat.html">Chính sách bảo mật</a></li>
-<li><a href="lien-he.html">Liên hệ</a></li>
-<li><a href="danh-sach-salon.html">Danh sách salon</a></li>
-<li><a href="dich-vu-mi.html">Dịch vụ Eyelash</a></li>
-</ol>
-</body>
-</html>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
+<!-- TopNavBar -->
+<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
+<script src="assets/js/oak-header.js"></script>
+<!-- Main Content -->
+<main class="pt-20 flex-grow pb-section-gap">
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-16 pb-12">
+<p class="font-label-md text-label-md uppercase tracking-wider text-secondary mb-4">OAK Beauty</p>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-6">Sơ đồ trang</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">Tất cả các trang của OAK Beauty, xếp theo việc bạn đang muốn làm.</p>
+</section>
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+<div class="bg-surface-container-low rounded-2xl p-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Tìm salon & đặt lịch</h2>
+<ul class="flex flex-col gap-3">
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="kham-pha.html">Trang chủ</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="ket-qua-tim-kiem.html">Tìm salon theo bộ lọc</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="tim-kiem-thong-minh.html">Trợ lý tìm kiếm AI</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="dat-lich.html">Đặt lịch</a></li>
+</ul>
+</div>
+<div class="bg-surface-container-low rounded-2xl p-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Danh mục dịch vụ</h2>
+<ul class="flex flex-col gap-3">
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="dich-vu-nail.html">Dịch vụ Nail</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="dich-vu-toc-chuyen-sau.html">Dịch vụ Tóc Chuyên Sâu</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="cham-soc-da.html">Chăm sóc Da</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="spa-massage.html">Spa &amp; Massage</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="dich-vu-mi.html">Dịch vụ Nối mi</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="khong-gian-tien-ich.html">Không gian &amp; Tiện ích</a></li>
+</ul>
+</div>
+<div class="bg-surface-container-low rounded-2xl p-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Tài khoản của tôi</h2>
+<ul class="flex flex-col gap-3">
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="dang-nhap-nguoi-dung.html">Đăng nhập</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="dang-ky.html">Đăng ký tài khoản</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="ho-so-ca-nhan.html">Hồ sơ cá nhân</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="yeu-thich.html">Yêu thích</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="danh-gia-cua-toi.html">Đánh giá của tôi</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="thong-bao.html">Thông báo</a></li>
+</ul>
+</div>
+<div class="bg-surface-container-low rounded-2xl p-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Dành cho salon</h2>
+<ul class="flex flex-col gap-3">
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="dang-nhap-doi-tac.html">Trở thành đối tác</a></li>
+</ul>
+</div>
+<div class="bg-surface-container-low rounded-2xl p-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Về OAK</h2>
+<ul class="flex flex-col gap-3">
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="gioi-thieu.html">Về chúng tôi</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="blog.html">Blog</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="uu-dai.html">Ưu đãi</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="lien-he.html">Liên hệ</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="dieu-khoan.html">Điều khoản</a></li>
+<li><a class="font-body-md text-body-md text-on-surface-variant hover:text-primary hover:underline transition-colors" href="bao-mat.html">Bảo mật</a></li>
+</ul>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<!-- Brand Column -->
+<div class="col-span-1 md:col-span-1 flex flex-col gap-4">
+<span class="font-headline-sm text-headline-sm text-on-tertiary font-bold">OAK Beauty</span>
+<p class="font-caption text-caption text-on-tertiary/70 mt-4 max-w-xs">
+                    Nâng tầm vẻ đẹp Việt.<br>
+                    Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
+                </p>
+</div>
+<!-- Links Columns -->
+<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
+</div>
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+</div>
+</div>
+<!-- Social/Contact -->
+<div class="col-span-1 flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
+<div class="flex gap-4">
+<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+</div>
+</div>
+</div>
+<!-- Copyright -->
+<div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
+</div>
+</footer>
+</body></html>

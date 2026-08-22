@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -29,19 +40,73 @@
 <script src="assets/js/oak-header.js"></script>
 <!-- Main Content -->
 <main class="pt-20 flex-grow pb-section-gap">
-<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto pt-12" x-data="oakMyReviews()">
-<div class="max-w-4xl">
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto pt-12 flex gap-gutter" x-data="oakMyReviews()">
+<!-- AccountNav, desktop rail. Byte-for-byte the same on the five account pages;
+     the page it sits on is the one carrying aria-current. -->
+<aside class="hidden md:block w-72 shrink-0 sticky top-28 self-start" data-oak-account-nav="">
+<nav aria-label="Tài khoản của tôi" class="bg-surface-container-low rounded-lg shadow-sm flex flex-col gap-2 p-4">
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="lich-hen-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="calendar_month">calendar_month</span>
+Lịch hẹn của tôi
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="yeu-thich.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="favorite">favorite</span>
+Yêu thích
+</a>
+<a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="danh-gia-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="star_rate">star_rate</span>
+Đánh giá của tôi
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="notifications">notifications</span>
+Thông báo
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="ho-so-ca-nhan.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="person">person</span>
+Hồ sơ cá nhân
+</a>
+</nav>
+</aside>
+<div class="flex-1 min-w-0 max-w-4xl">
 <div class="mb-8">
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Đánh giá của tôi</h1>
 <p class="font-body-md text-body-md text-on-surface-variant">Chia sẻ trải nghiệm của bạn để cộng đồng OAK chọn được salon phù hợp hơn.</p>
 </div>
+<!-- AccountNav, mobile strip. Byte-for-byte the same on the five account pages;
+     the page it sits on is the one carrying aria-current. -->
+<nav aria-label="Tài khoản của tôi" class="md:hidden -mx-margin-mobile px-margin-mobile mb-8 overflow-x-auto" data-oak-account-tabs="">
+<div class="flex gap-2 w-max pb-2">
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="lich-hen-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="calendar_month">calendar_month</span>
+Lịch hẹn của tôi
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="yeu-thich.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="favorite">favorite</span>
+Yêu thích
+</a>
+<a aria-current="page" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="danh-gia-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="star_rate">star_rate</span>
+Đánh giá của tôi
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="notifications">notifications</span>
+Thông báo
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="ho-so-ca-nhan.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="person">person</span>
+Hồ sơ cá nhân
+</a>
+</div>
+</nav>
 <!-- Review composer (?booking_id=) -->
-<div class="bg-surface-container-low rounded-lg p-6 md:p-8 mb-12" x-cloak="" x-show="bookingId">
-<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Viết đánh giá</h2>
+<div class="bg-surface-container-low rounded-lg p-6 md:p-8 mb-12" x-cloak="" x-ref="composer" x-show="bookingId || editingId">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6" x-show="!editingId">Viết đánh giá</h2>
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6" x-cloak="" x-show="editingId">Sửa đánh giá</h2>
 <p class="font-body-md text-body-md text-on-surface-variant" x-cloak="" x-show="notice" x-text="notice"></p>
-<template x-if="booking">
+<template x-if="booking || editingId">
 <div>
-<!-- Booking summary -->
+<!-- Booking summary: only the "write" path has a booking to summarise. -->
+<template x-if="booking">
 <div class="flex gap-4 items-center bg-surface-container-lowest rounded-lg p-4 border border-outline-variant/20 mb-6">
 <div class="w-20 h-20 shrink-0 rounded-md overflow-hidden bg-surface-variant">
 <img loading="lazy" :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
@@ -49,17 +114,18 @@
 <div class="min-w-0">
 <h3 class="font-headline-sm text-[20px] text-primary mb-1" x-text="booking.service.name"></h3>
 <p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-2">
-<span class="material-symbols-outlined text-[18px]" data-icon="store">store</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="store">store</span>
 <span x-text="booking.salon.name"></span>
 </p>
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-text="OAK.fmtDate(booking.date) + ' • ' + OAK.fmtTime(booking.time) + ' • ' + booking.code"></p>
 </div>
 </div>
+</template>
 <!-- Star picker -->
 <div class="flex items-center gap-2 mb-6">
 <template x-for="star in 5">
-<button :aria-label="star + ' sao'" @click="rating = star" @mouseleave="hover = 0" @mouseenter="hover = star" class="text-secondary active:scale-95 duration-200" type="button">
-<span :class="star &lt;= (hover || rating) ? 'fill' : 'text-outline-variant'" class="material-symbols-outlined text-3xl" data-icon="star">star</span>
+<button :aria-label="star + ' sao'" :aria-pressed="star &lt;= rating" @click="rating = star" @mouseleave="hover = 0" @mouseenter="hover = star" class="text-secondary active:scale-95 duration-200" type="button">
+<span :class="star &lt;= (hover || rating) ? 'fill' : 'text-outline-variant'" aria-hidden="true" class="material-symbols-outlined text-3xl" data-icon="star">star</span>
 </button>
 </template>
 <span class="font-label-md text-label-md text-on-surface-variant ml-2" x-text="ratingLabel()"></span>
@@ -68,7 +134,7 @@
 <p class="font-caption text-caption text-error mb-4" x-cloak="" x-show="error" x-text="error"></p>
 <div class="flex flex-wrap gap-3">
 <button :disabled="saving" @click="submit()" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-50" type="button">
-<span x-text="saving ? 'Đang gửi…' : 'Gửi đánh giá'"></span>
+<span x-text="saving ? 'Đang gửi…' : (editingId ? 'Lưu thay đổi' : 'Gửi đánh giá')"></span>
 </button>
 <a class="inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-variant/50 transition-colors" href="danh-gia-cua-toi.html">Để sau</a>
 </div>
@@ -87,7 +153,7 @@
 <div class="flex-1 min-w-0">
 <h3 class="font-headline-sm text-[20px] text-primary mb-1" x-text="item.service.name"></h3>
 <p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-2">
-<span class="material-symbols-outlined text-[18px]" data-icon="store">store</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="store">store</span>
 <span x-text="item.salon.name"></span>
 </p>
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-text="OAK.fmtDate(item.date) + ' • ' + OAK.fmtTime(item.time)"></p>
@@ -109,11 +175,17 @@
 <a :href="salonUrl(review.salon)" class="font-headline-sm text-[20px] text-primary hover:text-secondary transition-colors" x-text="review.salon.name"></a>
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-show="review.service" x-text="review.service ? review.service.name : ''"></p>
 </div>
-<span class="font-caption text-caption text-outline shrink-0" x-text="OAK.fmtDate(review.created_at)"></span>
+<div class="flex items-center gap-3 shrink-0">
+<span class="font-caption text-caption text-outline" x-text="OAK.fmtDate(review.created_at)"></span>
+<button @click="startEdit(review)" class="inline-flex items-center gap-1 border border-outline text-primary font-label-md text-label-md px-4 py-2 rounded-full uppercase tracking-wider hover:bg-surface-variant/50 transition-colors active:scale-95 duration-200" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span>
+                                    Sửa
+                                </button>
 </div>
-<div class="flex items-center gap-1 mb-3">
+</div>
+<div :aria-label="review.rating + '/5'" class="flex items-center gap-1 mb-3" role="img">
 <template x-for="star in 5">
-<span :class="star &lt;= review.rating ? 'text-secondary fill' : 'text-outline-variant'" class="material-symbols-outlined text-[18px]" data-icon="star">star</span>
+<span :class="star &lt;= review.rating ? 'text-secondary fill' : 'text-outline-variant'" aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="star">star</span>
 </template>
 </div>
 <p class="font-body-md text-body-md text-on-surface-variant" x-show="review.comment" x-text="review.comment"></p>
@@ -122,7 +194,7 @@
 </div>
 <template x-if="!loading &amp;&amp; !reviews.length">
 <div class="bg-surface-container-low rounded-lg py-16 px-6 text-center">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="star_rate">star_rate</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="star_rate">star_rate</span>
 <p class="font-body-md text-body-md text-on-surface-variant mb-6">Bạn chưa có đánh giá nào. Sau mỗi buổi hẹn hoàn tất, hãy để lại vài dòng cảm nhận nhé.</p>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="lich-hen-cua-toi.html">Xem lịch hẹn của tôi</a>
 </div>
@@ -132,7 +204,7 @@
 </section>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -149,12 +221,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -169,7 +243,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -181,6 +255,8 @@
         return {
             bookingId: null,
             booking: null,
+            // Set while the composer is reopened over a review that was already sent.
+            editingId: null,
             notice: '',
             rating: 0,
             hover: 0,
@@ -254,12 +330,26 @@
                 }
             },
 
+            /** Reopen the composer over a review already sent. The "write" state is cleared
+                with it: the two paths share one form, so only one of them may be live. */
+            startEdit(review) {
+                this.editingId = review.id;
+                this.rating = review.rating;
+                this.comment = review.comment || '';
+                this.bookingId = null;
+                this.booking = null;
+                this.notice = '';
+                this.error = '';
+                // The composer sits above the list, so the form has to be brought into view.
+                this.$nextTick(() => this.$refs.composer.scrollIntoView({ behavior: 'smooth' }));
+            },
+
             ratingLabel() {
                 return RATING_LABELS[this.hover || this.rating] || '';
             },
 
             salonUrl(salon) {
-                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+                return 'salon-profile.html?salon=' + encodeURIComponent(salon.slug);
             },
 
             async submit() {
@@ -271,19 +361,33 @@
                 this.saving = true;
                 this.error = '';
                 try {
-                    await OAK.api('/api/reviews', {
-                        method: 'POST',
-                        body: {
-                            booking_id: this.bookingId,
-                            rating: this.rating,
-                            comment: this.comment.trim() || null,
-                        },
-                    });
-                    OAK.toast('Cảm ơn bạn đã gửi đánh giá!');
-                    // Both, not just `booking`: the composer shell hangs on `bookingId`, so
-                    // leaving it set would keep an empty box on screen after a good submit.
-                    this.booking = null;
-                    this.bookingId = null;
+                    if (this.editingId) {
+                        // Only the rating and the comment travel: what the review is attached
+                        // to came from the booking and the server keeps it that way.
+                        await OAK.api('/api/reviews/' + this.editingId, {
+                            method: 'PATCH',
+                            body: {
+                                rating: this.rating,
+                                comment: this.comment.trim() || null,
+                            },
+                        });
+                        OAK.toast('Đã cập nhật đánh giá.');
+                        this.editingId = null;
+                    } else {
+                        await OAK.api('/api/reviews', {
+                            method: 'POST',
+                            body: {
+                                booking_id: this.bookingId,
+                                rating: this.rating,
+                                comment: this.comment.trim() || null,
+                            },
+                        });
+                        OAK.toast('Cảm ơn bạn đã gửi đánh giá!');
+                        // Both, not just `booking`: the composer shell hangs on `bookingId`, so
+                        // leaving it set would keep an empty box on screen after a good submit.
+                        this.booking = null;
+                        this.bookingId = null;
+                    }
                     this.comment = '';
                     this.rating = 0;
                     await this.load();

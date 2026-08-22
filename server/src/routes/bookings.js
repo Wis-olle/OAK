@@ -363,6 +363,7 @@ router.post('/', async (req, res, next) => {
             'Đặt lịch thành công',
             `Lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(date)} lúc ${time} đã được ghi nhận.`,
             'booking',
+            bookingId,
           );
         }),
       );
@@ -435,6 +436,7 @@ router.patch('/:id/cancel', async (req, res, next) => {
         'Đã huỷ lịch hẹn',
         `Lịch hẹn ${booking.code} tại ${booking.salon_name} ngày ${formatDate(booking.date)} lúc ${booking.time} đã được huỷ.`,
         'booking',
+        booking.id,
       );
     });
 

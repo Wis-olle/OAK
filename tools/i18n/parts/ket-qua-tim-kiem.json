@@ -1,6 +1,14 @@
 {
     "ket-qua-tim-kiem.html::Đánh giá": "Rating",
-  "Kết quả tìm kiếm - OAK Beauty": "Search results - OAK Beauty",
+  "Tìm salon - OAK Beauty": "Find a salon - OAK Beauty",
+  "Tìm dịch vụ hoặc salon": "Search services or salons",
+  "Dịch vụ, salon…": "Services, salons…",
+  "Tìm": "Search",
+  "Xóa tiêu chí": "Remove filter",
+  "Sắp xếp:": "Sort:",
+  "Phù hợp nhất": "Best match",
+  "Cần vị trí của bạn để sắp xếp theo khoảng cách.": "We need your location to sort by distance.",
+  "Xem salon": "View salon",
   "Giá": "Price",
   "Khoảng cách": "Distance",
   "Đánh giá": "Reviews",
@@ -43,5 +51,6 @@
   "Không lấy được vị trí của bạn.": "We couldn't get your location.",
   "Đang tìm địa chỉ...": "Searching for the address...",
   "Không tìm thấy địa chỉ này.": "We couldn't find that address.",
-  "Không tra cứu được địa chỉ, bạn thử lại nhé.": "Could not look up the address, please try again."
+  "Không tra cứu được địa chỉ, bạn thử lại nhé.": "Could not look up the address, please try again.",
+  "Lọc salon làm đẹp tại TP.HCM theo dịch vụ, khu vực, mức giá và giờ trống. Xem vị trí trên bản đồ, so sánh đánh giá rồi đặt lịch ngay trên OAK.": "Filter beauty salons in Ho Chi Minh City by service, area, price and free hours. See them on the map, compare reviews and book right here on OAK."
 }

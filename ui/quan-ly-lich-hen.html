@@ -16,7 +16,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <title>Quản lý Lịch hẹn - OAK Beauty</title>
 
@@ -25,80 +36,92 @@
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
 <body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="oakPartnerBookings()">
-<h1 class="sr-only">OAK Beauty — Partner Dashboard</h1>
+<a class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary focus:border focus:border-outline-variant focus:shadow-lg font-body-md text-body-md" href="#main">Bỏ qua đến nội dung</a>
 <!-- SideNavBar -->
-<nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-primary-container p-gutter z-50">
+<nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low p-gutter z-50">
 <div class="mb-12">
-<h1 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed">OAK Beauty</h1>
+<p class="font-headline-sm text-headline-sm text-primary">OAK Beauty</p>
 <p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest" data-oak-salon-name>Partner Dashboard</p>
 </div>
 <ul class="flex flex-col gap-2 flex-grow">
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="tong-quan-doi-tac.html">
-<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="tong-quan-doi-tac.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
 <span class="font-body-md text-body-md">Tổng quan</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim font-bold bg-surface-variant dark:bg-on-primary-fixed-variant scale-95 duration-150" href="quan-ly-lich-hen.html">
-<span class="material-symbols-outlined fill" data-icon="calendar_today">calendar_today</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary font-bold bg-surface-variant scale-95 duration-150" href="quan-ly-lich-hen.html">
+<span aria-hidden="true" class="material-symbols-outlined fill" data-icon="calendar_today">calendar_today</span>
 <span class="font-body-md text-body-md">Lịch hẹn</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-dich-vu.html">
-<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="quan-ly-dich-vu.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
 <span class="font-body-md text-body-md">Dịch vụ</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="quan-ly-nhan-vien.html">
-<span class="material-symbols-outlined" data-icon="group">group</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="quan-ly-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="group">group</span>
 <span class="font-body-md text-body-md">Nhân viên</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
-<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
 <span class="font-body-md text-body-md">Báo cáo</span>
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="cai-dat-salon.html">
-<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="cai-dat-salon.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-body-md text-body-md">Cài đặt</span>
 </a>
 </li>
 </ul>
 <div class="mt-auto pt-8 border-t border-outline-variant/30">
 <div class="flex flex-col gap-1 mb-4">
-<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" href="index.html">
-<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
+<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="index.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="storefront">storefront</span>
 <span class="font-body-md text-body-md">Xem trang khách</span>
 </a>
-<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant dark:text-on-primary-container hover:bg-surface-container-high dark:hover:bg-on-tertiary-container transition-colors scale-95 duration-150" data-oak-logout href="dang-nhap-doi-tac.html">
-<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" data-oak-logout href="dang-nhap-doi-tac.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="logout">logout</span>
 <span class="font-body-md text-body-md">Đăng xuất</span>
 </a>
 </div>
 <a @click.prevent="openCreate()" class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html">
-<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
                 Đặt lịch mới
             </a>
 </div>
 </nav>
 <!-- TopNavBar -->
-<header class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-gutter md:ml-64 md:w-[calc(100%-16rem)] bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-xl top-0 sticky border-b border-outline-variant/30 dark:border-outline/20 z-40">
+<header :inert="sheetInert()" class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-gutter md:ml-64 md:w-[calc(100%-16rem)] bg-surface/80 backdrop-blur-xl top-0 sticky border-b border-outline-variant/30 z-40">
 <div class="flex items-center gap-4 min-w-0">
-<h2 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed truncate">Lịch hẹn</h2>
+<h1 class="font-headline-sm text-headline-sm text-primary truncate">Lịch hẹn</h1>
 </div>
 <div class="flex items-center gap-4 md:gap-6 shrink-0">
-<div class="relative hidden lg:block w-72">
+<!-- Below lg the header has no room for the field, so the icon opens it over the bar. -->
+<button @click.stop="openMobileSearch()" aria-label="Tìm kiếm" class="lg:hidden w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-secondary transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<div :class="mobileSearch ? 'absolute inset-x-0 top-0 z-50 h-20 flex items-center px-margin-mobile bg-surface' : 'hidden lg:block w-72'" @click.outside="closeSearch()" @keydown.escape="closeSearch()" x-cloak="">
+<div class="relative w-full">
 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
-<input @input.debounce.300ms="load()" aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm mã lịch hẹn, tên khách..." type="text" x-model="query"/>
+<input @input.debounce.300ms="load()" aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-12 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm mã lịch hẹn, tên khách..." type="text" x-model="query" x-ref="searchInput"/>
+<button @click="closeSearch()" aria-label="Đóng tìm kiếm" class="absolute right-0 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button" x-cloak="" x-show="mobileSearch">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="close">close</span>
+</button>
 </div>
-<a aria-label="Thông báo" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" href="thong-bao.html">
-<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</div>
+<!-- The console bell answers "what needs me", so it stays inside the console: the
+     customer notification page has no way back to the partner pages. -->
+<a aria-label="Lịch chờ xác nhận" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" data-oak-pending-bell href="quan-ly-lich-hen.html?status=pending">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span aria-hidden="true" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-error text-on-error font-caption text-[10px] hidden items-center justify-center" data-oak-pending-count></span>
 </a>
 <a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
 <span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 flex items-center justify-center">
@@ -117,18 +140,29 @@
 </header>
 
 <!-- Main Content Area -->
-<main class="md:ml-64 flex flex-col md:h-[calc(100vh-5rem)] bg-background relative pb-24 md:pb-0">
+<main class="md:ml-64 flex flex-col md:h-[calc(100vh-5rem)] bg-background relative pb-24 md:pb-0" id="main" tabindex="-1">
 
 <!-- Calendar & Details Container -->
 <div class="flex-1 flex overflow-hidden">
-<!-- Main Calendar Area -->
-<div class="flex-1 flex flex-col overflow-hidden">
+<!-- Main Calendar Area. A sibling of the panel, never an ancestor, so sending it out of
+     the tab order below md cannot take the open sheet with it. -->
+<div :inert="sheetInert()" class="flex-1 flex flex-col overflow-hidden">
 <!-- Filters Bar -->
 <div class="px-gutter py-6 flex flex-wrap items-center justify-between gap-4 border-b border-outline-variant/20 shrink-0">
-<div class="flex items-center gap-4">
+<!-- Upcoming mode drops the date window entirely, so the day/week controls and the
+     range label would all be describing a range nothing is filtered by. -->
+<div class="flex flex-wrap items-center gap-3" x-cloak="" x-show="upcoming">
+<span class="inline-flex items-center gap-2 pl-4 pr-2 py-2 rounded-full bg-surface-variant text-on-surface-variant font-label-md text-label-md">
+<span>Đang xem: lịch sắp tới từ hôm nay</span>
+<button @click="exitUpcoming()" aria-label="Bỏ chế độ xem sắp tới" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-high hover:text-primary transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="close">close</span>
+</button>
+</span>
+</div>
+<div class="flex items-center gap-4" x-show="!upcoming">
 <div class="flex items-center bg-surface-container-low rounded p-1 border border-outline-variant/30">
-<button :class="view === 'day' ? 'bg-primary-container text-on-primary rounded-full shadow-sm hover:bg-primary' : 'text-on-surface-variant hover:text-primary'" @click="setView('day')" class="px-4 py-1.5 font-label-md text-label-md uppercase">Ngày</button>
-<button :class="view === 'week' ? 'bg-primary-container text-on-primary rounded-full shadow-sm hover:bg-primary' : 'text-on-surface-variant hover:text-primary'" @click="setView('week')" class="px-4 py-1.5 font-label-md text-label-md uppercase">Tuần</button>
+<button :aria-pressed="view === 'day'" :class="view === 'day' ? 'bg-primary-container text-on-primary rounded-full shadow-sm hover:bg-primary' : 'text-on-surface-variant hover:text-primary'" @click="setView('day')" class="px-4 py-1.5 font-label-md text-label-md uppercase" type="button">Ngày</button>
+<button :aria-pressed="view === 'week'" :class="view === 'week' ? 'bg-primary-container text-on-primary rounded-full shadow-sm hover:bg-primary' : 'text-on-surface-variant hover:text-primary'" @click="setView('week')" class="px-4 py-1.5 font-label-md text-label-md uppercase" type="button">Tuần</button>
 </div>
 <h3 class="font-headline-sm text-headline-sm text-primary ml-4" x-text="rangeLabel()"></h3>
 <div class="flex items-center gap-1">
@@ -142,8 +176,8 @@
 </div>
 </div>
 <div class="flex flex-wrap gap-3">
-<input @change="load()" aria-label="Ngày" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded px-4 py-2 focus:ring-0 focus:border-secondary outline-none" type="date" x-model="date"/>
-<select @change="load()" aria-label="Lọc theo nhân viên" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8 relative" x-model="staffId">
+<input @change="load()" aria-label="Ngày" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded px-4 py-2 focus:ring-0 focus:border-secondary outline-none" type="date" x-model="date" x-show="!upcoming"/>
+<select @change="load()" aria-label="Lọc theo nhân viên" class="bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-body-md text-body-md rounded px-4 py-2 focus:ring-0 focus:border-secondary outline-none appearance-none pr-8 relative" x-model="staffId" x-ref="filterFallback">
 <option value="">Tất cả nhân viên</option>
 <template :key="member.id" x-for="member in activeStaff()">
 <option :value="member.id" x-text="member.name"></option>
@@ -164,8 +198,28 @@
 </select>
 </div>
 </div>
+<!-- Upcoming List View. The grid places a card by its time of day inside ONE date, so a
+     range that spans many days can only be told the truth as a list. -->
+<div class="flex-1 overflow-y-auto bg-surface-container-lowest p-gutter" x-cloak="" x-show="upcoming">
+<div :class="{ 'opacity-50': loading }" class="divide-y divide-outline-variant/20">
+<template :key="'upcoming-' + booking.id" x-for="booking in bookings">
+<div @click="open(booking.id, narrow ? $el : null)" @keydown.enter.prevent="open(booking.id, $el)" @keydown.space.prevent="open(booking.id, $el)" class="py-4 flex flex-wrap items-center gap-3 cursor-pointer hover:bg-surface-container-low/40 transition-colors" role="button" tabindex="0">
+<div class="min-w-0 flex-1">
+<p class="flex flex-wrap items-baseline gap-x-3 font-label-md text-label-md text-primary">
+<span x-text="timeRange(booking)"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(booking.date)"></span>
+</p>
+<p class="font-body-md text-body-md text-on-surface mt-1 truncate" x-text="booking.customer.name"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1 truncate" x-text="booking.service ? booking.service.name : 'Dịch vụ đã xoá'"></p>
+</div>
+<span class="font-caption text-caption text-outline uppercase tracking-wider shrink-0" x-text="statusLabel(booking.status)"></span>
+</div>
+</template>
+</div>
+<p class="py-12 text-center font-body-md text-body-md text-on-surface-variant" x-show="!loading && bookings.length === 0">Không có lịch hẹn sắp tới nào.</p>
+</div>
 <!-- Grid Calendar View -->
-<div class="flex-1 overflow-y-auto overflow-x-auto hide-scrollbar bg-surface-container-lowest p-gutter">
+<div class="flex-1 overflow-y-auto overflow-x-auto hide-scrollbar bg-surface-container-lowest p-gutter" x-show="!upcoming">
 <div class="min-w-[800px]" :class="{ 'opacity-50': loading }">
 <!-- Staff / Day Header Row -->
 <div :style="gridStyle()" class="time-grid border-b border-outline-variant/20 mb-4 sticky top-0 bg-surface-container-lowest z-10 pb-4">
@@ -197,10 +251,12 @@
 <!-- Appointments -->
 <template :key="booking.id" x-for="booking in placedBookings()">
 <div :style="bookingStyle(booking)" class="mx-2 my-1">
-<div :class="bookingClass(booking)" @click="open(booking.id)" class="rounded-r p-3 h-full shadow-sm hover:shadow-md cursor-pointer transition-shadow flex flex-col justify-between overflow-hidden">
+<div :class="bookingClass(booking)" @click="open(booking.id, narrow ? $el : null)" @keydown.enter.prevent="open(booking.id, $el)" @keydown.space.prevent="open(booking.id, $el)" class="rounded-r p-3 h-full shadow-sm hover:shadow-md cursor-pointer transition-shadow flex flex-col justify-between overflow-hidden" role="button" tabindex="0">
 <div>
 <div class="flex items-center gap-1 mb-1" x-show="booking.status !== 'confirmed'">
-<span class="material-symbols-outlined text-[14px] text-outline" x-text="statusIcon(booking.status)"></span>
+<!-- The glyph repeats the word beside it, and its ligature text would otherwise land
+     inside the card's accessible name as "schedule" / "check_circle". -->
+<span aria-hidden="true" class="material-symbols-outlined text-[14px] text-outline" x-text="statusIcon(booking.status)"></span>
 <span class="font-caption text-caption text-outline uppercase tracking-wider" x-text="statusLabel(booking.status)"></span>
 </div>
 <p class="font-label-md text-label-md text-primary mb-1 line-clamp-1" x-text="booking.service ? booking.service.name : 'Dịch vụ đã xoá'"></p>
@@ -226,13 +282,13 @@
 <!-- Below md this panel is not a column at all: it slides over the whole screen
      (above the bottom nav) only while a booking is selected, so the calendar keeps
      its full width on a phone. From md up it is the fixed right-hand column. -->
-<aside :class="detail ? 'flex' : 'hidden'" x-cloak="" class="fixed inset-0 z-[60] md:relative md:inset-auto md:z-30 md:w-[360px] md:flex bg-surface-container-low border-l border-outline-variant/20 flex-col shrink-0 shadow-[0_0_40px_rgba(0,0,0,0.02)]">
+<aside :aria-modal="narrow ? 'true' : null" :class="detail ? 'flex' : 'hidden'" :role="narrow ? 'dialog' : null" @keydown.escape.window="if (detail &amp;&amp; narrow &amp;&amp; !mobileSearch) closeDetail()" aria-label="Chi tiết lịch hẹn" x-cloak="" class="fixed inset-0 z-[60] md:relative md:inset-auto md:z-30 md:w-[360px] md:flex bg-surface-container-low border-l border-outline-variant/20 flex-col shrink-0 shadow-[0_0_40px_rgba(0,0,0,0.02)]">
 <!-- Close Button -->
-<button @click="detail = null" class="absolute top-4 right-4 text-on-surface-variant hover:text-primary transition-colors" x-show="detail">
-<span class="material-symbols-outlined">close</span>
+<button @click="closeDetail()" aria-label="Đóng chi tiết lịch hẹn" class="absolute top-4 right-4 text-on-surface-variant hover:text-primary transition-colors" type="button" x-ref="detailClose" x-show="detail">
+<span aria-hidden="true" class="material-symbols-outlined">close</span>
 </button>
 <div class="p-8 flex-1 flex flex-col items-center justify-center text-center" x-show="!detail">
-<span class="material-symbols-outlined text-[40px] text-outline-variant mb-4">calendar_today</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[40px] text-outline-variant mb-4">calendar_today</span>
 <p class="font-body-md text-body-md text-on-surface-variant">Chọn một lịch hẹn trên lịch để xem chi tiết.</p>
 </div>
 <template x-if="detail">
@@ -248,7 +304,7 @@
 </template>
 <h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="detail.customer.name"></h3>
 <a :href="'tel:' + (detail.customer.phone || '')" class="font-body-md text-body-md text-on-surface-variant flex items-center justify-center gap-1 hover:text-secondary transition-colors">
-<span class="material-symbols-outlined text-[16px]">call</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]">call</span>
 <span x-text="detail.customer.phone || 'Chưa có số điện thoại'"></span>
 </a>
 <div class="mt-4 px-3 py-1 bg-surface-variant rounded-full text-secondary font-label-md text-caption uppercase tracking-wider" x-show="detail.customer.vip">
@@ -264,7 +320,7 @@
 <!-- Service -->
 <div class="flex gap-4">
 <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0">
-<span class="material-symbols-outlined text-secondary">content_cut</span>
+<span aria-hidden="true" class="material-symbols-outlined text-secondary">content_cut</span>
 </div>
 <div>
 <p class="font-label-md text-label-md text-on-surface" x-text="detail.service ? detail.service.name : 'Dịch vụ đã xoá'"></p>
@@ -275,7 +331,7 @@
 <!-- Time -->
 <div class="flex gap-4">
 <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0">
-<span class="material-symbols-outlined text-secondary">schedule</span>
+<span aria-hidden="true" class="material-symbols-outlined text-secondary">schedule</span>
 </div>
 <div>
 <p class="font-label-md text-label-md text-on-surface">Thời gian</p>
@@ -290,7 +346,7 @@
 <img loading="lazy" :src="staffImage(detail)" alt="" class="w-full h-full object-cover"/>
 </template>
 <template x-if="!staffImage(detail)">
-<span class="material-symbols-outlined text-secondary">group</span>
+<span aria-hidden="true" class="material-symbols-outlined text-secondary">group</span>
 </template>
 </div>
 <div>
@@ -321,44 +377,44 @@
 </aside>
 </div>
 </main>
-<button @click="openCreate()" aria-label="Đặt lịch mới" class="md:hidden fixed bottom-24 right-4 z-50 w-14 h-14 rounded-full bg-primary-container text-on-primary shadow-lg flex items-center justify-center hover:bg-primary transition-colors" type="button">
+<button :inert="sheetInert()" @click="openCreate()" aria-label="Đặt lịch mới" class="md:hidden fixed bottom-24 right-4 z-50 w-14 h-14 rounded-full bg-primary-container text-on-primary shadow-lg flex items-center justify-center hover:bg-primary transition-colors" type="button">
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="add">add</span>
 </button>
 <!-- BottomNavBar (Mobile Only) -->
-<nav class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-1 py-2 flex justify-between items-center">
+<nav :inert="sheetInert()" class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-1 py-2 flex justify-between items-center">
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="tong-quan-doi-tac.html">
-<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Tổng quan</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-secondary font-bold" href="quan-ly-lich-hen.html">
-<span class="material-symbols-outlined fill" data-icon="calendar_today">calendar_today</span>
+<span aria-hidden="true" class="material-symbols-outlined fill" data-icon="calendar_today">calendar_today</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Lịch hẹn</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-dich-vu.html">
-<span class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Dịch vụ</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-nhan-vien.html">
-<span class="material-symbols-outlined" data-icon="group">group</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="group">group</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Nhân viên</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="bao-cao-doanh-thu.html">
-<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Báo cáo</span>
 </a>
 <a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="cai-dat-salon.html">
-<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
 </a>
 </nav>
 <!-- New Booking Modal -->
-<div @keydown.escape.window="createOpen = false" aria-labelledby="create-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="createOpen">
-<div @click="createOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="createOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
+<div @keydown.escape.window="closeCreate()" aria-labelledby="create-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="createOpen">
+<div @click="closeCreate()" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="createOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
 <div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-lg max-h-[90vh] overflow-y-auto border border-outline-variant/20 flex flex-col" x-show="createOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <div class="px-6 py-6 border-b border-outline-variant/20 flex justify-between items-center sticky top-0 bg-surface-container-lowest z-10">
 <h3 class="font-headline-sm text-headline-sm text-primary" id="create-title">Đặt lịch mới</h3>
-<button @click="createOpen = false" class="text-on-surface-variant hover:text-primary transition-colors">
-<span class="material-symbols-outlined" data-icon="close">close</span>
+<button @click="closeCreate()" aria-label="Đóng" class="text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="close">close</span>
 </button>
 </div>
 <div class="px-6 py-8">
@@ -405,11 +461,11 @@
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-note">Ghi chú</label>
 <textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-note" rows="2" x-model="form.note"></textarea>
 </div>
-<p class="font-body-md text-body-md text-error" x-show="formError" x-text="formError"></p>
+<p class="font-body-md text-body-md text-error" role="alert" tabindex="-1" x-ref="createError" x-show="formError" x-text="formError"></p>
 </form>
 </div>
 <div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4 sticky bottom-0">
-<button @click="createOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+<button @click="closeCreate()" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
                     Huỷ
                 </button>
 <button :disabled="saving" class="px-8 py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors rounded-full disabled:opacity-50" form="create-booking-form" type="submit">
@@ -524,11 +580,6 @@
         return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getDay();
     }
 
-    function oakTodayISO() {
-        var now = new Date();
-        return now.getFullYear() + '-' + oakPad(now.getMonth() + 1) + '-' + oakPad(now.getDate());
-    }
-
     function oakPartnerBookings() {
         return {
             bookings: [],
@@ -539,7 +590,7 @@
             loading: true,
             saving: false,
             view: 'day',
-            date: oakTodayISO(),
+            date: OAK.todayISO(),
             staffId: '',
             serviceId: '',
             status: '',
@@ -548,6 +599,16 @@
             formError: '',
             form: {},
             loadToken: 0,
+            mobileSearch: false,
+            /* Below md the details panel is a sheet over the whole screen rather than a
+               column beside the calendar, so only there is it a dialog. */
+            narrow: false,
+            /* What to hand focus back to when the panel / the modal closes. */
+            detailOpener: null,
+            createOpener: null,
+            /* "Everything still ahead", the window the dashboard queue and the bell count.
+               It has no date bound at all, so the calendar grid gives way to a list. */
+            upcoming: false,
 
             async init() {
                 await OAK.requirePartner();
@@ -567,10 +628,70 @@
                         this.date = this.detail.date;
                     }
                 }
+                // The dashboard queue and the console bell both link here naming a status,
+                // and both count every booking still ahead — so arriving that way opens the
+                // same window, not today. Anything else in the parameter is ignored.
+                var status = OAK.qs('status');
+                if (status && Object.prototype.hasOwnProperty.call(OAK_STATUS_LABELS, status)) {
+                    this.status = status;
+                    this.upcoming = true;
+                }
                 await this.load();
                 if (OAK.qs('new')) {
                     this.openCreate();
                 }
+                OAK.pendingBadge();
+                this.watchViewport();
+            },
+
+            /* Back to the page's own default: today, one day at a time. */
+            exitUpcoming() {
+                this.upcoming = false;
+                this.status = '';
+                this.view = 'day';
+                this.date = OAK.todayISO();
+                this.load();
+            },
+
+            openMobileSearch() {
+                this.mobileSearch = true;
+                this.$nextTick(
+                    function () {
+                        this.$refs.searchInput.focus();
+                    }.bind(this),
+                );
+            },
+
+            /* The field filters the calendar and is out of sight below lg, so a term left
+               behind would read as "no bookings today". Only ever the mobile overlay: on a
+               wide screen the field is visible and clicking away must not empty it. */
+            closeSearch() {
+                if (!this.mobileSearch) {
+                    return;
+                }
+                this.mobileSearch = false;
+                if (this.query.trim()) {
+                    this.query = '';
+                    this.load();
+                }
+            },
+
+            /* Crossing back above lg puts the field in the header again, so the overlay must
+               not linger over it. A breakpoint listener, not resize: on Android the soft
+               keyboard fires resize, which would shut the overlay mid-typing. */
+            watchViewport() {
+                var self = this;
+                window.matchMedia('(min-width: 1024px)').addEventListener('change', function (event) {
+                    if (event.matches) {
+                        self.mobileSearch = false;
+                    }
+                });
+                // md is where the details panel stops covering the page and becomes a column.
+                var wide = window.matchMedia('(min-width: 768px)');
+                this.narrow = !wide.matches;
+                wide.addEventListener('change', function (event) {
+                    self.narrow = !event.matches;
+                });
             },
 
             /* ---- data ---- */
@@ -581,7 +702,12 @@
                 var token = ++this.loadToken;
                 this.loading = true;
                 var params = new URLSearchParams();
-                if (this.view === 'week') {
+                if (this.upcoming) {
+                    // No `to`, and no `date`: everything from today on. Soonest first, the
+                    // order a list of what is still ahead has to read in.
+                    params.set('from', OAK.todayISO());
+                    params.set('order', 'asc');
+                } else if (this.view === 'week') {
                     params.set('from', this.weekStart());
                     params.set('to', oakShiftDate(this.weekStart(), 6));
                 } else {
@@ -630,12 +756,70 @@
                 }
             },
 
-            async open(id) {
+            /* `trigger` is the card or row that was activated, and is what focus goes back to
+               when the panel closes. Who passes one is the whole point:
+                 - the two @keydown handlers always do — the caret is on the card and has to
+                   follow the panel it just opened;
+                 - @click only below md, where the panel is a sheet that covers the card and
+                   sends the page behind it inert; a mouse click on a wide screen leaves the
+                   caret where it was, because yanking it into a side column nobody asked
+                   for is exactly the jolt this guard avoids;
+                 - init() opens a booking straight from ?booking_id and passes nothing: no
+                   one pressed anything, so nothing may move the caret. */
+            async open(id, trigger) {
                 try {
                     this.detail = await OAK.api('/api/partner/bookings/' + id);
                 } catch (error) {
                     OAK.toast(error.message, 'error');
+                    return;
                 }
+                if (!trigger) {
+                    return;
+                }
+                this.detailOpener = trigger;
+                this.$nextTick(
+                    function () {
+                        if (this.$refs.detailClose) {
+                            this.$refs.detailClose.focus();
+                        }
+                    }.bind(this),
+                );
+            },
+
+            closeDetail() {
+                this.detail = null;
+                var opener = this.detailOpener;
+                this.detailOpener = null;
+                // Nothing was set means focus never left the calendar — a mouse click on a
+                // wide screen — so there is nothing to give back and moving it would be the
+                // jump this guard exists to avoid.
+                if (!opener) {
+                    return;
+                }
+                if (document.contains(opener)) {
+                    opener.focus();
+                    return;
+                }
+                // The card can be gone: confirming a booking reloads the list, and under a
+                // status filter the row it was on no longer matches. The filter bar is on the
+                // page in both modes and at every width, so the caret lands there instead of
+                // falling back to <body> and restarting the tab order at the top.
+                if (this.$refs.filterFallback) {
+                    this.$refs.filterFallback.focus();
+                }
+            },
+
+            /* Below md the details sheet covers the page at z-60, so everything under it
+               leaves the tab order with it — otherwise Tab walks out of the sheet into
+               controls nobody can see. Four nodes carry this: the top bar, the calendar
+               area (a SIBLING of the panel, never its ancestor), the FAB and the bottom
+               nav. Not the desktop sidebar, which is `hidden md:flex` and so already out
+               of the tab order at exactly the widths `narrow` covers; and not the create
+               modal, which is its own dialog and never open at the same time.
+               null rather than false: `inert` is not in Alpine's boolean-attribute list, so
+               false would be written out as inert="false" — still present, still inert. */
+            sheetInert() {
+                return this.narrow && this.detail ? true : null;
             },
 
             setView(view) {
@@ -649,7 +833,7 @@
             },
 
             goToday() {
-                this.date = oakTodayISO();
+                this.date = OAK.todayISO();
                 this.load();
             },
 
@@ -661,6 +845,8 @@
                     });
                     OAK.toast('Đã cập nhật lịch hẹn ' + this.detail.code + '.');
                     await this.load();
+                    // The bell counts the same bookings this just changed.
+                    OAK.pendingBadge();
                 } catch (error) {
                     OAK.toast(error.message, 'error');
                 }
@@ -685,9 +871,30 @@
                 this.formError = '';
             },
 
+            /* No focus trap: the dialog is the last thing in the body, so Tab past its final
+               control reaches the browser chrome rather than the calendar behind it. What is
+               here is the pair that matters — focus lands inside on open and comes back to
+               whatever opened it on close. */
             openCreate() {
                 this.resetForm();
+                this.createOpener =
+                    document.activeElement === document.body ? null : document.activeElement;
                 this.createOpen = true;
+                this.$nextTick(function () {
+                    var first = document.getElementById('create-name');
+                    if (first) {
+                        first.focus();
+                    }
+                });
+            },
+
+            closeCreate() {
+                this.createOpen = false;
+                var opener = this.createOpener;
+                this.createOpener = null;
+                if (opener && document.contains(opener)) {
+                    opener.focus();
+                }
             },
 
             async submitBooking() {
@@ -709,7 +916,7 @@
                         method: 'POST',
                         body: body,
                     });
-                    this.createOpen = false;
+                    this.closeCreate();
                     this.date = created.date;
                     this.view = 'day';
                     await this.load();
@@ -717,6 +924,15 @@
                     OAK.toast('Đã tạo lịch hẹn ' + created.code + '.');
                 } catch (error) {
                     this.formError = error.message;
+                    // role="alert" reads it out; the caret has to follow, or a reader who
+                    // tabs on from the submit button walks straight past what went wrong.
+                    this.$nextTick(
+                        function () {
+                            if (this.$refs.createError) {
+                                this.$refs.createError.focus();
+                            }
+                        }.bind(this),
+                    );
                 } finally {
                     this.saving = false;
                 }

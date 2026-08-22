@@ -5,7 +5,18 @@
 <!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
      window.OAK must already exist by then for x-data init() blocks to use it. -->
 <script src="assets/js/oak-api.js"></script>
-<script src="assets/js/oak-i18n-en.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
 <script src="assets/js/oak-i18n.js"></script>
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
@@ -20,6 +31,12 @@
         .code-chip:hover { background-color: #ffe4c3; border-color: #171818; }
     </style>
 <title>Ưu đãi - OAK Beauty</title>
+<meta content="Mã giảm giá từ OAK và các combo độc quyền từ salon đối tác. Sao chép mã, xem điều kiện áp dụng và dùng được ngay khi đặt lịch làm đẹp tại TP.HCM." name="description">
+<meta content="Ưu đãi - OAK Beauty" property="og:title">
+<meta content="Mã giảm giá từ OAK và các combo độc quyền từ salon đối tác. Sao chép mã, xem điều kiện áp dụng và dùng được ngay khi đặt lịch làm đẹp tại TP.HCM." property="og:description">
+<meta content="website" property="og:type">
+<!-- og:image has no host in front of it: this build knows no domain of its own. -->
+<meta content="assets/images/img-064bab706d.jpg" property="og:image">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -63,16 +80,20 @@
 <p class="font-body-md text-body-md text-on-surface-variant" x-text="promotion.description"></p>
 <span class="font-label-md text-label-md text-secondary" x-show="discountLabel(promotion)" x-text="discountLabel(promotion)"></span>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px]" data-icon="storefront">storefront</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="storefront">storefront</span>
 <span>Áp dụng toàn hệ thống OAK</span>
 </p>
 <p class="font-caption text-caption text-outline" x-text="'Hạn dùng đến ' + shortDate(promotion.ends_at)"></p>
+<p class="font-caption text-caption text-outline flex items-center gap-1" x-show="promotion.code &amp;&amp; !user">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="info">info</span>
+<span>Cần đăng nhập để áp dụng mã.</span>
+</p>
 <div class="flex flex-wrap items-center gap-3 mt-auto pt-3">
 <button @click="copyCode(promotion.code)" class="code-chip flex items-center gap-2 px-4 py-2 text-primary font-label-md text-label-md uppercase tracking-wider active:scale-95 duration-200" type="button" x-show="promotion.code">
-<span class="material-symbols-outlined text-[16px]" data-icon="content_copy">content_copy</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="content_copy">content_copy</span>
 <span x-text="promotion.code"></span>
 </button>
-<a :href="bookingUrl(promotion)" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200">Dùng ngay</a>
+<a :href="useUrl(promotion)" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200">Dùng ngay</a>
 </div>
 </div>
 </article>
@@ -106,16 +127,20 @@
 </template>
 </div>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px]" data-icon="store">store</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="store">store</span>
 <a :href="salonUrl(promotion.salon)" class="hover:text-primary transition-colors" x-text="promotion.salon.name"></a>
 </p>
 <p class="font-caption text-caption text-outline" x-text="'Hạn dùng đến ' + shortDate(promotion.ends_at)"></p>
+<p class="font-caption text-caption text-outline flex items-center gap-1" x-show="promotion.code &amp;&amp; !user">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="info">info</span>
+<span>Cần đăng nhập để áp dụng mã.</span>
+</p>
 <div class="flex flex-wrap items-center gap-3 mt-auto pt-3">
 <button @click="copyCode(promotion.code)" class="code-chip flex items-center gap-2 px-4 py-2 text-primary font-label-md text-label-md uppercase tracking-wider active:scale-95 duration-200" type="button" x-show="promotion.code">
-<span class="material-symbols-outlined text-[16px]" data-icon="content_copy">content_copy</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="content_copy">content_copy</span>
 <span x-text="promotion.code"></span>
 </button>
-<a :href="bookingUrl(promotion)" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200">Dùng ngay</a>
+<a :href="useUrl(promotion)" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200">Dùng ngay</a>
 </div>
 </div>
 </article>
@@ -126,7 +151,7 @@
 <template x-if="!loading &amp;&amp; !promotions.length">
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <div class="bg-surface-container-low rounded-lg py-16 px-6 text-center">
-<span class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="local_offer">local_offer</span>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="local_offer">local_offer</span>
 <p class="font-body-md text-body-md text-on-surface-variant mb-6">Hiện chưa có ưu đãi nào đang diễn ra. Ghé lại sau bạn nhé!</p>
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="kham-pha.html">Khám phá salon</a>
 </div>
@@ -134,7 +159,7 @@
 </template>
 </main>
 <!-- Footer -->
-<footer class="bg-tertiary dark:bg-tertiary-container w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -151,12 +176,14 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
 </div>
@@ -171,7 +198,7 @@
 </div>
 <!-- Copyright -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-caption text-caption text-on-tertiary/50">© 2024 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -183,9 +210,11 @@
         return {
             promotions: [],
             salonIds: {},
+            user: null,
             loading: true,
 
             async init() {
+                this.user = await OAK.me();
                 try {
                     // The promotions payload identifies a salon by slug only, but dat-lich.html
                     // takes salon_id — so the salon list doubles as a slug -> id lookup.
@@ -233,7 +262,7 @@
             },
 
             salonUrl(salon) {
-                return 'salon-profile-lala-nail-studio.html?salon=' + encodeURIComponent(salon.slug);
+                return 'salon-profile.html?salon=' + encodeURIComponent(salon.slug);
             },
 
             bookingUrl(promotion) {
@@ -247,6 +276,15 @@
                 }
                 const query = params.toString();
                 return query ? 'dat-lich.html?' + query : 'dat-lich.html';
+            },
+
+            /* Only a signed-in customer can have a code applied, so a guest goes through the
+               login page and comes back to the same booking with the code still filled in. */
+            useUrl(promotion) {
+                const booking = this.bookingUrl(promotion);
+                return this.user
+                    ? booking
+                    : 'dang-nhap-nguoi-dung.html?next=' + encodeURIComponent(booking);
             },
 
             async copyCode(code) {

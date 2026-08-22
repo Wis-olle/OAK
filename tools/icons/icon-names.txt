@@ -85,4 +85,5 @@ upload
 verified
 verified_user
 visibility
+visibility_off
 wifi

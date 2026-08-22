@@ -11,6 +11,24 @@ tools/i18n/parts/*.json   hand-written, one file per page (+ _chrome.json for he
 ui/assets/js/oak-i18n-en.js   window.OAK_I18N_EN = { "vi": "en", ... }
 ```
 
+## How the dictionary reaches the browser
+
+The generated file is the largest script the site ships and only an English reader has any use
+for it, so no page loads it with a plain `<script src>`. Each one carries the same short inline
+loader instead: it reads `oak_lang` out of `localStorage` behind the same `try`/`catch`
+`oak-i18n.js` uses, and `document.write`s the tag only when the answer is `en`.
+
+`document.write` rather than anything tidier because the tag has to land *before*
+`oak-i18n.js`, and neither script may be deferred (the reason is at the top of `oak-i18n.js`).
+Written during parsing, that is what `document.write` guarantees and an injected element does
+not. For a Vietnamese reader nothing is fetched at all and `DICTIONARY` is `{}` — the ordinary
+state of that reader, not a failure.
+
+The loader is copied markup rather than a file, so it can drift. It must stay **byte-identical
+on every page**; `server/test/i18n-loader-ui.test.mjs` compares the digest of every copy and
+fails on the first one that differs, on a page that carries the engine without it, and on any
+page that goes back to loading the dictionary unconditionally.
+
 ## Adding or changing a translation
 
 1. Edit (or add) a part under `parts/`. A part is a flat JSON object, UTF-8, mapping the
@@ -70,6 +88,11 @@ Advisory, never fails: it lists every Vietnamese string in a wired page that no 
 i.e. everything that would stay Vietnamese on the English site. It is a text scan, so strings
 a page builds in JavaScript are invisible to it and a few of its hits are markup rather than
 copy.
+
+It reads a page's `<meta name="description">` as well as its visible text, because
+`translateHead()` translates that attribute and a sentence nobody sees on screen is otherwise
+the easiest kind to leave in Vietnamese. Its `og:` twin is deliberately not scanned: nothing
+translates the Open Graph tags, so an entry for one could never be used.
 
 It scans `ui/*.html` plus `ui/assets/js/oak-header.js`, whose string literals hold the whole
 customer top bar — copy that is in no page at all, and so had no gate before.
