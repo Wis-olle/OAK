@@ -37,7 +37,7 @@ const DEFAULT_SORT = 's.featured DESC, s.flagship DESC, s.id';
 const SALON_DETAIL_COLUMNS = `
   ${SALON_CARD_COLUMNS},
   s.description, s.phone, s.open_time, s.close_time, s.featured, s.flagship, s.amenities,
-  s.tour_url, s.created_at
+  s.tour_url, s.created_at, s.cancel_cutoff_hours, s.cancel_policy_text
 `;
 
 const selectSalonById = db.prepare(`SELECT ${SALON_DETAIL_COLUMNS} FROM salons s WHERE s.id = ?`);
@@ -123,6 +123,10 @@ async function toSalonProfile(row) {
     amenities: parseJsonArray(row.amenities),
     tour_url: row.tour_url,
     social_links: await socialLinksForSalon(row.id),
+    // What this salon promises about cancelling, so salon-profile.html and the wizard say
+    // its window rather than the platform default.
+    cancel_cutoff_hours: row.cancel_cutoff_hours,
+    cancel_policy_text: row.cancel_policy_text,
     created_at: row.created_at,
   };
 }
@@ -133,7 +137,12 @@ router.get('/', async (req, res, next) => {
     // Every salon is verified on creation (auth.js) and a boot-time backfill (db.js) lifted
     // the older rows, so this matches every row today. It stays as the one switch that would
     // take a salon off the public list if a real verification flow ever returns.
-    const conditions = ['s.verified = 1'];
+    // published is the switch that does bite: a salon signs up unlisted and its owner turns
+    // it on from the console once the profile is worth showing. GET /:idOrSlug below is
+    // deliberately left open to anyone holding the link — not just the owner — because that
+    // is what makes the console's "xem trước" preview a plain page load with no second code
+    // path. A draft is reachable only by a slug nothing public links to.
+    const conditions = ['s.verified = 1', 's.published = 1'];
     const params = [];
 
     const q = filterValue(req.query.q);
@@ -228,13 +237,16 @@ router.get('/:id/services', async (req, res, next) => {
       params.push(category);
     }
 
+    // sv.featured is deliberately no longer a sort key here: the salon sets the order of
+    // its own menu from the console (services.sort_order), and a hidden second key would
+    // silently override what it arranged. The column is still read as a card flag.
     const rows = await db
       .prepare(
         `SELECT ${SERVICE_CARD_COLUMNS}
          FROM services sv
          JOIN salons s ON s.id = sv.salon_id
          WHERE ${conditions.join(' AND ')}
-         ORDER BY sv.featured DESC, sv.category, sv.price`,
+         ORDER BY sv.sort_order, sv.name`,
       )
       .all(...params);
 
@@ -288,7 +300,7 @@ router.get('/:id/reviews', async (req, res, next) => {
       .get(...params);
     const rows = await db
       .prepare(
-        `SELECT r.id, r.rating, r.comment, r.created_at,
+        `SELECT r.id, r.rating, r.comment, r.created_at, r.reply_text, r.reply_at,
                 u.name AS user_name, u.avatar AS user_avatar,
                 st.name AS staff_name, sv.name AS service_name
          ${REVIEW_SOURCE} ${where}
@@ -306,6 +318,9 @@ router.get('/:id/reviews', async (req, res, next) => {
         user: { name: row.user_name, avatar: row.user_avatar },
         staff: row.staff_name ? { name: row.staff_name } : null,
         service_name: row.service_name ?? null,
+        // The salon's public answer, shown indented under the comment it answers. Null
+        // until the owner writes one, and null again if they take it back down.
+        reply: row.reply_text ? { text: row.reply_text, at: row.reply_at } : null,
       })),
       meta: {
         page,
@@ -321,6 +336,8 @@ router.get('/:id/reviews', async (req, res, next) => {
   }
 });
 
+// Open on purpose, drafts included: see the note in GET / above. The listing, the search
+// and the map are what published = 1 gates; this route is the preview link behind it.
 router.get('/:idOrSlug', async (req, res, next) => {
   try {
     const { idOrSlug } = req.params;

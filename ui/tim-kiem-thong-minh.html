@@ -22,9 +22,9 @@
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
-<title>Tìm kiếm thông minh - OAK Beauty</title>
+<title>Trợ lý tìm salon - OAK Beauty</title>
 <meta content="Mô tả điều bạn muốn bằng lời thường ngày, trợ lý OAK sẽ gợi ý dịch vụ và salon phù hợp tại TP.HCM cùng khung giờ còn trống để bạn đặt lịch ngay." name="description">
-<meta content="Tìm kiếm thông minh - OAK Beauty" property="og:title">
+<meta content="Trợ lý tìm salon - OAK Beauty" property="og:title">
 <meta content="Mô tả điều bạn muốn bằng lời thường ngày, trợ lý OAK sẽ gợi ý dịch vụ và salon phù hợp tại TP.HCM cùng khung giờ còn trống để bạn đặt lịch ngay." property="og:description">
 <meta content="website" property="og:type">
 <!-- og:image has no host in front of it: this build knows no domain of its own. -->
@@ -41,7 +41,7 @@
 <!-- Chat Area (Left/Main) -->
 <section class="flex-1 flex flex-col gap-8 max-w-3xl">
 <header class="mb-4">
-<h1 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Trợ lý Tìm kiếm</h1>
+<h1 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Trợ lý tìm salon</h1>
 <p class="font-body-lg text-body-lg text-on-surface-variant">Tôi có thể giúp bạn tìm kiếm dịch vụ hoàn hảo hôm nay.</p>
 </header>
 <!-- The transcript, announced as each turn lands -->
@@ -54,7 +54,9 @@
 <span aria-hidden="true" class="material-symbols-outlined text-on-tertiary-container text-sm">auto_awesome</span>
 </div>
 <div class="glass-panel rounded-2xl rounded-tl-sm p-6 max-w-full md:max-w-[90%]">
-<p class="font-body-md text-body-md text-on-surface mb-6">Chào bạn! Mình có thể giúp tìm salon và dịch vụ làm đẹp phù hợp. Bạn muốn làm gì hôm nay?</p>
+<!-- What it can do, said before it is asked: this is a set of keyword rules, not a
+     chatbot, and a reader who expects one is disappointed by the first free sentence. -->
+<p class="font-body-md text-body-md text-on-surface mb-6">Chào bạn! Mình hiểu dịch vụ · khu vực · ngày · mức giá — ví dụ: “nối mi quận 1 chiều mai dưới 500k”. Bạn muốn làm gì hôm nay?</p>
 <div class="flex flex-wrap gap-3">
 <template :key="chip" x-for="chip in openingChips">
 <button :disabled="sending" @click="send(chip)" class="bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary inline-flex items-center min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-colors disabled:opacity-60" type="button" x-text="chip"></button>
@@ -62,7 +64,7 @@
 </div>
 </div>
 </div>
-<span class="font-caption text-caption text-on-surface-variant/70 ml-12">OAK Assistant • Vừa xong</span>
+<span class="font-caption text-caption text-on-surface-variant/70 ml-12">Trợ lý tìm salon • Vừa xong</span>
 </div>
 </template>
 <template :key="index" x-for="(msg, index) in messages">
@@ -143,7 +145,7 @@
 </template>
 </div>
 </div>
-<span class="font-caption text-caption text-on-surface-variant/70 ml-12">OAK Assistant • Vừa xong</span>
+<span class="font-caption text-caption text-on-surface-variant/70 ml-12">Trợ lý tìm salon • Vừa xong</span>
 </div>
 </template>
 </div>
@@ -276,6 +278,22 @@
         var MAX_OPENING_CHIPS = 4;
         var FAILED_REPLY = 'Xin lỗi, mình chưa nhận được tin nhắn của bạn — thử lại nhé.';
 
+        /* Where the conversation is kept between reloads. One tab, one visit: a reader who
+           reloads mid-conversation, or follows the results and comes back, finds what was
+           already said instead of starting over. Storage throws outright in a locked-down
+           browser, so every touch of it is guarded and a failure simply means this browser
+           remembers nothing. */
+        var STORE_KEY = 'oak-assistant';
+
+        function readConversation() {
+            try {
+                var saved = JSON.parse(sessionStorage.getItem(STORE_KEY));
+                return saved && Array.isArray(saved.messages) ? saved : null;
+            } catch (error) {
+                return null;
+            }
+        }
+
         return {
             messages: [],
             criteria: {},
@@ -285,9 +303,20 @@
             sending: false,
 
             async init() {
+                var saved = readConversation();
+                if (saved) {
+                    this.messages = saved.messages;
+                    this.criteria = saved.criteria || {};
+                    this.chips = saved.chips || [];
+                }
+
                 var query = OAK.qs('q');
                 if (query) {
                     this.send(query);
+                    return;
+                }
+                /* The openers belong to an empty transcript; a restored one has its own chips. */
+                if (this.messages.length) {
                     return;
                 }
                 /* Kept apart from `chips`: those narrow a search already under way, these are
@@ -374,6 +403,20 @@
                     this.messages.push({ role: 'assistant', text: FAILED_REPLY, retry: message });
                 } finally {
                     this.sending = false;
+                    this.remember();
+                }
+            },
+
+            /** The transcript as it now stands, so a reload picks it back up. */
+            remember() {
+                try {
+                    sessionStorage.setItem(STORE_KEY, JSON.stringify({
+                        messages: this.messages,
+                        criteria: this.criteria,
+                        chips: this.chips,
+                    }));
+                } catch (error) {
+                    /* nothing is remembered in this browser, which is not worth a message */
                 }
             },
 

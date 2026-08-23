@@ -14,5 +14,6 @@
   "Vui lòng nhập mật khẩu.": "Please enter your password.",
   "Vui lòng nhập email để nhận liên kết đặt lại.": "Enter your email to get a reset link.",
   "Nếu email tồn tại, chúng tôi đã gửi liên kết đặt lại — kiểm tra hộp thư, kể cả mục Spam.": "If that email exists, we have sent a reset link — check your inbox, including the Spam folder.",
-  "Email hoặc mật khẩu không đúng.": "That email or password is incorrect."
+  "Email hoặc mật khẩu không đúng.": "That email or password is incorrect.",
+  "Bạn đã thử đăng nhập quá nhiều lần. Vui lòng đợi 15 phút rồi thử lại.": "Too many sign-in attempts. Please wait 15 minutes and try again."
 }

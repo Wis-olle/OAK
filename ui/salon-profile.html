@@ -237,7 +237,7 @@
 <ul class="flex flex-col gap-3">
 <li class="flex items-start gap-3">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="event_available">event_available</span>
-<span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.CANCEL_POLICY"></span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.cancelPolicy(salon ? salon.cancel_cutoff_hours : 0)"></span>
 </li>
 <li class="flex items-start gap-3">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="payments">payments</span>
@@ -447,6 +447,12 @@
 </div>
 <p class="font-body-md text-body-md text-on-surface-variant" x-text="review.comment"></p>
 <p class="font-caption text-caption text-on-surface-variant mt-2" x-show="review.staff" x-text="review.staff ? 'Chuyên gia: ' + review.staff.name : ''"></p>
+<!-- The salon's own answer, indented under the review it answers so nobody can mistake
+     one for the other. -->
+<div class="mt-3 ml-4 pl-4 border-l border-outline-variant/50" x-cloak="" x-show="review.reply">
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider"><span>Phản hồi từ</span> <span x-text="salon ? salon.name : ''"></span></p>
+<p class="font-body-md text-body-md text-on-surface mt-1" x-text="review.reply ? review.reply.text : ''"></p>
+</div>
 </div>
 </template>
 <button @click="loadMoreReviews()" class="self-start font-label-md text-label-md uppercase tracking-[0.05em] text-on-surface border-b border-on-surface pb-1 hover:text-primary hover:border-primary transition-colors" type="button" x-show="reviews.length &lt; reviewMeta.total">Xem thêm đánh giá</button>
@@ -606,7 +612,14 @@
                         OAK.api('/api/promotions').catch(() => []),
                     ]);
 
-                    this.photos = photos;
+                    /* The cover counts as one of the salon's pictures — the console says
+                       so on its own checklist — so it opens the gallery rather than only
+                       standing in for a tile that has no photo. */
+                    this.photos =
+                        this.salon.image &&
+                        !photos.some((photo) => photo.image === this.salon.image)
+                            ? [{ image: this.salon.image, caption: this.salon.name }, ...photos]
+                            : photos;
                     this.services = services;
                     this.staff = staff;
                     this.promotions = promotions;

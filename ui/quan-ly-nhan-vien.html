@@ -69,6 +69,18 @@
 </a>
 </li>
 <li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="danh-gia-salon.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="star">star</span>
+<span class="font-body-md text-body-md">Đánh giá</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="blog.html?compose=1">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="article">article</span>
+<span class="font-body-md text-body-md">Nội dung</span>
+</a>
+</li>
+<li>
 <a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="cai-dat-salon.html">
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-body-md text-body-md">Cài đặt</span>
@@ -268,6 +280,48 @@
 </template>
 </div>
 </div>
+<!-- Days off. Saved on their own endpoint the moment they are added, so they are not part
+     of the profile/schedule/services save below — and only offered for a technician who
+     already exists, since a day off has to point at a row. -->
+<div x-show="form.id">
+<h4 class="font-headline-sm text-[18px] text-primary mb-4 border-b border-outline-variant/20 pb-2">Ngày nghỉ sắp tới</h4>
+<div class="space-y-2 mb-6">
+<template :key="row.id" x-for="row in staffTimeOff()">
+<div class="flex flex-wrap items-center gap-3 py-2 border-b border-outline-variant/20">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="person_off">person_off</span>
+<span class="font-label-md text-label-md text-primary" x-text="dayRange(row)"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-show="row.reason" x-text="row.reason"></span>
+<button @click="removeTimeOff(row)" class="ml-auto font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-error transition-colors" type="button">Xoá</button>
+</div>
+</template>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="staffTimeOff().length === 0">Chưa có ngày nghỉ nào.</p>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-off-from">Từ ngày</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-off-from" type="date" x-model="timeOffForm.date_from"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-off-to">Đến ngày</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-off-to" type="date" x-model="timeOffForm.date_to"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-off-reason">Lý do</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-off-reason" maxlength="200" type="text" x-model="timeOffForm.reason"/>
+</div>
+</div>
+<!-- How many appointments already sit inside the range just added. Nothing was
+     cancelled, so this is the list of people to ring — three text nodes, so the count
+     between them stays a number the dictionary never has to know about. -->
+<p class="font-caption text-caption text-on-surface-variant mb-4" x-cloak="" x-show="timeOffAffected > 0">
+<span>Khoảng vừa thêm đang có</span> <span x-text="timeOffAffected"></span> <span>lịch hẹn — bạn nhớ liên hệ khách.</span>
+</p>
+<p class="font-body-md text-body-md text-error mt-4" x-show="timeOffError" x-text="timeOffError"></p>
+<button :disabled="timeOffSaving" @click="addTimeOff()" class="mt-4 inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">add</span>
+                                Thêm ngày nghỉ
+                            </button>
+</div>
 <!-- Services -->
 <div>
 <h4 class="font-headline-sm text-[18px] text-primary mb-4 border-b border-outline-variant/20 pb-2">Dịch vụ phụ trách</h4>
@@ -416,6 +470,13 @@
             // the template reads must exist from the start.
             form: { schedule: [], service_ids: [] },
             formError: '',
+            /* Days off live on their own endpoint and save as soon as they are added, so
+               they sit outside the profile/schedule/services save below. */
+            timeOff: [],
+            timeOffForm: { date_from: '', date_to: '', reason: '' },
+            timeOffError: '',
+            timeOffSaving: false,
+            timeOffAffected: 0,
             confirmOpen: false,
             confirmMessage: '',
 
@@ -428,6 +489,12 @@
                     OAK.toast(error.message, 'error');
                 }
                 await this.load();
+                await this.loadTimeOff();
+                // The setup checklist links straight at the empty form, so a salon with no
+                // roster yet lands on the thing it was sent here to do.
+                if (OAK.qs('new')) {
+                    await this.openStaff(null);
+                }
                 OAK.pendingBadge();
             },
 
@@ -493,6 +560,9 @@
 
             async openStaff(member) {
                 this.formError = '';
+                this.timeOffError = '';
+                this.timeOffAffected = 0;
+                this.timeOffForm = { date_from: '', date_to: '', reason: '' };
                 if (!member) {
                     this.form = {
                         id: null,
@@ -541,6 +611,75 @@
 
             hasService(id) {
                 return (this.form.service_ids || []).indexOf(id) !== -1;
+            },
+
+            /* ---- days off ---- */
+
+            /* The endpoint answers with the whole salon's upcoming days off — the salon's
+               own closures included — and the modal shows only this technician's. */
+            async loadTimeOff() {
+                try {
+                    this.timeOff = await OAK.api('/api/partner/time-off');
+                } catch (error) {
+                    this.timeOff = [];
+                }
+            },
+
+            staffTimeOff() {
+                var id = this.form.id;
+                return this.timeOff.filter(function (row) {
+                    return row.staff_id === id;
+                });
+            },
+
+            /** 'DD/MM' or 'DD/MM - DD/MM' — digits only, so the English pass leaves it be. */
+            dayRange(row) {
+                var from = row.date_from.slice(8) + '/' + row.date_from.slice(5, 7);
+                if (row.date_to === row.date_from) {
+                    return from;
+                }
+                return from + ' - ' + row.date_to.slice(8) + '/' + row.date_to.slice(5, 7);
+            },
+
+            async addTimeOff() {
+                this.timeOffError = '';
+                if (!this.timeOffForm.date_from) {
+                    this.timeOffError = 'Vui lòng chọn ngày bắt đầu.';
+                    return;
+                }
+                this.timeOffSaving = true;
+                try {
+                    var created = await OAK.api('/api/partner/time-off', {
+                        method: 'POST',
+                        body: {
+                            staff_id: this.form.id,
+                            date_from: this.timeOffForm.date_from,
+                            date_to: this.timeOffForm.date_to || this.timeOffForm.date_from,
+                            reason: this.timeOffForm.reason || null,
+                        },
+                    });
+                    this.timeOffForm = { date_from: '', date_to: '', reason: '' };
+                    // Nothing already booked is cancelled by this, so the count stays on the
+                    // page: it is how many appointments this technician has to be swapped
+                    // out of.
+                    this.timeOffAffected = created.affected_bookings;
+                    await this.loadTimeOff();
+                    OAK.toast('Đã thêm ngày nghỉ.');
+                } catch (error) {
+                    this.timeOffError = error.message;
+                }
+                this.timeOffSaving = false;
+            },
+
+            async removeTimeOff(row) {
+                try {
+                    await OAK.api('/api/partner/time-off/' + row.id, { method: 'DELETE' });
+                    this.timeOffAffected = 0;
+                    await this.loadTimeOff();
+                    OAK.toast('Đã xoá ngày nghỉ.');
+                } catch (error) {
+                    this.timeOffError = error.message;
+                }
             },
 
             toggleService(id) {

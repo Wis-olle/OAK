@@ -10,7 +10,6 @@
   "Xác nhận mật khẩu": "Confirm password",
   "Tạo tài khoản": "Create account",
   "Đang tạo tài khoản...": "Creating account...",
-  "Khi đăng ký, bạn đồng ý với": "By signing up, you agree to the",
   "Điều khoản sử dụng": "Terms of Service",
   "và": "and",
   "Chính sách bảo mật": "Privacy Policy",
@@ -24,5 +23,9 @@
   "Số điện thoại không hợp lệ.": "That phone number is not valid.",
   "Mật khẩu phải có ít nhất 8 ký tự.": "Password must be at least 8 characters.",
   "Mật khẩu xác nhận không khớp.": "The passwords do not match.",
-  "Email đã được sử dụng.": "This email is already in use."
+  "Email đã được sử dụng.": "This email is already in use.",
+  "Tôi đồng ý với": "I agree to the",
+  "Nhận ưu đãi và tin khuyến mãi qua Thông báo (không bắt buộc).": "Send me offers and promotions in Notifications (optional).",
+  "Vui lòng đồng ý với Điều khoản và Chính sách bảo mật.": "Please agree to the Terms and the Privacy Policy.",
+  "Số điện thoại này đang gắn với một tài khoản khác.": "That phone number is already linked to another account."
 }

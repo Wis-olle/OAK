@@ -99,6 +99,19 @@
 </button>
 <p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="errors.confirm" x-text="errors.confirm"></p>
 </div>
+<!-- Consent, asked as an act of its own rather than read into the button below it, and
+     asked once per purpose: agreeing to be here is not agreeing to be marketed to. -->
+<div class="space-y-3">
+<label class="flex items-start gap-3 cursor-pointer" for="consent">
+<input @change="delete errors.consent" class="mt-1" id="consent" name="consent" type="checkbox" x-model="consent">
+<span class="font-caption text-caption text-on-surface-variant">Tôi đồng ý với <a class="underline hover:text-primary transition-colors" href="dieu-khoan.html" rel="noopener noreferrer" target="_blank">Điều khoản sử dụng</a> và <a class="underline hover:text-primary transition-colors" href="bao-mat.html" rel="noopener noreferrer" target="_blank">Chính sách bảo mật</a> của OAK Beauty.</span>
+</label>
+<p class="font-caption text-caption text-error" role="alert" x-cloak="" x-show="errors.consent" x-text="errors.consent"></p>
+<label class="flex items-start gap-3 cursor-pointer" for="marketing">
+<input class="mt-1" id="marketing" name="marketing" type="checkbox" x-model="marketing">
+<span class="font-caption text-caption text-on-surface-variant">Nhận ưu đãi và tin khuyến mãi qua Thông báo (không bắt buộc).</span>
+</label>
+</div>
 <!-- Inline error -->
 <p class="font-caption text-caption text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
 <!-- Submit Button -->
@@ -107,9 +120,6 @@
                     Tạo tài khoản
                 </button>
 </div>
-<p class="font-caption text-caption text-on-surface-variant text-center">
-                Khi đăng ký, bạn đồng ý với <a class="underline hover:text-primary transition-colors" href="dieu-khoan.html" rel="noopener noreferrer" target="_blank">Điều khoản sử dụng</a> và <a class="underline hover:text-primary transition-colors" href="bao-mat.html" rel="noopener noreferrer" target="_blank">Chính sách bảo mật</a> của OAK Beauty.
-            </p>
 </form>
 <!-- Divider -->
 <div class="my-10 flex items-center">
@@ -195,6 +205,31 @@
     }
 
     /**
+     * Leave word for kham-pha.html that this reader has just signed up, so it can point at
+     * the welcome code the server wrote into Thông báo.
+     *
+     * Only when there is one to point at: the sentence it triggers names a discount code,
+     * so it is raised on what the server reports it actually wrote, not on the tick beside
+     * the request — with no live platform-wide promotion the reply carries no code and the
+     * account gets the plain hello instead. And only when there is nowhere else to be —
+     * somebody who came here mid-booking is going back to the wizard, and a message about
+     * an offer in another screen is in their way. Asked of the destination rather than of
+     * the parameter, so a malformed ?next — which lands on Khám phá anyway — is greeted
+     * there like any other sign-up. Storage throws outright in a locked-down browser, and
+     * a missing greeting is not worth failing a sign-up over.
+     */
+    function oakRememberWelcome(welcomeCode) {
+        if (!welcomeCode || oakRegisterDestination() !== 'kham-pha.html') {
+            return;
+        }
+        try {
+            sessionStorage.setItem('oak-welcome', '1');
+        } catch (error) {
+            /* nothing greets them on arrival, which is not worth a message of its own */
+        }
+    }
+
+    /**
      * The contact details dat-lich.html stashed on its way here, or {}.
      *
      * The wizard writes them under this key before sending a guest off to sign in, and
@@ -228,6 +263,9 @@
             phone: stashed.phone || '',
             password: '',
             confirm: '',
+            consent: false,
+            // Off unless it is ticked: an offer nobody asked for is not one they agreed to.
+            marketing: false,
             showPassword: false,
             showConfirm: false,
             errors: {},
@@ -261,6 +299,9 @@
                 if (this.confirm !== this.password) {
                     errors.confirm = 'Mật khẩu xác nhận không khớp.';
                 }
+                if (!this.consent) {
+                    errors.consent = 'Vui lòng đồng ý với Điều khoản và Chính sách bảo mật.';
+                }
                 this.errors = errors;
                 return Object.keys(errors).length === 0;
             },
@@ -273,15 +314,18 @@
 
                 this.busy = true;
                 try {
-                    await OAK.api('/api/auth/register', {
+                    const created = await OAK.api('/api/auth/register', {
                         method: 'POST',
                         body: {
                             name: this.name.trim(),
                             email: this.email.trim(),
                             phone: this.phone.trim() || null,
                             password: this.password,
+                            consent: true,
+                            marketing_opt_in: this.marketing,
                         },
                     });
+                    oakRememberWelcome(created.welcome_code);
                     location.href = oakRegisterDestination();
                 } catch (error) {
                     // A taken email belongs on the email field; anything else is a form-level error.

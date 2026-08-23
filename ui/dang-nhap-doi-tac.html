@@ -139,6 +139,16 @@
 <label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-confirm">Xác nhận mật khẩu</label>
 <input class="oak-field" id="register-confirm" minlength="8" required="" type="password" x-model="form.confirm">
 </div>
+<!-- Consent, asked as an act of its own rather than read into the button below it, and
+     asked once per purpose: agreeing to be here is not agreeing to be marketed to. -->
+<label class="flex items-start gap-3 cursor-pointer" for="register-consent">
+<input class="mt-1" id="register-consent" type="checkbox" x-model="form.consent">
+<span class="font-caption text-caption text-on-surface-variant">Tôi đồng ý với <a class="underline hover:text-primary transition-colors" href="dieu-khoan.html#doi-tac" rel="noopener noreferrer" target="_blank">Điều khoản dịch vụ</a> và <a class="underline hover:text-primary transition-colors" href="bao-mat.html" rel="noopener noreferrer" target="_blank">Chính sách bảo mật</a> của OAK Beauty.</span>
+</label>
+<label class="flex items-start gap-3 cursor-pointer" for="register-marketing">
+<input class="mt-1" id="register-marketing" type="checkbox" x-model="form.marketing">
+<span class="font-caption text-caption text-on-surface-variant">Nhận ưu đãi và tin khuyến mãi qua Thông báo (không bắt buộc).</span>
+</label>
 <p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
 <button :disabled="busy" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="submit" x-text="busy ? 'Đang xử lý...' : 'Tạo tài khoản đối tác'">Tạo tài khoản đối tác</button>
 <button @click="show('menu')" class="w-full font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors" type="button">Quay lại</button>
@@ -216,7 +226,7 @@
             /* Its own flag, not `busy`: the submit button renames itself to "Đang xử lý..."
                off that one, and a password-reset request is not a sign-in attempt. */
             sending: false,
-            form: { name: '', salon_name: '', email: '', phone: '', password: '', confirm: '' },
+            form: { name: '', salon_name: '', email: '', phone: '', password: '', confirm: '', consent: false, marketing: false },
 
             async init() {
                 const user = await OAK.me();
@@ -287,6 +297,10 @@
                     this.error = 'Mật khẩu xác nhận không khớp.';
                     return;
                 }
+                if (!this.form.consent) {
+                    this.error = 'Vui lòng đồng ý với Điều khoản và Chính sách bảo mật.';
+                    return;
+                }
                 this.busy = true;
                 try {
                     await OAK.api('/api/auth/partner/register', {
@@ -297,6 +311,8 @@
                             phone: this.form.phone,
                             password: this.form.password,
                             salon_name: this.form.salon_name,
+                            consent: true,
+                            marketing_opt_in: this.form.marketing,
                         },
                     });
                     location.href = oakPartnerDestination();

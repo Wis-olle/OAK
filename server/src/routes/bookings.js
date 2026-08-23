@@ -1,11 +1,17 @@
 // Customer bookings: price quote, create, list, detail, cancel.
 import express from 'express';
 import { db } from '../db.js';
-import { getStaffSlots, isSalonOpenFor, pickAvailableStaff } from '../lib/availability.js';
+import {
+  getStaffSlots,
+  isSalonOpenFor,
+  pickAvailableStaff,
+  respectsLeadTime,
+  timeOffOn,
+} from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
 import { notifyUser } from '../lib/notify.js';
 import { parsePagination } from '../lib/query.js';
-import { isHHMM, isISODate, nowMinutes, toMinutes, todayISO } from '../lib/time.js';
+import { fromMinutes, isHHMM, isISODate, nowMinutes, toMinutes, todayISO } from '../lib/time.js';
 import { httpError, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -13,8 +19,12 @@ const router = express.Router();
 // Reserved line in the quote: the product decides per-staff pricing later, and having the
 // line already wired means adding a price is a one-constant change, not a shape change.
 const STAFF_SURCHARGE = 0;
-const CANCEL_WINDOW_HOURS = 2;
+// What a salon that has never opened its settings still promises. The column carries the
+// same default, so this only stands in for a row written before the column existed.
+const DEFAULT_CANCEL_WINDOW_HOURS = 2;
 const MINUTES_PER_HOUR = 60;
+const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PAYMENT_METHODS = ['at_salon', 'online'];
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -28,6 +38,8 @@ const BOOKING_COLUMNS = `
   s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name, s.address AS salon_address,
   s.phone AS salon_phone, s.image AS salon_image, s.lat AS salon_lat, s.lng AS salon_lng,
   s.owner_id AS salon_owner_id,
+  s.cancel_cutoff_hours AS salon_cancel_cutoff_hours,
+  s.cancel_policy_text AS salon_cancel_policy_text,
   st.id AS staff_id, st.name AS staff_name
 `;
 
@@ -46,6 +58,7 @@ const selectPromotion = db.prepare(
   'SELECT code, salon_id, type, discount_percent, discount_amount, active, starts_at, ends_at FROM promotions WHERE code = ?',
 );
 const selectSalonStaff = db.prepare('SELECT id FROM staff WHERE id = ? AND salon_id = ?');
+const selectSalonAutoConfirm = db.prepare('SELECT auto_confirm FROM salons WHERE id = ?');
 const selectStaffService = db.prepare(
   'SELECT 1 FROM staff_services WHERE staff_id = ? AND service_id = ?',
 );
@@ -56,7 +69,7 @@ const INSERT_BOOKING = `
   INSERT INTO bookings
     (user_id, salon_id, service_id, staff_id, code, date, time, status, note, total_price,
      customer_name, customer_phone, payment_method, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 const CANCEL_BOOKING = "UPDATE bookings SET status = 'cancelled', note = ? WHERE id = ?";
 
@@ -81,11 +94,19 @@ const CLOSE_STALE_BOOKING =
 // Fragments are constants picked by key, never assembled from request text.
 const MINE_FILTERS = {
   upcoming: {
-    where: "b.date >= ? AND b.status IN ('pending', 'confirmed')",
+    // Today counts only from this minute on, in Vietnam time: an appointment at 09:00 read
+    // at 15:00 has happened, and listing it as "sắp tới" beside a Hủy button was an offer
+    // the server would refuse. Those fall to closePastBookings the day after.
+    where: "(b.date > ? OR (b.date = ? AND b.time >= ?)) AND b.status IN ('pending', 'confirmed')",
     order: 'b.date ASC, b.time ASC',
     fromToday: true,
   },
   completed: { where: "b.status = 'completed'", order: 'b.date DESC, b.time DESC' },
+  // Both ways an appointment closes out, which is what the customer's "Đã qua" tab shows.
+  // It is a key of its own rather than a widening of `completed`: the review gates on the
+  // home, salon and service pages ask for that one, and a visit that never happened is
+  // not a visit to review.
+  past: { where: "b.status IN ('completed', 'no_show')", order: 'b.date DESC, b.time DESC' },
   cancelled: { where: "b.status = 'cancelled'", order: 'b.date DESC, b.time DESC' },
 };
 const ALL_BOOKINGS_FILTER = { where: '1 = 1', order: 'b.date DESC, b.time DESC' };
@@ -117,6 +138,10 @@ function toBookingCard(row) {
       address: row.salon_address,
       phone: row.salon_phone,
       image: row.salon_image,
+      // The cancel deadline the customer's own screens count down to. Per salon, so the
+      // card cannot promise a window the server would refuse.
+      cancel_cutoff_hours: cancelWindowHours(row),
+      cancel_policy_text: row.salon_cancel_policy_text ?? null,
     },
     staff: row.staff_id ? { id: row.staff_id, name: row.staff_name } : null,
     // True when closePastBookings below is what ended this booking, not the salon: the
@@ -195,11 +220,23 @@ async function buildQuote(service, staffId, promotionCode) {
   return { items, total: Math.max(0, total) };
 }
 
-/** Minutes from now until a local 'YYYY-MM-DD' + 'HH:MM' start. Negative once it has passed. */
+/** The salon's own free-cancellation window, in hours, from a joined booking row. */
+function cancelWindowHours(row) {
+  return row.salon_cancel_cutoff_hours ?? DEFAULT_CANCEL_WINDOW_HOURS;
+}
+
+/**
+ * Minutes from now until a 'YYYY-MM-DD' + 'HH:MM' start, in Vietnam time. Negative once
+ * it has passed.
+ *
+ * Both sides are read in the salon's own zone, not the container's: on a UTC host the
+ * server clock is seven hours behind the customer's, and this is what decides whether a
+ * cancellation still falls inside the salon's free window.
+ */
 function minutesUntilStart(date, time) {
-  const [year, month, day] = date.split('-').map(Number);
-  const [hours, minutes] = time.split(':').map(Number);
-  return (new Date(year, month - 1, day, hours, minutes).getTime() - Date.now()) / 60000;
+  const days =
+    (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${todayISO()}T00:00:00Z`)) / MS_PER_DAY;
+  return days * MINUTES_PER_DAY + (toMinutes(time) ?? 0) - nowMinutes();
 }
 
 /**
@@ -288,7 +325,10 @@ router.get('/mine', async (req, res, next) => {
       ? MINE_FILTERS[req.query.status]
       : ALL_BOOKINGS_FILTER;
     const { page, limit, offset } = parsePagination(req.query, DEFAULT_PAGE_SIZE);
-    const params = filter.fromToday ? [req.user.id, todayISO()] : [req.user.id];
+    const today = todayISO();
+    const params = filter.fromToday
+      ? [req.user.id, today, today, fromMinutes(nowMinutes())]
+      : [req.user.id];
 
     const total = (
       await db
@@ -373,6 +413,22 @@ router.post('/', async (req, res, next) => {
     if (!(await isSalonOpenFor(salonId, date, time, service.duration_min))) {
       throw httpError(400, 'VALIDATION_ERROR', 'Salon không mở cửa vào thời điểm này.');
     }
+    // A declared day off is not a full calendar, so it answers 409 with its own reason
+    // rather than the SLOT_TAKEN below, which would send the customer hunting for an hour.
+    // Read once here and consulted again for the named technician further down.
+    const off = await timeOffOn(salonId, date);
+    if (off.salon) {
+      throw httpError(409, 'SALON_CLOSED', 'Salon nghỉ vào ngày này, vui lòng chọn ngày khác.');
+    }
+    // The salon's lead time, asked here because a booking with no technician reaches no
+    // slot list to have been filtered by it.
+    if (!(await respectsLeadTime(salonId, date, time))) {
+      throw httpError(
+        400,
+        'LEAD_TIME',
+        'Salon cần được báo trước lâu hơn cho khung giờ này, vui lòng chọn giờ khác.',
+      );
+    }
 
     let staffId = null;
     if (staffIdInput != null) {
@@ -386,6 +442,17 @@ router.post('/', async (req, res, next) => {
           400,
           'VALIDATION_ERROR',
           'Kỹ thuật viên này không thực hiện dịch vụ đã chọn.',
+        );
+      }
+
+      // Their own day off gets its own answer for the same reason the salon's does: the
+      // slot list below is empty for that whole day, and SLOT_TAKEN would claim somebody
+      // just took the hour rather than that this technician is away.
+      if (off.staff.has(staffId)) {
+        throw httpError(
+          409,
+          'STAFF_OFF',
+          'Kỹ thuật viên này nghỉ vào ngày đã chọn, vui lòng chọn ngày hoặc kỹ thuật viên khác.',
         );
       }
 
@@ -408,6 +475,11 @@ router.post('/', async (req, res, next) => {
     // Recomputed here rather than read from the body: the client is never the price authority.
     const { total } = await buildQuote(service, staffId, promotionCode);
     const createdAt = new Date().toISOString();
+    // A salon that takes bookings automatically has already agreed to the hour its own
+    // calendar offered, so the booking is confirmed on the spot and never joins the
+    // console's "Cần xử lý" queue. A salon that turned that off still decides by hand.
+    const autoConfirm = (await selectSalonAutoConfirm.get(salonId))?.auto_confirm === 1;
+    const status = autoConfirm ? 'confirmed' : 'pending';
 
     // The transaction sits INSIDE the code retry: a duplicate code aborts the whole
     // Postgres transaction, so each attempt has to start a fresh one.
@@ -443,6 +515,7 @@ router.post('/', async (req, res, next) => {
                 generated,
                 date,
                 time,
+                status,
                 note ?? null,
                 total,
                 customerName ?? req.user.name,
@@ -457,19 +530,24 @@ router.post('/', async (req, res, next) => {
           await notifyUser(
             tx,
             req.user.id,
-            'Đã ghi nhận yêu cầu đặt lịch',
-            `Lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(date)} lúc ${time} đã được ghi nhận.`,
+            autoConfirm ? 'Lịch hẹn đã được xác nhận' : 'Đã ghi nhận yêu cầu đặt lịch',
+            autoConfirm
+              ? `Lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(date)} lúc ${time} đã được xác nhận.`
+              : `Lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(date)} lúc ${time} đã được ghi nhận.`,
             'booking',
             bookingId,
           );
-          // And the salon owner, who is the only one who can move it off 'pending':
-          // until the console is opened the booking sits there. notifyUser no-ops on a
-          // salon with no owner account.
+          // And the salon owner. When the salon confirms by hand this is the only prompt
+          // that the booking is sitting there; when it confirms itself the owner is still
+          // told, because an hour just left their calendar. notifyUser no-ops on a salon
+          // with no owner account.
           await notifyUser(
             tx,
             booking.salon_owner_id,
-            'Lịch hẹn mới cần xác nhận',
-            `Khách đã đặt lịch hẹn ${generated} ngày ${formatDate(date)} lúc ${time}, đang chờ bạn xác nhận.`,
+            autoConfirm ? 'Lịch hẹn mới' : 'Lịch hẹn mới cần xác nhận',
+            autoConfirm
+              ? `Khách đã đặt lịch hẹn ${generated} ngày ${formatDate(date)} lúc ${time}, đã tự động xác nhận.`
+              : `Khách đã đặt lịch hẹn ${generated} ngày ${formatDate(date)} lúc ${time}, đang chờ bạn xác nhận.`,
             'booking',
             bookingId,
           );
@@ -520,15 +598,21 @@ router.patch('/:id/cancel', async (req, res, next) => {
     if (reason != null && typeof reason !== 'string') {
       throw httpError(400, 'VALIDATION_ERROR', 'Lý do huỷ phải là chuỗi ký tự.');
     }
+    // The same ceiling the dialog's textarea carries, asked again here: the note it lands
+    // in is rendered in the partner console, and only the client enforces maxlength.
+    if (reason && reason.length > 200) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Lý do huỷ tối đa 200 ký tự.');
+    }
 
     if (booking.status !== 'pending' && booking.status !== 'confirmed') {
       throw httpError(400, 'INVALID_STATUS', 'Lịch hẹn này không thể huỷ.');
     }
-    if (minutesUntilStart(booking.date, booking.time) < CANCEL_WINDOW_HOURS * MINUTES_PER_HOUR) {
+    const cutoffHours = cancelWindowHours(booking);
+    if (minutesUntilStart(booking.date, booking.time) < cutoffHours * MINUTES_PER_HOUR) {
       throw httpError(
-        400,
+        409,
         'CANCEL_WINDOW',
-        `Vui lòng huỷ trước giờ hẹn ít nhất ${CANCEL_WINDOW_HOURS} tiếng.`,
+        `Salon này nhận huỷ online chậm nhất ${cutoffHours} tiếng trước giờ hẹn. Vui lòng liên hệ salon.`,
       );
     }
 

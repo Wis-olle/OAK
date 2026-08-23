@@ -1222,11 +1222,11 @@ const POST_COMMENTS = [
 const INSERT_USER =
   'INSERT INTO users (name, email, phone, password_hash, role, avatar, city, district, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
 const INSERT_SALON =
-  'INSERT INTO salons (owner_id, name, slug, description, address, district, city, phone, image, open_time, close_time, lat, lng, verified, featured, flagship, tags, amenities, tour_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)';
+  'INSERT INTO salons (owner_id, name, slug, description, address, district, city, phone, image, open_time, close_time, lat, lng, verified, featured, flagship, tags, amenities, tour_url, published, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 1, ?)';
 const INSERT_SALON_PHOTO =
   'INSERT INTO salon_photos (salon_id, image, caption, sort) VALUES (?, ?, ?, ?)';
 const INSERT_SERVICE =
-  'INSERT INTO services (salon_id, category, subcategory, name, description, price, duration_min, image, featured, is_package, price_is_from, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)';
+  'INSERT INTO services (salon_id, category, subcategory, name, description, price, duration_min, image, featured, is_package, price_is_from, sort_order, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)';
 const INSERT_STAFF =
   'INSERT INTO staff (salon_id, name, title, specialty, bio, image, rating, years_experience, portfolio, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)';
 const INSERT_STAFF_SCHEDULE =
@@ -1311,7 +1311,12 @@ export async function seed(db) {
 
     const serviceIds = new Map();
     const servicePrices = new Map();
+    // Menu position, counted per salon in the order the list is written here: the console
+    // reorders from there, and every row needs a distinct value for a swap to mean anything.
+    const menuPositions = new Map();
     for (const service of SERVICES) {
+      const position = (menuPositions.get(service.salon) ?? 0) + 1;
+      menuPositions.set(service.salon, position);
       const { lastInsertRowid } = await tx.run(
         INSERT_SERVICE,
         salonIds.get(service.salon),
@@ -1325,6 +1330,7 @@ export async function seed(db) {
         service.featured ?? 0,
         service.is_package ?? 0,
         service.price_is_from ?? 0,
+        position,
       );
       serviceIds.set(service.name, Number(lastInsertRowid));
       servicePrices.set(service.name, service.price);

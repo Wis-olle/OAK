@@ -66,10 +66,12 @@
 <p class="font-body-md text-body-md">Liên kết đặt lại không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu một liên kết mới.</p>
 <a class="font-label-md text-label-md underline inline-block mt-4 uppercase tracking-widest" href="dang-nhap-nguoi-dung.html">Yêu cầu liên kết mới</a>
 </div>
-<!-- Done: the password is changed, so the form is gone and only the way on remains. -->
+<!-- Done: the password is changed AND the session is open, so there is nothing left to
+     ask for. The browser is already on its way; the link is what a blocked redirect
+     leaves behind. -->
 <div class="bg-secondary-container text-on-secondary-container rounded-lg p-6" x-cloak="" x-show="done">
-<p class="font-body-md text-body-md">Mật khẩu đã được cập nhật.</p>
-<a class="font-label-md text-label-md underline inline-block mt-4 uppercase tracking-widest" href="dang-nhap-nguoi-dung.html">Đăng nhập ngay</a>
+<p class="font-body-md text-body-md">Mật khẩu đã được cập nhật. Bạn đã được đăng nhập.</p>
+<a :href="destination" class="font-label-md text-label-md underline inline-block mt-4 uppercase tracking-widest" href="kham-pha.html">Tiếp tục</a>
 </div>
 <form @submit.prevent="submit()" class="space-y-8" method="POST" novalidate x-cloak="" x-show="token &amp;&amp; !tokenDead &amp;&amp; !done">
 <!-- New Password Input -->
@@ -162,6 +164,14 @@
 <script>
     /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
 
+    var OAK_NEXT_PAGE = /^[\w-]+\.html(\?.*)?$/;
+
+    /** Where a signed-in reader lands after the reset: the page that sent them, else Khám phá. */
+    function oakResetDestination() {
+        var next = OAK.qs('next');
+        return next && OAK_NEXT_PAGE.test(next) ? next : 'kham-pha.html';
+    }
+
     function oakResetPassword() {
         return {
             // Read once, synchronously: which of the three states the page opens in
@@ -176,6 +186,8 @@
             busy: false,
             tokenDead: false,
             done: false,
+            // Somebody sent here mid-booking goes back to the wizard, not to the home page.
+            destination: oakResetDestination(),
 
             init() {
                 // The token is the whole reset secret. Once it is in state the URL has no
@@ -213,7 +225,19 @@
                         method: 'POST',
                         body: { token: this.token, password: this.password },
                     });
+                    // The reply carried a session, so the reader is signed in: sending them
+                    // back to a sign-in form would ask again for what they just gave
+                    // (WCAG 2.2 SC 3.3.7). The panel above shows while the browser moves.
                     this.done = true;
+                    // The panel is gone before it can be read, so the confirmation is left
+                    // for the page being moved to. Storage throws outright in a locked-down
+                    // browser, and a missing toast is not worth failing a reset over.
+                    try {
+                        sessionStorage.setItem('oak-password-reset', '1');
+                    } catch (error) {
+                        /* nothing greets them on arrival, which is not worth a message of its own */
+                    }
+                    location.href = this.destination;
                 } catch (error) {
                     // A spent, unknown or expired link is not a form error to correct:
                     // nothing the reader types here can fix it, so the form gives way to

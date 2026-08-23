@@ -8,6 +8,24 @@ if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET must be set in production');
 }
 
+export const COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: process.env.NODE_ENV === 'production',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
+/** Mint a session for `user` and put it in the auth cookie. */
+export function issueCookie(res, user) {
+  const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
+}
+
+// How old a token may get before an authenticated request replaces it. Well inside the
+// 7-day expiry, so somebody who keeps using OAK is never signed out mid-task; somebody who
+// stops still loses the session seven days after they last used it.
+const SLIDE_AFTER_SECONDS = 3 * 24 * 60 * 60;
+
 /**
  * Build an error the central error handler turns into a JSON envelope.
  * The isAppError tag marks the code and message as safe to send to the client.
@@ -25,7 +43,7 @@ export function httpError(status, code, message) {
 // already that request's one user lookup; it is the account holder's own metadata and is
 // only ever returned to them.
 export const selectPublicUser = db.prepare(
-  'SELECT id, name, email, phone, role, avatar, city, district, password_changed_at, created_at FROM users WHERE id = ?',
+  'SELECT id, name, email, phone, role, avatar, city, district, marketing_opt_in, password_changed_at, created_at FROM users WHERE id = ?',
 );
 
 /**
@@ -62,6 +80,13 @@ export async function requireAuth(req, res, next) {
     return next(
       httpError(401, 'UNAUTHENTICATED', 'Mật khẩu đã thay đổi, vui lòng đăng nhập lại.'),
     );
+  }
+
+  // Sliding session: the token this request arrived with is old enough that the reader
+  // would be signed out mid-task in a few days, so it is replaced with a fresh one. Signed
+  // from `user`, so a re-issue can never carry a role the account no longer has.
+  if (Math.floor(Date.now() / 1000) - payload.iat > SLIDE_AFTER_SECONDS) {
+    issueCookie(res, user);
   }
 
   req.user = user;

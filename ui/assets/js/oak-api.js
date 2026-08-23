@@ -1027,6 +1027,15 @@
      Their English lives in the dictionary of each page that renders them. */
   var TRUST = {
     CANCEL_POLICY: 'Hủy/đổi miễn phí đến trước 2 tiếng',
+    /**
+     * The same promise, carrying the cutoff THIS salon set rather than the platform-wide
+     * one. CANCEL_POLICY above is the fallback: before the salon has loaded, and for a
+     * payload that does not carry the field. Lives here because the four pages of the
+     * booking path all say it, and they must not be able to drift apart.
+     */
+    cancelPolicy: function (hours) {
+      return hours ? 'Hủy/đổi miễn phí đến trước ' + hours + ' tiếng' : TRUST.CANCEL_POLICY;
+    },
     PAYMENT: 'Thanh toán tại salon, không cần cọc',
     SUPPORT_HOURS: 'T2–T7 giờ hành chính · Hotline 1900 6035',
     RESPONSE_SLA: '24 giờ làm việc',

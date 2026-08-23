@@ -60,5 +60,19 @@
   "Không đọc được tệp ảnh.": "Could not read the image file.",
   "Ảnh vượt quá dung lượng tối đa 5MB.": "Image exceeds the 5MB maximum size.",
   "Đã lưu thông tin nhân viên.": "Staff details saved.",
-  "Đã xoá nhân viên.": "Staff member deleted."
+  "Đã xoá nhân viên.": "Staff member deleted.",
+  "Ngày nghỉ sắp tới": "Upcoming days off",
+  "Chưa có ngày nghỉ nào.": "No days off yet.",
+  "Từ ngày": "From",
+  "Đến ngày": "To",
+  "Lý do": "Reason",
+  "Thêm ngày nghỉ": "Add days off",
+  "Khoảng vừa thêm đang có": "The range you just added holds",
+  "lịch hẹn — bạn nhớ liên hệ khách.": "appointments — remember to contact those customers.",
+  "Vui lòng chọn ngày bắt đầu.": "Please choose a start date.",
+  "Đã thêm ngày nghỉ.": "Days off added.",
+  "Đã xoá ngày nghỉ.": "Days off removed.",
+
+  "Nội dung": "Content",
+  "Đánh giá": "Reviews"
 }

@@ -45,5 +45,7 @@
 
   "Vui lòng chọn cả ngày bắt đầu và ngày kết thúc.": "Please choose both a start date and an end date.",
   "Ngày bắt đầu phải trước ngày kết thúc.": "The start date must be before the end date.",
-  "Khoảng thời gian tối đa là 366 ngày.": "The maximum range is 366 days."
+  "Khoảng thời gian tối đa là 366 ngày.": "The maximum range is 366 days.",
+  "Đánh giá": "Reviews",
+  "Nội dung": "Content"
 }

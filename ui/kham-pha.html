@@ -327,7 +327,7 @@
 </div>
 <button class="mt-2 min-h-[48px] px-6 flex items-center justify-center rounded-[9999px] bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors xl:mt-0 xl:ml-2 xl:shrink-0" type="submit">Tìm kiếm</button>
 </form>
-<a :href="assistantUrl" class="font-label-md text-label-md text-primary hover:text-secondary underline underline-offset-4 transition-colors" href="tim-kiem-thong-minh.html">Hỏi Trợ lý AI</a>
+<a :href="assistantUrl" class="font-label-md text-label-md text-primary hover:text-secondary underline underline-offset-4 transition-colors" href="tim-kiem-thong-minh.html">Hỏi Trợ lý tìm salon</a>
 <!-- Search Suggestions -->
 <!-- Each chip is a link to the results it stands for, not a word to paste into the box:
      "Spa & Massage" is a category no salon is named after, so as a keyword it landed on an
@@ -350,6 +350,54 @@
 </div>
 <!-- Banner artwork: in flow below the copy on mobile, behind it from md up -->
 <img width="1672" height="941" alt="Người mẫu trong khung oval trên nền hồng phấn với cánh hoa hồng rơi" class="w-full h-[260px] object-cover object-right md:absolute md:inset-y-0 md:right-0 md:w-auto md:h-full md:object-contain md:[mask-image:linear-gradient(to_right,transparent,#000_64px)]" src="assets/images/hero-banner.webp">
+</section>
+<!-- Next appointment. Below the hero, never inside it: the hero and its search bar are the
+     one part of this page that stays put for everybody. A visitor who is not signed in asks
+     the server for nothing and this whole band is absent, so the page reads exactly as it
+     did. With nothing coming up, whichever finished appointment is still unreviewed takes
+     the slot — that is the other thing a returning reader has left to do here. -->
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-section-gap" x-cloak="" x-data="oakNextBooking()" x-show="booking || pending">
+<template x-if="booking">
+<div class="bg-surface-container-low p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 rounded-lg border border-outline-variant/20">
+<div class="w-full md:w-32 h-32 md:h-20 shrink-0 rounded-md overflow-hidden bg-surface-variant">
+<img loading="lazy" :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
+</div>
+<div class="flex-1 min-w-0">
+<!-- Both readings sit in the markup, so the dictionary finds each of them. -->
+<span class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-sm mb-2 bg-secondary-container text-on-secondary-container" x-show="booking.status === 'pending'">Chờ xác nhận</span>
+<span class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-sm mb-2 bg-primary-container text-on-primary" x-show="booking.status === 'confirmed'">Đã xác nhận</span>
+<h2 class="font-headline-sm text-headline-sm text-primary mb-1">Lịch kế tiếp</h2>
+<p class="font-body-md text-body-md text-on-surface" x-text="booking.service.name"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1 flex flex-wrap items-center gap-2">
+<span x-text="booking.salon.name"></span>
+<span aria-hidden="true">•</span>
+<span x-text="OAK.fmtTime(booking.time)"></span>
+<span x-text="OAK.fmtDate(booking.date)"></span>
+</p>
+</div>
+<div class="flex gap-3 shrink-0">
+<a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="lich-hen-cua-toi.html">Xem</a>
+<a :href="rescheduleUrl(booking)" class="inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-variant/50 transition-colors active:scale-95 duration-200">Đổi lịch</a>
+</div>
+</div>
+</template>
+<template x-if="!booking &amp;&amp; pending">
+<div class="bg-surface-container-low p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 rounded-lg border border-outline-variant/20">
+<div class="w-full md:w-32 h-32 md:h-20 shrink-0 rounded-md overflow-hidden bg-surface-variant">
+<img loading="lazy" :alt="pending.salon.name" :src="pending.salon.image" class="w-full h-full object-cover">
+</div>
+<div class="flex-1 min-w-0">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-1">Bạn chưa đánh giá buổi vừa rồi</h2>
+<p class="font-body-md text-body-md text-on-surface" x-text="pending.service.name"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1 flex flex-wrap items-center gap-2">
+<span x-text="pending.salon.name"></span>
+<span aria-hidden="true">•</span>
+<span x-text="OAK.fmtDate(pending.date)"></span>
+</p>
+</div>
+<a :href="'danh-gia-cua-toi.html?booking_id=' + pending.id" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 shrink-0">Viết đánh giá</a>
+</div>
+</template>
 </section>
 <!-- Categories Section -->
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-section-gap">
@@ -796,6 +844,61 @@
         };
     }
 
+    /* The band under the hero. Nothing is requested for a visitor who is not signed in, and
+       nothing is rendered either — the page they see is the page it has always been. */
+    function oakNextBooking() {
+        return {
+            booking: null,
+            pending: null,
+
+            async init() {
+                const user = await OAK.me();
+                if (!user || user.role !== 'customer') {
+                    return;
+                }
+                try {
+                    /* The one the header bar already asked for (oak-header.js nextBooking):
+                       the request also closes out yesterday's appointments, so this page
+                       makes it once for both readers of it rather than twice. */
+                    this.booking = await OAK.nextBooking();
+                    if (!this.booking) {
+                        this.pending = await this.unreviewed();
+                    }
+                } catch (error) {
+                    /* The band is an extra; a page that cannot load it still works. */
+                }
+            },
+
+            /* The newest finished appointment with no review against it. One page of each
+               list is enough: what is being offered is the most recent one, and anything
+               older than that belongs on Đánh giá của tôi. */
+            async unreviewed() {
+                const done = await OAK.api('/api/bookings/mine?status=completed&limit=5');
+                if (!done.length) {
+                    return null;
+                }
+                /* Every review this account has ever written: /api/reviews/mine returns
+                   them all, so the ids go into a Set and the five candidates above are
+                   looked up in it. */
+                const reviewed = new Set(
+                    (await OAK.api('/api/reviews/mine')).map((review) => review.booking_id),
+                );
+                return done.find((booking) => !reviewed.has(booking.id)) || null;
+            },
+
+            /* Same wizard link lich-hen-cua-toi.html:451 builds, and the same marker: the
+               new booking replaces this one rather than sitting beside it. The pair is a
+               copy on purpose — two call sites are not a shared module — so a change to the
+               wizard's parameters has to be made in both places. */
+            rescheduleUrl(booking) {
+                return 'dat-lich.html?service_id=' + booking.service.id
+                    + '&salon_id=' + booking.salon.id
+                    + (booking.staff ? '&staff_id=' + booking.staff.id + '&rebook=1' : '')
+                    + '&reschedule=' + booking.id;
+            },
+        };
+    }
+
     function oakFeaturedSalons() {
         return {
             salons: [],
@@ -869,6 +972,32 @@
             },
         };
     }
+
+    /* dang-ky.html leaves this behind when a fresh account lands here with nowhere else to
+       go. The welcome code the server just wrote into Thông báo is worth one sentence and
+       exactly one: the flag is spent on the way in, so a reload never says it twice. */
+    /* dat-lai-mat-khau.html leaves its own flag the same way: the panel that says the reset
+       worked is gone before it can be read, because the page is already moving here. */
+    (function () {
+        var flags = {
+            'oak-welcome': 'Mã ưu đãi chào mừng đã có trong Thông báo',
+            'oak-password-reset': 'Mật khẩu đã cập nhật',
+        };
+        Object.keys(flags).forEach(function (key) {
+            var raised;
+            try {
+                raised = sessionStorage.getItem(key);
+                sessionStorage.removeItem(key);
+            } catch (error) {
+                raised = null;
+            }
+            if (raised) {
+                document.addEventListener('DOMContentLoaded', function () {
+                    OAK.toast(flags[key]);
+                });
+            }
+        });
+    })();
 
     /* Beauty map zones carry their target in data-href rather than an <a>, so one
        delegated listener per photo does the navigating. Pins paint above the zones,

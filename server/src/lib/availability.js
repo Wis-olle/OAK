@@ -11,9 +11,10 @@
  */
 
 import { db } from '../db.js';
-import { addDaysISO, fromMinutes, toMinutes, weekdayOf } from './time.js';
+import { addDaysISO, fromMinutes, nowMinutes, todayISO, toMinutes, weekdayOf } from './time.js';
 
 const SLOT_STEP_MIN = 30;
+const MINUTES_PER_DAY = 24 * 60;
 const FALLBACK_DURATION_MIN = 60;
 const DAY_START_MIN = 0;
 const DAY_END_MIN = 23 * 60 + 59;
@@ -48,6 +49,8 @@ const SALON_HOURS_SQL =
   'SELECT "start", "end", is_off FROM salon_hours WHERE salon_id = ? AND weekday = ?';
 const selectSalonHours = db.prepare(SALON_HOURS_SQL);
 
+const selectStaffSalon = db.prepare('SELECT salon_id FROM staff WHERE id = ?');
+
 const selectStaffMaxDuration = db.prepare(`
   SELECT MAX(sv.duration_min) AS duration_min
   FROM staff_services ss
@@ -64,6 +67,74 @@ const STAFF_BOOKINGS_SQL = `
   WHERE b.staff_id = ? AND b.date = ? AND b.status IN ('pending', 'confirmed')
 `;
 const selectStaffBookings = db.prepare(STAFF_BOOKINGS_SQL);
+
+// The salon's own online-booking settings. Only lead_time_min matters in here; the
+// cancel cutoff is a rule about undoing a booking, not about offering an hour.
+const SALON_SETTINGS_SQL = 'SELECT lead_time_min FROM salons WHERE id = ?';
+const selectSalonSettings = db.prepare(SALON_SETTINGS_SQL);
+
+// Every day-off row of one salon that covers one date, both ends inclusive. staff_id NULL
+// is the whole salon; a named technician takes only their own column out.
+const TIME_OFF_SQL = `
+  SELECT staff_id
+  FROM time_off
+  WHERE salon_id = ? AND date_from <= ? AND date_to >= ?
+`;
+const selectTimeOff = db.prepare(TIME_OFF_SQL);
+
+/**
+ * Who is off at this salon on this date: the salon itself, and which technicians.
+ *
+ * One query per date rather than per staff member, because a day is asked about as a
+ * whole everywhere it is asked about at all.
+ */
+export async function timeOffOn(salonId, date) {
+  const rows = await selectTimeOff.all(salonId, date, date);
+  return {
+    salon: rows.some((row) => row.staff_id === null),
+    staff: new Set(rows.map((row) => row.staff_id).filter((id) => id !== null)),
+  };
+}
+
+/** The salon a service belongs to, and that salon's lead time, in one read. */
+export async function salonSettingsForService(serviceId) {
+  const service = await selectService.get(serviceId);
+  if (!service) {
+    return null;
+  }
+  return {
+    salon_id: service.salon_id,
+    lead_time_min: (await selectSalonSettings.get(service.salon_id))?.lead_time_min ?? 0,
+  };
+}
+
+/** Whole days from today to `date`, in Vietnam time. Negative for a date already past. */
+function daysAhead(date) {
+  const [thisYear, thisMonth, thisDay] = todayISO().split('-').map(Number);
+  const [year, month, day] = String(date).split('-').map(Number);
+  return Math.round(
+    (Date.UTC(year, month - 1, day) - Date.UTC(thisYear, thisMonth - 1, thisDay)) / 86400000,
+  );
+}
+
+/**
+ * The earliest minute of `date` a booking may start at, given the salon's lead time.
+ *
+ * Expressed in that date's own minutes so it can be compared with a slot directly: a lead
+ * time of two hours at 15:00 makes 17:00 the floor today, and nothing at all tomorrow.
+ * A date already behind us yields a floor no slot can clear.
+ */
+function leadFloor(date, leadMin) {
+  const offset = daysAhead(date);
+  if (offset < 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return nowMinutes() + (leadMin || 0) - offset * MINUTES_PER_DAY;
+}
+
+async function leadFloorFor(salonId, date) {
+  return leadFloor(date, (await selectSalonSettings.get(salonId))?.lead_time_min ?? 0);
+}
 
 const selectSalonServiceIds = db.prepare(
   "SELECT id FROM services WHERE salon_id = ? AND active = 1 AND category <> 'amenity'",
@@ -115,15 +186,22 @@ function clampToHours(shift, hours) {
   };
 }
 
-/** Slot start times inside a shift that still leave room for the full duration. */
-function* shiftStarts(shift, duration) {
+/**
+ * Slot start times inside a shift that still leave room for the full duration.
+ *
+ * `floor` is the salon's lead time expressed in this date's minutes: an hour before it has
+ * either already passed or is nearer than the salon accepts, and is not a start time at all.
+ */
+function* shiftStarts(shift, duration, floor) {
   const from = toMinutes(shift.start);
   const to = toMinutes(shift.end);
   if (from === null || to === null) {
     return;
   }
   for (let minute = from; minute + duration <= to; minute += SLOT_STEP_MIN) {
-    yield minute;
+    if (minute >= floor) {
+      yield minute;
+    }
   }
 }
 
@@ -148,25 +226,48 @@ export async function isSalonOpenFor(salonId, date, time, durationMin) {
   return time >= hours.start && end <= hours.end;
 }
 
-/** Ordered slots for a service on a date, unioned across every staff who performs it. */
-export async function getServiceSlots(serviceId, date) {
+/**
+ * Is `time` far enough ahead for this salon's lead time?
+ *
+ * The write-side counterpart of the floor the slot lists are built with: a booking that
+ * names no technician generates no slots to be filtered, so the rule has to be asked
+ * directly, exactly as isSalonOpenFor asks about the opening hours.
+ */
+export async function respectsLeadTime(salonId, date, time) {
+  return toMinutes(time) >= (await leadFloorFor(salonId, date));
+}
+
+/**
+ * Ordered slots for a service on a date, unioned across every staff who performs it.
+ *
+ * `knownOff` and `leadMin` are the same seam staffDaySlots has, for the same reason: a
+ * caller looping over a week already holds the day-off rows (it needs them for its own
+ * `closed` flag) and the salon's lead time cannot change between the days of one request.
+ */
+export async function getServiceSlots(serviceId, date, knownOff = null, leadMin = null) {
   const service = await selectService.get(serviceId);
   if (!service) {
     return [];
   }
 
   const weekday = weekdayOf(date);
+  const off = knownOff ?? (await timeOffOn(service.salon_id, date));
+  if (off.salon) {
+    return [];
+  }
   const hours = await selectSalonHours.get(service.salon_id, weekday);
   const duration = service.duration_min || FALLBACK_DURATION_MIN;
+  const floor =
+    leadMin === null ? await leadFloorFor(service.salon_id, date) : leadFloor(date, leadMin);
   const availability = new Map();
 
   for (const shift of await selectServiceShifts.all(serviceId, weekday)) {
-    const open = clampToHours(shift, hours);
+    const open = off.staff.has(shift.id) ? null : clampToHours(shift, hours);
     if (!open) {
       continue;
     }
     const ranges = await busyRanges(shift.id, date);
-    for (const minute of shiftStarts(open, duration)) {
+    for (const minute of shiftStarts(open, duration, floor)) {
       // One free staff member is enough, so availability ORs across staff.
       availability.set(minute, (availability.get(minute) ?? false) || isFree(ranges, minute, duration));
     }
@@ -177,19 +278,31 @@ export async function getServiceSlots(serviceId, date) {
     .map((minute) => ({ time: fromMinutes(minute), available: availability.get(minute) }));
 }
 
-async function staffDaySlots(staffId, date, duration) {
+/**
+ * `off` and `leadMin` are the two facts about the day that a caller looping over dates
+ * already holds: getStaffWeek reads the day-off rows for its own `closed` flag, and the
+ * salon's lead time cannot change between the days of one request. Passing them in keeps
+ * a seven-day grid from asking the same two questions fourteen times over.
+ */
+async function staffDaySlots(staffId, date, duration, knownOff = null, leadMin = null) {
   const weekday = weekdayOf(date);
   const shift = await selectStaffShift.get(staffId, weekday);
   if (!shift) {
+    return [];
+  }
+  const off = knownOff ?? (await timeOffOn(shift.salon_id, date));
+  if (off.salon || off.staff.has(staffId)) {
     return [];
   }
   const open = clampToHours(shift, await selectSalonHours.get(shift.salon_id, weekday));
   if (!open) {
     return [];
   }
+  const floor =
+    leadMin === null ? await leadFloorFor(shift.salon_id, date) : leadFloor(date, leadMin);
   const ranges = await busyRanges(staffId, date);
   const slots = [];
-  for (const minute of shiftStarts(open, duration)) {
+  for (const minute of shiftStarts(open, duration, floor)) {
     slots.push({ time: fromMinutes(minute), available: isFree(ranges, minute, duration) });
   }
   return slots;
@@ -234,18 +347,24 @@ export async function getStaffSlots(staffId, serviceId, date) {
 export async function pickAvailableStaff(tx, salonId, serviceId, date, time, durationMin) {
   const duration = durationMin || FALLBACK_DURATION_MIN;
   const weekday = weekdayOf(date);
+  const offRows = await tx.all(TIME_OFF_SQL, salonId, date, date);
+  if (offRows.some((row) => row.staff_id === null)) {
+    return null;
+  }
+  const offStaff = new Set(offRows.map((row) => row.staff_id));
   const hours = await tx.get(SALON_HOURS_SQL, salonId, weekday);
+  const floor = leadFloor(date, (await tx.get(SALON_SETTINGS_SQL, salonId))?.lead_time_min ?? 0);
   let chosen = null;
 
   for (const shift of await tx.all(SERVICE_SHIFTS_SQL, serviceId, weekday)) {
-    const open = clampToHours(shift, hours);
+    const open = offStaff.has(shift.id) ? null : clampToHours(shift, hours);
     if (!open) {
       continue;
     }
     const ranges = toRanges(await tx.all(STAFF_BOOKINGS_SQL, shift.id, date));
     let free = 0;
     let freeAtTime = false;
-    for (const minute of shiftStarts(open, duration)) {
+    for (const minute of shiftStarts(open, duration, floor)) {
       if (!isFree(ranges, minute, duration)) {
         continue;
       }
@@ -260,14 +379,29 @@ export async function pickAvailableStaff(tx, salonId, serviceId, date, time, dur
   return chosen === null ? null : chosen.id;
 }
 
-/** One entry per day from fromDate, including days the staff member does not work. */
+/**
+ * One entry per day from fromDate, including days the staff member does not work.
+ *
+ * `closed` separates the two ways a day can have no hours: the salon or the technician
+ * declared it off, versus a full calendar. A day strip strikes through the second and
+ * labels the first, and only the day-off rows can tell them apart.
+ */
 export async function getStaffWeek(staffId, fromDate, days = 7) {
   const duration =
     (await selectStaffMaxDuration.get(staffId))?.duration_min || FALLBACK_DURATION_MIN;
+  const salonId = (await selectStaffSalon.get(staffId))?.salon_id ?? null;
+  // One read for the whole week: the lead time is a salon setting, not a property of a day.
+  const leadMin =
+    salonId === null ? 0 : (await selectSalonSettings.get(salonId))?.lead_time_min ?? 0;
   const week = [];
   for (let offset = 0; offset < days; offset += 1) {
     const date = addDaysISO(fromDate, offset);
-    week.push({ date, slots: await staffDaySlots(staffId, date, duration) });
+    const off = salonId === null ? { salon: false, staff: new Set() } : await timeOffOn(salonId, date);
+    week.push({
+      date,
+      closed: off.salon || off.staff.has(staffId),
+      slots: await staffDaySlots(staffId, date, duration, off, leadMin),
+    });
   }
   return week;
 }

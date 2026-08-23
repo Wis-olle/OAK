@@ -198,7 +198,7 @@
 <ul class="flex flex-col gap-3">
 <li class="flex items-start gap-3">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="event_available">event_available</span>
-<span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.CANCEL_POLICY"></span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.cancelPolicy(service &amp;&amp; service.salon ? service.salon.cancel_cutoff_hours : 0)"></span>
 </li>
 <li class="flex items-start gap-3">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="payments">payments</span>
@@ -317,6 +317,12 @@
 </div>
 <p class="font-body-md text-body-md text-on-surface italic mb-4" x-text="review.comment"></p>
 <p class="font-caption text-caption text-on-surface-variant" x-text="'— ' + review.user.name"></p>
+<!-- The salon's own answer, indented under the review it answers so nobody can mistake
+     one for the other. -->
+<div class="mt-3 pl-4 border-l border-outline-variant/50" x-cloak="" x-show="review.reply">
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider"><span>Phản hồi từ</span> <span x-text="service ? service.salon.name : ''"></span></p>
+<p class="font-body-md text-body-md text-on-surface mt-1" x-text="review.reply ? review.reply.text : ''"></p>
+</div>
 </div>
 </template>
 </div>

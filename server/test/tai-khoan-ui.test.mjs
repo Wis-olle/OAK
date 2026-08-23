@@ -57,7 +57,8 @@ function bookingIn(hours) {
     date: at.getFullYear() + '-' + pad(at.getMonth() + 1) + '-' + pad(at.getDate()),
     time: pad(at.getHours()) + ':' + pad(at.getMinutes()),
     service: { id: 7 },
-    salon: { id: 4 },
+    // cancel_cutoff_hours is what the salon set; every deadline here is read from it.
+    salon: { id: 4, phone: '0901 234 567', cancel_cutoff_hours: 2, cancel_policy_text: null },
   };
 }
 
@@ -234,16 +235,149 @@ test('the cancel dialog names the free-cancellation deadline, two hours before t
   );
 });
 
-test('inside the two-hour window the dialog still opens, but its cancel button does not act', () => {
+test('inside the cancellation window the dialog still opens, and offers the phone instead', () => {
   const state = myBookings(async () => []);
   state.cancelTarget = bookingIn(1);
 
   assert.equal(state.cancelExpired(), true);
   // The dialog is where the explanation lives, so opening it is never blocked...
   assert.match(bookingsHtml, /@click="cancel\(booking\)"/);
-  // ...only the action is.
-  assert.match(bookingsHtml, /:disabled="cancelling \|\| cancelExpired\(\)"/);
+  // ...the red button is simply not the thing on offer any more.
+  assert.match(bookingsHtml, /x-show="!cancelExpired\(\) &amp;&amp; cancelReason !== 'Muốn đổi giờ\/KTV'"/);
   assert.match(bookingsHtml, /Đã quá hạn hủy online — vui lòng liên hệ salon\./);
+  // The only thing that still works past the deadline, and only with a number to dial.
+  assert.match(bookingsHtml, /x-show="cancelExpired\(\) &amp;&amp; salonPhone\(\)"/);
+  assert.match(bookingsHtml, /Gọi salon để hủy/);
+  assert.equal(state.salonPhone(), '0901234567');
+  // The salon phone is free text, so an international prefix has to survive the strip.
+  state.cancelTarget.salon.phone = '+84 28 3822 1456';
+  assert.equal(state.salonPhone(), '+842838221456');
+});
+
+test('the deadline is the cutoff THIS salon set, not a platform-wide two hours', () => {
+  const state = myBookings(async () => []);
+  // Six hours out: inside a 24h cutoff, outside the 2h default.
+  const booking = bookingIn(6);
+  assert.equal(state.canCancel(booking), true);
+  booking.salon.cancel_cutoff_hours = 24;
+  assert.equal(state.canCancel(booking), false);
+  // A salon whose settings never reached the payload keeps the platform default.
+  delete booking.salon.cancel_cutoff_hours;
+  assert.equal(state.canCancel(booking), true);
+});
+
+test('the cancel dialog asks why, and turns into the way to keep the appointment', () => {
+  const state = myBookings(async () => []);
+  assert.deepEqual(Array.from(state.cancelReasons), [
+    'Bận đột xuất', 'Muốn đổi giờ/KTV', 'Tìm được nơi khác', 'Khác',
+  ]);
+  // Opening the dialog starts the answer over, so the last cancellation's reason cannot
+  // ride along with the next one.
+  state.cancelReason = 'Khác';
+  state.cancelNote = 'ghi chú cũ';
+  state.cancel(bookingIn(5));
+  assert.equal(state.cancelReason, 'Bận đột xuất');
+  assert.equal(state.cancelNote, '');
+  // "Muốn đổi giờ/KTV" is not a cancellation: the red button gives way to the wizard.
+  assert.match(bookingsHtml, /x-show="!cancelExpired\(\) &amp;&amp; cancelReason === 'Muốn đổi giờ\/KTV'"/);
+  assert.match(bookingsHtml, /Đổi lịch thay vì hủy/);
+  // The free-text box belongs to "Khác" alone.
+  assert.match(bookingsHtml, /x-show="cancelReason === 'Khác'"/);
+});
+
+test('the reason reaches the server as the body of the cancel request', async () => {
+  const sent = [];
+  const state = myBookings(async (path, options) => {
+    sent.push({ path, options });
+    return [];
+  });
+  state.cancelTarget = bookingIn(5);
+  state.cancelReason = 'Khác';
+  state.cancelNote = '  đổi ý  ';
+  await state.confirmCancel();
+
+  const cancel = sent.find((call) => call.path.endsWith('/cancel'));
+  assert.ok(cancel, 'expected a PATCH to the cancel endpoint');
+  assert.equal(cancel.options.method, 'PATCH');
+  assert.equal(cancel.options.body.reason, 'Khác: đổi ý');
+});
+
+test('the reason the dialog assembles always fits the 200-character cap the server enforces', async () => {
+  const sent = [];
+  const state = myBookings(async (path, options) => {
+    sent.push({ path, options });
+    return [];
+  });
+  // The box stops where the request would: 200 less the "Khác: " prefix it will carry.
+  assert.match(bookingsHtml, /maxlength="194"[^>]*x-model="cancelNote"/);
+  state.cancelTarget = bookingIn(5);
+  state.cancelReason = 'Khác';
+  state.cancelNote = 'x'.repeat(500);
+  await state.confirmCancel();
+
+  const cancel = sent.find((call) => call.path.endsWith('/cancel'));
+  assert.equal(cancel.options.body.reason.length, 200);
+});
+
+test('a note typed under "Khác" is dropped when the reason is switched away from it', async () => {
+  const sent = [];
+  const state = myBookings(async (path, options) => {
+    sent.push({ path, options });
+    return [];
+  });
+  state.cancelTarget = bookingIn(5);
+  state.cancelReason = 'Khác';
+  state.cancelNote = 'salon quá xa nhà';
+  // The box hides with the reason, so the salon must not read what it hid.
+  state.cancelReason = 'Bận đột xuất';
+  await state.confirmCancel();
+
+  const cancel = sent.find((call) => call.path.endsWith('/cancel'));
+  assert.equal(cancel.options.body.reason, 'Bận đột xuất');
+});
+
+test('a booking that has already started offers no cancel button at all', () => {
+  const state = myBookings(async () => []);
+  assert.equal(state.hasStarted(bookingIn(1)), false);
+  assert.equal(state.hasStarted(bookingIn(-1)), true);
+  assert.match(
+    bookingsHtml,
+    /x-show="tab === 'upcoming' &amp;&amp; !hasStarted\(booking\)"/,
+  );
+});
+
+test('an appointment the salon recorded as absent is labelled, not left as an enum', () => {
+  const state = myBookings(async () => []);
+  assert.equal(state.statusLabel('no_show'), 'Không đến');
+  assert.equal(state.statusIcon('no_show'), 'person_off');
+  assert.notEqual(state.statusClass('no_show'), state.statusClass('cancelled'));
+});
+
+test('the past tab is the one an absence can be reached through', async () => {
+  // The three tabs are the only lists this page ever asks for, so a status none of them
+  // selects is invisible however well the chip beside it is labelled: 'past' is the filter
+  // that covers both ways an appointment closes out.
+  const asked = [];
+  const state = myBookings(async (path) => {
+    asked.push(path);
+    return path.startsWith('/api/reviews')
+      ? []
+      : Object.assign([{ id: 9, status: 'no_show', service: { id: 7 }, salon: {} }], {
+        meta: { total: 1 },
+      });
+  });
+
+  await state.show('past');
+  assert.ok(asked.includes('/api/bookings/mine?status=past&limit=50'));
+  assert.equal(state.bookings[0].status, 'no_show');
+  assert.equal(state.statusLabel(state.bookings[0].status), 'Không đến');
+  // And it is not offered as something to review: nobody attended it.
+  assert.equal(state.canReview(state.bookings[0]), false);
+
+  // The tab strip has to point at that same filter, or the list is never asked for.
+  assert.match(bookingsHtml, /@click="show\('past'\)"[^>]*>Đã qua</);
+  // And the tab keeps a line of its own when it is empty, rather than falling through to ''.
+  assert.notEqual(state.emptyMessage(), '');
 });
 
 test('the empty list is a card with a way out of it, not a bare line', () => {
@@ -374,8 +508,12 @@ test('"Đổi lịch" is withdrawn once the appointment can no longer be cancell
   // Rescheduling ends in a cancel of this same booking, so the button may not outlive it:
   // otherwise the customer ends up holding two live appointments.
   assert.match(bookingsHtml, /x-show="tab === 'upcoming' &amp;&amp; canCancel\(booking\)"/);
-  // "Hủy lịch" deliberately stays: its dialog is where the explanation lives.
-  assert.match(bookingsHtml, /@click="cancel\(booking\)"[^>]*x-show="tab === 'upcoming'"/);
+  // "Hủy lịch" deliberately stays until the appointment actually starts: its dialog is
+  // where the explanation — and the phone number — lives.
+  assert.match(
+    bookingsHtml,
+    /@click="cancel\(booking\)"[^>]*x-show="tab === 'upcoming' &amp;&amp; !hasStarted\(booking\)"/,
+  );
 });
 
 test('cancelExpired is the same rule as canCancel, read from the open dialog', () => {

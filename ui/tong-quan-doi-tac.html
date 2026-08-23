@@ -75,6 +75,18 @@
 </a>
 </li>
 <li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="danh-gia-salon.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="star">star</span>
+<span class="font-body-md text-body-md">Đánh giá</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="blog.html?compose=1">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="article">article</span>
+<span class="font-body-md text-body-md">Nội dung</span>
+</a>
+</li>
+<li>
 <a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="cai-dat-salon.html">
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-body-md text-body-md">Cài đặt</span>
@@ -158,6 +170,32 @@
 <p class="font-body-md text-body-md text-on-surface-variant mt-2" x-text="overview ? OAK.fmtDate(overview.date) : ''"></p>
 </div>
 </div>
+<!-- Setup checklist. A salon that has just signed up lands on a console of empty boxes;
+     these are the five steps out of that, in the order they unblock each other, and the
+     block takes itself off the page for good once the last one is ticked. -->
+<section class="mb-section-gap" x-cloak="" x-show="showSetup()">
+<div class="bg-surface-container-lowest rounded-xl border border-surface-variant overflow-hidden shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<div class="p-6 flex flex-wrap items-center justify-between gap-4 border-b border-surface-variant">
+<h3 class="font-headline-sm text-headline-sm text-on-background">
+<span>Thiết lập salon</span> <span x-text="setupDone() + '/5'"></span>
+</h3>
+<p class="font-caption text-caption text-on-surface-variant">Xong 5 bước này là salon nhận được lịch từ khách.</p>
+</div>
+<div class="divide-y divide-surface-variant/60">
+<template :key="step.key" x-for="step in setupSteps()">
+<a :href="step.href" class="p-4 md:p-6 flex items-center gap-4 hover:bg-surface-container-low/30 transition-colors">
+<span aria-hidden="true" class="material-symbols-outlined text-[#2e7d32]" data-icon="check_circle" x-show="step.done">check_circle</span>
+<span aria-hidden="true" class="w-6 h-6 rounded-full border border-outline-variant shrink-0" x-show="!step.done"></span>
+<span class="min-w-0 flex-1">
+<span :class="step.done ? 'text-on-surface-variant line-through' : 'text-on-background'" class="block font-body-md text-body-md" x-text="step.label"></span>
+<span class="block font-caption text-caption text-on-surface-variant mt-1" x-text="step.hint"></span>
+</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant shrink-0" data-icon="chevron_right">chevron_right</span>
+</a>
+</template>
+</div>
+</div>
+</section>
 <!-- Needs attention: every UPCOMING booking still waiting for a decision, not only
      today's — a request for tomorrow was invisible on this page until now, and each
      confirmation cost two page changes. -->
@@ -181,7 +219,7 @@
 <p class="font-caption text-caption text-on-surface-variant mt-1 truncate" x-text="booking.service ? booking.service.name : 'Dịch vụ đã xoá'"></p>
 </div>
 <div class="flex items-center gap-3 shrink-0">
-<button :disabled="acting !== 0" @click="decide(booking, 'cancelled')" class="min-h-[44px] px-5 rounded-full border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider hover:bg-surface-variant transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">Hủy</button>
+<button :disabled="acting !== 0" @click="askCancel(booking)" class="min-h-[44px] px-5 rounded-full border border-error text-error font-label-md text-label-md uppercase tracking-wider hover:bg-error-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">Hủy</button>
 <button :disabled="acting !== 0" @click="decide(booking, 'confirmed')" class="min-h-[44px] px-6 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">Xác nhận</button>
 </div>
 </div>
@@ -193,6 +231,40 @@
 <button @click="loadPending()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Thử lại</button>
 </div>
 <p class="p-6 font-body-md text-body-md text-on-surface-variant" x-cloak="" x-show="!pendingLoading && !pendingError && pending.length === 0">Không có lịch chờ xác nhận.</p>
+</div>
+</section>
+<!-- Needs closing out: confirmed bookings whose hour has already been and gone. Nothing
+     closes them by itself, and until one is closed it counts as neither revenue nor a
+     missed appointment — so the two answers sit here, next to each other. -->
+<section class="mb-section-gap" x-cloak="" x-show="due().length > 0">
+<div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+<h3 class="font-headline-sm text-headline-sm text-on-background">
+<span>Cần hoàn tất</span> <span x-text="'(' + due().length + ')'"></span>
+</h3>
+<button :disabled="acting !== 0" @click="completeAll()" class="font-label-md text-label-md text-secondary uppercase hover:text-on-background transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">Hoàn tất tất cả</button>
+</div>
+<div class="bg-surface-container-lowest rounded-xl border border-surface-variant overflow-hidden shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<div class="divide-y divide-surface-variant/60">
+<template :key="booking.id" x-for="booking in due()">
+<div class="p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4">
+<div class="min-w-0 flex-1">
+<p class="flex flex-wrap items-baseline gap-x-3 font-label-md text-label-md text-primary">
+<span x-text="timeRange(booking)"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(booking.date)"></span>
+</p>
+<p class="font-body-md text-body-md text-on-background mt-1 truncate" x-text="booking.customer.name"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1 truncate" x-text="booking.service ? booking.service.name : 'Dịch vụ đã xoá'"></p>
+</div>
+<div class="flex items-center gap-3 shrink-0">
+<button :disabled="acting !== 0" @click="settle(booking, 'no_show')" class="min-h-[44px] px-5 rounded-full border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider hover:bg-surface-variant transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] align-middle" data-icon="person_off">person_off</span>
+                            Không đến
+                        </button>
+<button :disabled="acting !== 0" @click="settle(booking, 'completed')" class="min-h-[44px] px-6 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">Hoàn thành</button>
+</div>
+</div>
+</template>
+</div>
 </div>
 </section>
 <!-- Metrics Bento Grid -->
@@ -241,17 +313,21 @@
 <span class="text-on-surface-variant">Lịch sắp tới đang chờ bạn xác nhận</span>
 </div>
 </a>
-<!-- Rating Card -->
-<div class="bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)] relative overflow-hidden group hover:shadow-[0_8px_32px_rgba(44,44,44,0.08)] transition-shadow">
+<!-- Rating Card. The number was a dead end until now: it is the way into the reviews it
+     averages, and it carries the count of the ones still owed an answer. -->
+<a class="block bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)] relative overflow-hidden group hover:shadow-[0_8px_32px_rgba(44,44,44,0.08)] transition-shadow" href="danh-gia-salon.html">
 <div class="flex justify-between items-start mb-4">
 <p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Đánh giá trung bình</p>
+<!-- This card is a link, so its contents ARE its accessible name and the ligature
+     would otherwise be read out as "star". -->
 <span aria-hidden="true" class="material-symbols-outlined text-secondary">star</span>
 </div>
 <h3 class="font-headline-md text-headline-md text-on-background mb-2" x-text="ratingValue()"></h3>
-<div class="flex items-center gap-2 text-sm">
+<div class="flex flex-wrap items-center gap-2 text-sm">
 <span class="text-on-surface-variant" x-text="ratingNote()"></span>
+<span class="px-3 py-1 rounded-full bg-error-container text-on-error-container font-caption text-caption" x-cloak="" x-show="unansweredReviews() > 0"><span x-text="unansweredReviews()"></span> <span>đánh giá chưa trả lời</span></span>
 </div>
-</div>
+</a>
 </div>
 <!-- Complex Layout Grid -->
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
@@ -386,6 +462,43 @@
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
 </a>
 </nav>
+<!-- Cancel Booking Modal. Cancelling is final and the customer is told about it the
+     moment it happens, so it asks first, asks WHY, and says whose appointment it is —
+     the reason travels into the note and from there into the customer's notification. -->
+<div @keydown.escape.window="closeCancel()" aria-labelledby="cancel-title" aria-modal="true" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="cancelTarget">
+<div @click="closeCancel()" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="cancelTarget"></div>
+<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-md border border-outline-variant/20 flex flex-col" x-show="cancelTarget">
+<div class="px-6 py-6 border-b border-outline-variant/20">
+<h3 class="font-headline-sm text-headline-sm text-primary" id="cancel-title">Huỷ lịch hẹn này?</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2" x-text="cancelSubject()"></p>
+</div>
+<div class="px-6 py-6 space-y-4">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="cancel-reason">Lý do huỷ</label>
+<select class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="cancel-reason" x-model="cancelReason" x-ref="cancelReason">
+<option value="">Chọn lý do</option>
+<option value="Salon kín lịch">Salon kín lịch</option>
+<option value="Nhân viên nghỉ">Nhân viên nghỉ</option>
+<option value="Khách yêu cầu">Khách yêu cầu</option>
+<option value="Khác">Khác</option>
+</select>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="cancel-note">Ghi chú cho khách (không bắt buộc)</label>
+<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="cancel-note" maxlength="200" rows="2" x-model="cancelNote"></textarea>
+</div>
+<p class="font-caption text-caption text-on-surface-variant">Khách sẽ nhận thông báo kèm lý do này.</p>
+</div>
+<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4">
+<button @click="closeCancel()" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+                    Giữ lịch
+                </button>
+<button :disabled="!cancelReason || acting" @click="confirmCancel()" class="px-8 py-3 bg-error text-on-error font-label-md text-label-md uppercase tracking-wider hover:bg-error/90 transition-colors rounded-full disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+                    Huỷ lịch
+                </button>
+</div>
+</div>
+</div>
 <script>
     /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
     var OAK_STATUS_LABELS = {
@@ -393,12 +506,15 @@
         confirmed: 'Đã xác nhận',
         completed: 'Đã hoàn thành',
         cancelled: 'Đã hủy',
+        no_show: 'Không đến',
     };
     var OAK_STATUS_CLASSES = {
         pending: 'bg-surface-variant text-on-surface-variant',
         confirmed: 'bg-[#e8f5e9] text-[#2e7d32]',
         completed: 'bg-surface-container-high text-on-surface',
         cancelled: 'bg-error-container text-on-error-container',
+        // Absent is not cancelled: it keeps a tone of its own so the two never read alike.
+        no_show: 'bg-tertiary-container text-on-tertiary-container',
     };
     var OAK_SEARCH_TYPES = { booking: 'Lịch hẹn', service: 'Dịch vụ', staff: 'Nhân viên' };
 
@@ -430,13 +546,24 @@
     // The only transitions the backend accepts; mirrors quan-ly-lich-hen.html.
     var OAK_TRANSITIONS = {
         pending: ['confirmed', 'cancelled'],
-        confirmed: ['completed', 'cancelled'],
+        confirmed: ['completed', 'cancelled', 'no_show'],
         completed: [],
         cancelled: [],
+        no_show: ['confirmed'],
     };
+    /* The setup checklist is complete at this many steps; the block hides itself there. */
+    var OAK_SETUP_STEPS = 5;
     /* How many of the waiting bookings the queue puts on the page; the rest are one
        click away in Quản lý lịch hẹn. */
     var OAK_PENDING_PAGE = 10;
+
+    /** When a booking is over, as a timestamp: its start plus the service's own length. */
+    function oakEndsAt(booking) {
+        var day = booking.date.split('-').map(Number);
+        var clock = booking.time.split(':').map(Number);
+        var minutes = booking.service ? booking.service.duration_min || 0 : 0;
+        return new Date(day[0], day[1] - 1, day[2], clock[0], clock[1] + minutes).getTime();
+    }
 
     /* Partner chrome shared by all four console pages: owner name/avatar, salon name, logout. */
     function oakPartnerChrome() {
@@ -492,8 +619,22 @@
             pendingTotal: 0,
             pendingLoading: true,
             pendingError: '',
+            /* Confirmed bookings up to and including today; due() keeps the ones whose
+               hour has already passed. */
+            settled: [],
             /* The booking whose confirm/cancel request is in flight, 0 when none. */
             acting: 0,
+            /* What the five setup steps are measured against: the salon row plus the two
+               counts the steps are about. Null until the reads land, which is what keeps the
+               block off the page instead of flashing a wrong score at a finished salon. */
+            setup: null,
+            /* Latched once the checklist has been completed once, so a salon that later
+               hides itself for a week does not get the beginner block back. */
+            setupHidden: false,
+            /* What the cancel dialog is asking about, and what it will tell the customer. */
+            cancelTarget: null,
+            cancelReason: '',
+            cancelNote: '',
 
             async init() {
                 await OAK.requirePartner();
@@ -507,6 +648,8 @@
                     this.loading = false;
                 }
                 await this.loadPending();
+                await this.loadSettled();
+                await this.loadSetup();
                 this.watchViewport();
                 var self = this;
                 oakWatchPending(function () {
@@ -571,8 +714,266 @@
                 }
             },
 
-            /* Confirm or cancel without leaving the dashboard. One request at a time, so a
-               double tap cannot send a second transition the backend would then reject. */
+            /* Every confirmed booking of today and before. Which of them are actually over
+               is decided in due(), against the clock, so the block empties itself as the
+               day runs without another request. */
+            async loadSettled() {
+                try {
+                    this.settled = await OAK.api(
+                        '/api/partner/bookings?status=confirmed&order=asc&limit=50&to=' +
+                            OAK.todayISO(),
+                    );
+                } catch (error) {
+                    this.settled = [];
+                }
+            },
+
+            /* Reads the console already serves. The salon comes first because it carries
+               the id the latch is keyed by: a salon that finished the list once is not going
+               to render the block, so it should not pay for the other two reads either. A
+               failure leaves setup null, which hides the block rather than showing a score
+               that is not true. */
+            async loadSetup() {
+                var key = '';
+                try {
+                    var salon = await OAK.api('/api/partner/salon');
+                    key = 'oak_setup_done_' + salon.id;
+                    // Wrapped, here and below: a browser with storage switched off must
+                    // still render the page, it just cannot remember the list was finished.
+                    try {
+                        if (localStorage.getItem(key) === '1') {
+                            this.setupHidden = true;
+                            return;
+                        }
+                    } catch (error) {
+                        this.setupHidden = false;
+                    }
+                    var answers = await Promise.all([
+                        OAK.api('/api/partner/services?limit=1'),
+                        OAK.api('/api/partner/staff'),
+                    ]);
+                    this.setup = {
+                        salon: salon,
+                        // active_total, not total: a hidden service is one a customer
+                        // cannot book, and the publish gate refuses on the same count.
+                        services: answers[0].meta ? answers[0].meta.active_total : 0,
+                        staff: answers[1].meta ? answers[1].meta.total : 0,
+                    };
+                } catch (error) {
+                    this.setup = null;
+                    return;
+                }
+                if (this.setupDone() === OAK_SETUP_STEPS) {
+                    try {
+                        localStorage.setItem(key, '1');
+                    } catch (error) {
+                        // Nothing to remember it with; the block hides on its score alone.
+                    }
+                }
+            },
+
+            setupSteps() {
+                if (!this.setup) {
+                    return [];
+                }
+                var salon = this.setup.salon;
+                var published = salon.published === 1;
+                return [
+                    {
+                        key: 'place',
+                        label: 'Thông tin & vị trí',
+                        hint: 'Địa chỉ và ghim bản đồ — chưa có toạ độ thì salon không hiện trên bản đồ.',
+                        href: 'cai-dat-salon.html#vi-tri',
+                        done: Boolean(salon.address) && salon.lat !== null && salon.lng !== null,
+                    },
+                    {
+                        key: 'hours',
+                        label: 'Giờ mở cửa',
+                        hint: 'Khai báo giờ riêng cho từng ngày trong tuần.',
+                        href: 'cai-dat-salon.html#gio-mo-cua',
+                        done: (salon.hours || []).some(function (day) {
+                            return day.is_off === 0;
+                        }),
+                    },
+                    {
+                        key: 'services',
+                        label: 'Thêm dịch vụ',
+                        hint: 'Khách chỉ đặt được dịch vụ đang hiển thị.',
+                        href: 'quan-ly-dich-vu.html?new=1',
+                        done: this.setup.services > 0,
+                    },
+                    {
+                        key: 'staff',
+                        label: 'Thêm nhân viên & ca',
+                        hint: 'Khung giờ trống sinh ra từ ca làm của nhân viên.',
+                        href: 'quan-ly-nhan-vien.html?new=1',
+                        done: this.setup.staff > 0,
+                    },
+                    {
+                        key: 'published',
+                        label: 'Hiển thị trên OAK',
+                        hint: published ? 'Salon đang hiển thị công khai — xem trang khách nhìn thấy.' : 'Cần địa chỉ, giờ mở cửa, một dịch vụ và ít nhất một ảnh, rồi bật công tắc.',
+                        href: published
+                            ? 'salon-profile.html?salon=' + salon.slug
+                            : 'cai-dat-salon.html#hien-thi',
+                        done: published,
+                    },
+                ];
+            },
+
+            setupDone() {
+                return this.setupSteps().filter(function (step) {
+                    return step.done;
+                }).length;
+            },
+
+            showSetup() {
+                return Boolean(this.setup) && !this.setupHidden && this.setupDone() < OAK_SETUP_STEPS;
+            },
+
+            due() {
+                var now = Date.now();
+                return this.settled.filter(function (booking) {
+                    return oakEndsAt(booking) <= now;
+                });
+            },
+
+            /* Close one booking out: it happened, or the customer never came. Marking an
+               absence is reversible on the server, so the message that reports it carries
+               the way back rather than making the salon hunt for it. */
+            async settle(booking, status) {
+                if (this.acting !== 0) {
+                    return;
+                }
+                this.acting = booking.id;
+                try {
+                    await OAK.api('/api/partner/bookings/' + booking.id, {
+                        method: 'PATCH',
+                        body: { status: status },
+                    });
+                    await this.refresh();
+                    if (status === 'no_show') {
+                        var self = this;
+                        OAK.toast('Đã ghi nhận khách không đến.', undefined, {
+                            actionLabel: 'Hoàn tác',
+                            onAction: function () {
+                                self.settle(booking, 'confirmed');
+                            },
+                        });
+                    } else {
+                        OAK.toast('Đã cập nhật lịch hẹn ' + booking.code + '.');
+                    }
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.acting = 0;
+                }
+            },
+
+            /* One request at a time, in order: the endpoint takes a single booking, and a
+               burst of parallel PATCHes would race the overview re-read that follows. */
+            async completeAll() {
+                if (this.acting !== 0) {
+                    return;
+                }
+                var rows = this.due();
+                this.acting = -1;
+                var closed = 0;
+                try {
+                    for (var index = 0; index < rows.length; index += 1) {
+                        await OAK.api('/api/partner/bookings/' + rows[index].id, {
+                            method: 'PATCH',
+                            body: { status: 'completed' },
+                        });
+                        closed += 1;
+                    }
+                    if (closed > 0) {
+                        OAK.toast('Đã hoàn tất các lịch hẹn đã qua giờ.');
+                    }
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    // Re-read before the buttons come back, as settle() does: until the
+                    // list has dropped the rows just closed, a second tap would PATCH an
+                    // already-completed booking and answer INVALID_TRANSITION. It runs on
+                    // the failure path too, where part of the batch did go through.
+                    await this.refresh();
+                    this.acting = 0;
+                }
+            },
+
+            /* The metric cards count the very rows these actions changed, so the whole
+               overview is re-read rather than only the list that was touched. */
+            async refresh() {
+                await this.loadSettled();
+                await this.loadPending();
+                if (this.overview) {
+                    this.overview = await OAK.api('/api/partner/overview');
+                    this.staffStatus = this.overview.staff_status;
+                    await this.loadToday();
+                }
+            },
+
+            /* Cancelling is final and the customer hears about it at once, so the queue
+               asks first and asks why — the same dialog the calendar page uses, because a
+               tap here and a tap there must not mean two different things. */
+            askCancel(booking) {
+                this.cancelReason = '';
+                this.cancelNote = '';
+                this.cancelTarget = booking;
+                this.$nextTick(
+                    function () {
+                        if (this.$refs.cancelReason) {
+                            this.$refs.cancelReason.focus();
+                        }
+                    }.bind(this),
+                );
+            },
+
+            closeCancel() {
+                this.cancelTarget = null;
+            },
+
+            cancelSubject() {
+                var booking = this.cancelTarget;
+                if (!booking) {
+                    return '';
+                }
+                return booking.customer.name + ' · ' + booking.time + ' ' + OAK.fmtDate(booking.date);
+            },
+
+            /* Appended to the note rather than replacing it: what the customer asked for
+               when they booked stays readable, and the server reads back only the line
+               written here to tell them why it was cancelled. */
+            async confirmCancel() {
+                var booking = this.cancelTarget;
+                if (!booking || !this.cancelReason || this.acting !== 0) {
+                    return;
+                }
+                var reason = this.cancelNote.trim()
+                    ? this.cancelReason + ' — ' + this.cancelNote.trim()
+                    : this.cancelReason;
+                var note = [booking.note, 'Lý do huỷ: ' + reason.slice(0, 200)]
+                    .filter(Boolean)
+                    .join('\n');
+                this.acting = booking.id;
+                try {
+                    var updated = await OAK.api('/api/partner/bookings/' + booking.id, {
+                        method: 'PATCH',
+                        body: { status: 'cancelled', note: note },
+                    });
+                    this.closeCancel();
+                    OAK.toast('Đã hủy lịch hẹn ' + updated.code + '.');
+                    await this.refresh();
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.acting = 0;
+                }
+            },
+
+            /* Confirm without leaving the dashboard. One request at a time, so a double tap
+               cannot send a second transition the backend would then reject. */
             async decide(booking, status) {
                 if (this.acting !== 0 || !OAK_TRANSITIONS[booking.status].includes(status)) {
                     return;
@@ -584,15 +985,9 @@
                         body: { status: status },
                     });
                     OAK.toast('Đã cập nhật lịch hẹn ' + updated.code + '.');
-                    await this.loadPending();
-                    // The metric cards count the very rows this changed — "lịch sắp tới"
-                    // drops with a cancellation — so the whole overview is re-read, not
-                    // just today's list.
-                    if (this.overview) {
-                        this.overview = await OAK.api('/api/partner/overview');
-                        this.staffStatus = this.overview.staff_status;
-                        await this.loadToday();
-                    }
+                    // A confirmation may land straight in the "Cần hoàn tất" queue when the
+                    // hour has already gone by, so both queues and the cards are re-read.
+                    await this.refresh();
                 } catch (error) {
                     OAK.toast(error.message, 'error');
                 } finally {
@@ -631,6 +1026,12 @@
                 return this.overview && this.overview.review_count
                     ? 'Dựa trên ' + this.overview.review_count + ' đánh giá'
                     : 'Chưa có đánh giá';
+            },
+
+            /* The rating is what a salon is judged on, and an unanswered review is the one
+               piece of it the salon can still do something about. */
+            unansweredReviews() {
+                return this.overview ? this.overview.unanswered_reviews || 0 : 0;
             },
 
             timeRange(booking) {

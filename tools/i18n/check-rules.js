@@ -273,11 +273,11 @@ const scope = [
     ['ket-qua-tim-kiem.html', 'Đánh giá', 'Rating', 'Reviews'],
     ['lich-hen-cua-toi.html', 'Đánh giá', 'Review', 'Reviews'],
     ['lich-hen-cua-toi.html', 'Ngày', 'Date', 'Day'],
-    ['dang-nhap-doi-tac.html', 'Chính sách bảo mật', 'Privacy Policy.', 'Privacy Policy'],
-    // The consent line is page content, so the period rides on "Chính sách bảo mật" above and
-    // this fragment disappears. The bare entry it falls back to is the one check-coverage.js
-    // needs to see the string as covered at all.
-    ['dang-nhap-doi-tac.html', 'của chúng tôi.', '', '.'],
+    // Both sentences on this page now end in the same two words, so the scoped entries that
+    // used to move the full stop onto "Chính sách bảo mật" are gone: they would have put a
+    // period mid-sentence in the consent line ("… Privacy Policy. of OAK Beauty.").
+    ['dang-nhap-doi-tac.html', 'Chính sách bảo mật', 'Privacy Policy', 'Privacy Policy'],
+    ['dang-nhap-doi-tac.html', 'của chúng tôi.', '.', '.'],
     // The settings page's own heading is about account security; the footer link of the
     // same two words is the privacy policy, and shared chrome never sees the scoped entry.
     ['cai-dat.html', 'Bảo mật', 'Security', 'Privacy Policy'],

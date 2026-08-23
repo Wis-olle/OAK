@@ -61,6 +61,7 @@ palette
 payments
 person
 person_add
+person_off
 photo_camera
 play_arrow
 receipt_long

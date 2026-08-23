@@ -69,5 +69,11 @@
   "Không sao chép được liên kết.": "We couldn't copy the link.",
   "Bạn đã đánh giá các lịch hẹn tại salon này rồi.": "You have already reviewed your appointments at this salon.",
   "sao": "stars",
-  "đánh giá": "reviews"
+  "đánh giá": "reviews",
+  "Hủy/đổi miễn phí đến trước 6 tiếng": "Free cancellation or change up to 6 hours before",
+  "Hủy/đổi miễn phí đến trước 12 tiếng": "Free cancellation or change up to 12 hours before",
+  "Hủy/đổi miễn phí đến trước 24 tiếng": "Free cancellation or change up to 24 hours before",
+  "Hủy/đổi miễn phí đến trước 48 tiếng": "Free cancellation or change up to 48 hours before",
+
+  "Phản hồi từ": "Reply from"
 }

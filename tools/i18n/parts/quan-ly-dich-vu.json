@@ -74,5 +74,12 @@
   "Đã lưu dịch vụ.": "Service saved.",
   "Đã xoá dịch vụ.": "Service deleted.",
   "Đã lưu ưu đãi.": "Offer saved.",
-  "Đã xoá ưu đãi.": "Offer deleted."
+  "Đã xoá ưu đãi.": "Offer deleted.",
+
+  "Nội dung": "Content",
+  "Giá từ": "Price from",
+  "Dùng cho dịch vụ có giá thay đổi theo độ dài tóc, bộ móng… Khách sẽ thấy “từ 250.000đ”.": "For services priced by hair length, nail set and so on. Customers see “from 250,000d”.",
+  "Đưa dịch vụ lên trước": "Move service earlier",
+  "Đưa dịch vụ xuống sau": "Move service later",
+  "Đánh giá": "Reviews"
 }

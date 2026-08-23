@@ -4,11 +4,23 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../db.js';
 import { sendResetMail } from '../lib/mailer.js';
+import { notifyUser } from '../lib/notify.js';
+// One rule for phone numbers, shared with the profile update and the console lookup:
+// every path that attaches a number to an account folds it the same way.
+import {
+  isValidPhone,
+  linkBookingsByPhone,
+  normalisePhone,
+  phoneHeldByAnother,
+} from '../lib/phone.js';
 import { slugify } from '../lib/text.js';
+import { todayISO } from '../lib/time.js';
 import {
   COOKIE_NAME,
+  COOKIE_OPTIONS,
   JWT_SECRET,
   httpError,
+  issueCookie,
   requireAuth,
   selectPublicUser,
   sessionOutlivedPassword,
@@ -23,46 +35,44 @@ const ROLES = ['customer', 'partner'];
 // worth anything stays small.
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
 
-/* Demo-grade throttle for /forgot-password. It needs one because retiring the previous
-   link before minting a new one means anyone able to spam this endpoint can keep killing
-   the newest link a victim was sent, locking them out of their own reset. Fixed window,
-   keyed on the address AND the caller, so one noisy client cannot deny every address and
-   one address cannot be attacked from a single client.
+/* Demo-grade throttle, shared by /forgot-password and /login. /forgot-password needs one
+   because retiring the previous link before minting a new one means anyone able to spam it
+   can keep killing the newest link a victim was sent, locking them out of their own reset;
+   /login needs one because guessing a password is otherwise free. Fixed window, keyed on
+   the address AND the caller, so one noisy client cannot deny every address and one address
+   cannot be attacked from a single client.
 
    This is a mitigation, not a rate limiter: it lives in one process's memory, resets on
    deploy, and a botnet with many source addresses walks past it. Production wants a real
    limiter at the infrastructure layer or a shared store. */
-const FORGOT_WINDOW_MS = 15 * 60 * 1000;
+const RATE_WINDOW_MS = 15 * 60 * 1000;
 const FORGOT_MAX_ATTEMPTS = 3;
 const forgotAttempts = new Map();
+// Ten in a quarter of an hour: far above a person mistyping their own password, far below
+// what guessing needs. Its own tally, so asking for a reset link never spends a sign-in.
+const LOGIN_MAX_ATTEMPTS = 10;
+const loginAttempts = new Map();
 
-/** Record one attempt for `key`; true once the window's allowance is spent. */
-function forgotRateLimited(key) {
+/** Record one attempt for `key` in `attempts`; true once `max` in the window is spent. */
+function rateLimited(attempts, key, max) {
   const now = Date.now();
   // Swept here rather than on a timer: the Map is only ever walked on a call, so an idle
   // process holds nothing and there is no interval keeping it awake. Whatever survives the
   // sweep is in-window by definition.
-  for (const [seen, entry] of forgotAttempts) {
-    if (now - entry.windowStart >= FORGOT_WINDOW_MS) {
-      forgotAttempts.delete(seen);
+  for (const [seen, entry] of attempts) {
+    if (now - entry.windowStart >= RATE_WINDOW_MS) {
+      attempts.delete(seen);
     }
   }
 
-  const entry = forgotAttempts.get(key);
+  const entry = attempts.get(key);
   if (!entry) {
-    forgotAttempts.set(key, { count: 1, windowStart: now });
+    attempts.set(key, { count: 1, windowStart: now });
     return false;
   }
   entry.count += 1;
-  return entry.count > FORGOT_MAX_ATTEMPTS;
+  return entry.count > max;
 }
-
-const COOKIE_OPTIONS = {
-  httpOnly: true,
-  sameSite: 'lax',
-  secure: process.env.NODE_ENV === 'production',
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-};
 
 // Comparing against this on the miss path keeps a failed login as slow as a
 // successful one, so response time cannot be used to enumerate accounts.
@@ -92,11 +102,28 @@ const UPDATE_PASSWORD =
   'UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?';
 const SELECT_SALON_BY_SLUG = 'SELECT 1 FROM salons WHERE slug = ?';
 const INSERT_USER =
-  'INSERT INTO users (name, email, phone, password_hash, role, avatar, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)';
-// verified = 1: on this demo a partner salon goes live the moment it signs up, so it is
-// browsable straight away. There is no manual approval step to wait for.
+  'INSERT INTO users (name, email, phone, password_hash, role, avatar, created_at, consent_at, marketing_opt_in) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)';
+// verified = 1: there is no manual approval step to wait for. The salon is still unlisted
+// at this point — salons.published defaults to 0 — because all it holds is a name; its owner
+// turns it on from the console once the profile has an address, hours, a service and a photo.
 const INSERT_SALON =
   'INSERT INTO salons (owner_id, name, slug, city, verified, created_at) VALUES (?, ?, ?, ?, 1, ?)';
+// The welcome offer a brand-new customer is greeted with: whichever platform-wide code is
+// closest to running out, so the one being wound down is the one that gets handed out.
+// A salon's own code is not offered — it would send a first-time visitor to one salon.
+// The same window bookings.js requireUsablePromotion checks at checkout, so a code named
+// here is never one that would be refused there: a promotion that has not started yet is
+// not offered, an open-ended one (no ends_at) is, and a combo is not — requireUsablePromotion
+// refuses type 'combo' at checkout, so offering one would be a code that cannot be spent.
+const SELECT_WELCOME_PROMOTION = `
+  SELECT code, discount_percent FROM promotions
+  WHERE salon_id IS NULL AND active = 1
+    AND type <> 'combo'
+    AND (starts_at IS NULL OR starts_at <= ?)
+    AND (ends_at IS NULL OR ends_at >= ?)
+    AND discount_percent IS NOT NULL
+  ORDER BY ends_at LIMIT 1
+`;
 
 /** Append -2, -3, ... until the slug is free. Runs inside the register transaction. */
 async function uniqueSalonSlug(tx, name) {
@@ -115,11 +142,6 @@ function epochSeconds() {
   return Math.floor(Date.now() / 1000);
 }
 
-function issueCookie(res, user) {
-  const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-  res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
-}
-
 /**
  * Create an account and, for partners, the salon that comes with it.
  *
@@ -128,7 +150,16 @@ function issueCookie(res, user) {
  */
 async function createAccount(req, res, next, forcedRole) {
   try {
-    const { name, email, phone, password, role, salon_name: salonName } = req.body ?? {};
+    const {
+      name,
+      email,
+      phone,
+      password,
+      role,
+      salon_name: salonName,
+      consent,
+      marketing_opt_in: marketingOptIn,
+    } = req.body ?? {};
 
     if (!name || !email || !password) {
       throw httpError(400, 'VALIDATION_ERROR', 'Vui lòng nhập họ tên, email và mật khẩu.');
@@ -139,6 +170,11 @@ async function createAccount(req, res, next, forcedRole) {
     if (phone != null && typeof phone !== 'string') {
       throw httpError(400, 'VALIDATION_ERROR', 'Số điện thoại phải là chuỗi ký tự.');
     }
+    // Same rule the form applies: the number decides which counter bookings this account
+    // claims, so a string that is not a number never gets to try.
+    if (phone && !isValidPhone(phone)) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Số điện thoại không hợp lệ.');
+    }
     if (salonName != null && typeof salonName !== 'string') {
       throw httpError(400, 'VALIDATION_ERROR', 'Tên salon phải là chuỗi ký tự.');
     }
@@ -147,6 +183,16 @@ async function createAccount(req, res, next, forcedRole) {
     }
     if (password.length < MIN_PASSWORD_LENGTH) {
       throw httpError(400, 'VALIDATION_ERROR', 'Mật khẩu phải có ít nhất 8 ký tự.');
+    }
+    // An affirmative act, checked here and not only in the form: consent that a caller can
+    // leave out is not consent at all. Marketing is asked separately and defaults to off,
+    // so silence on it is a no.
+    if (consent !== true) {
+      throw httpError(
+        400,
+        'CONSENT_REQUIRED',
+        'Vui lòng đồng ý với Điều khoản sử dụng và Chính sách bảo mật để tiếp tục.',
+      );
     }
 
     const accountRole = forcedRole ?? role ?? 'customer';
@@ -158,21 +204,64 @@ async function createAccount(req, res, next, forcedRole) {
     const createdAt = new Date().toISOString();
 
     let userId;
+    // Reported back so dang-ky.html only promises a code when one was actually written.
+    let welcomeCode = null;
     try {
       await db.withTransaction(async (tx) => {
+        // A number a live account already answers to is refused here rather than stored
+        // beside it: two rows folding to one number leave the console unable to tell
+        // whose walk-in is whose, and lock the rightful holder out of their own claims.
+        if (phone && (await phoneHeldByAnother(tx, null, phone))) {
+          throw httpError(
+            409,
+            'PHONE_IN_USE',
+            'Số điện thoại này đang gắn với một tài khoản khác.',
+          );
+        }
         userId = Number(
           (
             await tx.run(
               INSERT_USER,
               name,
               email.trim().toLowerCase(),
-              phone ?? null,
+              // Stored folded, so the number is comparable to the one a console lookup or
+              // a later profile edit brings in rather than only to itself.
+              phone ? normalisePhone(phone) : null,
               passwordHash,
               accountRole,
               createdAt,
+              createdAt,
+              marketingOptIn === true ? 1 : 0,
             )
           ).lastInsertRowid,
         );
+
+        // Whatever was booked over the counter under this number is this person's history,
+        // so it is theirs from the first sign-in rather than from their next visit. Customers
+        // only: a salon owner's number is a business line, not a claim on those bookings.
+        if (phone && accountRole === 'customer') {
+          await linkBookingsByPhone(tx, userId, phone);
+        }
+
+        if (accountRole === 'customer') {
+          // Something in the bell on the first visit: an account whose Thông báo reads
+          // "chưa có thông báo nào" has nothing to come back for. dang-ky.html says so with
+          // a toast on arrival, so the two are one message.
+          // Not gated on marketing_opt_in: this is the one transactional hello that comes
+          // with signing up, not a campaign. That box governs the promotions sent later.
+          const today = todayISO();
+          const promotion = await tx.get(SELECT_WELCOME_PROMOTION, today, today);
+          welcomeCode = promotion ? promotion.code : null;
+          await notifyUser(
+            tx,
+            userId,
+            'Chào mừng bạn đến với OAK',
+            promotion
+              ? `Chào mừng ${name}! Nhập mã ${promotion.code} khi đặt lịch để giảm ${promotion.discount_percent}% cho buổi hẹn đầu tiên.`
+              : `Chào mừng ${name} — đặt lịch đầu tiên của bạn tại OAK.`,
+            promotion ? 'promotion' : 'general',
+          );
+        }
 
         if (accountRole === 'partner') {
           const partnerSalonName = salonName || `${name} Salon`;
@@ -197,7 +286,7 @@ async function createAccount(req, res, next, forcedRole) {
 
     const user = await selectPublicUser.get(userId);
     issueCookie(res, user);
-    res.json({ success: true, data: { user } });
+    res.json({ success: true, data: { user, welcome_code: welcomeCode } });
   } catch (error) {
     next(error);
   }
@@ -219,7 +308,22 @@ router.post('/login', async (req, res, next) => {
       throw httpError(401, 'INVALID_CREDENTIALS', 'Email hoặc mật khẩu không đúng.');
     }
 
-    const credentials = await selectCredentials.get(email.trim().toLowerCase());
+    // Keyed on the address AND the caller, so a shared office address cannot lock out
+    // every account behind it and one account cannot be walked through from one machine.
+    // Checked before the hash is compared: guessing should not get the server's work for
+    // free either.
+    const normalised = email.trim().toLowerCase();
+    const attemptKey = `${normalised}|${req.ip}`;
+    if (rateLimited(loginAttempts, attemptKey, LOGIN_MAX_ATTEMPTS)) {
+      console.warn(`login: too many attempts for ${req.ip}`);
+      throw httpError(
+        429,
+        'TOO_MANY_ATTEMPTS',
+        'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng đợi 15 phút rồi thử lại.',
+      );
+    }
+
+    const credentials = await selectCredentials.get(normalised);
     const matches = await bcrypt.compare(
       password,
       credentials?.password_hash ?? DUMMY_PASSWORD_HASH,
@@ -227,6 +331,10 @@ router.post('/login', async (req, res, next) => {
     if (!credentials || !matches) {
       throw httpError(401, 'INVALID_CREDENTIALS', 'Email hoặc mật khẩu không đúng.');
     }
+
+    // Whoever proved they own the account owes the window nothing: only failed guessing
+    // accumulates, so signing in and out repeatedly can never lock a person out.
+    loginAttempts.delete(attemptKey);
 
     const user = await selectPublicUser.get(credentials.id);
     issueCookie(res, user);
@@ -259,7 +367,7 @@ router.post('/forgot-password', async (req, res, next) => {
     // Over the allowance: the reply is the ordinary one, so the throttle does not become a
     // new oracle of its own — but nothing is retired and nothing is minted, which is the
     // whole point of having it.
-    if (!account || forgotRateLimited(`${normalised}|${req.ip}`)) {
+    if (!account || rateLimited(forgotAttempts, `${normalised}|${req.ip}`, FORGOT_MAX_ATTEMPTS)) {
       return res.json({ success: true, data });
     }
 
@@ -357,7 +465,12 @@ router.post('/reset-password', async (req, res, next) => {
       await tx.run(UPDATE_PASSWORD, passwordHash, epochSeconds(), reset.user_id);
     });
 
-    res.json({ success: true, data: { ok: true } });
+    // Signed in on the way out: whoever just proved they hold the mailbox and chose the
+    // new password has no reason to be asked for it again on the next screen (WCAG 3.3.7).
+    // Minted after the write, so its iat cannot fall before the cut-off it must survive.
+    const user = await selectPublicUser.get(reset.user_id);
+    issueCookie(res, user);
+    res.json({ success: true, data: { user } });
   } catch (error) {
     next(error);
   }

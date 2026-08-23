@@ -5,7 +5,6 @@
   "Liên kết đặt lại không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu một liên kết mới.": "This reset link is invalid or has expired. Please request a new one.",
   "Yêu cầu liên kết mới": "Request a new link",
   "Mật khẩu đã được cập nhật.": "Your password has been updated.",
-  "Đăng nhập ngay": "Sign in now",
   "Mật khẩu mới": "New password",
   "Xác nhận mật khẩu mới": "Confirm new password",
   "Hiện mật khẩu": "Show password",
@@ -15,5 +14,7 @@
   "Đăng nhập": "Sign in",
   "Mật khẩu phải có ít nhất 8 ký tự.": "Password must be at least 8 characters.",
   "Mật khẩu xác nhận không khớp.": "The passwords do not match.",
-  "Liên kết đặt lại không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu liên kết mới.": "This reset link is invalid or has expired. Please request a new link."
+  "Liên kết đặt lại không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu liên kết mới.": "This reset link is invalid or has expired. Please request a new link.",
+  "Mật khẩu đã được cập nhật. Bạn đã được đăng nhập.": "Your password has been updated. You are now signed in.",
+  "Tiếp tục": "Continue"
 }

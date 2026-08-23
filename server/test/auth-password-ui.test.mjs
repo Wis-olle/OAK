@@ -19,6 +19,8 @@ const resetHtml = page('dat-lai-mat-khau.html');
 const profileHtml = page('ho-so-ca-nhan.html');
 const settingsHtml = page('cai-dat.html');
 const sitemapHtml = page('sitemap.html');
+const partnerHtml = page('dang-nhap-doi-tac.html');
+const privacyHtml = page('bao-mat.html');
 const headerSource = fs.readFileSync(path.join(root, 'ui/assets/js/oak-header.js'), 'utf8');
 const authSource = fs.readFileSync(path.join(root, 'server/src/routes/auth.js'), 'utf8');
 const middlewareSource = fs.readFileSync(path.join(root, 'server/src/middleware/auth.js'), 'utf8');
@@ -35,6 +37,7 @@ function factory(html, from, call, extra = {}) {
     toasts: [],
     replaced: [],
     langSet: [],
+    stored: [],
     location: { href: '', pathname: '/' + (extra.pathname || 'page.html') },
     history: { replaceState: (state, title, url) => context.replaced.push(url) },
     // The login page points its register link from module scope, outside any factory.
@@ -43,7 +46,14 @@ function factory(html, from, call, extra = {}) {
     window: { OAKI18N: { lang: 'vi', set: (code) => context.langSet.push(code) } },
     // Only dang-ky.html reads it, and only to pick up what the wizard left behind. A page
     // given none meets the same ReferenceError a browser with site data blocked throws.
-    ...(extra.stash === undefined ? {} : { sessionStorage: { getItem: () => extra.stash } }),
+    ...(extra.stash === undefined
+      ? {}
+      : {
+          sessionStorage: {
+            getItem: () => extra.stash,
+            setItem: (key, value) => context.stored.push([key, value]),
+          },
+        }),
     OAK: {
       api: extra.api,
       toast: (message, type) => context.toasts.push([message, type]),
@@ -56,15 +66,23 @@ function factory(html, from, call, extra = {}) {
   vm.runInNewContext(`${script}\nresult = ${call};`, context);
   context.result.toasts = context.toasts;
   context.result.replaced = context.replaced;
+  context.result.location = context.location;
   context.result.langSet = context.langSet;
+  context.result.stored = context.stored;
   return context.result;
 }
 
-const resetPage = (api, token) =>
-  factory(resetHtml, 'function oakResetPassword(', 'oakResetPassword()', {
+// stash: null gives the page a sessionStorage that holds nothing — it only ever writes to
+// it. Pass storage: false for the locked-down browser, which has no such object at all.
+const resetPage = (api, token, storage = true, next = undefined) =>
+  factory(resetHtml, 'var OAK_NEXT_PAGE =', 'oakResetPassword()', {
     api,
     pathname: 'dat-lai-mat-khau.html',
-    query: token === undefined ? {} : { token },
+    query: {
+      ...(token === undefined ? {} : { token }),
+      ...(next === undefined ? {} : { next }),
+    },
+    ...(storage ? { stash: null } : {}),
   });
 const loginPage = (api) =>
   factory(loginHtml, 'const OAK_NEXT_PAGE =', 'oakCustomerLogin()', { api });
@@ -151,7 +169,39 @@ test('a good reset posts the token with the password and ends on the sign-in car
   assert.equal(calls[0][2].password, 'longenough1');
   assert.equal(state.done, true);
   assert.equal(state.busy, false);
-  assert.match(resetHtml, /href="dang-nhap-nguoi-dung\.html">Đăng nhập ngay<\/a>/);
+  // The reply carried a session, so the reader is signed in and is taken on rather than
+  // handed a sign-in form asking again for what they just proved (WCAG 2.2 SC 3.3.7).
+  assert.equal(state.location.href, 'kham-pha.html');
+  assert.match(resetHtml, /Mật khẩu đã được cập nhật\. Bạn đã được đăng nhập\./);
+  // The panel is gone before it can be read, so the confirmation is left for the page
+  // being moved to — without it the reader lands on Khám phá with no evidence at all
+  // that the password changed.
+  assert.deepEqual(state.stored, [['oak-password-reset', '1']]);
+});
+
+// Somebody sent to a reset mid-booking goes back to the wizard, not to the home page — the
+// same ?next rule dang-ky.html applies, and the same refusal of anything that is not a page.
+test('a reset carries a valid ?next through, and ignores one that is not a page', async () => {
+  const ok = async () => ({ ok: true });
+
+  const back = resetPage(ok, 'tok-123', true, 'dat-lich.html?service_id=4');
+  back.password = 'longenough1';
+  back.confirm = 'longenough1';
+  await back.submit();
+  assert.equal(back.destination, 'dat-lich.html?service_id=4');
+  assert.equal(back.location.href, 'dat-lich.html?service_id=4');
+
+  const hostile = resetPage(ok, 'tok-123', true, 'https://evil.example/steal');
+  assert.equal(hostile.destination, 'kham-pha.html');
+});
+
+test('and a browser that refuses storage is still taken on, just without the toast', async () => {
+  const state = resetPage(async () => ({ ok: true }), 'tok-123', false);
+  state.password = 'longenough1';
+  state.confirm = 'longenough1';
+  await state.submit();
+  assert.equal(state.location.href, 'kham-pha.html');
+  assert.deepEqual(state.stored, []);
 });
 
 test('a spent or expired token retires the form instead of showing a field error', async () => {
@@ -309,6 +359,72 @@ test('the consent line points at the two documents it names, in a new tab', () =
     registerHtml,
     /href="bao-mat\.html" rel="noopener noreferrer" target="_blank">Chính sách bảo mật<\/a>/,
   );
+});
+
+test('sign-up will not be sent until the two documents have actually been agreed to', () => {
+  const state = registerPage(null);
+  state.name = 'Ngọc Anh';
+  state.email = 'ngocanh@oak.vn';
+  state.password = 'longenough1';
+  state.confirm = 'longenough1';
+
+  assert.equal(state.consent, false, 'the box starts unticked');
+  assert.equal(state.validate(), false);
+  assert.match(state.errors.consent, /Điều khoản/);
+
+  state.consent = true;
+  assert.equal(state.validate(), true);
+  assert.equal(state.errors.consent, undefined);
+});
+
+test('the offers box starts off, and both answers ride with the sign-up', async () => {
+  const calls = [];
+  // What the server reports it wrote, which is what the greeting is raised on — not on
+  // the tick, which is only a request for one.
+  let welcomeCode = null;
+  const state = factory(registerHtml, 'var OAK_NEXT_PAGE =', 'oakRegister()', {
+    stash: null,
+    api: async (path, options) => {
+      calls.push([path, options.body]);
+      return { user: { id: 9 }, welcome_code: welcomeCode };
+    },
+  });
+
+  state.name = 'Ngọc Anh';
+  state.email = 'ngocanh@oak.vn';
+  state.password = 'longenough1';
+  state.confirm = 'longenough1';
+  state.consent = true;
+  assert.equal(state.marketing, false, 'marketing is opt-IN, so it starts off');
+  await state.submit();
+
+  assert.equal(calls[0][0], '/api/auth/register');
+  assert.equal(calls[0][1].consent, true);
+  assert.equal(calls[0][1].marketing_opt_in, false);
+  // Khám phá greets a new account with "the welcome code is in Thông báo". Nothing to
+  // point at here, so nothing is left behind for it to say.
+  assert.deepEqual(state.stored, []);
+
+  // Asked for, but no platform-wide promotion was live: the account got the plain hello,
+  // so the greeting that names a code stays quiet rather than pointing at nothing.
+  state.marketing = true;
+  await state.submit();
+  assert.equal(calls[1][1].marketing_opt_in, true);
+  assert.deepEqual(state.stored, [], 'no code written, no promise of one');
+
+  welcomeCode = 'OAKNEW20';
+  await state.submit();
+  assert.deepEqual(state.stored, [['oak-welcome', '1']]);
+});
+
+test('the tick is what carries the consent now, not a sentence under the button', () => {
+  assert.match(registerHtml, /id="consent"[^>]*type="checkbox"/);
+  assert.match(registerHtml, /id="marketing"[^>]*type="checkbox"/);
+  // The old implied-consent line is gone: an affirmative act cannot be read into a button.
+  assert.doesNotMatch(registerHtml, /Khi đăng ký, bạn đồng ý với/);
+  // The partner form asks the same thing, in the same shape.
+  assert.match(partnerHtml, /id="register-consent"[^>]*type="checkbox"/);
+  assert.match(partnerHtml, /id="register-marketing"[^>]*type="checkbox"/);
 });
 
 // ------------------------------------------------------------------ cai-dat
@@ -629,12 +745,15 @@ test('changing a password re-issues the caller its own session, killing only the
   const handler = authSource.slice(authSource.indexOf("router.post('/change-password'"));
   // Signed after the write, so its iat cannot fall before the cut-off it must survive.
   assert.ok(handler.indexOf('db.withTransaction') < handler.indexOf('issueCookie(res, req.user)'));
-  // The reset path deliberately does NOT re-issue: nobody is signed in there.
+  // The reset path re-issues too, for the reader who has just proved they hold the mailbox
+  // — and, like the change path, only after the write, so its iat survives the cut-off.
   const reset = authSource.slice(
     authSource.indexOf("router.post('/reset-password'"),
     authSource.indexOf("router.post('/change-password'"),
   );
-  assert.doesNotMatch(reset, /issueCookie/);
+  assert.ok(reset.indexOf('db.withTransaction') < reset.indexOf('issueCookie(res, user)'));
+  assert.match(reset, /const user = await selectPublicUser\.get\(reset\.user_id\);/);
+  assert.match(reset, /res\.json\(\{ success: true, data: \{ user \} \}\);/);
 });
 
 // ------------------------------------------------------------- forgot-password hardening
@@ -644,20 +763,20 @@ test('the throttle refuses the work but never changes the answer', () => {
   const body = handler.slice(0, handler.indexOf("router.post('/reset-password'"));
 
   // Keyed on the address and the caller together.
-  assert.match(body, /forgotRateLimited\(`\$\{normalised\}\|\$\{req\.ip\}`\)/);
+  assert.match(body, /rateLimited\(forgotAttempts, `\$\{normalised\}\|\$\{req\.ip\}`, FORGOT_MAX_ATTEMPTS\)/);
   // Same envelope as every other outcome — the throttle may not become a new oracle.
-  assert.match(body, /if \(!account \|\| forgotRateLimited\([^)]*\)\) \{\s*return res\.json\(\{ success: true, data \}\);/);
+  assert.match(body, /if \(!account \|\| rateLimited\([^)]*\)\) \{\s*return res\.json\(\{ success: true, data \}\);/);
   // ...and no token is minted on that path.
   const refused = body.slice(0, body.indexOf('const token ='));
   assert.doesNotMatch(refused, /mintReset|insertPasswordReset|retireUserResets/);
 });
 
 test('the window is a fixed 15 minutes at three attempts, swept without a timer', () => {
-  assert.match(authSource, /const FORGOT_WINDOW_MS = 15 \* 60 \* 1000;/);
+  assert.match(authSource, /const RATE_WINDOW_MS = 15 \* 60 \* 1000;/);
   assert.match(authSource, /const FORGOT_MAX_ATTEMPTS = 3;/);
-  assert.match(authSource, /entry\.count > FORGOT_MAX_ATTEMPTS/);
+  assert.match(authSource, /entry\.count > max/);
   // Pruned inside the call, so an idle process keeps nothing alive.
-  assert.match(authSource, /forgotAttempts\.delete\(seen\)/);
+  assert.match(authSource, /attempts\.delete\(seen\)/);
   assert.doesNotMatch(authSource, /setInterval|setTimeout/);
 });
 
@@ -824,4 +943,126 @@ test('the mailed link is absolute and prefers the origin Render publishes', () =
   const guard = body.indexOf('!declaredOrigin');
   assert.ok(guard !== -1 && guard < body.indexOf("req.get('host')"));
   assert.match(body, /sendResetMail\(normalised, `\$\{origin\}\/dat-lai-mat-khau\.html\?token=\$\{token\}`\)/);
+});
+
+// -------------------------------------------------------- cai-dat: offers and deletion
+
+test('the offers box saves itself, and puts itself back when the server refuses', async () => {
+  const calls = [];
+  const state = settingsPage(async (path, options) => {
+    calls.push([path, options.method, options.body]);
+    if (calls.length === 2) {
+      const error = new Error('Đã có lỗi xảy ra, vui lòng thử lại sau.');
+      throw error;
+    }
+    return { user: { id: 1 } };
+  });
+
+  state.marketing = true;
+  await state.saveMarketing();
+  // Field by field: the body is built inside the vm, so it is not reference-equal to one
+  // built out here.
+  assert.equal(calls[0][0], '/api/users/me');
+  assert.equal(calls[0][1], 'PATCH');
+  assert.equal(calls[0][2].marketing_opt_in, true);
+  assert.equal(state.marketing, true);
+  assert.equal(state.marketingError, '');
+
+  state.marketing = false;
+  await state.saveMarketing();
+  // The box may never claim a choice the server did not take.
+  assert.equal(state.marketing, true);
+  assert.match(state.marketingError, /lỗi/);
+  assert.equal(state.marketingBusy, false);
+});
+
+test('the box opens on what is stored, whatever shape the column arrives in', async () => {
+  const state = settingsPage(async () => ({}));
+  state.user = { id: 1, marketing_opt_in: 1 };
+  state.marketing = Boolean(state.user.marketing_opt_in);
+  assert.equal(state.marketing, true);
+});
+
+test('deleting asks for the password, and asks it here rather than on the way out', async () => {
+  const calls = [];
+  const state = settingsPage(async (path, options) => {
+    calls.push([path, options.method, options.body]);
+    return { ok: true };
+  });
+
+  state.openDelete();
+  assert.equal(state.deleteOpen, true);
+  assert.equal(state.deletePassword, '');
+
+  await state.confirmDelete();
+  assert.deepEqual(calls, [], 'an empty box makes no request');
+  assert.match(state.deleteError, /mật khẩu/);
+
+  state.deletePassword = 'longenough1';
+  await state.confirmDelete();
+  assert.equal(calls[0][0], '/api/users/me');
+  assert.equal(calls[0][1], 'DELETE');
+  assert.equal(calls[0][2].password, 'longenough1');
+  // Nothing on this page can be read without a session, and there is none any more.
+  assert.equal(state.location.href, 'kham-pha.html');
+});
+
+test('a refused deletion keeps the dialog open with the reason in it', async () => {
+  const state = settingsPage(async () => {
+    const error = new Error('Bạn còn lịch hẹn sắp tới. Vui lòng hủy lịch trước khi xóa tài khoản.');
+    error.code = 'BOOKING_PENDING';
+    throw error;
+  });
+
+  state.openDelete();
+  state.deletePassword = 'longenough1';
+  await state.confirmDelete();
+
+  assert.equal(state.deleteOpen, true);
+  assert.match(state.deleteError, /lịch hẹn sắp tới/);
+  assert.equal(state.deleteBusy, false);
+  assert.equal(state.location.href, '');
+});
+
+test('the block is not offered to the account that cannot use it', () => {
+  // The header hands this page to every signed-in account, partner or customer, so the
+  // block has to say no itself — otherwise a salon owner types their password and is
+  // answered with a 409 they could not have avoided.
+  const block = settingsHtml.slice(settingsHtml.indexOf('>Dữ liệu của bạn<'));
+  const opening = settingsHtml.lastIndexOf('<div', settingsHtml.indexOf('>Dữ liệu của bạn<'));
+  const card = settingsHtml.slice(opening, settingsHtml.indexOf('>', opening));
+  assert.match(card, /x-show="user\.role !== 'partner'"/);
+  assert.match(card, /x-cloak=""/, 'or it paints for a partner until Alpine boots');
+  assert.match(block, /Xóa tài khoản</);
+});
+
+test('the dialog names both outcomes, and the safe one is the one that keeps the account', () => {
+  assert.match(settingsHtml, /id="delete-title">Xóa tài khoản</);
+  assert.match(settingsHtml, /Giữ tài khoản</);
+  assert.match(settingsHtml, /aria-modal="true"[^>]*role="dialog"/);
+  // The consequence the button does not show, said beside the button that has it.
+  assert.match(settingsHtml, /Đổi mật khẩu sẽ đăng xuất mọi thiết bị khác\./);
+});
+
+test('the privacy policy points at the page that does it, keeping the mailbox as a fallback', () => {
+  const clause = privacyHtml.slice(privacyHtml.indexOf('Xoá tài khoản:'));
+  const item = clause.slice(0, clause.indexOf('</li>'));
+  assert.match(item, /href="cai-dat\.html"/);
+  // Not instead of the old route: somebody locked out of the account still needs it.
+  assert.match(item, /mailto:hello@oakbeauty\.vn/);
+});
+
+test('the six-page account nav is untouched by the new blocks', () => {
+  // The rail and the strip are byte-identical across the account pages; a settings block
+  // added below them may not disturb either.
+  const rail = settingsHtml.slice(
+    settingsHtml.indexOf('<aside'),
+    settingsHtml.indexOf('</aside>'),
+  );
+  assert.equal((rail.match(/<a /g) || []).length, 6);
+  const strip = settingsHtml.slice(
+    settingsHtml.indexOf('data-oak-account-tabs'),
+    settingsHtml.indexOf('<!-- x-if (not x-show)'),
+  );
+  assert.equal((strip.match(/<a /g) || []).length, 6);
 });

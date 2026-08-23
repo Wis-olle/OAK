@@ -76,6 +76,18 @@
 </a>
 </li>
 <li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="danh-gia-salon.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="star">star</span>
+<span class="font-body-md text-body-md">Đánh giá</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="blog.html?compose=1">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="article">article</span>
+<span class="font-body-md text-body-md">Nội dung</span>
+</a>
+</li>
+<li>
 <a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="cai-dat-salon.html">
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-body-md text-body-md">Cài đặt</span>
@@ -231,7 +243,9 @@
 <div :style="gridStyle()" class="time-grid border-b border-outline-variant/20 mb-4 sticky top-0 bg-surface-container-lowest z-10 pb-4">
 <div class="flex items-end justify-center pb-2 text-on-surface-variant font-caption text-caption uppercase tracking-widest border-r border-outline-variant/20 pr-4">GMT+7</div>
 <template :key="column.key" x-for="column in columns">
-<div class="flex flex-col items-center justify-center border-r border-outline-variant/10">
+<!-- A declared day off is greyed rather than hidden: the column still holds whatever was
+     booked before the salon closed the day, and the salon has to see it. -->
+<div :class="column.off ? 'opacity-50' : ''" class="flex flex-col items-center justify-center border-r border-outline-variant/10">
 <template x-if="view === 'day' && column.image">
 <div class="w-12 h-12 rounded-full overflow-hidden mb-2">
 <img loading="lazy" :src="column.image" alt="" class="w-full h-full object-cover"/>
@@ -239,6 +253,7 @@
 </template>
 <span class="font-headline-sm text-headline-sm text-primary" x-text="column.name"></span>
 <span class="font-caption text-caption text-on-surface-variant" x-text="column.subtitle"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="column.off">Nghỉ</span>
 </div>
 </template>
 </div>
@@ -318,9 +333,16 @@
 <span aria-hidden="true" class="material-symbols-outlined text-[16px]">call</span>
 <span x-text="detail.customer.phone || 'Chưa có số điện thoại'"></span>
 </a>
-<div class="mt-4 px-3 py-1 bg-surface-variant rounded-full text-secondary font-label-md text-caption uppercase tracking-wider" x-show="detail.customer.vip">
+<div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+<div class="px-3 py-1 bg-surface-variant rounded-full text-secondary font-label-md text-caption uppercase tracking-wider" x-cloak="" x-show="detail.customer.vip">
                         Khách hàng VIP
                     </div>
+<!-- Three text nodes, so the number needs no translation rule of its own. -->
+<div class="px-3 py-1 bg-tertiary-container rounded-full text-on-tertiary-container font-label-md text-caption uppercase tracking-wider" x-cloak="" x-show="detail.customer.no_show_count > 0">
+<span x-text="detail.customer.no_show_count"></span>
+<span>lần không đến</span>
+</div>
+</div>
 </div>
 <div class="p-8 flex-1 overflow-y-auto">
 <div class="flex items-center justify-between mb-6 gap-3">
@@ -370,18 +392,43 @@
 <p class="font-label-md text-label-md text-primary uppercase tracking-widest mb-4">Ghi chú</p>
 <p class="font-body-md text-body-md text-on-surface-variant italic" x-text="detail.note || 'Không có ghi chú.'"></p>
 </div>
+<!-- What this customer had here before: the question asked over the counter while they
+     are still standing at it. Walk-ins group by the phone number, accounts by the account. -->
+<div class="mt-8 pt-6 border-t border-outline-variant/20" x-cloak="" x-show="history.length > 0">
+<p class="font-label-md text-label-md text-primary uppercase tracking-widest mb-4">Lịch sử tại salon</p>
+<ul class="space-y-3">
+<template :key="'history-' + past.id" x-for="past in history">
+<li class="flex items-baseline justify-between gap-3">
+<a :href="'quan-ly-lich-hen.html?booking_id=' + past.id" class="font-body-md text-body-md text-on-surface hover:text-primary transition-colors truncate" x-text="past.service ? past.service.name : 'Dịch vụ đã xoá'"></a>
+<span class="font-caption text-caption text-on-surface-variant shrink-0" x-text="OAK.fmtDate(past.date) + ' · ' + statusLabel(past.status)"></span>
+</li>
+</template>
+</ul>
 </div>
-<div class="p-gutter border-t border-outline-variant/20 bg-surface-container-lowest flex gap-3">
-<button @click="setStatus('cancelled')" class="flex-1 py-3 border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-surface-variant transition-colors" x-show="canSet('cancelled')">
+</div>
+<div class="p-gutter border-t border-outline-variant/20 bg-surface-container-lowest flex flex-wrap gap-3">
+<button :disabled="acting" @click="openEdit()" class="flex-1 py-3 border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-surface-variant transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button" x-show="canReschedule()">
+                        Đổi lịch
+                    </button>
+<button :disabled="acting" @click="askCancel(detail)" class="flex-1 py-3 border border-error text-error font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-error-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button" x-show="canSet('cancelled')">
                         Huỷ lịch
                     </button>
-<button @click="setStatus('confirmed')" class="flex-[2] py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors shadow-sm" x-show="canSet('confirmed')">
+<button :disabled="acting" @click="setStatus('confirmed')" class="flex-[2] py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" type="button" x-show="canSet('confirmed')">
                         Xác nhận
                     </button>
-<button @click="setStatus('completed')" class="flex-[2] py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors shadow-sm" x-show="canSet('completed')">
+<button :disabled="acting" @click="setStatus('completed')" class="flex-[2] py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" type="button" x-show="canSet('completed')">
                         Hoàn thành
                     </button>
-<p class="flex-1 py-3 text-center font-label-md text-label-md uppercase tracking-wider text-on-surface-variant" x-show="!canSet('cancelled')" x-text="statusLabel(detail.status)"></p>
+<!-- Only after the hour has passed: nobody is absent from an appointment that has not
+     started, and the server refuses it before then anyway. The Undo beside it is why this
+     is safe to press — no_show is the one terminal state that can be taken back. -->
+<button :disabled="acting" @click="setStatus('no_show')" class="flex-1 py-3 border border-outline text-on-surface-variant font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-surface-variant transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button" x-cloak="" x-show="canMarkNoShow()">
+                        Không đến
+                    </button>
+<button :disabled="acting" @click="setStatus('confirmed')" class="flex-1 py-3 border border-outline text-on-surface-variant font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-surface-variant transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button" x-cloak="" x-show="detail.status === 'no_show'">
+                        Hoàn tác
+                    </button>
+<p class="flex-1 py-3 text-center font-label-md text-label-md uppercase tracking-wider text-on-surface-variant" x-show="!canSet('cancelled') &amp;&amp; detail.status !== 'no_show'" x-text="statusLabel(detail.status)"></p>
 </div>
 </div>
 </template>
@@ -423,37 +470,48 @@
 <div @click="closeCreate()" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="createOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
 <div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-lg max-h-[90vh] overflow-y-auto border border-outline-variant/20 flex flex-col" x-show="createOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <div class="px-6 py-6 border-b border-outline-variant/20 flex justify-between items-center sticky top-0 bg-surface-container-lowest z-10">
-<h3 class="font-headline-sm text-headline-sm text-primary" id="create-title">Đặt lịch mới</h3>
+<h3 class="font-headline-sm text-headline-sm text-primary" id="create-title">
+<span x-show="!editingId">Đặt lịch mới</span>
+<span x-cloak="" x-show="editingId">Đổi lịch hẹn</span>
+</h3>
 <button @click="closeCreate()" aria-label="Đóng" class="text-on-surface-variant hover:text-primary transition-colors" type="button">
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="close">close</span>
 </button>
 </div>
 <div class="px-6 py-8">
 <form @submit.prevent="submitBooking()" class="space-y-6" id="create-booking-form">
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+<!-- Name and number are optional on purpose: a seat taken now is worth recording even
+     when nobody has time to ask who is sitting in it. -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-6" x-show="!editingId">
 <div class="space-y-1">
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-name">Tên khách hàng</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-name" required type="text" x-model="form.customer_name"/>
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-name">Tên khách hàng (không bắt buộc)</label>
+<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-name" placeholder="Khách vãng lai" type="text" x-model="form.customer_name"/>
 </div>
 <div class="space-y-1">
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-phone">Số điện thoại</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-phone" required type="tel" x-model="form.customer_phone"/>
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-phone">Số điện thoại (không bắt buộc)</label>
+<input @input.debounce.400ms="lookupCustomer()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-phone" type="tel" x-model="form.customer_phone"/>
+<p class="font-caption text-caption text-secondary" x-cloak="" x-show="knownCustomer"><span>Khách quen:</span> <span x-text="knownCustomer ? knownCustomer.name : ''"></span> · <span x-text="knownCustomer ? knownCustomer.visits : 0"></span> <span>lần đến</span></p>
 </div>
 </div>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-service">Dịch vụ</label>
-<select class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-service" required x-model="form.service_id">
+<!-- Locked while editing: "Đổi lịch" moves an hour, it does not sell a different
+     service, and the price on the booking is the one the service had when it was
+     taken. Changing that is a new booking. -->
+<select :disabled="editingId" @change="onServiceChange()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors disabled:opacity-50" id="create-service" required x-model="form.service_id">
 <option value="">Chọn dịch vụ</option>
 <template :key="service.id" x-for="service in services">
 <option :value="service.id" x-text="service.name + ' — ' + OAK.fmtPrice(service.price)"></option>
 </template>
 </select>
 </div>
+<!-- Only the technicians who actually perform the chosen service: assigning a nail
+     artist to a haircut is a mistake the roster already knows how to prevent. -->
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-staff">Nhân viên</label>
-<select class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-staff" x-model="form.staff_id">
+<select @change="loadSlots()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-staff" x-model="form.staff_id">
 <option value="">Chưa phân công</option>
-<template :key="member.id" x-for="member in activeStaff()">
+<template :key="member.id" x-for="member in staffForService()">
 <option :value="member.id" x-text="member.name"></option>
 </template>
 </select>
@@ -461,12 +519,28 @@
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-date">Ngày hẹn</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-date" required type="date" x-model="form.date"/>
+<input @change="loadSlots()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-date" required type="date" x-model="form.date"/>
 </div>
-<div class="space-y-1">
+<div class="space-y-1" x-show="customTime">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-time">Giờ hẹn</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-time" required type="time" x-model="form.time"/>
+<input :required="customTime" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="create-time" type="time" x-model="form.time"/>
+<button @click="customTime = false" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:text-primary transition-colors" type="button">Chọn giờ trống</button>
 </div>
+</div>
+<!-- The free hours, computed the same way the customer wizard computes them, so the
+     counter stops finding out about a clash from a 409. "Nhập giờ khác" keeps the door
+     open for the exception the calendar cannot know about. -->
+<div class="space-y-2" x-show="!customTime">
+<p class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant">Giờ trống</p>
+<div class="flex flex-wrap gap-2" x-cloak="" x-show="!slotsLoading && freeSlots().length > 0">
+<template :key="'slot-' + slot.time" x-for="slot in freeSlots()">
+<button :aria-pressed="form.time === slot.time" :class="form.time === slot.time ? 'bg-primary-container text-on-primary border-primary-container' : 'border-outline-variant text-on-surface hover:border-primary hover:text-primary'" @click="form.time = slot.time" class="min-h-[44px] px-4 rounded-full border font-label-md text-label-md transition-colors" type="button" x-text="slot.time"></button>
+</template>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="slotsLoading">Đang tìm giờ trống…</p>
+<p class="font-body-md text-body-md text-on-surface-variant" x-cloak="" x-show="!slotsLoading && form.service_id && freeSlots().length === 0">Không còn giờ trống trong ngày này — dùng “Nhập giờ khác” cho trường hợp ngoại lệ.</p>
+<p class="font-body-md text-body-md text-on-surface-variant" x-cloak="" x-show="!form.service_id">Chọn dịch vụ để xem giờ trống.</p>
+<button @click="customTime = true" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:text-primary transition-colors" type="button">Nhập giờ khác</button>
 </div>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="create-note">Ghi chú</label>
@@ -480,7 +554,45 @@
                     Huỷ
                 </button>
 <button :disabled="saving" class="px-8 py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors rounded-full disabled:opacity-50" form="create-booking-form" type="submit">
-                    Tạo lịch hẹn
+<span x-show="!editingId">Tạo lịch hẹn</span>
+<span x-cloak="" x-show="editingId">Lưu thay đổi</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Cancel Booking Modal. Cancelling is final and the customer is told about it the
+     moment it happens, so it asks first, asks WHY, and says whose appointment it is —
+     the reason travels into the note and from there into the customer's notification. -->
+<div @keydown.escape.window="closeCancel()" aria-labelledby="cancel-title" aria-modal="true" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="cancelTarget">
+<div @click="closeCancel()" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="cancelTarget"></div>
+<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-md border border-outline-variant/20 flex flex-col" x-show="cancelTarget">
+<div class="px-6 py-6 border-b border-outline-variant/20">
+<h3 class="font-headline-sm text-headline-sm text-primary" id="cancel-title">Huỷ lịch hẹn này?</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2" x-text="cancelSubject()"></p>
+</div>
+<div class="px-6 py-6 space-y-4">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="cancel-reason">Lý do huỷ</label>
+<select class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="cancel-reason" x-model="cancelReason" x-ref="cancelReason">
+<option value="">Chọn lý do</option>
+<option value="Salon kín lịch">Salon kín lịch</option>
+<option value="Nhân viên nghỉ">Nhân viên nghỉ</option>
+<option value="Khách yêu cầu">Khách yêu cầu</option>
+<option value="Khác">Khác</option>
+</select>
+</div>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="cancel-note">Ghi chú cho khách (không bắt buộc)</label>
+<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="cancel-note" maxlength="200" rows="2" x-model="cancelNote"></textarea>
+</div>
+<p class="font-caption text-caption text-on-surface-variant">Khách sẽ nhận thông báo kèm lý do này.</p>
+</div>
+<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4">
+<button @click="closeCancel()" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+                    Giữ lịch
+                </button>
+<button :disabled="!cancelReason || acting" @click="confirmCancel()" class="px-8 py-3 bg-error text-on-error font-label-md text-label-md uppercase tracking-wider hover:bg-error/90 transition-colors rounded-full disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+                    Huỷ lịch
                 </button>
 </div>
 </div>
@@ -492,18 +604,22 @@
         confirmed: 'Đã xác nhận',
         completed: 'Đã hoàn thành',
         cancelled: 'Đã hủy',
+        no_show: 'Không đến',
     };
     var OAK_STATUS_ICONS = {
         pending: 'schedule',
         confirmed: 'check_circle',
         completed: 'task_alt',
         cancelled: 'cancel',
+        no_show: 'person_off',
     };
     var OAK_BOOKING_CLASSES = {
         pending: 'bg-surface-variant border-l-4 border-outline opacity-80',
         confirmed: 'bg-surface-container-high border-l-4 border-secondary',
         completed: 'bg-surface-container-low border-l-4 border-primary',
         cancelled: 'bg-surface-container-low border-l-4 border-error opacity-60',
+        // Absent is not cancelled: it keeps an edge of its own so the two never read alike.
+        no_show: 'bg-surface-container-low border-l-4 border-tertiary opacity-60',
     };
     var OAK_CATEGORY_LABELS = {
         hair: 'Tóc',
@@ -516,9 +632,10 @@
     // The only transitions the backend accepts; terminal states list nothing.
     var OAK_TRANSITIONS = {
         pending: ['confirmed', 'cancelled'],
-        confirmed: ['completed', 'cancelled'],
+        confirmed: ['completed', 'cancelled', 'no_show'],
         completed: [],
         cancelled: [],
+        no_show: ['confirmed'],
     };
     var OAK_WEEKDAY_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
@@ -628,6 +745,9 @@
             saving: false,
             view: 'day',
             date: OAK.todayISO(),
+            /* Upcoming days the salon or one of its technicians declared off; the grid
+               greys the columns they cover. */
+            timeOff: [],
             staffId: '',
             serviceId: '',
             status: '',
@@ -646,6 +766,28 @@
             /* "Everything still ahead", the window the dashboard queue and the bell count.
                It has no date bound at all, so the calendar grid gives way to a list. */
             upcoming: false,
+            /* The booking the modal is editing; null while it is creating a new one. The
+               same form does both, so a phone call asking for a different hour no longer
+               costs the customer their booking code. */
+            editingId: null,
+            /* Free start times for the service, technician and date in the form. */
+            slots: [],
+            slotsLoading: false,
+            /* Set once the counter asks for an hour the calendar does not offer. */
+            customTime: false,
+            /* A customer of this salon already behind the number being typed. */
+            knownCustomer: null,
+            /* The name that lookup wrote into the form, so it can take it back again. */
+            filledName: '',
+            /* Everything else the customer in the panel has booked here. */
+            history: [],
+            /* What the cancel dialog is asking about, and what it will tell the customer. */
+            cancelTarget: null,
+            cancelReason: '',
+            cancelNote: '',
+            /* True while a request that changes a booking is in flight: a double tap would
+               otherwise send a second transition the backend then rejects. */
+            acting: false,
 
             async init() {
                 await OAK.requirePartner();
@@ -674,6 +816,7 @@
                     this.upcoming = true;
                 }
                 await this.load();
+                await this.loadTimeOff();
                 if (OAK.qs('new')) {
                     this.openCreate();
                 }
@@ -819,6 +962,11 @@
                     OAK.toast(error.message, 'error');
                     return;
                 }
+                // Cleared here rather than inside loadHistory: below md the panel is a sheet
+                // over an inert page, so the caret moves first and the history arrives into
+                // an empty list instead of showing the previous customer's under this name.
+                this.history = [];
+                this.loadHistory();
                 if (!trigger) {
                     return;
                 }
@@ -884,6 +1032,10 @@
             },
 
             async setStatus(status) {
+                if (this.acting) {
+                    return;
+                }
+                this.acting = true;
                 try {
                     this.detail = await OAK.api('/api/partner/bookings/' + this.detail.id, {
                         method: 'PATCH',
@@ -895,14 +1047,120 @@
                     this.refreshPending();
                 } catch (error) {
                     OAK.toast(error.message, 'error');
+                } finally {
+                    this.acting = false;
                 }
             },
 
             canSet(status) {
-                return Boolean(this.detail) && OAK_TRANSITIONS[this.detail.status].includes(status);
+                return Boolean(this.detail) && (OAK_TRANSITIONS[this.detail.status] || []).includes(status);
             },
 
-            /* ---- create ---- */
+            /* The server refuses no_show before the hour has passed (BOOKING_NOT_STARTED),
+               so the button is not offered before then either. Same clock as hasStarted()
+               in routes/partner.js: the date first, the time only on today. */
+            canMarkNoShow() {
+                if (!this.canSet('no_show')) {
+                    return false;
+                }
+                var today = OAK.todayISO();
+                if (this.detail.date < today) {
+                    return true;
+                }
+                var now = new Date();
+                return (
+                    this.detail.date === today &&
+                    this.detail.time <= String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0')
+                );
+            },
+
+            /* Only a booking that is still going to happen can be moved; a finished or a
+               cancelled one is a record, not a plan. */
+            canReschedule() {
+                return (
+                    Boolean(this.detail) &&
+                    (this.detail.status === 'pending' || this.detail.status === 'confirmed')
+                );
+            },
+
+            /* ---- the customer's own history at this salon ---- */
+
+            async loadHistory() {
+                if (!this.detail) {
+                    this.history = [];
+                    return;
+                }
+                try {
+                    this.history = await OAK.api(
+                        '/api/partner/bookings/' + this.detail.id + '/history',
+                    );
+                } catch (error) {
+                    this.history = [];
+                }
+            },
+
+            /* ---- cancelling, with a reason the customer gets to read ---- */
+
+            askCancel(booking) {
+                this.cancelReason = '';
+                this.cancelNote = '';
+                this.cancelTarget = booking;
+                this.$nextTick(
+                    function () {
+                        if (this.$refs.cancelReason) {
+                            this.$refs.cancelReason.focus();
+                        }
+                    }.bind(this),
+                );
+            },
+
+            closeCancel() {
+                this.cancelTarget = null;
+            },
+
+            cancelSubject() {
+                var booking = this.cancelTarget;
+                if (!booking) {
+                    return '';
+                }
+                return booking.customer.name + ' · ' + booking.time + ' ' + OAK.fmtDate(booking.date);
+            },
+
+            /* The reason is appended to the note rather than replacing it: what the customer
+               asked for when they booked is still the salon's own record, and the server
+               reads back only the line written here to tell them why. */
+            async confirmCancel() {
+                var booking = this.cancelTarget;
+                if (!booking || !this.cancelReason || this.acting) {
+                    return;
+                }
+                var reason = this.cancelNote.trim()
+                    ? this.cancelReason + ' — ' + this.cancelNote.trim()
+                    : this.cancelReason;
+                var note = [booking.note, 'Lý do huỷ: ' + reason.slice(0, 200)]
+                    .filter(Boolean)
+                    .join('\n');
+                this.acting = true;
+                try {
+                    var updated = await OAK.api('/api/partner/bookings/' + booking.id, {
+                        method: 'PATCH',
+                        body: { status: 'cancelled', note: note },
+                    });
+                    this.closeCancel();
+                    if (this.detail && this.detail.id === updated.id) {
+                        this.detail = updated;
+                    }
+                    OAK.toast('Đã hủy lịch hẹn ' + updated.code + '.');
+                    await this.load();
+                    this.refreshPending();
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.acting = false;
+                }
+            },
+
+            /* ---- create / reschedule ---- */
 
             resetForm() {
                 this.form = {
@@ -915,6 +1173,136 @@
                     note: '',
                 };
                 this.formError = '';
+                this.editingId = null;
+                this.slots = [];
+                this.customTime = false;
+                this.knownCustomer = null;
+                this.filledName = '';
+            },
+
+            /* Only the technicians who perform the chosen service. Before a service is
+               chosen there is nothing to filter by, so the whole roster stands — and so
+               does a technician nobody has linked to any service yet: they are
+               unconfigured, not disqualified, and dropping them silently is how a new
+               hire becomes unbookable with no explanation. */
+            staffForService() {
+                var serviceId = Number(this.form.service_id);
+                return this.activeStaff().filter(function (member) {
+                    return (
+                        !serviceId ||
+                        !member.service_ids ||
+                        member.service_ids.length === 0 ||
+                        member.service_ids.indexOf(serviceId) !== -1
+                    );
+                });
+            },
+
+            /* A technician who does not do the new service must not stay selected. */
+            onServiceChange() {
+                var allowed = this.staffForService().some(
+                    function (member) {
+                        return String(member.id) === String(this.form.staff_id);
+                    }.bind(this),
+                );
+                if (!allowed) {
+                    this.form.staff_id = '';
+                }
+                this.loadSlots();
+            },
+
+            async loadSlots() {
+                if (!this.form.service_id || !this.form.date) {
+                    this.slots = [];
+                    return;
+                }
+                var params = new URLSearchParams();
+                params.set('service_id', String(this.form.service_id));
+                params.set('date', this.form.date);
+                if (this.form.staff_id) {
+                    params.set('staff_id', String(this.form.staff_id));
+                }
+                this.slotsLoading = true;
+                try {
+                    var answer = await OAK.api('/api/partner/availability?' + params.toString());
+                    this.slots = answer.slots;
+                } catch (error) {
+                    this.slots = [];
+                } finally {
+                    this.slotsLoading = false;
+                }
+            },
+
+            freeSlots() {
+                return this.slots.filter(function (slot) {
+                    return slot.available;
+                });
+            },
+
+            /* The number is the customer's identity here, so a known one fills its own name
+               in — and says how often they have been, which is what the counter wants to
+               know before it says hello. */
+            async lookupCustomer() {
+                var digits = String(this.form.customer_phone || '').replace(/\D/g, '');
+                if (digits.length < 6) {
+                    this.forgetCustomer();
+                    return;
+                }
+                try {
+                    var rows = await OAK.api(
+                        '/api/partner/customers?q=' + encodeURIComponent(digits),
+                    );
+                    this.knownCustomer = rows.length > 0 ? rows[0] : null;
+                } catch (error) {
+                    this.forgetCustomer();
+                    return;
+                }
+                if (!this.knownCustomer) {
+                    this.forgetCustomer();
+                    return;
+                }
+                // The match moves with every keystroke — half a number finds one customer,
+                // the whole number another — so a name this filled in is replaced rather
+                // than kept. A name the counter typed is theirs and stays.
+                if (!this.form.customer_name.trim() || this.form.customer_name === this.filledName) {
+                    this.form.customer_name = this.knownCustomer.name;
+                    this.filledName = this.knownCustomer.name;
+                }
+            },
+
+            /* No match any more: take back the name this put there, leave the typed one. */
+            forgetCustomer() {
+                this.knownCustomer = null;
+                if (this.filledName && this.form.customer_name === this.filledName) {
+                    this.form.customer_name = '';
+                }
+                this.filledName = '';
+            },
+
+            /* Same modal, filled from the booking on screen: the hour, the technician and
+               the note are what a call asking to move an appointment changes. */
+            openEdit() {
+                if (!this.detail) {
+                    return;
+                }
+                var booking = this.detail;
+                this.resetForm();
+                this.editingId = booking.id;
+                this.form.service_id = booking.service ? String(booking.service.id) : '';
+                this.form.staff_id = booking.staff ? String(booking.staff.id) : '';
+                this.form.date = booking.date;
+                this.form.time = booking.time;
+                this.form.note = booking.note || '';
+                this.customTime = true;
+                this.createOpener =
+                    document.activeElement === document.body ? null : document.activeElement;
+                this.createOpen = true;
+                this.loadSlots();
+                this.$nextTick(function () {
+                    var first = document.getElementById('create-date');
+                    if (first) {
+                        first.focus();
+                    }
+                });
             },
 
             /* No focus trap: the dialog is the last thing in the body, so Tab past its final
@@ -944,20 +1332,43 @@
             },
 
             async submitBooking() {
+                // The hour lives in a chip when the free hours are on show, and a hidden
+                // input cannot raise the browser's own "please fill this in" bubble. Say
+                // it here instead, or a day with no free hours swallows the submit whole.
+                if (!this.form.time) {
+                    this.showFormError('Chọn một giờ trống hoặc nhập giờ khác.');
+                    return;
+                }
                 this.saving = true;
                 this.formError = '';
                 var body = {
-                    customer_name: this.form.customer_name,
-                    customer_phone: this.form.customer_phone,
-                    service_id: Number(this.form.service_id),
                     date: this.form.date,
                     time: this.form.time,
                     note: this.form.note || null,
+                    // null, not omitted: clearing the technician is a real edit, and the
+                    // create path reads it as "Chưa phân công" exactly as before.
+                    staff_id: this.form.staff_id ? Number(this.form.staff_id) : null,
                 };
-                if (this.form.staff_id) {
-                    body.staff_id = Number(this.form.staff_id);
+                if (!this.editingId) {
+                    body.service_id = Number(this.form.service_id);
+                    body.customer_name = this.form.customer_name || null;
+                    body.customer_phone = this.form.customer_phone || null;
                 }
                 try {
+                    if (this.editingId) {
+                        var moved = await OAK.api('/api/partner/bookings/' + this.editingId, {
+                            method: 'PATCH',
+                            body: body,
+                        });
+                        this.closeCreate();
+                        this.date = moved.date;
+                        this.view = 'day';
+                        await this.load();
+                        this.detail = moved;
+                        await this.loadHistory();
+                        OAK.toast('Đã cập nhật lịch hẹn ' + moved.code + '.');
+                        return;
+                    }
                     var created = await OAK.api('/api/partner/bookings', {
                         method: 'POST',
                         body: body,
@@ -967,21 +1378,35 @@
                     this.view = 'day';
                     await this.load();
                     this.detail = created;
-                    OAK.toast('Đã tạo lịch hẹn ' + created.code + '.');
-                } catch (error) {
-                    this.formError = error.message;
-                    // role="alert" reads it out; the caret has to follow, or a reader who
-                    // tabs on from the submit button walks straight past what went wrong.
-                    this.$nextTick(
-                        function () {
-                            if (this.$refs.createError) {
-                                this.$refs.createError.focus();
-                            }
-                        }.bind(this),
+                    await this.loadHistory();
+                    // Booked outside the salon's own opening hours: allowed, and said out
+                    // loud, because it is nearly always a typo and occasionally on purpose.
+                    // The server's flag is the trigger, never the display text: this
+                    // sentence is the page's own, and so has an English twin like the
+                    // rest of them. Success colour — the booking WAS saved.
+                    OAK.toast(
+                        created.meta && created.meta.warning
+                            ? 'Lịch hẹn đã lưu, ngoài giờ mở cửa của salon.'
+                            : 'Đã tạo lịch hẹn ' + created.code + '.',
                     );
+                } catch (error) {
+                    this.showFormError(error.message);
                 } finally {
                     this.saving = false;
                 }
+            },
+
+            // role="alert" reads it out; the caret has to follow, or a reader who tabs on
+            // from the submit button walks straight past what went wrong.
+            showFormError(message) {
+                this.formError = message;
+                this.$nextTick(
+                    function () {
+                        if (this.$refs.createError) {
+                            this.$refs.createError.focus();
+                        }
+                    }.bind(this),
+                );
             },
 
             /* ---- calendar geometry ---- */
@@ -1020,6 +1445,32 @@
                 });
             },
 
+            async loadTimeOff() {
+                try {
+                    this.timeOff = await OAK.api('/api/partner/time-off');
+                } catch (error) {
+                    this.timeOff = [];
+                }
+            },
+
+            /** Is the whole salon shut on this date? */
+            salonOff(date) {
+                return this.timeOff.some(function (row) {
+                    return row.staff_id === null && row.date_from <= date && date <= row.date_to;
+                });
+            },
+
+            /** Is this technician off on this date — on their own, or with the salon? */
+            staffOff(staffId, date) {
+                return this.timeOff.some(function (row) {
+                    return (
+                        (row.staff_id === null || row.staff_id === staffId) &&
+                        row.date_from <= date &&
+                        date <= row.date_to
+                    );
+                });
+            },
+
             weekStart() {
                 // Monday-first week containing the selected date.
                 var weekday = oakWeekday(this.date);
@@ -1027,6 +1478,7 @@
             },
 
             get columns() {
+                var self = this;
                 if (this.view === 'week') {
                     var start = this.weekStart();
                     return [0, 1, 2, 3, 4, 5, 6].map(function (offset) {
@@ -1037,17 +1489,18 @@
                             name: OAK_WEEKDAY_SHORT[oakWeekday(date)],
                             subtitle: parts[2] + '/' + parts[1],
                             image: null,
+                            off: self.salonOff(date),
                         };
                     });
                 }
 
-                var self = this;
                 var columns = this.activeStaff().map(function (member) {
                     return {
                         key: String(member.id),
                         name: member.name,
                         subtitle: member.title || '',
                         image: member.image,
+                        off: self.staffOff(member.id, self.date),
                     };
                 });
                 // A booking left behind by a removed technician still belongs on the day:

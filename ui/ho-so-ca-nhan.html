@@ -149,6 +149,13 @@ Cài đặt
 <section class="lg:col-span-8">
 <div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-6 md:p-8">
 <h2 class="font-headline-sm text-headline-sm text-primary mb-8">Thông tin của bạn</h2>
+<!-- The number is what a salon rings to confirm a booking, and an account without one is
+     the commonest reason a confirmation never arrives. Said here, beside the field that
+     fixes it, and only while it is missing. -->
+<p class="flex items-start gap-3 bg-surface-container-low text-on-surface-variant font-caption text-caption rounded-lg p-4 mb-8" x-cloak="" x-show="!form.phone">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">call</span>
+<span>Thêm số điện thoại để salon xác nhận lịch</span>
+</p>
 <form @submit.prevent="save()" class="grid grid-cols-1 md:grid-cols-2 gap-x-gutter gap-y-8">
 <div class="relative pt-4">
 <input class="input-minimal font-body-md text-body-md text-primary" id="profile-name" name="name" placeholder=" " required="" type="text" x-model="form.name">

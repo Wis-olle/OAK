@@ -1102,7 +1102,10 @@ async function groupBookings() {
   const created = ok(createResponse, 'POST /api/bookings');
   assert(/^OAK-[A-Z0-9]{6}$/.test(created.code), 'booking create: code must match OAK-XXXXXX', createResponse);
   assert(created.total_price === service.price, 'booking create: client total_price must be ignored', createResponse);
-  assert(created.status === 'pending', 'booking create: expected status pending', createResponse);
+  // Lala takes bookings automatically (salons.auto_confirm defaults to 1), so the hour its
+  // own calendar offered is confirmed on the spot. The salon that turned that off is
+  // covered in the online-booking-settings block below.
+  assert(created.status === 'confirmed', 'booking create: expected status confirmed', createResponse);
   state.bookingId = created.id;
 
   const detail = ok(await customer.fetch(`/api/bookings/${created.id}`), 'GET /api/bookings/:id');
@@ -1155,6 +1158,16 @@ async function groupBookings() {
     'POST /api/bookings with a past date',
   );
 
+  expectError(
+    await customer.fetch(`/api/bookings/${created.id}/cancel`, {
+      method: 'PATCH',
+      json: { reason: 'x'.repeat(201) },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/bookings/:id/cancel with a reason past the 200-character ceiling',
+  );
+
   const beforeCancel = ok(
     await customer.fetch('/api/notifications?count_only=true'),
     'unread count before cancel',
@@ -1203,11 +1216,14 @@ async function groupBookings() {
     }),
     'PATCH /api/partner/bookings/:id (move it inside the cancel window)',
   );
-  expectError(
-    await customer.fetch(`/api/bookings/${imminent.id}/cancel`, { method: 'PATCH' }),
-    400,
-    'CANCEL_WINDOW',
-    'cancelling less than 2h before the start',
+  const windowResponse = await customer.fetch(`/api/bookings/${imminent.id}/cancel`, {
+    method: 'PATCH',
+  });
+  expectError(windowResponse, 409, 'CANCEL_WINDOW', 'cancelling less than 2h before the start');
+  assert(
+    windowResponse.body?.error?.message.includes('2 tiếng'),
+    'cancel window: the message must name the cutoff this salon set',
+    windowResponse,
   );
 
   // A booking that names a technician must be checked against THAT technician's own
@@ -1505,6 +1521,13 @@ async function groupBookings() {
   const yesterday = addDays(state.today, -1);
   const stranded = {};
   const strandedSlots = [];
+  // Both halves of the sweep need a booking the salon never touched, and one of them has
+  // to still be waiting: Lala confirms automatically, so that is switched off here and
+  // back on below. The settings themselves are exercised in group 17.
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { auto_confirm: 0 } }),
+    'PATCH /api/partner/salon (manual confirmation for the sweep case)',
+  );
   for (const kind of ['confirmed', 'pending']) {
     const slot = await findServiceSlot(service, strandedSlots);
     assert(slot !== null, `stranded-${kind} case: needed a free slot`);
@@ -1534,6 +1557,10 @@ async function groupBookings() {
     );
     stranded[kind] = booking.id;
   }
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { auto_confirm: 1 } }),
+    'PATCH /api/partner/salon (automatic confirmation again)',
+  );
 
   const sweptResponse = await customer.fetch('/api/bookings/mine?status=completed&limit=50');
   const swept = ok(sweptResponse, 'GET /api/bookings/mine?status=completed (after the sweep)');
@@ -1671,6 +1698,91 @@ async function groupReviews() {
     'salon reviews: rubbish parameters must not narrow meta.total',
     bogusResponse,
   );
+
+  /* ---- the salon reads its own reviews, and answers them in public ---- */
+
+  const partnerA = session('partnerA');
+  const consoleResponse = await partnerA.fetch('/api/partner/reviews');
+  const consoleReviews = ok(consoleResponse, 'GET /api/partner/reviews');
+  assert(consoleReviews.length > 0, 'partner reviews: expected the salon\'s own reviews', consoleResponse);
+  assert(
+    typeof consoleResponse.body.meta.unanswered === 'number',
+    'partner reviews: expected meta.unanswered for the dashboard badge',
+    consoleResponse,
+  );
+  // The demo customer's own review, so the notification it raises lands in the session
+  // this group already holds.
+  const ownReview = consoleReviews.find((item) => item.user.name === 'Ngọc Anh');
+  assert(ownReview !== undefined, 'partner reviews: expected a review written by the demo customer', consoleResponse);
+  for (const key of ['reply_text', 'reply_at', 'user', 'service', 'booking']) {
+    assert(key in ownReview, `partner review: missing "${key}"`, consoleResponse);
+  }
+
+  const oneStar = await partnerA.fetch('/api/partner/reviews?rating=1');
+  const filtered = ok(oneStar, 'GET /api/partner/reviews?rating=1');
+  assert(
+    filtered.every((item) => item.rating === 1),
+    'partner reviews?rating=1: every row must be a one-star',
+    oneStar,
+  );
+
+  // Another partner's review is not theirs to answer, and the id being real must not be
+  // what the answer tells them.
+  expectError(
+    await session('partnerB').fetch(`/api/partner/reviews/${ownReview.id}/reply`, {
+      method: 'PATCH',
+      json: { reply_text: 'Cảm ơn bạn!' },
+    }),
+    404,
+    'NOT_FOUND',
+    'PATCH /api/partner/reviews/:id/reply on another salon\'s review',
+  );
+
+  const beforeReply = ok(
+    await customer.fetch('/api/notifications?limit=50'),
+    'GET /api/notifications (before the reply)',
+  ).length;
+
+  const replied = ok(
+    await partnerA.fetch(`/api/partner/reviews/${ownReview.id}/reply`, {
+      method: 'PATCH',
+      json: { reply_text: 'Cảm ơn bạn đã tin tưởng, hẹn gặp lại!' },
+    }),
+    'PATCH /api/partner/reviews/:id/reply',
+  );
+  assert(replied.reply_text === 'Cảm ơn bạn đã tin tưởng, hẹn gặp lại!', 'review reply: expected the text back');
+  assert(typeof replied.reply_at === 'string', 'review reply: expected a timestamp');
+
+  // The public list is where the answer has to appear, under the review it answers.
+  const ownSalon = ok(await partnerA.fetch('/api/partner/salon'), 'GET /api/partner/salon');
+  const publicResponse = await customer.fetch(`/api/salons/${ownSalon.id}/reviews?limit=50`);
+  const publicReviews = ok(publicResponse, 'GET /api/salons/:id/reviews (with a reply)');
+  const answered = publicReviews.find((item) => item.id === ownReview.id);
+  assert(answered !== undefined, 'salon reviews: expected the answered review in the list', publicResponse);
+  assert(
+    answered.reply && answered.reply.text === 'Cảm ơn bạn đã tin tưởng, hẹn gặp lại!',
+    'salon reviews: expected the salon reply on the row',
+    publicResponse,
+  );
+
+  const afterReply = ok(
+    await customer.fetch('/api/notifications?limit=50'),
+    'GET /api/notifications (after the reply)',
+  );
+  assert(
+    afterReply.length === beforeReply + 1 && afterReply.some((item) => item.type === 'review'),
+    'review reply: the author must be told about it',
+  );
+
+  // Taking it back down is the same request with nothing in it.
+  const cleared = ok(
+    await partnerA.fetch(`/api/partner/reviews/${ownReview.id}/reply`, {
+      method: 'PATCH',
+      json: { reply_text: '' },
+    }),
+    'PATCH /api/partner/reviews/:id/reply (cleared)',
+  );
+  assert(cleared.reply_text === null && cleared.reply_at === null, 'review reply: expected both columns cleared');
 }
 
 /* ============================================================================
@@ -2425,24 +2537,207 @@ async function groupPartner() {
     23 * 60 + 30 + longest.duration_min > 24 * 60,
     'end_time wraparound: needed a service long enough to run past midnight from 23:30',
   );
-  const lateWalkIn = ok(
-    await partner.fetch('/api/partner/bookings', {
-      method: 'POST',
-      json: {
-        customer_name: 'Khách khuya',
-        customer_phone: '0900 000 555',
-        service_id: longest.id,
-        date: tomorrow,
-        time: '23:30',
-      },
-    }),
-    'POST /api/partner/bookings at 23:30',
+  const lateResponse = await partner.fetch('/api/partner/bookings', {
+    method: 'POST',
+    json: {
+      customer_name: 'Khách khuya',
+      customer_phone: '0900 000 555',
+      service_id: longest.id,
+      date: tomorrow,
+      time: '23:30',
+    },
+  });
+  const lateWalkIn = ok(lateResponse, 'POST /api/partner/bookings at 23:30');
+  // Long past closing time: the counter is warned and the booking is still made, because
+  // a salon staying late for one customer is doing its job, not making a mistake.
+  assert(
+    typeof lateResponse.body.meta?.warning === 'string',
+    'walk-in at 23:30: expected a warning about the opening hours',
+    lateResponse,
   );
   assert(
     lateWalkIn.end_time === hhmm((23 * 60 + 30 + longest.duration_min) % (24 * 60)),
     `walk-in at 23:30: end_time must wrap past midnight, got ${lateWalkIn.end_time}`,
   );
 
+
+  /* ---- walk-ins: optional identity, and the account behind the number ---- */
+
+  // Nothing but a service and an hour: the counter must be able to record a seat it has
+  // no time to ask questions about.
+  const anonymous = ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: { service_id: services[0].id, date: tomorrow, time: '08:30' },
+    }),
+    'POST /api/partner/bookings (no name, no phone)',
+  );
+  assert(anonymous.customer.name === 'Khách vãng lai', 'walk-in: expected the default name');
+  assert(anonymous.customer.phone === null, 'walk-in: no number given means no number stored');
+
+  // The seeded customer's own number, written the way somebody would say it abroad. The
+  // booking has to land in that account, which is what the account's name coming back says.
+  const linked = ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        customer_phone: '+84 901 234 567',
+        service_id: services[0].id,
+        date: tomorrow,
+        time: '08:00',
+      },
+    }),
+    'POST /api/partner/bookings (phone of an existing account)',
+  );
+  assert(linked.customer.name === 'Ngọc Anh', 'walk-in: expected the matched account name');
+
+  /* ---- the customer file behind those bookings ---- */
+
+  const customersResponse = await partner.fetch('/api/partner/customers?q=0901');
+  const customers = ok(customersResponse, 'GET /api/partner/customers?q=');
+  const known = customers.find((row) => row.name === 'Ngọc Anh');
+  assert(known !== undefined, 'partner customers: expected the account found by number', customersResponse);
+  for (const key of ['visits', 'last_visit', 'total_spent', 'no_show_count', 'bookings_count']) {
+    assert(key in known, `partner customers: missing "${key}"`, customersResponse);
+  }
+  assert(known.visits >= 1, 'partner customers: expected at least one completed visit', customersResponse);
+  assert(known.total_spent > 0, 'partner customers: expected money against those visits', customersResponse);
+
+  const historyResponse = await partner.fetch(`/api/partner/bookings/${linked.id}/history`);
+  const history = ok(historyResponse, 'GET /api/partner/bookings/:id/history');
+  assert(history.length > 0, 'booking history: expected the customer\'s earlier bookings', historyResponse);
+  assert(
+    history.every((item) => item.id !== linked.id),
+    'booking history: the booking being looked at is not part of its own history',
+    historyResponse,
+  );
+
+  /* ---- an edit is not a move, and a move is not a price change ---- */
+
+  const customerSession = session('customer');
+  const movedNotices = async () =>
+    ok(
+      await customerSession.fetch('/api/notifications?limit=50'),
+      'GET /api/notifications while editing a linked booking',
+    ).filter((item) => item.booking_id === linked.id && /dời lịch hẹn/.test(item.body ?? '')).length;
+
+  const noticesBefore = await movedNotices();
+  // The edit form posts every field every time, so the same hour arrives on a note-only
+  // edit. Telling the customer their appointment moved to the hour it already had is how
+  // a notification channel stops being believed.
+  ok(
+    await partner.fetch(`/api/partner/bookings/${linked.id}`, {
+      method: 'PATCH',
+      json: { date: linked.date, time: linked.time, staff_id: linked.staff?.id ?? null, note: 'Khách xin ngồi gần cửa sổ' },
+    }),
+    'PATCH /api/partner/bookings/:id (a note, with the hour it already had)',
+  );
+  assert(
+    (await movedNotices()) === noticesBefore,
+    'reschedule: an edit that moved nothing must not tell the customer it moved',
+  );
+
+  ok(
+    await partner.fetch(`/api/partner/bookings/${linked.id}`, { method: 'PATCH', json: { time: '08:45' } }),
+    'PATCH /api/partner/bookings/:id (a real move)',
+  );
+  assert(
+    (await movedNotices()) === noticesBefore + 1,
+    'reschedule: a real move must reach the customer',
+  );
+
+  // Swapping the technician is not a move: "đã dời ... sang {giờ}" naming the hour the
+  // customer already had reads as a mistake, so it gets its own sentence.
+  const restaffedNotices = async () =>
+    ok(
+      await customerSession.fetch('/api/notifications?limit=50'),
+      'GET /api/notifications after a technician swap',
+    ).filter((item) => item.booking_id === linked.id && /đổi kỹ thuật viên/.test(item.body ?? '')).length;
+  const staffNoticesBefore = await restaffedNotices();
+  const movedBeforeSwap = await movedNotices();
+  const roster = ok(
+    await partner.fetch('/api/partner/staff?limit=50'),
+    'partner staff for the technician swap',
+  );
+  const otherStaff = roster.find((member) => member.id !== (linked.staff?.id ?? null));
+  if (otherStaff !== undefined) {
+    const swapAttempt = await partner.fetch(`/api/partner/bookings/${linked.id}`, {
+      method: 'PATCH',
+      json: { staff_id: otherStaff.id },
+    });
+    // The other technician may not be free at that hour; only assert when the swap landed.
+    if (swapAttempt.status === 200) {
+      assert(
+        (await restaffedNotices()) === staffNoticesBefore + 1,
+        'technician swap: the customer is told, in its own words',
+      );
+      assert(
+        (await movedNotices()) === movedBeforeSwap,
+        'technician swap: it must not be announced as a move to a new hour',
+      );
+    }
+  }
+
+  // The price belongs to the service, exactly as it does when a booking is created — a
+  // PATCH that left the old total behind would be wrong in every revenue figure after it.
+  const others = services.filter((item) => item.id !== linked.service.id);
+  assert(others.length > 0, 'service change: needed a second service to move the booking onto');
+  const dearer = others.reduce((best, item) => (item.price > best.price ? item : best));
+  assert(dearer.price !== linked.total_price, 'service change: needed a service at a different price');
+  const swapped = ok(
+    await partner.fetch(`/api/partner/bookings/${linked.id}`, {
+      method: 'PATCH',
+      json: { service_id: dearer.id },
+    }),
+    'PATCH /api/partner/bookings/:id (onto another service)',
+  );
+  assert(
+    swapped.total_price === dearer.price,
+    `service change: expected the new service's price, got ${swapped.total_price}`,
+  );
+
+  // Cancelling from the console: the reason the counter chose is the whole point of
+  // asking for one, so it has to reach the customer along with the way back in.
+  const reason = 'Nhân viên nghỉ — KTV ốm đột xuất';
+  ok(
+    await partner.fetch(`/api/partner/bookings/${linked.id}`, {
+      method: 'PATCH',
+      json: { status: 'cancelled', note: `Khách xin ngồi gần cửa sổ\nLý do huỷ: ${reason}` },
+    }),
+    'PATCH /api/partner/bookings/:id (cancel with a reason)',
+  );
+  const cancelNoticesResponse = await customerSession.fetch('/api/notifications?limit=50');
+  const cancelNotice = ok(cancelNoticesResponse, 'GET /api/notifications after the console cancel')
+    .find((item) => item.booking_id === linked.id && /đã huỷ lịch hẹn/.test(item.body ?? ''));
+  assert(cancelNotice !== undefined, 'cancel: expected the customer to be told', cancelNoticesResponse);
+  assert(
+    cancelNotice.body.includes(reason),
+    `cancel: the notification must carry the reason, got "${cancelNotice.body}"`,
+  );
+  assert(
+    cancelNotice.body.includes('Bạn có thể đặt lại tại'),
+    `cancel: the notification must offer the way back in, got "${cancelNotice.body}"`,
+  );
+  // Only the reason line, never the rest of the note: the customer's own request read
+  // back as "why we cancelled" would be a lie.
+  assert(
+    !cancelNotice.body.includes('ngồi gần cửa sổ'),
+    `cancel: only the reason line belongs in the notification, got "${cancelNotice.body}"`,
+  );
+
+  /* ---- the free hours the console offers instead of a free-text time ---- */
+
+  const slotsResponse = await partner.fetch(
+    `/api/partner/availability?service_id=${services[0].id}&date=${tomorrow}`,
+  );
+  const availability = ok(slotsResponse, 'GET /api/partner/availability');
+  assert(availability.date === tomorrow, 'partner availability: expected the date asked for', slotsResponse);
+  assert(Array.isArray(availability.slots), 'partner availability: expected a slots array', slotsResponse);
+  assert(
+    availability.slots.every((slot) => 'time' in slot && 'available' in slot),
+    'partner availability: every slot needs a time and a flag',
+    slotsResponse,
+  );
   // Services CRUD, including the delete that must be refused.
   const blocked = ok(
     await partner.fetch('/api/partner/services', {
@@ -3041,11 +3336,113 @@ async function groupPartner() {
     'partner salon hours: the restore must put the summary back',
   );
 
+  // The gallery the public profile reads, managed from the console. Positions are stored,
+  // not implied, so a swap is two writes and the read order has to follow them.
+  const photosBefore = ok(await partner.fetch('/api/partner/photos'), 'GET /api/partner/photos');
+  const addedPhoto = ok(
+    await partner.fetch('/api/partner/photos', {
+      method: 'POST',
+      json: { image: '/uploads/smoke-gallery.png', caption: 'Ảnh kiểm thử' },
+    }),
+    'POST /api/partner/photos',
+  );
+  assert(
+    addedPhoto.sort === photosBefore.length + 1,
+    'partner photos: a new picture joins the end of the gallery',
+  );
+  const publicPhotos = ok(
+    await session('guest').fetch(`/api/salons/${ownSalonId}/photos`),
+    'GET /api/salons/:id/photos after adding one',
+  );
+  assert(
+    publicPhotos.some((item) => item.id === addedPhoto.id),
+    'partner photos: the public gallery must show what the console added',
+  );
+  ok(
+    await partner.fetch(`/api/partner/photos/${addedPhoto.id}`, {
+      method: 'PATCH',
+      json: { sort: 0 },
+    }),
+    'PATCH /api/partner/photos/:id (move it to the front)',
+  );
+  const reordered = ok(
+    await session('guest').fetch(`/api/salons/${ownSalonId}/photos`),
+    'GET /api/salons/:id/photos after the move',
+  );
+  assert(
+    reordered[0].id === addedPhoto.id,
+    'partner photos: the public gallery must follow the stored order',
+  );
+  ok(
+    await partner.fetch(`/api/partner/photos/${addedPhoto.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/photos/:id',
+  );
+  assert(
+    ok(await partner.fetch('/api/partner/photos'), 'GET /api/partner/photos after the delete')
+      .length === photosBefore.length,
+    'partner photos: the gallery must be back where it started',
+  );
+
+  // Menu order: two services trade positions and the public menu reads the new one.
+  const menu = ok(await partner.fetch('/api/partner/services?limit=50'), 'the whole menu');
+  assert(menu.length > 1, 'menu order: needed at least two services');
+  const [first, second] = menu;
+  ok(
+    await partner.fetch(`/api/partner/services/${first.id}`, {
+      method: 'PATCH',
+      json: { sort_order: second.sort_order },
+    }),
+    'PATCH /api/partner/services/:id (sort_order)',
+  );
+  ok(
+    await partner.fetch(`/api/partner/services/${second.id}`, {
+      method: 'PATCH',
+      json: { sort_order: first.sort_order },
+    }),
+    'PATCH /api/partner/services/:id (the other half of the swap)',
+  );
+  const reorderedMenu = ok(
+    await partner.fetch('/api/partner/services?limit=50'),
+    'the reordered menu',
+  );
+  assert(
+    reorderedMenu[0].id === second.id,
+    'menu order: the console list must follow sort_order',
+  );
+  const publicSwapped = ok(
+    await session('guest').fetch(`/api/salons/${ownSalonId}/services`),
+    'GET /api/salons/:id/services after the swap',
+  );
+  const activeIds = publicSwapped.map((item) => item.id);
+  assert(
+    activeIds.indexOf(second.id) < activeIds.indexOf(first.id) || !activeIds.includes(first.id),
+    'menu order: the public menu must follow the same order',
+    publicSwapped,
+  );
+
   const searchResults = ok(await partner.fetch('/api/partner/search?q=Minh'), 'GET /api/partner/search?q=');
   assert(searchResults.length > 0, 'partner search: expected matches');
   assert(
     searchResults.every((item) => 'type' in item && 'id' in item && 'label' in item),
     'partner search: expected {type,id,label} entries',
+  );
+
+  // The receptionist reads the number off a caller ID, without the spaces it was saved
+  // with. Both spellings have to find the same bookings, or the box looks broken in the
+  // one moment it exists for.
+  const byDigits = ok(
+    await partner.fetch('/api/partner/search?q=0901234567'),
+    'GET /api/partner/search?q=<digits only>',
+  );
+  const bySpaced = ok(
+    await partner.fetch(`/api/partner/search?q=${encodeURIComponent('0901 234 567')}`),
+    'GET /api/partner/search?q=<number with spaces>',
+  );
+  const bookingIds = (rows) => rows.filter((item) => item.type === 'booking').map((item) => item.id).sort();
+  assert(bookingIds(byDigits).length > 0, 'partner search: a phone number must find its bookings');
+  assert(
+    JSON.stringify(bookingIds(byDigits)) === JSON.stringify(bookingIds(bySpaced)),
+    'partner search: the spacing of a number must not change what it finds',
   );
 }
 
@@ -3100,8 +3497,8 @@ async function groupAuthz() {
     unknown,
   );
 
-  // On this demo a self-registered salon goes live immediately: it is verified on
-  // creation and reachable from the public list and the public search right away.
+  // A self-registered salon starts as a draft: verified on creation, but unlisted until
+  // its owner has given it an address, a week, a service and a picture and switched it on.
   const stamp = Date.now();
   const salonName = `Salon Tự Đăng Ký ${stamp}`;
   const applicant = new Session();
@@ -3114,6 +3511,9 @@ async function groupAuthz() {
         password: 'Oak@1234',
         role: 'partner',
         salon_name: salonName,
+        // Registration takes an affirmative consent, so a caller that leaves it out is
+        // refused — the form ticks it, and so does this.
+        consent: true,
       },
     }),
     'POST /api/auth/register (partner)',
@@ -3128,10 +3528,94 @@ async function groupAuthz() {
   // deliberate artifact of the test run, so record it there for exclusion.
   state.selfRegisteredSalonIds = [...(state.selfRegisteredSalonIds ?? []), ownSalon.id];
 
+  assert(ownSalon.published === 0, 'self-registration: a new salon starts unlisted');
+
+  for (const [route, label] of [
+    ['/api/salons?limit=50', 'GET /api/salons'],
+    ['/api/salons?sort=newest&limit=50', 'GET /api/salons?sort=newest'],
+    [`/api/search/salons?q=${encodeURIComponent(salonName)}`, 'GET /api/search/salons'],
+  ]) {
+    const hidden = await session('guest').fetch(route);
+    assert(
+      !ok(hidden, label).some((item) => item.id === ownSalon.id),
+      `${label}: a draft salon must not be listed`,
+      hidden,
+    );
+  }
+  // Its owner still has somewhere to preview it: the profile route answers by slug.
+  const draftProfile = await session('guest').fetch(`/api/salons/${ownSalon.slug}`);
+  assert(
+    ok(draftProfile, 'GET /api/salons/:slug for a draft').id === ownSalon.id,
+    'a draft salon must stay reachable by its own slug',
+    draftProfile,
+  );
+
+  // Nothing set up yet, so the refusal has to name all four conditions.
+  const notReady = await applicant.fetch('/api/partner/salon', {
+    method: 'PATCH',
+    json: { published: 1 },
+  });
+  expectError(notReady, 409, 'SALON_NOT_READY', 'PATCH published=1 on an empty profile');
+  for (const wanted of ['địa chỉ', 'giờ mở cửa', 'dịch vụ', 'ảnh']) {
+    assert(
+      String(notReady.body?.error?.message ?? '').includes(wanted),
+      `PATCH published=1: the refusal must name the missing "${wanted}"`,
+      notReady,
+    );
+  }
+
+  ok(
+    await applicant.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { address: '1 Thủ Khoa Huân, Quận 1', image: 'assets/images/img-d469cbe2a5.jpg' },
+    }),
+    'PATCH /api/partner/salon (address and cover for the draft)',
+  );
+  const draftService = ok(
+    await applicant.fetch('/api/partner/services', {
+      method: 'POST',
+      json: {
+        name: 'Nhuộm tóc theo độ dài',
+        category: 'hair',
+        price: 250000,
+        duration_min: 60,
+        price_is_from: 1,
+      },
+    }),
+    'POST /api/partner/services (the draft menu)',
+  );
+  assert(draftService.price_is_from === 1, 'services: the "from" price flag must be stored');
+  assert(draftService.sort_order === 1, 'services: the first service takes position 1');
+
+  // Only the week is still missing, so the refusal must have narrowed to it alone.
+  const stillNotReady = await applicant.fetch('/api/partner/salon', {
+    method: 'PATCH',
+    json: { published: 1 },
+  });
+  expectError(stillNotReady, 409, 'SALON_NOT_READY', 'PATCH published=1 without opening hours');
+  assert(
+    !String(stillNotReady.body?.error?.message ?? '').includes('địa chỉ'),
+    'PATCH published=1: a condition that is met must not be named as missing',
+    stillNotReady,
+  );
+
+  ok(
+    await applicant.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { hours: weekClosedOn(-1) },
+    }),
+    'PATCH /api/partner/salon (the draft week)',
+  );
+  const published = ok(
+    await applicant.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (going live)',
+  );
+  assert(published.published === 1, 'going live: expected published = 1');
+
   const publicList = await session('guest').fetch('/api/salons?limit=50');
   assert(
     ok(publicList, 'public salon list').some((item) => item.id === ownSalon.id),
-    'a self-registered salon must appear in GET /api/salons',
+    'a published salon must appear in GET /api/salons',
     publicList,
   );
   const publicSearch = await session('guest').fetch(
@@ -3139,8 +3623,123 @@ async function groupAuthz() {
   );
   assert(
     ok(publicSearch, 'public salon search').some((item) => item.id === ownSalon.id),
-    'a self-registered salon must appear in GET /api/search/salons',
+    'a published salon must appear in GET /api/search/salons',
     publicSearch,
+  );
+  // The public menu carries the flag the console set, so the profile can print "từ ...".
+  const publicMenu = await session('guest').fetch(`/api/salons/${ownSalon.id}/services`);
+  assert(
+    ok(publicMenu, 'GET /api/salons/:id/services').some(
+      (item) => item.id === draftService.id && item.price_is_from === true,
+    ),
+    'the public menu must carry price_is_from',
+    publicMenu,
+  );
+
+  // The console's publish gate reads meta.active_total, so the count it ticks the
+  // "one visible service" row from has to be the count the server refuses on.
+  const countsListed = await applicant.fetch('/api/partner/services?limit=1');
+  ok(countsListed, 'GET /api/partner/services (counts)');
+  assert(
+    countsListed.body.meta.total === 1 && countsListed.body.meta.active_total === 1,
+    'partner services: meta must carry both counts',
+    countsListed,
+  );
+  ok(
+    await applicant.fetch(`/api/partner/services/${draftService.id}`, {
+      method: 'PATCH',
+      json: { active: 0 },
+    }),
+    'PATCH /api/partner/services/:id (hiding the only service)',
+  );
+  const countsHidden = await applicant.fetch('/api/partner/services?limit=1');
+  ok(countsHidden, 'GET /api/partner/services (counts after hiding)');
+  assert(
+    countsHidden.body.meta.total === 1 && countsHidden.body.meta.active_total === 0,
+    'partner services: a hidden service counts in total but not in active_total',
+    countsHidden,
+  );
+
+  // Hiding the last visible service is allowed, but a listed salon with an empty menu is
+  // not: the salon drops back to draft instead, and its owner is told why.
+  const demoted = ok(
+    await applicant.fetch('/api/partner/salon'),
+    'GET /api/partner/salon after hiding the only service',
+  );
+  assert(
+    demoted.published === 0,
+    'hiding the last visible service must take the salon off the public list',
+    demoted,
+  );
+  const demotionNotice = ok(
+    await applicant.fetch('/api/notifications?limit=5'),
+    'GET /api/notifications after the demotion',
+  );
+  assert(
+    demotionNotice.some((item) => item.title === 'Salon đã tạm ẩn khỏi OAK'),
+    'the demotion must leave the owner a notification saying so',
+    demotionNotice,
+  );
+
+  ok(
+    await applicant.fetch(`/api/partner/services/${draftService.id}`, {
+      method: 'PATCH',
+      json: { active: 1 },
+    }),
+    'PATCH /api/partner/services/:id (showing it again)',
+  );
+  ok(
+    await applicant.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (going live again)',
+  );
+
+  // A save that touches nothing publishing depends on is none of the gate's business:
+  // an owner must be able to write a phone number without the salon's whole checklist
+  // being re-run against them.
+  const unrelatedSave = ok(
+    await applicant.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { phone: '0900000001' },
+    }),
+    'a listed salon can save a field publishing does not depend on',
+  );
+  assert(
+    unrelatedSave.phone === '0900000001' && unrelatedSave.published === 1,
+    'the unrelated save must go through and leave the salon listed',
+    unrelatedSave,
+  );
+
+  // Readiness is judged on the row a save writes, not the one it read: a save that takes
+  // away what listing requires is refused, and one request cannot both list a salon and
+  // remove a condition of listing.
+  const blankedAddress = await applicant.fetch('/api/partner/salon', {
+    method: 'PATCH',
+    json: { address: '' },
+  });
+  expectError(
+    blankedAddress,
+    409,
+    'SALON_NOT_READY',
+    'a listed salon cannot blank the address it is listed with',
+  );
+
+  const selfContradicting = await applicant.fetch('/api/partner/salon', {
+    method: 'PATCH',
+    json: { published: 1, address: '' },
+  });
+  expectError(
+    selfContradicting,
+    409,
+    'SALON_NOT_READY',
+    'PATCH published=1 that blanks the address',
+  );
+  const intact = ok(
+    await applicant.fetch('/api/partner/salon'),
+    'GET /api/partner/salon after a refused save',
+  );
+  assert(
+    intact.address === '1 Thủ Khoa Huân, Quận 1' && intact.published === 1,
+    'a refused save must leave the salon exactly as it was',
   );
 
   skip('PARTNER_NO_SALON is unreachable: /api/auth/partner/register always creates a salon');
@@ -3199,6 +3798,615 @@ async function groupSalonOwnership() {
 }
 
 /* ============================================================================
+ * 17 — booking lifecycle: online-booking settings, no-show, days off
+ * ========================================================================= */
+
+/** 'HH:MM' -> minutes since midnight; the reverse of hhmm() above. */
+function minutesOf(time) {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+async function groupBookingLifecycle() {
+  const partner = session('partnerA');
+  const customer = session('customer');
+  const guest = session('guest');
+  const yesterday = addDays(state.today, -1);
+
+  /* -- the settings themselves ------------------------------------------------ */
+
+  const before = ok(await partner.fetch('/api/partner/salon'), 'salon before the lifecycle block');
+  for (const [key, value] of [
+    ['auto_confirm', 1],
+    ['lead_time_min', 0],
+    ['cancel_cutoff_hours', 2],
+  ]) {
+    assert(before[key] === value, `salon settings: ${key} must default to ${value}`);
+  }
+  assert('cancel_policy_text' in before, 'salon settings: cancel_policy_text must be exposed');
+
+  // null is in here because Number(null) is 0 — a legal lead time — so a client sending it
+  // to mean "leave this alone" used to silently reset the setting.
+  for (const [field, bad] of [
+    ['lead_time_min', 45],
+    ['lead_time_min', null],
+    ['lead_time_min', ''],
+    ['cancel_cutoff_hours', 3],
+  ]) {
+    expectError(
+      await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { [field]: bad } }),
+      400,
+      'VALIDATION_ERROR',
+      `PATCH /api/partner/salon with an unlisted ${field}`,
+    );
+  }
+  expectError(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { cancel_policy_text: 'x'.repeat(201) },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/partner/salon with an over-long cancel policy',
+  );
+
+  // Round the clock for this whole group, so nothing below depends on the hour the suite
+  // runs at; the hours the salon started with go back at the end.
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: weekClosedOn(-1) } }),
+    'PATCH /api/partner/salon (round the clock for the lifecycle group)',
+  );
+
+  /* -- auto_confirm off: the booking waits, and carries the salon's policy ----- */
+
+  const policy = 'Báo trước 24 tiếng giúp salon xếp lại lịch.';
+  ok(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { auto_confirm: 0, cancel_cutoff_hours: 24, cancel_policy_text: policy },
+    }),
+    'PATCH /api/partner/salon (manual confirmation, 24h cutoff)',
+  );
+
+  const manualSlot = await findBookableSlot(state.lalaId);
+  assert(manualSlot !== null, 'auto_confirm: needed a free slot to book');
+  const waiting = ok(
+    await customer.fetch('/api/bookings', {
+      method: 'POST',
+      json: {
+        salon_id: state.lalaId,
+        service_id: manualSlot.service.id,
+        date: manualSlot.date,
+        time: manualSlot.time,
+      },
+    }),
+    'POST /api/bookings with auto_confirm off',
+  );
+  assert(waiting.status === 'pending', 'auto_confirm off: expected status pending');
+  assert(
+    waiting.salon.cancel_cutoff_hours === 24 && waiting.salon.cancel_policy_text === policy,
+    'booking payload: expected the salon own cancel policy',
+  );
+
+  /* -- the cutoff the salon set, not the platform default --------------------- */
+
+  // Half an hour from now: always still ahead, always well inside 24 hours, and it rolls
+  // into tomorrow by itself near midnight — "today at 23:45" had already started when the
+  // suite ran in the last quarter of an hour of a day. Only the salon may move a booking
+  // onto an hour that close.
+  const soon = new Date(Date.now() + 30 * 60 * 1000);
+  const pad = (value) => String(value).padStart(2, '0');
+  const soonDate = `${soon.getFullYear()}-${pad(soon.getMonth() + 1)}-${pad(soon.getDate())}`;
+  const soonTime = `${pad(soon.getHours())}:${pad(soon.getMinutes())}`;
+  ok(
+    await partner.fetch(`/api/partner/bookings/${waiting.id}`, {
+      method: 'PATCH',
+      json: { date: soonDate, time: soonTime },
+    }),
+    'PATCH /api/partner/bookings/:id (inside the 24h cutoff)',
+  );
+  const refused = await customer.fetch(`/api/bookings/${waiting.id}/cancel`, { method: 'PATCH' });
+  expectError(refused, 409, 'CANCEL_WINDOW', 'cancelling inside the salon-set 24h cutoff');
+  assert(
+    refused.body?.error?.message.includes('24 tiếng'),
+    'cancel window: the message must name the 24 hours this salon asked for',
+    refused,
+  );
+
+  /* -- lead time -------------------------------------------------------------- */
+
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { lead_time_min: 120 } }),
+    'PATCH /api/partner/salon (two hours of lead time)',
+  );
+  const clock = new Date();
+  const floor = clock.getHours() * 60 + clock.getMinutes() + 120;
+  const leadDay = ok(
+    await guest.fetch(`/api/services/${manualSlot.service.id}/availability?date=${state.today}`),
+    'GET /api/services/:id/availability?date=today with a two-hour lead time',
+  );
+  assert(
+    leadDay.slots.every((slot) => minutesOf(slot.time) >= floor),
+    'lead time: no slot inside the next two hours may be offered',
+  );
+
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { lead_time_min: 1440 } }),
+    'PATCH /api/partner/salon (a full day of lead time)',
+  );
+  const shutToday = ok(
+    await guest.fetch(`/api/services/${manualSlot.service.id}/availability?date=${state.today}`),
+    'GET /api/services/:id/availability?date=today with a day of lead time',
+  );
+  assert(shutToday.slots.length === 0, 'lead time: a full day of it leaves today with nothing');
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { lead_time_min: 0 } }),
+    'PATCH /api/partner/salon (lead time back to none)',
+  );
+
+  /* -- no-show, and the Undo out of it ---------------------------------------- */
+
+  const revenueBefore = ok(
+    await partner.fetch(`/api/partner/revenue?from=${yesterday}&to=${yesterday}`),
+    'GET /api/partner/revenue before the no-show',
+  ).totals;
+
+  ok(
+    await partner.fetch(`/api/partner/bookings/${waiting.id}`, {
+      method: 'PATCH',
+      json: { status: 'confirmed' },
+    }),
+    'PATCH /api/partner/bookings/:id pending -> confirmed',
+  );
+  expectError(
+    await partner.fetch(`/api/partner/bookings/${waiting.id}`, {
+      method: 'PATCH',
+      json: { status: 'no_show' },
+    }),
+    409,
+    'BOOKING_NOT_STARTED',
+    'marking a booking no-show before its start time',
+  );
+
+  ok(
+    await partner.fetch(`/api/partner/bookings/${waiting.id}`, {
+      method: 'PATCH',
+      json: { date: yesterday },
+    }),
+    'PATCH /api/partner/bookings/:id (move it into yesterday)',
+  );
+  const absent = ok(
+    await partner.fetch(`/api/partner/bookings/${waiting.id}`, {
+      method: 'PATCH',
+      json: { status: 'no_show' },
+    }),
+    'PATCH /api/partner/bookings/:id confirmed -> no_show',
+  );
+  assert(absent.status === 'no_show', 'no-show: expected status no_show');
+  assert(
+    absent.customer.no_show_count >= 1,
+    'no-show: the customer shape must count it beside completed_count',
+  );
+
+  const toldResponse = await customer.fetch('/api/notifications');
+  const told = ok(toldResponse, 'GET /api/notifications after the no-show');
+  assert(
+    told.some((item) => item.booking_id === waiting.id && /không đến/.test(item.body ?? '')),
+    'no-show: the customer must be told',
+    toldResponse,
+  );
+
+  // The customer's own "Đã qua" tab is the only place an absence is visible to them, and
+  // it is a filter of its own: the review gates elsewhere ask for 'completed' and must not
+  // offer a review for a visit that never happened.
+  const pastTab = ok(
+    await customer.fetch('/api/bookings/mine?status=past&limit=50'),
+    'GET /api/bookings/mine?status=past after the no-show',
+  );
+  assert(
+    pastTab.some((item) => item.id === waiting.id && item.status === 'no_show'),
+    'no-show: the customer must find it in the past tab',
+  );
+  assert(
+    !ok(
+      await customer.fetch('/api/bookings/mine?status=completed&limit=50'),
+      'GET /api/bookings/mine?status=completed after the no-show',
+    ).some((item) => item.id === waiting.id),
+    'no-show: it is not a completed visit',
+  );
+
+  const revenueAfter = ok(
+    await partner.fetch(`/api/partner/revenue?from=${yesterday}&to=${yesterday}`),
+    'GET /api/partner/revenue after the no-show',
+  ).totals;
+  assert(
+    revenueAfter.revenue === revenueBefore.revenue && revenueAfter.bookings === revenueBefore.bookings,
+    'no-show: revenue counts completed bookings only',
+  );
+
+  const undone = ok(
+    await partner.fetch(`/api/partner/bookings/${waiting.id}`, {
+      method: 'PATCH',
+      json: { status: 'confirmed' },
+    }),
+    'PATCH /api/partner/bookings/:id no_show -> confirmed (Undo)',
+  );
+  assert(undone.status === 'confirmed', 'no-show Undo: expected status confirmed');
+
+  /* -- days off --------------------------------------------------------------- */
+
+  const offDate = addDays(state.today, 5);
+  const openBefore = ok(
+    await guest.fetch(`/api/services/${manualSlot.service.id}/availability?date=${offDate}`),
+    'GET /api/services/:id/availability before the salon closes that day',
+  ).slots;
+  assert(openBefore.length > 0, 'time off: needed a day that offers slots to close');
+  const openTime = openBefore.find((slot) => slot.available)?.time;
+  assert(openTime !== undefined, 'time off: needed a free slot on the day being closed');
+  const performers = ok(
+    await guest.fetch(`/api/services/${manualSlot.service.id}/staff`),
+    'performers of the service used for the staff day off',
+  );
+  assert(performers.length > 0, 'time off: needed a performer to send on leave');
+
+  expectError(
+    await partner.fetch('/api/partner/time-off', {
+      method: 'POST',
+      json: { date_from: offDate, date_to: addDays(offDate, -1) },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'POST /api/partner/time-off ending before it starts',
+  );
+  expectError(
+    await partner.fetch('/api/partner/time-off', {
+      method: 'POST',
+      json: { date_from: offDate, date_to: addDays(offDate, 120) },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'POST /api/partner/time-off over the maximum length',
+  );
+
+  const closure = ok(
+    await partner.fetch('/api/partner/time-off', {
+      method: 'POST',
+      json: { date_from: offDate, date_to: offDate, reason: 'Nghỉ lễ' },
+    }),
+    'POST /api/partner/time-off (whole salon)',
+  );
+  assert(closure.staff_id === null, 'time off: a whole-salon closure carries no staff_id');
+  const liveThatDay = ok(
+    await partner.fetch(`/api/partner/bookings?date=${offDate}&limit=50`),
+    'partner bookings on the day being closed',
+  ).filter((item) => ['pending', 'confirmed'].includes(item.status)).length;
+  assert(
+    closure.affected_bookings === liveThatDay,
+    'time off: affected_bookings must count the live bookings inside the range',
+  );
+
+  assert(
+    ok(
+      await guest.fetch(`/api/services/${manualSlot.service.id}/availability?date=${offDate}`),
+      'GET /api/services/:id/availability on a closed day',
+    ).slots.length === 0,
+    'time off: a closed day offers no slot at all',
+  );
+  // ...and the week shape says WHY it is empty, or the wizard's day strip would strike a
+  // declared day off through as "full" instead of labelling it "Nghỉ".
+  const closedWeek = ok(
+    await guest.fetch(`/api/services/${manualSlot.service.id}/availability?days=7&from=${state.today}`),
+    'GET /api/services/:id/availability?days=7 around a closed day',
+  ).week;
+  assert(
+    closedWeek.find((day) => day.date === offDate)?.closed === true,
+    'time off: the week shape must mark the closed day closed:true',
+  );
+  assert(
+    closedWeek.every((day) => typeof day.closed === 'boolean'),
+    'time off: every day of the week shape carries a closed flag',
+  );
+  // The wizard calls the staff endpoint instead the moment a technician is chosen, so the
+  // flag has to be on that shape too — without it the strip strikes the declared day off
+  // through as "full", which is the confusion the flag exists to remove.
+  const closedStaffWeek = ok(
+    await guest.fetch(
+      `/api/staff/${performers[0].id}/availability?days=7&from=${state.today}&service_id=${manualSlot.service.id}`,
+    ),
+    'GET /api/staff/:id/availability?days=7&service_id= around a closed day',
+  ).week;
+  assert(
+    closedStaffWeek.find((day) => day.date === offDate)?.closed === true,
+    'time off: the staff week shape must mark the salon closure closed:true',
+  );
+  assert(
+    closedStaffWeek.every((day) => typeof day.closed === 'boolean'),
+    'time off: every day of the staff week shape carries a closed flag',
+  );
+  expectError(
+    await customer.fetch('/api/bookings', {
+      method: 'POST',
+      json: {
+        salon_id: state.lalaId,
+        service_id: manualSlot.service.id,
+        date: offDate,
+        time: openTime,
+      },
+    }),
+    409,
+    'SALON_CLOSED',
+    'POST /api/bookings on a day the salon declared off',
+  );
+
+  const listed = ok(await partner.fetch('/api/partner/time-off'), 'GET /api/partner/time-off');
+  assert(
+    listed.some((row) => row.id === closure.id && row.reason === 'Nghỉ lễ'),
+    'time off: the new row must be listed',
+  );
+
+  ok(
+    await partner.fetch(`/api/partner/time-off/${closure.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/time-off/:id',
+  );
+  assert(
+    ok(
+      await guest.fetch(`/api/services/${manualSlot.service.id}/availability?date=${offDate}`),
+      'GET /api/services/:id/availability after the closure is dropped',
+    ).slots.length === openBefore.length,
+    'time off: dropping the closure gives the day back',
+  );
+
+  // One technician off is not the salon being shut: the service keeps the hours its other
+  // performers cover, and only that one week grid reports itself closed.
+  const leave = ok(
+    await partner.fetch('/api/partner/time-off', {
+      method: 'POST',
+      json: { staff_id: performers[0].id, date_from: offDate, reason: 'Nghỉ phép' },
+    }),
+    'POST /api/partner/time-off (one technician)',
+  );
+  assert(leave.date_to === offDate, 'time off: a missing date_to means a single day');
+  assert(leave.staff_name === performers[0].name, 'time off: expected the technician named back');
+
+  // Its own 409: SLOT_TAKEN would claim somebody just took the hour and send the customer
+  // hunting through a day that has none.
+  expectError(
+    await customer.fetch('/api/bookings', {
+      method: 'POST',
+      json: {
+        salon_id: state.lalaId,
+        service_id: manualSlot.service.id,
+        staff_id: performers[0].id,
+        date: offDate,
+        time: openTime,
+      },
+    }),
+    409,
+    'STAFF_OFF',
+    'POST /api/bookings naming a technician who is on leave that day',
+  );
+
+  const grid = ok(
+    await guest.fetch(`/api/staff/${performers[0].id}/availability?from=${offDate}&days=1`),
+    'GET /api/staff/:id/availability on the technician day off',
+  ).week[0];
+  assert(grid.closed === true, 'time off: the week grid must mark the day closed');
+  assert(grid.slots.length === 0, 'time off: a technician on leave offers no slot');
+  const serviceGrid = ok(
+    await guest.fetch(
+      `/api/staff/${performers[0].id}/availability?from=${offDate}&days=1&service_id=${manualSlot.service.id}`,
+    ),
+    'GET /api/staff/:id/availability?service_id= on the technician day off',
+  ).week[0];
+  assert(
+    serviceGrid.closed === true,
+    'time off: the service-sized staff grid must mark the technician day off too',
+  );
+
+  ok(
+    await partner.fetch(`/api/partner/time-off/${leave.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/time-off/:id (the technician leave)',
+  );
+
+  /* -- put the salon back the way the group found it -------------------------- */
+  ok(
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: {
+        hours: before.hours,
+        auto_confirm: before.auto_confirm,
+        lead_time_min: before.lead_time_min,
+        cancel_cutoff_hours: before.cancel_cutoff_hours,
+        cancel_policy_text: before.cancel_policy_text,
+      },
+    }),
+    'PATCH /api/partner/salon (restore what the lifecycle group started from)',
+  );
+}
+
+/* ============================================================================
+ * 18 — the account lifecycle: consent, the welcome greeting, the login throttle,
+ *      the lazy 24h reminder, and erasing an account
+ * ========================================================================= */
+
+async function groupAccountLifecycle() {
+  const guest = session('guest');
+  const stamp = Date.now();
+
+  /* -- consent is affirmative, and refused when it is missing ------------------ */
+
+  expectError(
+    await guest.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Khong Dong Y',
+        email: `noconsent${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+      },
+    }),
+    400,
+    'CONSENT_REQUIRED',
+    'POST /api/auth/register without consent',
+  );
+
+  /* -- a new customer is greeted once, with a code that can actually be spent -- */
+
+  const fresh = new Session();
+  const created = ok(
+    await fresh.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Khach Moi',
+        email: `welcome${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/register (consenting customer)',
+  );
+  assert('welcome_code' in created, 'register: the reply must report welcome_code');
+
+  const bell = ok(await fresh.fetch('/api/notifications'), 'GET /api/notifications (new account)');
+  const greetings = bell.filter((item) => item.type === 'promotion' || item.type === 'general');
+  assert(greetings.length === 1, 'a new customer gets exactly one greeting', bell);
+  // The offers box was never ticked, and the greeting arrives anyway: it is the one
+  // transactional hello that comes with signing up, not a campaign.
+  assert(
+    created.welcome_code === null || greetings[0].type === 'promotion',
+    'a live platform-wide code makes the greeting a promotion',
+    bell,
+  );
+  if (created.welcome_code !== null) {
+    assert(
+      greetings[0].body.includes(created.welcome_code),
+      'the greeting names the code the reply reported',
+      bell,
+    );
+  }
+
+  /* -- the login throttle: ten tries in the window, and the eleventh is refused - */
+
+  const throttled = new Session();
+  const badLogin = () =>
+    throttled.fetch('/api/auth/login', {
+      method: 'POST',
+      json: { email: `throttle${stamp}@oak.invalid`, password: 'wrong-password' },
+    });
+  for (let attempt = 1; attempt <= 10; attempt += 1) {
+    expectError(await badLogin(), 401, 'INVALID_CREDENTIALS', `bad login ${attempt} of 10`);
+  }
+  expectError(await badLogin(), 429, 'TOO_MANY_ATTEMPTS', 'the eleventh bad login in the window');
+
+  /* -- the lazy 24h reminder: exactly one, however often the bell is read ------ */
+
+  const customer = session('customer');
+  const service = ok(await guest.fetch('/api/services/1'), 'GET /api/services/1 (for a reminder)');
+  const slot = await findServiceSlot(service);
+  assert(slot !== null, 'no free hour in the next week to hang a reminder on');
+  const booked = ok(
+    await customer.fetch('/api/bookings', {
+      method: 'POST',
+      json: {
+        salon_id: service.salon.id,
+        service_id: service.id,
+        date: slot.date,
+        time: slot.time,
+        customer_name: 'Ngoc Anh',
+        customer_phone: '0901234567',
+      },
+    }),
+    'POST /api/bookings (a booking for the reminder sweep to find)',
+  );
+
+  // The sweep is gated to once per ten minutes per PROCESS, and this suite shares one with
+  // every group before it — so what is asserted is the count, not that the first read
+  // creates it. Reading four times may legitimately sweep zero times; it may never leave
+  // two reminders behind for one booking.
+  for (let read = 0; read < 4; read += 1) {
+    const inbox = ok(
+      await customer.fetch('/api/notifications?limit=50'),
+      `GET /api/notifications (${read + 1})`,
+    );
+    const reminders = inbox.filter(
+      (item) => item.type === 'reminder' && item.booking_id === booked.id,
+    );
+    assert(reminders.length <= 1, 'the sweep never writes a second reminder for one booking', inbox);
+  }
+  /* -- erasing an account ----------------------------------------------------- */
+
+  expectError(
+    await fresh.fetch('/api/users/me', { method: 'DELETE', json: {} }),
+    400,
+    'VALIDATION_ERROR',
+    'DELETE /api/users/me with no password',
+  );
+  expectError(
+    await fresh.fetch('/api/users/me', { method: 'DELETE', json: { password: 'not-it' } }),
+    401,
+    'INVALID_CREDENTIALS',
+    'DELETE /api/users/me with the wrong password',
+  );
+  expectError(
+    await session('partnerA').fetch('/api/users/me', {
+      method: 'DELETE',
+      json: { password: 'Oak@1234' },
+    }),
+    409,
+    'PARTNER_ACCOUNT',
+    'DELETE /api/users/me as a partner',
+  );
+  // 200 with an envelope, not 204: assets/js/oak-api.js parses every reply as JSON, so an
+  // empty body would surface in the page as a network error after a successful deletion.
+  ok(
+    await fresh.fetch('/api/users/me', { method: 'DELETE', json: { password: 'Oak@1234' } }),
+    'DELETE /api/users/me',
+  );
+  expectError(
+    await fresh.fetch('/api/auth/login', {
+      method: 'POST',
+      json: { email: `welcome${stamp}@oak.invalid`, password: 'Oak@1234' },
+    }),
+    401,
+    'INVALID_CREDENTIALS',
+    'signing back into an erased account',
+  );
+
+  /* -- one number, one account ------------------------------------------------ */
+
+  const digits = `09${String(stamp).slice(-8)}`;
+  ok(
+    await new Session().fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Chu So Dien Thoai',
+        email: `phone${stamp}@oak.invalid`,
+        phone: digits,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/register (with a phone number)',
+  );
+  // Written another way entirely — every separator folds, so this is the same number.
+  const spaced = `+84 ${digits.slice(1, 4)}.${digits.slice(4, 7)}-${digits.slice(7)}`;
+  expectError(
+    await guest.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi Khac',
+        email: `phonedup${stamp}@oak.invalid`,
+        phone: spaced,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    409,
+    'PHONE_IN_USE',
+    'POST /api/auth/register with a number another live account answers to',
+  );
+}
+
+/* ============================================================================
  * Runner
  * ========================================================================= */
 
@@ -3234,6 +4442,8 @@ async function main() {
   await group('14 partner', groupPartner);
   await group('15 authz + scoping', groupAuthz);
   await group('16 one salon per partner', groupSalonOwnership);
+  await group('17 booking lifecycle', groupBookingLifecycle);
+  await group('18 account lifecycle', groupAccountLifecycle);
 }
 
 let child = null;

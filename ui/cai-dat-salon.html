@@ -91,6 +91,18 @@
 </a>
 </li>
 <li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="danh-gia-salon.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="star">star</span>
+<span class="font-body-md text-body-md">Đánh giá</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="blog.html?compose=1">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="article">article</span>
+<span class="font-body-md text-body-md">Nội dung</span>
+</a>
+</li>
+<li>
 <a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary font-bold bg-surface-variant scale-95 duration-150" href="cai-dat-salon.html">
 <span aria-hidden="true" class="material-symbols-outlined fill" data-icon="settings">settings</span>
 <span class="font-body-md text-body-md">Cài đặt</span>
@@ -165,6 +177,37 @@
 <form @submit.prevent="save()" class="grid grid-cols-1 lg:grid-cols-3 gap-12" id="salon-form" x-cloak x-show="!loading && !loadError">
 <!-- Left column: profile fields -->
 <div class="lg:col-span-2 space-y-12">
+<!-- Going live. Saved the moment it is switched, on its own request: whether the salon
+     is listed is not a draft anybody wants sitting in an unsaved form, and the conditions
+     below are read from what is already stored, which is what the server checks too. -->
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]" id="hien-thi">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Hiển thị trên OAK</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Điều kiện dưới đây tính trên thông tin đã lưu, nên hãy bấm Lưu thay đổi trước khi bật.</p>
+<label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer">
+<input :checked="published === 1" :disabled="publishSaving || (published !== 1 && missingToPublish().length > 0)" @change="togglePublished($event)" class="mt-1" type="checkbox"/>
+<span class="flex flex-col gap-1">
+<span class="font-label-md text-label-md text-primary uppercase tracking-widest" x-text="published === 1 ? 'Đang hiển thị trên OAK' : 'Đang ở chế độ nháp'"></span>
+<span class="font-caption text-caption">Bật: salon lên danh sách, tìm kiếm và bản đồ. Tắt: chỉ bạn mở được trang salon bằng đường dẫn của mình.</span>
+</span>
+</label>
+<p class="font-caption text-caption text-on-surface-variant mt-8 mb-2">
+<span>Điều kiện tối thiểu</span> <span x-text="(publishChecks().length - missingToPublish().length) + '/' + publishChecks().length"></span>
+</p>
+<div class="w-full h-2 rounded-full bg-surface-variant overflow-hidden mb-6">
+<div :style="'width: ' + Math.round((publishChecks().length - missingToPublish().length) * 100 / publishChecks().length) + '%'" class="h-full bg-primary-container"></div>
+</div>
+<ul class="space-y-2">
+<template :key="item.key" x-for="item in publishChecks()">
+<li :class="item.done ? 'text-on-surface-variant' : 'text-on-surface'" class="flex items-center gap-3 font-body-md text-body-md">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-[#2e7d32]" x-show="item.done">check_circle</span>
+<span aria-hidden="true" class="w-4 h-4 rounded-full border border-outline-variant shrink-0" x-show="!item.done"></span>
+<span x-text="item.label"></span>
+</li>
+</template>
+</ul>
+<p class="font-caption text-caption text-error mt-6" x-cloak x-show="publishError" x-text="publishError"></p>
+</section>
+
 <section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
 <h3 class="font-headline-sm text-headline-sm text-on-background mb-8">Thông tin cơ bản</h3>
 <div class="space-y-10">
@@ -218,7 +261,7 @@
 </div>
 </section>
 
-<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]" id="vi-tri">
 <h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Vị trí trên bản đồ</h3>
 <p class="font-caption text-caption text-on-surface-variant mb-6">Tìm theo tên đường, chợ hay toà nhà rồi kéo ghim cho đúng cửa tiệm. Chưa có toạ độ thì salon không hiện trên bản đồ tìm kiếm.</p>
 <!-- Deliberately not a form element: this sits inside the page's save form, and a
@@ -254,7 +297,7 @@
 <p class="font-caption text-caption text-on-surface-variant mt-3">Bấm lên bản đồ để đặt ghim, hoặc kéo ghim để chỉnh lại.</p>
 </section>
 
-<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]" id="gio-mo-cua">
 <h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Giờ mở cửa</h3>
 <p class="font-caption text-caption text-on-surface-variant mb-6">Đặt giờ riêng cho từng ngày, đánh dấu “Nghỉ” cho ngày salon đóng cửa.</p>
 <div class="space-y-4">
@@ -275,6 +318,96 @@
 </div>
 </template>
 </div>
+</section>
+
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Đặt lịch online</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Quyết định lịch khách đặt trên OAK được nhận thế nào.</p>
+<div class="space-y-8">
+<label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer">
+<input class="mt-1" type="checkbox" x-model="form.auto_confirm"/>
+<span class="flex flex-col gap-1">
+<span class="font-label-md text-label-md text-primary uppercase tracking-widest">Tự động xác nhận</span>
+<span class="font-caption text-caption">Bật: lịch khách đặt được xác nhận tự động. Tắt: lịch chờ bạn duyệt trong mục Cần xử lý.</span>
+</span>
+</label>
+<div class="relative">
+<select class="input-minimal always-raised font-body-md text-body-md text-primary" id="salon-lead-time" x-model="form.lead_time_min">
+<option value="0">Không yêu cầu</option>
+<option value="60">Trước ít nhất 1 tiếng</option>
+<option value="120">Trước ít nhất 2 tiếng</option>
+<option value="1440">Trước ít nhất 1 ngày</option>
+</select>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-lead-time">Khách phải đặt trước</label>
+</div>
+<p class="font-caption text-caption text-on-surface-variant">Khung giờ gần hơn mức này sẽ không hiện cho khách.</p>
+</div>
+</section>
+
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Chính sách hủy</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Khách xem mốc này trên trang salon, trong lúc đặt và ở Lịch hẹn của tôi.</p>
+<div class="space-y-8">
+<div class="relative">
+<select class="input-minimal always-raised font-body-md text-body-md text-primary" id="salon-cancel-cutoff" x-model="form.cancel_cutoff_hours">
+<option value="2">Trước 2 tiếng</option>
+<option value="6">Trước 6 tiếng</option>
+<option value="12">Trước 12 tiếng</option>
+<option value="24">Trước 24 tiếng</option>
+<option value="48">Trước 48 tiếng</option>
+</select>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-cancel-cutoff">Khách được hủy online đến</label>
+</div>
+<div class="relative">
+<textarea class="input-minimal always-raised font-body-md text-body-md text-primary resize-y" id="salon-cancel-policy" maxlength="200" placeholder=" " rows="3" x-model="form.cancel_policy_text"></textarea>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-cancel-policy">Ghi chú thêm cho khách</label>
+</div>
+<p class="font-caption text-caption text-on-surface-variant"><span x-text="(form.cancel_policy_text || '').length"></span>/200 ký tự</p>
+</div>
+</section>
+
+<!-- Days off. Saved on their own endpoint the moment they are added, so they stay outside
+     the page's dirty/undo state: a holiday is not a draft. -->
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Ngày nghỉ lễ / đóng cửa</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Những ngày này khách không đặt được lịch online. Lịch đã đặt vẫn giữ nguyên — bạn chủ động liên hệ khách.</p>
+<div class="space-y-3 mb-8">
+<template :key="row.id" x-for="row in timeOff">
+<div class="flex flex-wrap items-center gap-3 py-3 border-b border-outline-variant/20">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" x-text="row.staff_id ? 'person_off' : 'calendar_month'"></span>
+<span class="font-label-md text-label-md text-primary" x-text="dayRange(row)"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="row.staff_id ? row.staff_name : 'Cả salon'"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-show="row.reason" x-text="row.reason"></span>
+<button @click="removeTimeOff(row)" class="ml-auto font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-error transition-colors" type="button">Xoá</button>
+</div>
+</template>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="timeOff.length === 0">Chưa khai báo ngày nghỉ nào.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="relative">
+<input class="input-minimal always-raised font-body-md text-body-md text-primary" id="salon-off-from" type="date" x-model="timeOffForm.date_from"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-off-from">Từ ngày</label>
+</div>
+<div class="relative">
+<input class="input-minimal always-raised font-body-md text-body-md text-primary" id="salon-off-to" type="date" x-model="timeOffForm.date_to"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-off-to">Đến ngày</label>
+</div>
+</div>
+<div class="relative mt-8">
+<input class="input-minimal font-body-md text-body-md text-primary" id="salon-off-reason" maxlength="200" placeholder=" " type="text" x-model="timeOffForm.reason"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-off-reason">Lý do (không bắt buộc)</label>
+</div>
+<!-- How many appointments already sit inside the range just added. Nothing was
+     cancelled, so this is the list of people to ring — three text nodes, so the count
+     between them stays a number the dictionary never has to know about. -->
+<p class="font-caption text-caption text-on-surface-variant mb-4" x-cloak="" x-show="timeOffAffected > 0">
+<span>Khoảng vừa thêm đang có</span> <span x-text="timeOffAffected"></span> <span>lịch hẹn — bạn nhớ liên hệ khách.</span>
+</p>
+<p class="font-caption text-caption text-error mt-4" x-cloak x-show="timeOffError" x-text="timeOffError"></p>
+<button :disabled="timeOffSaving" @click="addTimeOff()" class="mt-6 inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">add</span>
+                    Thêm ngày nghỉ
+                </button>
 </section>
 
 <section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
@@ -313,6 +446,38 @@
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">upload</span>
 <span x-text="uploading ? 'Đang tải ảnh…' : 'Chọn ảnh mới'">Chọn ảnh mới</span>
 <input @change="uploadCover($event)" accept="image/jpeg,image/png,image/webp" class="sr-only" type="file"/>
+</label>
+</section>
+
+<!-- The gallery the public profile already reads. Each picture saves itself as soon as
+     it is picked, like the days off do, so it is deliberately outside the form. -->
+<section class="bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Thư viện ảnh</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Ảnh không gian và tay nghề, hiện ngay trên trang salon. Ảnh được nén lại trước khi tải lên.</p>
+<div class="grid grid-cols-2 gap-4 mb-6" x-show="photos.length > 0">
+<template :key="photo.id" x-for="(photo, index) in photos">
+<div class="relative aspect-square rounded-xl overflow-hidden bg-surface-variant">
+<img loading="lazy" :alt="photo.caption || 'Ảnh salon'" :src="photo.image" class="w-full h-full object-cover"/>
+<div class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 px-1 py-1 bg-surface/80 backdrop-blur">
+<button :disabled="index === 0 || photoBusy" @click="movePhoto(index, -1)" aria-label="Đưa ảnh lên trước" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">chevron_left</span>
+</button>
+<button :disabled="index === photos.length - 1 || photoBusy" @click="movePhoto(index, 1)" aria-label="Đưa ảnh xuống sau" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">chevron_right</span>
+</button>
+<button :disabled="photoBusy" @click="removePhoto(photo)" aria-label="Xoá ảnh" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-error transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">delete</span>
+</button>
+</div>
+</div>
+</template>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-show="photos.length === 0">Chưa có ảnh nào trong thư viện.</p>
+<p class="font-caption text-caption text-error mb-4" x-cloak x-show="photoError" x-text="photoError"></p>
+<label class="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors cursor-pointer">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">add_photo_alternate</span>
+<span x-text="photoBusy ? 'Đang tải ảnh…' : 'Thêm ảnh'">Thêm ảnh</span>
+<input @change="uploadPhotos($event)" accept="image/jpeg,image/png,image/webp" class="sr-only" multiple type="file"/>
 </label>
 </section>
 
@@ -469,6 +634,36 @@
         }
         return key === '' || (' ' + placeKey(address) + ' ').indexOf(' ' + key + ' ') !== -1;
     }
+    /* The gallery shows a picture a few hundred pixels wide and a phone camera hands over
+       four thousand, so it is re-drawn to this edge and re-encoded before it leaves the
+       browser. A browser that cannot write WebP falls through to the original file. */
+    var PHOTO_MAX_EDGE = 1600;
+    var PHOTO_QUALITY = 0.82;
+
+    function compressPhoto(file) {
+        return new Promise(function (resolve) {
+            var url = URL.createObjectURL(file);
+            var image = new Image();
+            image.onload = function () {
+                var scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(image.width, image.height));
+                var canvas = document.createElement('canvas');
+                canvas.width = Math.round(image.width * scale);
+                canvas.height = Math.round(image.height * scale);
+                canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+                URL.revokeObjectURL(url);
+                var data = canvas.toDataURL('image/webp', PHOTO_QUALITY);
+                resolve(data.indexOf('data:image/webp') === 0
+                    ? { filename: 'anh-salon.webp', data: data }
+                    : null);
+            };
+            image.onerror = function () {
+                URL.revokeObjectURL(url);
+                resolve(null);
+            };
+            image.src = url;
+        });
+    }
+
     /* Where the picker opens before a salon has any coordinates: District 1, HCMC. */
     var MAP_FALLBACK = { center: [10.776, 106.700], zoom: 13 };
     /* Leaflet objects must stay out of the Alpine state, or its proxies break the map. */
@@ -479,6 +674,11 @@
     /* The link the leave guard is holding back, kept out of the Alpine state so it stays a
        real element rather than a proxy that cannot be clicked. */
     var pendingLink = null;
+
+    /* Form fields fill() sets by hand: the plain "value or empty string" pass would flatten
+       a list, a nested object or a meaningful zero. */
+    var SHAPED_FIELDS = ['amenities', 'hours', 'social_links', 'auto_confirm', 'lead_time_min',
+        'cancel_cutoff_hours'];
 
     /** Keep the salon's own value in the list even when it is not one of the presets. */
     function withCurrent(options, current) {
@@ -511,9 +711,30 @@
             form: {
                 name: '', description: '', address: '', district: '', city: '',
                 phone: '', image: '', tour_url: '', lat: '', lng: '',
+                auto_confirm: true, lead_time_min: '0',
+                cancel_cutoff_hours: '2', cancel_policy_text: '',
                 amenities: [], hours: [],
                 social_links: { facebook: '', instagram: '', tiktok: '', youtube: '', zalo: '' },
             },
+
+            /* Whether the salon is on the public side, and the gallery beside the cover
+               image. Both save on their own request the moment they change, so like the
+               days off below they sit outside `form` and outside the dirty/undo state. */
+            published: 0,
+            serviceCount: 0,
+            publishSaving: false,
+            publishError: '',
+            photos: [],
+            photoBusy: false,
+            photoError: '',
+
+            /* Days off live on their own endpoint and save the moment they are added, so
+               they are deliberately outside `form` and outside the dirty/undo state. */
+            timeOff: [],
+            timeOffForm: { date_from: '', date_to: '', reason: '' },
+            timeOffError: '',
+            timeOffSaving: false,
+            timeOffAffected: 0,
 
             socialPlatforms: [
                 { platform: 'facebook', label: 'Facebook', placeholder: 'https://www.facebook.com/ten-salon' },
@@ -604,7 +825,11 @@
                     var salon = await OAK.api('/api/partner/salon');
                     this.slug = salon.slug;
                     this.original = salon;
+                    this.published = salon.published;
                     this.fill(salon);
+                    await this.loadPhotos();
+                    await this.loadServiceCount();
+                    await this.loadTimeOff();
                 } catch (error) {
                     this.loadError = error.message;
                 }
@@ -615,8 +840,208 @@
                 this.$nextTick(function () {
                     if (!this.loadError) {
                         this.initMap();
+                        this.jumpToHash();
                     }
                 }.bind(this));
+            },
+
+            /* The setup checklist links straight at a section of this page, but every
+               section lives inside the x-cloak'd form, which has no box while the salon is
+               still loading — so the browser has nothing to scroll to and drops the
+               fragment. Apply it again now that the form is on the page. */
+            jumpToHash() {
+                var id = location.hash ? location.hash.slice(1) : '';
+                var target = id ? document.getElementById(id) : null;
+                if (target) {
+                    target.scrollIntoView();
+                }
+            },
+
+            /* ---- going live ---- */
+
+            /* Services the public side can see, not services on file: the server refuses to
+               publish without an active one, so counting the hidden ones here would tick a
+               condition into a refusal. */
+            async loadServiceCount() {
+                try {
+                    var rows = await OAK.api('/api/partner/services?limit=1');
+                    this.serviceCount = rows.meta ? rows.meta.active_total : 0;
+                } catch (error) {
+                    this.serviceCount = 0;
+                }
+            },
+
+            /* The same four conditions the server enforces on PATCH published=1, read from
+               the saved salon rather than the form, so the list and the refusal agree. */
+            publishChecks() {
+                var salon = this.original || {};
+                return [
+                    { key: 'address', label: 'Địa chỉ salon', done: Boolean(salon.address) },
+                    {
+                        key: 'hours',
+                        label: 'Giờ mở cửa trong tuần',
+                        done: (salon.hours || []).some(function (day) {
+                            return day.is_off === 0;
+                        }),
+                    },
+                    { key: 'service', label: 'Ít nhất một dịch vụ đang hiển thị', done: this.serviceCount > 0 },
+                    {
+                        key: 'photo',
+                        label: 'Ít nhất một ảnh (ảnh bìa hoặc thư viện)',
+                        done: Boolean(salon.image) || this.photos.length > 0,
+                    },
+                ];
+            },
+
+            missingToPublish() {
+                return this.publishChecks().filter(function (item) {
+                    return !item.done;
+                });
+            },
+
+            async togglePublished(event) {
+                if (this.publishSaving) {
+                    return;
+                }
+                var next = this.published === 1 ? 0 : 1;
+                this.publishSaving = true;
+                this.publishError = '';
+                try {
+                    var saved = await OAK.api('/api/partner/salon', {
+                        method: 'PATCH',
+                        body: { published: next },
+                    });
+                    // Only this flag: the form may hold edits the owner has not saved yet,
+                    // and fill() would throw them away.
+                    this.published = saved.published;
+                    OAK.toast(next === 1 ? 'Salon đã hiển thị trên OAK.' : 'Salon đã chuyển về chế độ nháp.');
+                } catch (error) {
+                    this.publishError = error.message;
+                }
+                // The box the reader ticked moved on its own; put it back where the salon
+                // actually is, or a refusal would leave a switch that lies.
+                if (event && event.target) {
+                    event.target.checked = this.published === 1;
+                }
+                this.publishSaving = false;
+            },
+
+            /* ---- photo gallery ---- */
+
+            async loadPhotos() {
+                try {
+                    this.photos = await OAK.api('/api/partner/photos');
+                } catch (error) {
+                    this.photos = [];
+                }
+            },
+
+            /* The listed/draft flag as the server holds it now. A write elsewhere on this
+               page can demote the salon, and the switch must not report the opposite. */
+            async refreshPublished() {
+                try {
+                    var salon = await OAK.api('/api/partner/salon');
+                    this.original = salon;
+                    this.published = salon.published;
+                } catch (error) {
+                    /* the switch keeps what it had; the next load settles it */
+                }
+            },
+
+            async uploadPhotos(event) {
+                var files = Array.prototype.slice.call(event.target.files);
+                // Re-selecting the same files must still fire a change event.
+                event.target.value = '';
+                if (files.length === 0 || this.photoBusy) {
+                    return;
+                }
+                this.photoBusy = true;
+                this.photoError = '';
+                try {
+                    for (var index = 0; index < files.length; index += 1) {
+                        var payload = await compressPhoto(files[index]);
+                        if (!payload) {
+                            payload = await this.rawUpload(files[index]);
+                        }
+                        var uploaded = await OAK.api('/api/uploads', {
+                            method: 'POST',
+                            body: payload,
+                        });
+                        await OAK.api('/api/partner/photos', {
+                            method: 'POST',
+                            body: { image: uploaded.url },
+                        });
+                    }
+                    await this.loadPhotos();
+                    OAK.toast('Đã thêm ảnh vào thư viện.');
+                } catch (error) {
+                    this.photoError = error.message;
+                }
+                this.photoBusy = false;
+            },
+
+            /* The picked file as it was, for a browser whose canvas cannot write WebP. */
+            rawUpload(file) {
+                return new Promise(function (resolve, reject) {
+                    var reader = new FileReader();
+                    reader.onload = function () {
+                        resolve({ filename: file.name, data: reader.result });
+                    };
+                    reader.onerror = function () {
+                        reject(new Error('Không đọc được tệp ảnh.'));
+                    };
+                    reader.readAsDataURL(file);
+                });
+            },
+
+            /* Two pictures trade positions, which is one request each: the endpoint stores
+               a position, it does not know what "up" means. */
+            async movePhoto(index, step) {
+                var target = index + step;
+                if (this.photoBusy || target < 0 || target >= this.photos.length) {
+                    return;
+                }
+                var moved = this.photos[index];
+                var swapped = this.photos[target];
+                this.photoBusy = true;
+                this.photoError = '';
+                try {
+                    await OAK.api('/api/partner/photos/' + moved.id, {
+                        method: 'PATCH',
+                        body: { sort: swapped.sort },
+                    });
+                    await OAK.api('/api/partner/photos/' + swapped.id, {
+                        method: 'PATCH',
+                        body: { sort: moved.sort },
+                    });
+                    await this.loadPhotos();
+                } catch (error) {
+                    this.photoError = error.message;
+                    // One of the two writes may have landed. Show what the server actually
+                    // holds rather than the order this swap was aiming for.
+                    await this.loadPhotos();
+                }
+                this.photoBusy = false;
+            },
+
+            async removePhoto(photo) {
+                if (this.photoBusy) {
+                    return;
+                }
+                this.photoBusy = true;
+                this.photoError = '';
+                try {
+                    await OAK.api('/api/partner/photos/' + photo.id, { method: 'DELETE' });
+                    await this.loadPhotos();
+                    // Deleting the last picture of a salon with no cover takes it off the
+                    // public list (the server does it), so the switch above has to be re-read
+                    // or it would go on saying "Đang hiển thị trên OAK" about a draft.
+                    await this.refreshPublished();
+                    OAK.toast('Đã xoá ảnh.');
+                } catch (error) {
+                    this.photoError = error.message;
+                }
+                this.photoBusy = false;
             },
 
             initMap() {
@@ -869,10 +1294,17 @@
             fill(salon) {
                 var self = this;
                 Object.keys(this.form).forEach(function (field) {
-                    if (field !== 'amenities' && field !== 'hours' && field !== 'social_links') {
+                    if (SHAPED_FIELDS.indexOf(field) === -1) {
                         self.form[field] = salon[field] || '';
                     }
                 });
+                // `|| ''` above would turn a 0 into an empty control, and every one of
+                // these three has a meaningful zero or a fixed set of allowed values.
+                this.form.auto_confirm = salon.auto_confirm !== 0;
+                this.form.lead_time_min = String(salon.lead_time_min == null ? 0 : salon.lead_time_min);
+                this.form.cancel_cutoff_hours = String(
+                    salon.cancel_cutoff_hours == null ? 2 : salon.cancel_cutoff_hours,
+                );
                 Object.keys(this.form.social_links).forEach(function (platform) {
                     self.form.social_links[platform] = (salon.social_links && salon.social_links[platform]) || '';
                 });
@@ -917,6 +1349,64 @@
 
             weekdayLabel(weekday) {
                 return WEEKDAY_LABELS[weekday];
+            },
+
+            /* ---- days off ---- */
+
+            async loadTimeOff() {
+                try {
+                    this.timeOff = await OAK.api('/api/partner/time-off');
+                } catch (error) {
+                    this.timeOff = [];
+                }
+            },
+
+            /** 'DD/MM' or 'DD/MM - DD/MM' — digits only, so the English pass leaves it be. */
+            dayRange(row) {
+                var from = row.date_from.slice(8) + '/' + row.date_from.slice(5, 7);
+                if (row.date_to === row.date_from) {
+                    return from;
+                }
+                return from + ' - ' + row.date_to.slice(8) + '/' + row.date_to.slice(5, 7);
+            },
+
+            async addTimeOff() {
+                this.timeOffError = '';
+                if (!this.timeOffForm.date_from) {
+                    this.timeOffError = 'Vui lòng chọn ngày bắt đầu.';
+                    return;
+                }
+                this.timeOffSaving = true;
+                try {
+                    var created = await OAK.api('/api/partner/time-off', {
+                        method: 'POST',
+                        body: {
+                            date_from: this.timeOffForm.date_from,
+                            date_to: this.timeOffForm.date_to || this.timeOffForm.date_from,
+                            reason: this.timeOffForm.reason || null,
+                        },
+                    });
+                    this.timeOffForm = { date_from: '', date_to: '', reason: '' };
+                    // Nothing already booked is cancelled by this, so the count stays on the
+                    // page rather than in a message that scrolls away.
+                    this.timeOffAffected = created.affected_bookings;
+                    await this.loadTimeOff();
+                    OAK.toast('Đã thêm ngày nghỉ.');
+                } catch (error) {
+                    this.timeOffError = error.message;
+                }
+                this.timeOffSaving = false;
+            },
+
+            async removeTimeOff(row) {
+                try {
+                    await OAK.api('/api/partner/time-off/' + row.id, { method: 'DELETE' });
+                    this.timeOffAffected = 0;
+                    await this.loadTimeOff();
+                    OAK.toast('Đã xoá ngày nghỉ.');
+                } catch (error) {
+                    this.timeOffError = error.message;
+                }
             },
 
             toggleAmenity(amenity) {
@@ -989,6 +1479,10 @@
                             phone: this.form.phone,
                             image: this.form.image,
                             tour_url: this.form.tour_url,
+                            auto_confirm: this.form.auto_confirm ? 1 : 0,
+                            lead_time_min: Number(this.form.lead_time_min),
+                            cancel_cutoff_hours: Number(this.form.cancel_cutoff_hours),
+                            cancel_policy_text: this.form.cancel_policy_text,
                             /* The API takes the pair or neither, so both always ride along. */
                             lat: this.hasPin ? Number(this.form.lat) : null,
                             lng: this.hasPin ? Number(this.form.lng) : null,
@@ -1009,6 +1503,7 @@
                     });
                     this.slug = saved.slug;
                     this.original = saved;
+                    this.published = saved.published;
                     this.fill(saved);
                     OAK.toast('Đã lưu thông tin salon.');
                 } catch (saveError) {

@@ -9,6 +9,7 @@
   "Lịch hẹn của bạn": "Your appointments",
   "Quản lý và theo dõi các dịch vụ chăm sóc sắc đẹp sắp tới.": "Manage and track your upcoming beauty services.",
   "Sắp tới": "Upcoming",
+  "Đã qua": "Past",
   "Đã hoàn thành": "Completed",
   "Đã hủy": "Cancelled",
   "Tự động hoàn tất": "Completed automatically",
@@ -28,8 +29,17 @@
   "Có thể hủy miễn phí đến": "Free cancellation until",
   "Đã quá hạn hủy online — vui lòng liên hệ salon.": "The online cancellation window has closed — please contact the salon.",
   "Bạn chưa có lịch hẹn nào. Khám phá salon và đặt lịch đầu tiên nhé.": "You have no appointments yet. Explore salons and book your first one.",
-  "Bạn chưa có lịch hẹn nào đã hoàn thành.": "You have no completed appointments.",
+  "Bạn chưa có lịch hẹn nào đã qua.": "You have no past appointments.",
   "Bạn chưa hủy lịch hẹn nào.": "You have not cancelled any appointments.",
   "Thử lại": "Try again",
-  "KTV:": "Specialist:"
+  "KTV:": "Specialist:",
+  "Không đến": "No-show",
+  "Vì sao bạn hủy?": "Why are you cancelling?",
+  "Bận đột xuất": "Something came up",
+  "Muốn đổi giờ/KTV": "I want a different time or specialist",
+  "Tìm được nơi khác": "I found somewhere else",
+  "Khác": "Other",
+  "Cho salon biết thêm (không bắt buộc)": "Tell the salon more (optional)",
+  "Đổi lịch thay vì hủy": "Reschedule instead of cancelling",
+  "Gọi salon để hủy": "Call the salon to cancel"
 }

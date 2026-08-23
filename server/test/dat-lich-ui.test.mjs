@@ -358,9 +358,13 @@ test('the wizard states the booking terms it actually has, and no membership tie
   // There is no tier, no points table and no loyalty endpoint anywhere in the codebase,
   // so threatening one at the moment of commitment was a threat about nothing.
   assert.doesNotMatch(html, /hạng thẻ/);
-  // The three conditions come from OAK.TRUST, so the salon page, the service page, the
-  // wizard and the confirmation page cannot word the same promise four different ways.
-  assert.equal(html.split('x-text="OAK.TRUST.CANCEL_POLICY"').length - 1, 2);
+  // The three conditions are spelled once per page and identically, so the salon page, the
+  // service page, the wizard and the confirmation page cannot word the same promise four
+  // different ways — and the cutoff inside it is the one this salon set.
+  assert.equal(
+    html.split('x-text="OAK.TRUST.cancelPolicy(salon ? salon.cancel_cutoff_hours : 0)"').length - 1,
+    2,
+  );
   assert.equal(html.split('x-text="OAK.TRUST.PAYMENT"').length - 1, 3);
   assert.match(html, /Điều kiện đặt lịch/);
   assert.match(html, /href="dieu-khoan\.html#huy-lich"/);
@@ -675,9 +679,11 @@ test('the reschedule banner names the appointment being replaced, and survives n
 
 test('a guest signs up inside the wizard and lands on the confirmation, never on another page', async () => {
   const calls = [];
-  const state = readyToSubmit(bookingForm(async (path) => {
+  let registerBody = null;
+  const state = readyToSubmit(bookingForm(async (path, options) => {
     calls.push(path);
     if (path === '/api/auth/register') {
+      registerBody = options.body;
       return { user: { id: 9, name: 'Ngọc Anh' } };
     }
     if (path.startsWith('/api/bookings/quote')) {
@@ -690,6 +696,9 @@ test('a guest signs up inside the wizard and lands on the confirmation, never on
   state.auth = { email: 'ngocanh@example.com', password: 'Oak@1234' };
   // Written the way a person writes it; the account and the booking both get the digits.
   state.form.phone = '090 123.4567';
+  // The same affirmative consent dang-ky.html asks for. Without it the panel refuses and
+  // never reaches the server, which is what the case below pins.
+  state.authConsent = true;
 
   await state.authSubmit();
 
@@ -698,12 +707,31 @@ test('a guest signs up inside the wizard and lands on the confirmation, never on
     '/api/bookings/quote?service_id=7',
     '/api/bookings',
   ]);
+  // POST /api/auth/register refuses a body with no consent (CONSENT_REQUIRED), so the
+  // wizard's own sign-up has to carry it — this is the one path that used to send none.
+  assert.equal(registerBody.consent, true);
+  assert.equal(registerBody.marketing_opt_in, false);
   assert.equal(state.user.id, 9);
   assert.equal(state.authError, '');
   assert.equal(state.authBusy, false);
   // The password is not left lying in the component once it has been spent.
   assert.equal(state.auth.password, '');
   assert.equal(state.location.href, 'xac-nhan-dat-lich.html?id=91');
+});
+
+test('the wizard will not create an account without consent, and says so', async () => {
+  const state = readyToSubmit(bookingForm(async () => assert.fail('no request may be made')));
+  state.user = null;
+  state.authTab = 'register';
+  state.auth = { email: 'ngocanh@example.com', password: 'Oak@1234' };
+
+  await state.authSubmit();
+
+  assert.equal(state.authError, 'Vui lòng đồng ý với Điều khoản và Chính sách bảo mật.');
+  assert.equal(state.user, null);
+  // The box is only asked for on the register tab; signing in takes no new consent.
+  assert.match(html, /x-model="authConsent"/);
+  assert.match(html, /x-show="authTab === 'register'"/);
 });
 
 test('a refused sign-in stays on the wizard with the reason, and books nothing', async () => {

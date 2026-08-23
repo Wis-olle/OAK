@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
+<script src="assets/js/oak-i18n.js"></script>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
+
+<title>Đánh giá salon - OAK Beauty</title>
+<meta content="noindex,nofollow" name="robots">
+<!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
+<link href="assets/css/oak-tailwind.css" rel="stylesheet">
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="oakPartnerReviews()">
+<a class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary focus:border focus:border-outline-variant focus:shadow-lg font-body-md text-body-md" href="#main">Bỏ qua đến nội dung</a>
+<!-- SideNavBar -->
+<nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low p-gutter z-50">
+<div class="mb-12">
+<p class="font-headline-sm text-headline-sm text-primary">OAK Beauty</p>
+<p class="font-caption text-caption text-on-surface-variant mt-2 uppercase tracking-widest" data-oak-salon-name x-text="salon ? salon.name : 'Partner Dashboard'">Partner Dashboard</p>
+</div>
+<ul class="flex flex-col gap-2 flex-grow">
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="tong-quan-doi-tac.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md text-body-md">Tổng quan</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="quan-ly-lich-hen.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-body-md text-body-md">Lịch hẹn</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="quan-ly-dich-vu.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<span class="font-body-md text-body-md">Dịch vụ</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="quan-ly-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-body-md text-body-md">Nhân viên</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span class="font-body-md text-body-md">Báo cáo</span>
+</a>
+</li>
+<li>
+<a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-lg text-secondary font-bold bg-surface-variant scale-95 duration-150" href="danh-gia-salon.html">
+<span aria-hidden="true" class="material-symbols-outlined fill" data-icon="star">star</span>
+<span class="font-body-md text-body-md">Đánh giá</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="blog.html?compose=1">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="article">article</span>
+<span class="font-body-md text-body-md">Nội dung</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="cai-dat-salon.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body-md text-body-md">Cài đặt</span>
+</a>
+</li>
+</ul>
+<div class="mt-auto pt-8 border-t border-outline-variant/30">
+<div class="flex flex-col gap-1 mb-4">
+<a class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="index.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="storefront">storefront</span>
+<span class="font-body-md text-body-md">Xem trang khách</span>
+</a>
+<a @click.prevent="OAK.logout()" class="flex items-center gap-4 px-4 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" data-oak-logout href="dang-nhap-doi-tac.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-body-md text-body-md">Đăng xuất</span>
+</a>
+</div>
+<a class="w-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 px-6 rounded-full hover:bg-primary transition-colors flex items-center justify-center gap-2" href="quan-ly-lich-hen.html?new=1">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                Đặt lịch mới
+            </a>
+</div>
+</nav>
+<!-- TopNavBar -->
+<header class="flex justify-between items-center gap-4 h-20 px-margin-mobile md:px-gutter md:ml-64 md:w-[calc(100%-16rem)] bg-surface/80 backdrop-blur-xl top-0 sticky border-b border-outline-variant/30 z-40">
+<div class="flex items-center gap-4 min-w-0">
+<h1 class="font-headline-sm text-headline-sm text-primary truncate">Đánh giá</h1>
+</div>
+<div class="flex items-center gap-4 md:gap-6 shrink-0">
+<!-- The console bell answers "what needs me", so it stays inside the console: the
+     customer notification page has no way back to the partner pages. -->
+<a aria-label="Lịch chờ xác nhận" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" data-oak-pending-bell href="quan-ly-lich-hen.html?status=pending">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span aria-hidden="true" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-error text-on-error font-caption text-[10px] hidden items-center justify-center" data-oak-pending-count></span>
+</a>
+<a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
+<span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 flex items-center justify-center">
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant" data-oak-avatar-icon>person</span>
+<img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover hidden" data-oak-avatar-img/>
+</span>
+<span class="font-label-md text-label-md text-primary hover:text-secondary transition-colors hidden sm:inline" x-text="user ? user.name : 'Đối tác'">Đối tác</span>
+</a>
+<a aria-label="Xem trang khách" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="index.html">
+<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
+</a>
+<a @click.prevent="OAK.logout()" aria-label="Đăng xuất" class="md:hidden text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" data-oak-logout href="dang-nhap-doi-tac.html">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+</a>
+</div>
+</header>
+
+<!-- Main Content -->
+<main class="md:ml-64 p-margin-mobile md:p-margin-desktop pb-24 md:pb-margin-desktop" id="main" tabindex="-1">
+<!-- Page Header -->
+<div class="mb-12">
+<h2 class="font-headline-lg text-headline-lg text-on-background">Đánh giá</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2" x-cloak="" x-show="!loading || reviews.length > 0"><span x-text="total"></span> <span>đánh giá</span> · <span x-text="unanswered"></span> <span>chưa trả lời</span></p>
+</div>
+<!-- Filters. "Chưa trả lời" is the one a salon works from; the stars are how it finds
+     the review a customer just rang about. -->
+<div class="flex flex-wrap items-center gap-3 mb-8">
+<button :aria-pressed="rating === '' && !unansweredOnly" :class="rating === '' && !unansweredOnly ? 'bg-primary-container text-on-primary border-primary-container' : 'border-outline-variant text-on-surface hover:border-primary hover:text-primary'" @click="setFilter('', false)" class="min-h-[44px] px-5 rounded-full border font-label-md text-label-md transition-colors" type="button">Tất cả</button>
+<template :key="'star-' + star" x-for="star in [5, 4, 3, 2, 1]">
+<button :aria-pressed="rating === String(star)" :class="rating === String(star) ? 'bg-primary-container text-on-primary border-primary-container' : 'border-outline-variant text-on-surface hover:border-primary hover:text-primary'" @click="setFilter(String(star), unansweredOnly)" class="min-h-[44px] px-5 rounded-full border font-label-md text-label-md transition-colors" type="button"><span x-text="star"></span> <span>sao</span></button>
+</template>
+<button :aria-pressed="unansweredOnly" :class="unansweredOnly ? 'bg-primary-container text-on-primary border-primary-container' : 'border-outline-variant text-on-surface hover:border-primary hover:text-primary'" @click="setFilter(rating, !unansweredOnly)" class="min-h-[44px] px-5 rounded-full border font-label-md text-label-md transition-colors" type="button">Chưa trả lời</button>
+</div>
+<div class="bg-surface-container-lowest rounded-xl border border-surface-variant overflow-hidden shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<div class="divide-y divide-surface-variant/60">
+<template :key="review.id" x-for="review in reviews">
+<article class="p-4 md:p-6">
+<div class="flex flex-wrap items-center gap-3">
+<div :aria-label="review.rating + '/5'" class="flex items-center gap-1 text-secondary" role="img">
+<template x-for="star in 5">
+<span :style="star &lt;= review.rating ? filled : ''" aria-hidden="true" class="material-symbols-outlined text-sm">star</span>
+</template>
+</div>
+<span class="font-body-md text-body-md text-on-background" x-text="review.user.name"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(review.created_at)"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-show="review.service" x-text="review.service ? review.service.name : ''"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-show="review.staff" x-text="review.staff ? review.staff.name : ''"></span>
+</div>
+<p class="font-body-md text-body-md text-on-surface mt-3" x-text="review.comment"></p>
+<!-- The answer already given, with the way to change it. -->
+<div class="mt-4 pl-4 border-l border-outline-variant/50" x-cloak="" x-show="review.reply_text && replyingId !== review.id">
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider"><span>Phản hồi từ</span> <span x-text="salon ? salon.name : ''"></span></p>
+<p class="font-body-md text-body-md text-on-surface mt-1" x-text="review.reply_text"></p>
+</div>
+<div class="mt-4 flex flex-wrap gap-3" x-show="replyingId !== review.id">
+<button :disabled="saving" @click="startReply(review)" class="min-h-[44px] px-5 rounded-full border border-outline-variant text-on-surface font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span x-show="!review.reply_text">Trả lời</span>
+<span x-cloak="" x-show="review.reply_text">Sửa phản hồi</span>
+</button>
+<button :disabled="saving" @click="removeReply(review)" class="min-h-[44px] px-5 rounded-full text-error font-label-md text-label-md uppercase tracking-wider hover:bg-error-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button" x-cloak="" x-show="review.reply_text">Gỡ phản hồi</button>
+</div>
+<!-- The composer, open on one review at a time. -->
+<div class="mt-4" x-cloak="" x-show="replyingId === review.id">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" :for="'reply-' + review.id">Phản hồi công khai</label>
+<textarea :id="'reply-' + review.id" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" maxlength="1000" rows="3" x-model="replyText" x-ref="replyBox"></textarea>
+<p class="font-caption text-caption text-on-surface-variant mt-1">Khách sẽ nhận thông báo và mọi người đều đọc được phản hồi này.</p>
+<div class="mt-3 flex flex-wrap gap-3">
+<button :disabled="saving || !replyText.trim()" @click="saveReply(review)" class="min-h-[44px] px-6 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">Gửi phản hồi</button>
+<button @click="cancelReply()" class="min-h-[44px] px-5 rounded-full border border-outline-variant text-on-surface font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Huỷ</button>
+</div>
+</div>
+</article>
+</template>
+</div>
+<p class="p-6 font-body-md text-body-md text-on-surface-variant" x-show="loading">Đang tải đánh giá…</p>
+<div class="p-6 flex flex-wrap items-center gap-4" role="alert" x-cloak="" x-show="!loading && error">
+<p class="font-body-md text-body-md text-error" x-text="error"></p>
+<button @click="load()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Thử lại</button>
+</div>
+<!-- OAK-EMPTY -->
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center" x-cloak="" x-show="!loading && !error && reviews.length === 0">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="star">star</span>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Chưa có đánh giá nào ở bộ lọc này.</p>
+<button @click="setFilter('', false)" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="button">Xem tất cả đánh giá</button>
+</div>
+</div>
+<button @click="loadMore()" class="mt-6 font-label-md text-label-md uppercase tracking-wider text-secondary hover:text-on-background transition-colors" type="button" x-cloak="" x-show="reviews.length < total">Xem thêm đánh giá</button>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/30 z-50 px-1 py-2 flex justify-between items-center">
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="tong-quan-doi-tac.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Tổng quan</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-lich-hen.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Lịch hẹn</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-dich-vu.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="content_cut">content_cut</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Dịch vụ</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="quan-ly-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Nhân viên</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="bao-cao-doanh-thu.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Báo cáo</span>
+</a>
+<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="cai-dat-salon.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
+</a>
+</nav>
+<script>
+    /* Inline (not deferred) so the factory exists before Alpine boots. */
+
+    var OAK_REVIEW_PAGE = 20;
+
+    function oakPartnerReviews() {
+        return {
+            user: null,
+            salon: null,
+            reviews: [],
+            total: 0,
+            unanswered: 0,
+            average: 0,
+            page: 1,
+            /* '' is every star; otherwise the one the pressed chip names. */
+            rating: '',
+            unansweredOnly: false,
+            loading: true,
+            error: '',
+            saving: false,
+            /* The review whose composer is open, and what is in it. One at a time: two
+               open boxes is two half-written answers and no way to tell them apart. */
+            replyingId: null,
+            replyText: '',
+            /* A filled star, the way every other OAK page draws one. */
+            filled: "font-variation-settings: 'FILL' 1;",
+
+            async init() {
+                await OAK.requirePartner();
+                this.user = await OAK.me();
+                try {
+                    this.salon = await OAK.api('/api/partner/salon');
+                } catch (error) {
+                    this.salon = null;
+                }
+                var rating = OAK.qs('rating');
+                if (['1', '2', '3', '4', '5'].indexOf(rating) !== -1) {
+                    this.rating = rating;
+                }
+                this.unansweredOnly = OAK.qs('unanswered') === '1';
+                await this.load();
+                OAK.pendingBadge();
+            },
+
+            /* `more` appends the next page; without it the list starts again at page 1,
+               which is what every filter change wants. */
+            async load(more) {
+                this.loading = true;
+                this.error = '';
+                var params = new URLSearchParams();
+                params.set('limit', String(OAK_REVIEW_PAGE));
+                params.set('page', String(more ? this.page + 1 : 1));
+                if (this.rating) {
+                    params.set('rating', this.rating);
+                }
+                if (this.unansweredOnly) {
+                    params.set('unanswered', '1');
+                }
+                try {
+                    var rows = await OAK.api('/api/partner/reviews?' + params.toString());
+                    this.total = rows.meta ? rows.meta.total : rows.length;
+                    this.unanswered = rows.meta ? rows.meta.unanswered : 0;
+                    this.reviews = more ? this.reviews.concat(rows) : rows;
+                    this.page = more ? this.page + 1 : 1;
+                } catch (error) {
+                    if (!more) {
+                        this.reviews = [];
+                        this.total = 0;
+                    }
+                    this.error = error.message;
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            loadMore() {
+                this.load(true);
+            },
+
+            setFilter(rating, unansweredOnly) {
+                this.rating = rating;
+                this.unansweredOnly = unansweredOnly;
+                this.cancelReply();
+                this.load();
+            },
+
+            startReply(review) {
+                this.replyingId = review.id;
+                this.replyText = review.reply_text || '';
+                this.$nextTick(
+                    function () {
+                        if (this.$refs.replyBox) {
+                            this.$refs.replyBox.focus();
+                        }
+                    }.bind(this),
+                );
+            },
+
+            cancelReply() {
+                this.replyingId = null;
+                this.replyText = '';
+            },
+
+            async saveReply(review) {
+                if (this.saving || !this.replyText.trim()) {
+                    return;
+                }
+                await this.sendReply(review, this.replyText.trim(), 'Đã gửi phản hồi.');
+            },
+
+            /* Taking one back down is the only way out of an answer written in anger, so it
+               is the same request with nothing in it. */
+            async removeReply(review) {
+                if (this.saving) {
+                    return;
+                }
+                await this.sendReply(review, '', 'Đã gỡ phản hồi.');
+            },
+
+            async sendReply(review, text, message) {
+                this.saving = true;
+                var hadReply = Boolean(review.reply_text);
+                try {
+                    var saved = await OAK.api('/api/partner/reviews/' + review.id + '/reply', {
+                        method: 'PATCH',
+                        body: { reply_text: text },
+                    });
+                    review.reply_text = saved.reply_text;
+                    review.reply_at = saved.reply_at;
+                    // Editing an answer is not answering a second review.
+                    if (hadReply !== Boolean(saved.reply_text)) {
+                        this.unanswered += saved.reply_text ? -1 : 1;
+                    }
+                    this.cancelReply();
+                    OAK.toast(message);
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.saving = false;
+                }
+            },
+        };
+    }
+</script>
+</body></html>

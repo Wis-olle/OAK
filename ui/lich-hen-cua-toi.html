@@ -107,7 +107,7 @@ Cài đặt
 <!-- Tabs -->
 <div class="flex gap-8 border-b border-outline-variant/30 mt-4">
 <button :class="tab === 'upcoming' ? 'active' : ''" @click="show('upcoming')" class="tab-button font-label-md text-label-md uppercase tracking-wider" type="button">Sắp tới</button>
-<button :class="tab === 'completed' ? 'active' : ''" @click="show('completed')" class="tab-button font-label-md text-label-md uppercase tracking-wider" type="button">Đã hoàn thành</button>
+<button :class="tab === 'past' ? 'active' : ''" @click="show('past')" class="tab-button font-label-md text-label-md uppercase tracking-wider" type="button">Đã qua</button>
 <button :class="tab === 'cancelled' ? 'active' : ''" @click="show('cancelled')" class="tab-button font-label-md text-label-md uppercase tracking-wider" type="button">Đã hủy</button>
 </div>
 <!-- Bookings List -->
@@ -178,7 +178,7 @@ Cài đặt
 </div>
 </div>
 <div class="flex flex-wrap gap-3 w-full md:w-auto">
-<button @click="cancel(booking)" class="flex-1 md:flex-none border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" type="button" x-show="tab === 'upcoming'">
+<button @click="cancel(booking)" class="flex-1 md:flex-none border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" type="button" x-show="tab === 'upcoming' &amp;&amp; !hasStarted(booking)">
                                     Hủy lịch
                                 </button>
 <a :href="rescheduleUrl(booking)" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="tab === 'upcoming' &amp;&amp; canCancel(booking)">
@@ -204,23 +204,46 @@ Cài đặt
 </div>
 </main>
 <!-- Cancel Confirmation Modal -->
-<div @keydown.escape.window="cancelTarget = null" aria-labelledby="cancel-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="cancelTarget">
+<div @keydown.escape.window="closeCancel()" aria-labelledby="cancel-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="cancelTarget">
 <!-- Backdrop -->
-<div @click="cancelTarget = null" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="cancelTarget" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
+<div @click="closeCancel()" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="cancelTarget" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
 <!-- Modal Panel -->
 <div class="relative w-full sm:max-w-md bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-6 md:p-8" x-show="cancelTarget" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <h3 class="font-headline-sm text-headline-sm text-primary mb-3" id="cancel-title">Hủy lịch hẹn</h3>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4" x-text="cancelTarget ? 'Bạn chắc chắn muốn hủy lịch hẹn ' + cancelTarget.code + '? Thao tác này không thể hoàn tác.' : ''"></p>
 <!-- The deadline is its own text node so the dictionary can translate the sentence
      while the clock time beside it stays as the page computed it. -->
-<p class="font-caption text-caption text-on-surface-variant mb-8" x-show="cancelTarget &amp;&amp; !cancelExpired()">
+<p class="font-caption text-caption text-on-surface-variant mb-4" x-show="cancelTarget &amp;&amp; !cancelExpired()">
 <span aria-hidden="true" class="material-symbols-outlined text-[14px] align-middle" data-icon="schedule">schedule</span>
                 Có thể hủy miễn phí đến <span x-text="cancelDeadline()"></span>
 </p>
-<p class="font-caption text-caption text-error mb-8" x-cloak="" x-show="cancelTarget &amp;&amp; cancelExpired()">Đã quá hạn hủy online — vui lòng liên hệ salon.</p>
+<!-- The salon's own wording, when it wrote any. Its text, so it is never translated. -->
+<p class="font-caption text-caption text-on-surface-variant mb-4" x-cloak="" x-show="cancelPolicy()" x-text="cancelPolicy()"></p>
+<p class="font-caption text-caption text-error mb-4" x-cloak="" x-show="cancelTarget &amp;&amp; cancelExpired()">Đã quá hạn hủy online — vui lòng liên hệ salon.</p>
+<!-- Why, asked while the answer can still change what happens: "Muốn đổi giờ/KTV" turns
+     the red button into the way out that keeps the appointment. -->
+<fieldset class="mb-8" x-show="cancelTarget &amp;&amp; !cancelExpired()">
+<legend class="font-label-md text-label-md text-on-surface uppercase tracking-wider mb-2">Vì sao bạn hủy?</legend>
+<template :key="reason" x-for="reason in cancelReasons">
+<label class="flex items-center gap-3 py-1.5 font-body-md text-body-md text-on-surface-variant cursor-pointer">
+<input :value="reason" name="cancel-reason" type="radio" x-model="cancelReason"/>
+<span x-text="reason"></span>
+</label>
+</template>
+<!-- 194, not the server's 200: the box only shows under "Khác", and the sent reason
+     carries the "Khác: " prefix. The box stops where the request would. -->
+<textarea class="w-full mt-3 bg-transparent border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md text-on-surface" maxlength="194" placeholder="Cho salon biết thêm (không bắt buộc)" rows="2" x-cloak="" x-model="cancelNote" x-show="cancelReason === 'Khác'"></textarea>
+</fieldset>
 <div class="flex flex-wrap justify-end gap-3">
-<button @click="cancelTarget = null" class="flex-1 sm:flex-none border border-outline text-primary font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-surface-variant/50 transition-colors active:scale-95 duration-200" type="button">Giữ lại</button>
-<button :disabled="cancelling || cancelExpired()" @click="confirmCancel()" class="flex-1 sm:flex-none bg-error text-on-error font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:opacity-90 transition-opacity active:scale-95 duration-200 disabled:opacity-50" type="button" x-text="cancelling ? 'Đang hủy…' : 'Hủy lịch hẹn'"></button>
+<button @click="closeCancel()" class="flex-1 sm:flex-none border border-outline text-primary font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-surface-variant/50 transition-colors active:scale-95 duration-200" type="button">Giữ lại</button>
+<!-- Past the deadline the server refuses, so the dialog offers the only thing that still
+     works — and only when the salon published a number to dial. -->
+<a :href="'tel:' + salonPhone()" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-primary-container text-on-primary font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-primary transition-colors" x-cloak="" x-show="cancelExpired() &amp;&amp; salonPhone()">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="call">call</span>
+                Gọi salon để hủy
+            </a>
+<a :href="cancelTarget ? rescheduleUrl(cancelTarget) : '#'" class="flex-1 sm:flex-none inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-primary transition-colors" x-cloak="" x-show="!cancelExpired() &amp;&amp; cancelReason === 'Muốn đổi giờ/KTV'">Đổi lịch thay vì hủy</a>
+<button :disabled="cancelling" @click="confirmCancel()" class="flex-1 sm:flex-none bg-error text-on-error font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:opacity-90 transition-opacity active:scale-95 duration-200 disabled:opacity-50" type="button" x-show="!cancelExpired() &amp;&amp; cancelReason !== 'Muốn đổi giờ/KTV'" x-text="cancelling ? 'Đang hủy…' : 'Hủy lịch hẹn'"></button>
 </div>
 </div>
 </div>
@@ -283,11 +306,12 @@ Cài đặt
         confirmed: { label: 'Đã xác nhận', icon: 'check_circle' },
         completed: { label: 'Đã hoàn thành', icon: 'task_alt' },
         cancelled: { label: 'Đã hủy', icon: 'cancel' },
+        no_show: { label: 'Không đến', icon: 'person_off' },
     };
 
     const OAK_EMPTY_MESSAGE = {
         upcoming: 'Bạn chưa có lịch hẹn nào. Khám phá salon và đặt lịch đầu tiên nhé.',
-        completed: 'Bạn chưa có lịch hẹn nào đã hoàn thành.',
+        past: 'Bạn chưa có lịch hẹn nào đã qua.',
         cancelled: 'Bạn chưa hủy lịch hẹn nào.',
     };
 
@@ -297,10 +321,20 @@ Cài đặt
         pending: 'bg-secondary-container text-on-secondary-container',
         confirmed: 'bg-primary-container text-on-primary',
         cancelled: 'bg-error-container text-on-error-container',
+        // Absent is not cancelled: it keeps a tone of its own so the two never read alike.
+        no_show: 'bg-tertiary-container text-on-tertiary-container',
     };
 
-    // dieu-khoan.html: an appointment can no longer be cancelled online inside this window.
-    const OAK_CANCEL_WINDOW_MS = 2 * 60 * 60 * 1000;
+    /* Why an appointment is being dropped. The second one is not really a cancellation at
+       all, and picking it turns the dialog's red button into the way to keep the booking. */
+    const OAK_CANCEL_REASONS = [
+        'Bận đột xuất', 'Muốn đổi giờ/KTV', 'Tìm được nơi khác', 'Khác',
+    ];
+
+    /* What a salon that has never opened its settings still promises, and what the server
+       falls back to for a row written before the column existed. */
+    const OAK_DEFAULT_CANCEL_HOURS = 2;
+    const OAK_MS_PER_HOUR = 60 * 60 * 1000;
 
     /** 'HH:MM' + minutes -> 'HH:MM', wrapping at midnight the way a clock does. */
     function oakAddMinutes(time, minutes) {
@@ -321,6 +355,9 @@ Cài đặt
             tabToken: 0,
             cancelTarget: null,
             cancelling: false,
+            cancelReasons: OAK_CANCEL_REASONS,
+            cancelReason: OAK_CANCEL_REASONS[0],
+            cancelNote: '',
 
             async init() {
                 await OAK.requireLogin();
@@ -351,7 +388,7 @@ Cài đặt
                     }
                     this.bookings = bookings;
                     this.cache[tab] = bookings;
-                    if (tab === 'completed') {
+                    if (tab === 'past') {
                         await this.loadReviewed();
                     }
                 } catch (error) {
@@ -426,11 +463,37 @@ Cài đặt
                 return this.rebookUrl(booking) + '&reschedule=' + booking.id;
             },
 
-            /** The moment free cancellation closes: two hours before the appointment starts. */
-            cancelDeadlineAt(booking) {
+            /** When this appointment starts, as a timestamp. */
+            startAt(booking) {
                 const [year, month, day] = booking.date.split('-').map(Number);
                 const [hours, minutes] = booking.time.split(':').map(Number);
-                return new Date(year, month - 1, day, hours, minutes).getTime() - OAK_CANCEL_WINDOW_MS;
+                return new Date(year, month - 1, day, hours, minutes).getTime();
+            },
+
+            /** The moment free cancellation closes: the salon's own cutoff before the start. */
+            cancelDeadlineAt(booking) {
+                const hours = booking.salon.cancel_cutoff_hours || OAK_DEFAULT_CANCEL_HOURS;
+                return this.startAt(booking) - hours * OAK_MS_PER_HOUR;
+            },
+
+            /** An appointment that has begun is past cancelling and past rescheduling. */
+            hasStarted(booking) {
+                return Date.now() >= this.startAt(booking);
+            },
+
+            /** The salon's own wording beside the deadline, when it wrote any. */
+            cancelPolicy() {
+                return (this.cancelTarget && this.cancelTarget.salon.cancel_policy_text) || '';
+            },
+
+            /** Digits only: tel: dials nothing when the number carries spaces. A leading
+                '+' survives — the salon phone is free text, so it may be written +84…. */
+            salonPhone() {
+                return this.cancelTarget
+                    ? String(this.cancelTarget.salon.phone || '')
+                        .replace(/[^\d+]/g, '')
+                        .replace(/(?!^)\+/g, '')
+                    : '';
             },
 
             /** 'HH:MM, DD/MM' — digits only, so the English pass leaves it alone. */
@@ -465,7 +528,13 @@ Cài đặt
 
             cancel(booking) {
                 this.error = '';
+                this.cancelReason = OAK_CANCEL_REASONS[0];
+                this.cancelNote = '';
                 this.cancelTarget = booking;
+            },
+
+            closeCancel() {
+                this.cancelTarget = null;
             },
 
             async confirmCancel() {
@@ -475,7 +544,18 @@ Cài đặt
                 }
                 this.cancelling = true;
                 try {
-                    await OAK.api('/api/bookings/' + booking.id + '/cancel', { method: 'PATCH' });
+                    // The label, plus whatever was typed under "Khác": the salon reads it in
+                    // the booking's note, which is the only place a reason can land today.
+                    // The box belongs to "Khác" alone, so switching away from it discards
+                    // what was typed there rather than pinning it to another reason.
+                    const note = this.cancelReason === 'Khác' ? this.cancelNote.trim() : '';
+                    // The server caps the reason at 200 characters and the label eats into
+                    // that budget, so the client trims rather than letting the send fail.
+                    const reason = (note ? this.cancelReason + ': ' + note : this.cancelReason).slice(0, 200);
+                    await OAK.api('/api/bookings/' + booking.id + '/cancel', {
+                        method: 'PATCH',
+                        body: { reason },
+                    });
                     OAK.toast('Đã hủy lịch hẹn ' + booking.code + '.');
                     // The booking just moved between tabs, so every cached list is stale.
                     this.cache = {};

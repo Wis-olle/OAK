@@ -83,6 +83,18 @@
 </a>
 </li>
 <li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="danh-gia-salon.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="star">star</span>
+<span class="font-body-md text-body-md">Đánh giá</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="blog.html?compose=1">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="article">article</span>
+<span class="font-body-md text-body-md">Nội dung</span>
+</a>
+</li>
+<li>
 <a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="cai-dat-salon.html">
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="settings">settings</span>
 <span class="font-body-md text-body-md">Cài đặt</span>
@@ -162,7 +174,7 @@
 </div>
 <!-- Services Grid -->
 <div :class="{ 'opacity-50': loading }" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-section-gap transition-opacity">
-<template :key="service.id" x-for="service in services">
+<template :key="service.id" x-for="(service, index) in services">
 <div :class="service.active ? 'bg-surface-container-lowest' : 'bg-surface-container-lowest/50 opacity-75'" @click="openServiceCard(service)" class="group relative hover:bg-surface-container-low transition-colors duration-300 rounded-lg overflow-hidden border border-transparent hover:border-outline-variant/30 flex flex-col h-full cursor-pointer">
 <div class="aspect-[4/3] w-full overflow-hidden relative bg-surface-container-low">
 <template x-if="service.image">
@@ -173,6 +185,16 @@
 <span class="material-symbols-outlined text-[40px]">image</span>
 </div>
 </template>
+<!-- Menu order, and the only place it can be changed: this is the order a customer
+                     reads the menu in, not the alphabet. -->
+<div @click.stop="" class="absolute top-4 left-4 flex items-center gap-1" x-show="canReorder()">
+<button :disabled="index === 0 || moving" @click="moveService(index, -1)" aria-label="Đưa dịch vụ lên trước" class="w-11 h-11 rounded-full bg-surface-container-lowest/90 backdrop-blur flex items-center justify-center text-on-surface hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">chevron_left</span>
+</button>
+<button :disabled="index === services.length - 1 || moving" @click="moveService(index, 1)" aria-label="Đưa dịch vụ xuống sau" class="w-11 h-11 rounded-full bg-surface-container-lowest/90 backdrop-blur flex items-center justify-center text-on-surface hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">chevron_right</span>
+</button>
+</div>
 <div @click.stop="" class="absolute top-4 right-4 bg-surface-container-lowest/90 backdrop-blur px-3 py-1 rounded-full flex items-center gap-2">
 <input :checked="service.active === 1" :id="'toggle-service-' + service.id" @change="toggleService(service)" class="hidden toggle-checkbox" type="checkbox"/>
 <label :for="'toggle-service-' + service.id" class="toggle-label"></label>
@@ -182,7 +204,7 @@
 <div class="p-6 flex flex-col flex-grow">
 <div class="flex justify-between items-start gap-3 mb-2">
 <h3 :class="service.active ? 'text-on-surface' : 'text-on-surface-variant'" class="font-headline-sm text-headline-sm" x-text="service.name"></h3>
-<span :class="service.active ? 'text-on-surface' : 'text-on-surface-variant'" class="font-body-lg text-body-lg font-medium whitespace-nowrap" x-text="OAK.fmtPrice(service.price)"></span>
+<span :class="service.active ? 'text-on-surface' : 'text-on-surface-variant'" class="font-body-lg text-body-lg font-medium whitespace-nowrap" x-text="OAK.fmtPriceFrom(service.price, service.price_is_from)"></span>
 </div>
 <p class="font-caption text-caption text-on-surface-variant mb-6 uppercase tracking-widest" x-text="service.duration_min + ' phút • ' + categoryLabel(service.category)"></p>
 <div class="mt-auto flex gap-4 border-t border-outline-variant/20 pt-4">
@@ -292,6 +314,13 @@
 <input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-duration" min="0" required step="5" type="number" x-model="serviceForm.duration_min"/>
 </div>
 </div>
+<label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer">
+<input class="mt-1" id="service-price-from" type="checkbox" x-model="serviceForm.price_is_from"/>
+<span class="flex flex-col gap-1">
+<span class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant">Giá từ</span>
+<span class="font-caption text-caption">Dùng cho dịch vụ có giá thay đổi theo độ dài tóc, bộ móng… Khách sẽ thấy “từ 250.000đ”.</span>
+</span>
+</label>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-description">Mô tả</label>
 <textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-description" rows="3" x-model="serviceForm.description"></textarea>
@@ -566,12 +595,20 @@
             confirmOpen: false,
             confirmMessage: '',
             confirmAction: null,
+            /* True while a pair of positions is being swapped, so a second tap cannot
+               reorder a list that is about to be replaced. */
+            moving: false,
 
             async init() {
                 await OAK.requirePartner();
                 this.query = OAK.qs('q') || '';
                 await this.loadServices();
                 await this.loadPromotions();
+                // The setup checklist links straight at the empty form, so a salon with no
+                // menu yet lands on the thing it was sent here to do.
+                if (OAK.qs('new')) {
+                    this.openServiceForm(null);
+                }
                 OAK.pendingBadge();
             },
 
@@ -664,6 +701,7 @@
                           name: service.name,
                           category: service.category,
                           price: service.price,
+                          price_is_from: service.price_is_from === 1,
                           duration_min: service.duration_min,
                           description: service.description || '',
                           image: service.image || '',
@@ -673,11 +711,50 @@
                           name: '',
                           category: 'nail',
                           price: '',
+                          price_is_from: false,
                           duration_min: '',
                           description: '',
                           image: '',
                       };
                 this.serviceOpen = true;
+            },
+
+            /* Menu order is a property of the whole menu, and ↑/↓ only ever swap two rows
+               of the list on screen — under a category tab or a search that is two rows with
+               other services between them, and the ends of the page are not the ends of the
+               menu. So the arrows only appear on the unfiltered list. */
+            canReorder() {
+                return !this.category && !this.query.trim();
+            },
+
+            /* Two services trade positions, which is one request each: the endpoint stores
+               a position, it does not know what "earlier" means. */
+            async moveService(index, step) {
+                var target = index + step;
+                if (this.moving || target < 0 || target >= this.services.length) {
+                    return;
+                }
+                var moved = this.services[index];
+                var swapped = this.services[target];
+                this.moving = true;
+                try {
+                    await OAK.api('/api/partner/services/' + moved.id, {
+                        method: 'PATCH',
+                        body: { sort_order: swapped.sort_order },
+                    });
+                    await OAK.api('/api/partner/services/' + swapped.id, {
+                        method: 'PATCH',
+                        body: { sort_order: moved.sort_order },
+                    });
+                    await this.loadServices();
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                    // One of the two writes may have landed. Show the order the server
+                    // actually holds rather than the one this swap was aiming for.
+                    await this.loadServices();
+                } finally {
+                    this.moving = false;
+                }
             },
 
             async submitService() {
@@ -687,6 +764,7 @@
                     name: this.serviceForm.name,
                     category: this.serviceForm.category,
                     price: this.serviceForm.price,
+                    price_is_from: this.serviceForm.price_is_from ? 1 : 0,
                     duration_min: this.serviceForm.duration_min,
                     description: this.serviceForm.description || null,
                     image: this.serviceForm.image || null,

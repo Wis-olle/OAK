@@ -17,6 +17,7 @@ Disallow: /dang-ky.html
 Disallow: /dang-nhap-doi-tac.html
 Disallow: /dang-nhap-nguoi-dung.html
 Disallow: /danh-gia-cua-toi.html
+Disallow: /danh-gia-salon.html
 Disallow: /danh-sach-salon.html
 Disallow: /dat-lai-mat-khau.html
 Disallow: /dat-lich.html

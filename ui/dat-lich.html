@@ -243,9 +243,10 @@
 <!-- The next seven days at a glance, each marked when it has nothing free. -->
 <div class="flex flex-wrap gap-2" x-cloak="" x-show="dayChips.length">
 <template :key="chip.date" x-for="chip in dayChips">
-<button :class="[date === chip.date ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant', chip.full ? 'line-through opacity-60' : '']" @click="pickDate(chip.date)" class="flex flex-col items-center justify-center min-h-[44px] px-4 py-2 border rounded-2xl hover:border-primary transition-colors" type="button">
+<button :class="[date === chip.date ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant', chip.full &amp;&amp; !chip.closed ? 'line-through opacity-60' : '', chip.closed ? 'opacity-60' : '']" @click="pickDate(chip.date)" class="flex flex-col items-center justify-center min-h-[44px] px-4 py-2 border rounded-2xl hover:border-primary transition-colors" type="button">
 <span class="font-label-md text-label-md" x-text="chip.weekday"></span>
-<span class="font-caption text-caption" x-text="chip.day"></span>
+<span class="font-caption text-caption" x-show="!chip.closed" x-text="chip.day"></span>
+<span class="font-caption text-caption" x-cloak="" x-show="chip.closed">Nghỉ</span>
 </button>
 </template>
 </div>
@@ -290,7 +291,7 @@
 <!-- What picking an hour costs, said where the hour is picked rather than only in the
      sidebar the mobile reader meets at the bottom of the page. -->
 <p class="flex flex-wrap items-center gap-2 font-caption text-caption text-on-surface-variant">
-<span x-text="OAK.TRUST.CANCEL_POLICY"></span>
+<span x-text="OAK.TRUST.cancelPolicy(salon ? salon.cancel_cutoff_hours : 0)"></span>
 <span aria-hidden="true">·</span>
 <span x-text="OAK.TRUST.PAYMENT"></span>
 </p>
@@ -394,6 +395,18 @@
 </div>
 </div>
 <p class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="authTab === 'register'">Chúng tôi dùng họ tên và số điện thoại bạn vừa nhập ở trên.</p>
+<!-- The same two boxes dang-ky.html asks, asked once per purpose: this panel creates a real
+     account, so it takes the same affirmative consent the full sign-up page does. -->
+<div class="space-y-3" x-cloak="" x-show="authTab === 'register'">
+<label class="flex items-start gap-3 cursor-pointer" for="auth-consent">
+<input @change="authError = ''" class="mt-1" id="auth-consent" name="auth-consent" type="checkbox" x-model="authConsent"/>
+<span class="font-caption text-caption text-on-surface-variant">Tôi đồng ý với <a class="underline hover:text-primary transition-colors" href="dieu-khoan.html" rel="noopener noreferrer" target="_blank">Điều khoản sử dụng</a> và <a class="underline hover:text-primary transition-colors" href="bao-mat.html" rel="noopener noreferrer" target="_blank">Chính sách bảo mật</a> của OAK Beauty.</span>
+</label>
+<label class="flex items-start gap-3 cursor-pointer" for="auth-marketing">
+<input class="mt-1" id="auth-marketing" name="auth-marketing" type="checkbox" x-model="authMarketing"/>
+<span class="font-caption text-caption text-on-surface-variant">Nhận ưu đãi và tin khuyến mãi qua Thông báo (không bắt buộc).</span>
+</label>
+</div>
 <p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="authError" x-text="authError"></p>
 <button :disabled="authBusy || busy" @click="authSubmit()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button" x-text="authBusy ? 'Đang xử lý…' : (authTab === 'login' ? 'Đăng nhập &amp; xác nhận' : 'Tạo tài khoản &amp; xác nhận')">Đăng nhập &amp; xác nhận</button>
 </div>
@@ -434,6 +447,9 @@
 <p class="font-body-md text-sm text-error-container" role="alert" x-cloak="" x-show="formError" x-text="formError"></p>
 <p class="font-caption text-caption text-on-tertiary/80" x-cloak="" x-show="!loading &amp;&amp; !user">Bạn cần đăng nhập để hoàn tất đặt lịch — lựa chọn của bạn sẽ được giữ nguyên.</p>
 <button :disabled="busy || loading" @click="submit()" class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : (loading || user ? 'Xác nhận đặt lịch' : 'Đăng nhập &amp; xác nhận')">Xác nhận đặt lịch</button>
+<!-- What the one piece of personal data being handed over is for, said where it is handed
+     over rather than in a policy page nobody opens. -->
+<p class="font-caption text-caption text-on-tertiary/60">Số điện thoại chỉ dùng để salon liên hệ xác nhận lịch.</p>
 </div>
 <!-- The same three conditions the salon page and the service page state, in the one place
      the reader is about to commit to them. -->
@@ -441,7 +457,7 @@
 <span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80">Điều kiện đặt lịch</span>
 <div class="flex items-start gap-2">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] mt-0.5 text-on-tertiary/80" data-icon="event_available">event_available</span>
-<span class="font-caption text-caption text-on-tertiary/70 leading-relaxed" x-text="OAK.TRUST.CANCEL_POLICY"></span>
+<span class="font-caption text-caption text-on-tertiary/70 leading-relaxed" x-text="OAK.TRUST.cancelPolicy(salon ? salon.cancel_cutoff_hours : 0)"></span>
 </div>
 <div class="flex items-start gap-2">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] mt-0.5 text-on-tertiary/80" data-icon="payments">payments</span>
@@ -648,6 +664,9 @@
             // Step 4's own sign-in, so a guest never leaves the wizard to make one.
             authTab: 'login',
             auth: { email: '', password: '' },
+            // Off unless it is ticked: an offer nobody asked for is not one they agreed to.
+            authConsent: false,
+            authMarketing: false,
             authError: '',
             authBusy: false,
 
@@ -998,6 +1017,9 @@
                             ? 'Hôm nay'
                             : OAK_WEEKDAY_SHORT[new Date(day.date + 'T00:00:00').getDay()],
                         day: day.date.slice(8) + '/' + day.date.slice(5, 7),
+                        // Two different days with no hours: the salon declared this one off,
+                        // or its calendar filled up. The first is labelled, the second struck.
+                        closed: day.closed === true,
                         full: !day.slots.some((slot) => this.slotOpen(slot, day.date)),
                     }));
                 } catch (error) {
@@ -1046,7 +1068,7 @@
             /** The nearest day in the strip that still has room, other than the one on
                 screen — what to offer instead of an empty grid. */
             nextFreeDay() {
-                return this.dayChips.find((chip) => !chip.full && chip.date !== this.date) || null;
+                return this.dayChips.find((chip) => !chip.full && !chip.closed && chip.date !== this.date) || null;
             },
 
             /** Step 2's grid, grouped by category the way the salon's own menu is. */
@@ -1339,6 +1361,10 @@
                     this.authError = 'Vui lòng kiểm tra lại thông tin liên hệ.';
                     return;
                 }
+                if (this.authTab === 'register' && !this.authConsent) {
+                    this.authError = 'Vui lòng đồng ý với Điều khoản và Chính sách bảo mật.';
+                    return;
+                }
 
                 this.authBusy = true;
                 try {
@@ -1353,6 +1379,8 @@
                                     email: email,
                                     phone: this.normalizedPhone() || null,
                                     password: this.auth.password,
+                                    consent: true,
+                                    marketing_opt_in: this.authMarketing,
                                 },
                         },
                     );

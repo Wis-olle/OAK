@@ -134,7 +134,10 @@
        ?focus=q is what puts the caret in it on arrival. */
     entry('ket-qua-tim-kiem.html?focus=q', 'Tìm salon, dịch vụ') +
     entry('uu-dai.html', 'Ưu đãi') +
-    entry('tim-kiem-thong-minh.html', 'Trợ lý tìm kiếm AI') +
+    /* One name for the assistant, here and on the hero, the title and the H1 of its own
+       page: it is a rule-based helper for finding a salon, and three names for it (two of
+       them promising "AI") is what makes a reader expect something it is not. */
+    entry('tim-kiem-thong-minh.html', 'Trợ lý tìm salon') +
     area;
 
   var categories =
@@ -236,6 +239,134 @@
           'class="relative" x-data="{ menuOpen: false }">' + pill + panel + '</div>' +
       '</nav>' +
     '</div>';
+
+  /*
+   * The next appointment, said in the bar itself when it is today's or tomorrow's.
+   *
+   * The bell already carries a mark for the reminder the server writes a day ahead, but a
+   * mark says only "something happened" — the hour and the salon are what a reader is
+   * actually checking for, and every page is where they check. Guests and partners see
+   * nothing: nothing is requested for them at all.
+   *
+   * The bar is fixed, so the row is added to it and the same height is given back to the
+   * page as padding on <body> — every page already leaves room for a bar of one height, and
+   * this moves all of it down together. On the six account pages the rail beside the reading
+   * column has to move with it, which padding on <main> alone would not do.
+   */
+  var NOTICE =
+    'flex items-center justify-center gap-2 px-margin-mobile md:px-margin-desktop py-2 ' +
+    'bg-tertiary-container text-on-tertiary-container font-caption text-caption ' +
+    'border-t border-outline-variant/30 hover:underline transition-colors';
+
+  /** Local parts, never toISOString(): that one reads the day in UTC. */
+  function isoDay(daysAhead) {
+    var day = new Date();
+    day.setDate(day.getDate() + daysAhead);
+    return day.getFullYear() + '-' +
+      String(day.getMonth() + 1).padStart(2, '0') + '-' +
+      String(day.getDate()).padStart(2, '0');
+  }
+
+  /** 'hôm nay' / 'ngày mai', or null for a date that is neither and needs no bar. */
+  function dayWord(date) {
+    if (date === isoDay(0)) {
+      return 'hôm nay';
+    }
+    return date === isoDay(1) ? 'ngày mai' : null;
+  }
+
+  /* One word per element, so oak-i18n.js can look each of them up: a whole sentence with
+     an hour and a salon name in the middle of it is in no dictionary. */
+  function say(tag, text) {
+    var node = document.createElement(tag);
+    node.textContent = text;
+    return node;
+  }
+
+  /*
+   * One request for the two places that name the next appointment: this bar, and the "Lịch
+   * kế tiếp" band under the hero on kham-pha.html. GET /api/bookings/mine also closes out
+   * the appointments whose day is over (bookings.js closePastBookings), so a second copy of
+   * the request on one page is not merely wasteful — the two sweeps would race each other.
+   * Memoized the way oak-api.js memoizes OAK.me(), and hung off OAK for the same reason:
+   * the band is Alpine, which starts after this file has already run.
+   */
+  function nextBooking() {
+    if (!OAK.nextBookingPromise) {
+      OAK.nextBookingPromise = OAK.me().then(function (user) {
+        if (!user || user.role !== 'customer') {
+          return null;
+        }
+        return OAK.api('/api/bookings/mine?status=upcoming&limit=1').then(function (list) {
+          return (list && list[0]) || null;
+        });
+      });
+    }
+    return OAK.nextBookingPromise;
+  }
+
+  if (typeof OAK !== 'undefined' && OAK.me) {
+    OAK.nextBooking = nextBooking;
+  }
+
+  /*
+   * The row arrives a request or two after the page has painted, so the page does move down
+   * under the reader once. Accepted rather than reserved for: the row exists only for a
+   * reader who has an appointment today or tomorrow, and an empty strip held open on every
+   * page for everybody else costs more than the one jump does. What is not accepted is a
+   * padding frozen at the width it was measured at — a rotation that wraps the row onto a
+   * second line would leave the page under the bar — so it is measured again on resize.
+   */
+  function padPage(notice) {
+    var page = document.body;
+    if (!page) {
+      return;
+    }
+    var base = parseFloat(getComputedStyle(page).paddingTop) || 0;
+    var apply = function () {
+      page.style.paddingTop = base + notice.offsetHeight + 'px';
+    };
+    apply();
+    window.addEventListener('resize', apply);
+  }
+
+  function showNextBooking(booking) {
+    var when = dayWord(booking.date);
+    var notice = document.createElement('a');
+    notice.className = NOTICE;
+    notice.href = 'lich-hen-cua-toi.html';
+    notice.innerHTML =
+      '<span aria-hidden="true" class="material-symbols-outlined text-[16px] shrink-0" ' +
+        'data-icon="event">event</span>';
+    [
+      say('span', 'Bạn có lịch'),
+      say('strong', booking.time),
+      say('span', when),
+      say('span', 'tại'),
+      say('strong', booking.salon.name),
+    ].forEach(function (part) {
+      notice.appendChild(part);
+    });
+    shell.appendChild(notice);
+    padPage(notice);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    /* A cached page can meet an oak-api.js older than this file, and the header must still
+       be a header when it does. */
+    if (typeof OAK === 'undefined' || !OAK.me) {
+      return;
+    }
+    nextBooking()
+      .then(function (next) {
+        if (next && dayWord(next.date)) {
+          showNextBooking(next);
+        }
+      })
+      .catch(function () {
+        /* nothing to say about an appointment we could not read */
+      });
+  });
 
   /*
    * The six account pages carry a strip of tabs that is wider than a phone, and the page a

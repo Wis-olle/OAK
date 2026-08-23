@@ -2,7 +2,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { SERVICE_CARD_COLUMNS, toServiceCard } from '../lib/cards.js';
-import { getServiceSlots } from '../lib/availability.js';
+import { getServiceSlots, salonSettingsForService, timeOffOn } from '../lib/availability.js';
 import { parsePagination } from '../lib/query.js';
 import { addDaysISO, isISODate, todayISO } from '../lib/time.js';
 import { httpError } from '../middleware/auth.js';
@@ -55,9 +55,12 @@ const selectServiceDetail = db.prepare(`
 // its own rows through partner.js and still sees hidden services.
 const selectServiceExists = db.prepare('SELECT 1 FROM services WHERE id = ? AND active = 1');
 
-const selectCategoryCount = db.prepare(
-  'SELECT COUNT(*) AS count FROM services WHERE category = ? AND active = 1',
-);
+// Same published switch the listing applies, or the number on a category chip would promise
+// services the listing behind it does not show.
+const selectCategoryCount = db.prepare(`
+  SELECT COUNT(*) AS count FROM services sv JOIN salons s ON s.id = sv.salon_id
+  WHERE sv.category = ? AND sv.active = 1 AND s.published = 1
+`);
 
 const selectServiceStaff = db.prepare(`
   SELECT st.id, st.name, st.title, st.specialty, st.image, st.rating, st.years_experience
@@ -90,7 +93,11 @@ async function serviceIdOrThrow(value) {
 router.get('/', async (req, res, next) => {
   try {
     const { page, limit, offset } = parsePagination(req.query, DEFAULT_LIMIT);
-    const conditions = ['sv.active = 1'];
+    // s.published: the category pages link straight to salon-profile.html, so listing a
+    // draft salon's service here would put a salon with no address or hours on the public
+    // side the moment it adds its first service. selectServiceDetail below stays open for
+    // the same reason GET /api/salons/:idOrSlug is — a link the owner is previewing.
+    const conditions = ['sv.active = 1', 's.published = 1'];
     const params = [];
 
     const category = filterValue(req.query.category);
@@ -165,12 +172,25 @@ router.get('/categories', async (req, res, next) => {
   }
 });
 
-/** Per-day slots for one service, in the same week shape /api/staff/:id returns. */
+/**
+ * Per-day slots for one service, in the same week shape /api/staff/:id returns — `closed`
+ * included, so the day strip can tell a day the salon declared off from one whose calendar
+ * simply filled up. Without it the wizard struck a declared day off through as "full".
+ *
+ * The salon and its lead time are read once for the whole week and the day-off rows once
+ * per date, then handed to getServiceSlots, so a seven-day grid asks each question once.
+ */
 async function getServiceWeek(serviceId, from, days) {
+  const settings = await salonSettingsForService(serviceId);
   const week = [];
   for (let offset = 0; offset < days; offset += 1) {
     const date = addDaysISO(from, offset);
-    week.push({ date, slots: await getServiceSlots(serviceId, date) });
+    const off = settings === null ? { salon: false, staff: new Set() } : await timeOffOn(settings.salon_id, date);
+    week.push({
+      date,
+      closed: off.salon,
+      slots: await getServiceSlots(serviceId, date, off, settings?.lead_time_min ?? null),
+    });
   }
   return week;
 }

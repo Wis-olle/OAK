@@ -1,6 +1,4 @@
 {
-    "dang-nhap-doi-tac.html::Chính sách bảo mật": "Privacy Policy.",
-    "dang-nhap-doi-tac.html::của chúng tôi.": "",
   "Trở thành đối tác - OAK Beauty": "Become a partner - OAK Beauty",
   "Nâng tầm thương hiệu của bạn": "Elevate your brand",
   "Tiếp cận hàng nghìn khách hàng tiềm năng mới mỗi tháng qua nền tảng OAK Beauty.": "Reach thousands of new potential customers every month through the OAK Beauty platform.",
@@ -33,5 +31,10 @@
   "của chúng tôi.": ".",
   "Nhập email của bạn rồi bấm lại.": "Enter your email address, then press it again.",
   "Tài khoản này không phải đối tác.": "This account is not a partner account.",
-  "Mật khẩu xác nhận không khớp.": "The passwords do not match."
+  "Mật khẩu xác nhận không khớp.": "The passwords do not match.",
+  "Tôi đồng ý với": "I agree to the",
+  "của OAK Beauty.": "of OAK Beauty.",
+  "Nhận ưu đãi và tin khuyến mãi qua Thông báo (không bắt buộc).": "Send me offers and promotions in Notifications (optional).",
+  "Vui lòng đồng ý với Điều khoản và Chính sách bảo mật.": "Please agree to the Terms and the Privacy Policy.",
+  "Bạn đã thử đăng nhập quá nhiều lần. Vui lòng đợi 15 phút rồi thử lại.": "Too many sign-in attempts. Please wait 15 minutes and try again."
 }

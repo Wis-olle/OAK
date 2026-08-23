@@ -3,6 +3,7 @@ import express from 'express';
 import { db } from '../db.js';
 import { hasSlotsInRange } from '../lib/availability.js';
 import { SALON_CARD_COLUMNS, toSalonCard } from '../lib/cards.js';
+import { CITY_DISTRICTS } from '../lib/locations.js';
 import { haversineKm, parsePagination } from '../lib/query.js';
 import { bestMatchTier, countMatchedTokens, normalize, searchTokens } from '../lib/text.js';
 import {
@@ -82,23 +83,97 @@ async function servicesBySalon(ids) {
   return grouped;
 }
 
+// Same switches as the two queries below: a category counted from drafts would offer a chip
+// that lands the reader on fewer salons than the number promised.
 const selectTopCategories = db.prepare(`
-  SELECT category, COUNT(*) AS count
-  FROM services
-  WHERE active = 1 AND category <> 'amenity'
-  GROUP BY category
-  ORDER BY count DESC, category
+  SELECT sv.category AS category, COUNT(*) AS count
+  FROM services sv JOIN salons s ON s.id = sv.salon_id
+  WHERE sv.active = 1 AND sv.category <> 'amenity' AND s.verified = 1 AND s.published = 1
+  GROUP BY sv.category
+  ORDER BY count DESC, sv.category
   LIMIT 3
 `);
 
+// Same switches as selectDistrictSalonCount below and as the results page: a district
+// counted from drafts would be offered as the alternative and land the reader on nothing.
 const selectTopDistricts = db.prepare(`
   SELECT district, COUNT(*) AS count
   FROM salons
-  WHERE district IS NOT NULL
+  WHERE verified = 1 AND published = 1 AND district IS NOT NULL
   GROUP BY district
   ORDER BY count DESC, district
   LIMIT 2
 `);
+
+// Does the assistant have anything at all to offer in this district?
+const selectDistrictSalonCount = db.prepare(
+  'SELECT COUNT(*) AS count FROM salons WHERE verified = 1 AND published = 1 AND district = ?',
+);
+
+/**
+ * How many salons the district, the category and the free keyword add up to — the three
+ * filters GET /api/search/salons applies, matched here by the same rules, so the number
+ * the assistant says is the number the page it hands the reader to shows. A date, a budget
+ * or a rating narrows that page further, which is why buildReply names what it counted
+ * rather than calling the number a count of every match.
+ *
+ * null when none of the three is known: that count is every verified salon on the
+ * platform, which answers no question anybody asked.
+ */
+async function countMatchingSalons(criteria) {
+  const queryTokens = typeof criteria.q === 'string' ? searchTokens(criteria.q) : [];
+  if (
+    queryTokens.length === 0 &&
+    typeof criteria.district !== 'string' &&
+    typeof criteria.category !== 'string'
+  ) {
+    return null;
+  }
+  const conditions = ['s.verified = 1', 's.published = 1'];
+  const params = [];
+  if (typeof criteria.district === 'string') {
+    conditions.push('s.district = ?');
+    params.push(criteria.district);
+  }
+  if (typeof criteria.category === 'string') {
+    conditions.push(
+      `EXISTS (SELECT 1 FROM services sv
+        WHERE sv.salon_id = s.id AND sv.active = 1 AND sv.category = ?)`,
+    );
+    params.push(criteria.category);
+  }
+  const where = `WHERE ${conditions.join(' AND ')}`;
+  const ratingMin = Number.isFinite(criteria.rating_min) ? criteria.rating_min : null;
+  if (queryTokens.length === 0 && ratingMin === null) {
+    const row = await db.prepare(`SELECT COUNT(*) AS count FROM salons s ${where}`).get(...params);
+    return row.count;
+  }
+  // The keyword is matched in JS over the loaded rows, exactly as GET /api/search/salons
+  // does it — same candidate cap, same texts, same best-tier cut — because a keyword no
+  // salon carries empties that page, and a number that ignored it would promise results
+  // the next screen does not have.
+  const rows = await db
+    .prepare(`SELECT ${SALON_CARD_COLUMNS} FROM salons s ${where} ORDER BY s.id LIMIT ?`)
+    .all(...params, CANDIDATE_LIMIT);
+  const servicesFor = await servicesBySalon(rows.map((row) => row.id));
+  const matched = rows
+    .map((row) => {
+      const card = toSalonCard(row);
+      return {
+        rating: card.rating,
+        matched_tokens: countMatchedTokens(queryTokens, [
+          card.name,
+          card.district,
+          ...servicesFor.get(row.id).map((service) => service.name),
+        ]),
+      };
+    })
+    // The rating is a subquery on the card, so a bare COUNT cannot see it — which is why
+    // this branch also runs when only a rating was asked for.
+    .filter((item) => ratingMin === null || item.rating >= ratingMin)
+    .filter((item) => queryTokens.length === 0 || item.matched_tokens > 0);
+  return queryTokens.length === 0 ? matched.length : bestMatchTier(matched).length;
+}
 
 // Object.hasOwn, so a caller-supplied category like "toString" cannot reach an
 // inherited property and stringify a function into the reply.
@@ -240,9 +315,9 @@ router.get('/salons', async (req, res, next) => {
     const timeFrom = isHHMM(req.query.time_from) ? req.query.time_from : null;
     const timeTo = isHHMM(req.query.time_to) ? req.query.time_to : null;
 
-    // Same switch as GET /api/salons: salons are verified on creation, so this excludes
-    // nothing today and only matters if a real verification flow ever returns.
-    const conditions = ['s.verified = 1'];
+    // Same switches as GET /api/salons: verified excludes nothing today, published keeps a
+    // salon that has not finished setting itself up off the results page and the map.
+    const conditions = ['s.verified = 1', 's.published = 1'];
     const params = [];
 
     // q and style are matched in JS over the loaded candidates, not here.
@@ -435,14 +510,48 @@ const CATEGORY_RULES = [
   { key: 'eyelash', pattern: /\bmi\b|\beyelash\b/ },
 ];
 
-// Named districts, in the form the salons table stores.
-const NAMED_DISTRICTS = [
-  { pattern: /\bbinh thanh\b/, name: 'Quận Bình Thạnh' },
-  { pattern: /\bphu nhuan\b/, name: 'Quận Phú Nhuận' },
-  { pattern: /\bthu duc\b/, name: 'Thủ Đức' },
-  { pattern: /\bgo vap\b/, name: 'Quận Gò Vấp' },
-  { pattern: /\btan binh\b/, name: 'Quận Tân Bình' },
-];
+/*
+ * Every named (non-numbered) district of the three cities the product serves, matched on
+ * the distinctive part of its name: "Quận Bình Thạnh" is asked for as "bình thạnh". Read
+ * out of lib/locations.js, which the profile form and PATCH /api/users/me already share,
+ * so a district added there is understood here without a second edit. Longest key first,
+ * so a shorter neighbour can never answer for a longer name.
+ */
+const NAMED_DISTRICTS = Object.values(CITY_DISTRICTS)
+  .flat()
+  .filter((name) => !/\d/.test(name))
+  .map((name) => ({ name, key: normalize(name).replace(/^(?:quan|huyen)\s+/, '') }))
+  .sort((first, second) => second.key.length - first.key.length)
+  .map(({ name, key }) => ({ name, pattern: new RegExp(`\\b${key}\\b`) }));
+
+/** The city a district belongs to, or null when lib/locations.js does not name it. */
+function cityOfDistrict(district) {
+  const city = Object.keys(CITY_DISTRICTS).find((name) => CITY_DISTRICTS[name].includes(district));
+  return city ?? null;
+}
+
+/*
+ * The scaffolding of a spoken request — pronouns, the verbs a service name rides behind,
+ * the words around a place or a price — and the units the numeric rules leave behind.
+ * Whatever survives all of it is a salon name or a free keyword, which is the one thing
+ * the rules cannot recognise and the results page can.
+ */
+const STOP_WORDS = new Set([
+  'a', 'anh', 'ban', 'buoi', 'ca', 'can', 'cat', 'cham', 'chi', 'cho', 'chua', 'co', 'cua',
+  'cuoi', 'dang', 'danh', 'dat', 'den', 'dep', 'di', 'dong', 'duoi', 'duong', 'em', 'gan',
+  'gi', 'gia', 'giup', 'goi', 'hay', 'hen', 'hoac', 'hom', 'huyen', 'k', 'khoang', 'khong',
+  'khu', 'kiem', 'kinh', 'km', 'la', 'lam', 'lich', 'luc', 'mai', 'minh', 'muon', 'nao',
+  'nay', 'ngan', 'ngay', 'nhe', 'nhuom', 'noi', 'o', 'oi', 'phuong', 'q', 'quan', 'sach',
+  'sao', 'se', 'soc', 'son', 'tai', 'tam', 'the', 'tiem', 'tim', 'toi', 'tr', 'tren',
+  'trieu', 'trong', 'tu', 'uon', 'va', 'vao', 've', 'vnd', 'voi', 'vuc', 'xem',
+  // The words an opening message is made of. Without them "chào bạn" leaves 'chao' and
+  // "tìm salon gần đây" leaves 'salon day', and q is a hard filter: the assistant would
+  // report understanding a keyword that guarantees an empty results page.
+  'bao', 'chao', 'day', 'moi', 'nhieu', 'salon', 'tot',
+]);
+
+// Shorter than this a leftover is noise ("ba", "cc"), not a name worth searching on.
+const MIN_KEYWORD_LENGTH = 3;
 
 const TIME_WINDOWS = [
   { pattern: /\bsang\b/, time_from: '08:00', time_to: '12:00' },
@@ -468,12 +577,17 @@ const CHIP_RULES = [
   { key: 'radius_km', chip: 'Trong bán kính 3km' },
 ];
 
+/*
+ * The district asked for, and the pattern that found it so its words can be taken out of
+ * the running for `q`. A numbered district needs no pattern: "quan" is a stop word and the
+ * number is a digit, and leftoverQuery drops both anyway.
+ */
 function parseDistrict(text) {
   const numbered = text.match(/\bquan\s*(\d{1,2})\b/) ?? text.match(/\bq\.?\s*(\d{1,2})\b/);
   if (numbered) {
-    return `Quận ${Number(numbered[1])}`;
+    return { name: `Quận ${Number(numbered[1])}`, pattern: null };
   }
-  return NAMED_DISTRICTS.find((rule) => rule.pattern.test(text))?.name ?? null;
+  return NAMED_DISTRICTS.find((rule) => rule.pattern.test(text)) ?? null;
 }
 
 /*
@@ -541,11 +655,13 @@ function joinVi(parts) {
  * left alone, so a client can still carry its own state through.
  */
 const CRITERIA_GUARDS = {
+  q: (value) => typeof value === 'string',
   category: (value) => typeof value === 'string',
   district: (value) => typeof value === 'string',
   date: isISODate,
   time_from: isHHMM,
   price_max: (value) => Number.isFinite(value),
+  rating_min: (value) => Number.isFinite(value),
 };
 
 function usableCriteria(criteria) {
@@ -559,9 +675,97 @@ function usableCriteria(criteria) {
   );
 }
 
+/**
+ * Whatever the rules did not claim, as the free keyword `q` the results page can still
+ * search on — a salon name ("Lala"), a style, anything nobody wrote a rule for. Words a
+ * rule already consumed are removed first, then the scaffolding, then every word carrying
+ * a digit: a price, a rating, a radius and a district number are all read elsewhere.
+ */
+function leftoverQuery(text, consumed) {
+  let rest = text;
+  for (const pattern of consumed) {
+    // Global: "nail quận 1 làm nail" must lose both, or the second one comes back as a
+    // keyword narrowing a search the category filter already covers.
+    rest = rest.replace(new RegExp(pattern.source, 'g'), ' ');
+  }
+  const words = rest
+    .split(/[^a-z0-9]+/)
+    // Per word, not over the joined run: "co ai o do khong" left "ai do", which is two
+    // fragments, not a name — and countMatchedTokens matches a short token by containment,
+    // so it would have matched nearly every salon and been quoted back as understood.
+    .filter((word) => word.length >= MIN_KEYWORD_LENGTH && !/\d/.test(word) && !STOP_WORDS.has(word));
+  // searchTokens is what every consumer of q tokenises with, and it caps at MAX_QUERY_TOKENS,
+  // so a 27KB message cannot be reflected back into the reply and the results URL.
+  const keyword = searchTokens(words.join(' ')).join(' ');
+  return keyword || null;
+}
+
+/** Every criterion one message carries. Pure: the district is not checked against the data here. */
+function parseAssistantMessage(message) {
+  const text = normalize(message);
+  const parsed = {};
+  // Each rule that fires takes its own words out of the running for the free keyword.
+  const consumed = [];
+
+  const category = CATEGORY_RULES.find((rule) => rule.pattern.test(text));
+  if (category) {
+    parsed.category = category.key;
+    consumed.push(category.pattern);
+  }
+
+  const district = parseDistrict(text);
+  if (district) {
+    parsed.district = district.name;
+    if (district.pattern) {
+      consumed.push(district.pattern);
+    }
+  }
+
+  // Distance and rating are read before the budget, and the matched distance is taken
+  // out of the text the budget rule sees, so "3km" can never become a price.
+  const radiusKm = parseRadius(text);
+  if (radiusKm !== null) {
+    parsed.radius_km = radiusKm;
+  }
+
+  const rating = parseRating(text);
+  if (rating !== null) {
+    parsed.rating_min = rating;
+  }
+
+  const budget = parseBudget(text.replace(RADIUS_PATTERN, ' '));
+  if (budget !== null) {
+    // The criteria object doubles as the query string for GET /api/search/salons,
+    // where the parameter is price_max; `budget` is kept as the human-facing alias.
+    parsed.price_max = budget;
+    parsed.budget = budget;
+  }
+
+  const date = parseDate(text);
+  if (date) {
+    parsed.date = date;
+  }
+
+  const window = TIME_WINDOWS.find((rule) => rule.pattern.test(text));
+  if (window) {
+    parsed.time_from = window.time_from;
+    parsed.time_to = window.time_to;
+    consumed.push(window.pattern);
+  }
+
+  const keyword = leftoverQuery(text, consumed);
+  if (keyword) {
+    parsed.q = keyword;
+  }
+  return parsed;
+}
+
 /** One sentence: what was understood, and what is still missing. */
-function buildReply(criteria) {
+function buildReply(criteria, found, unserved, droppedQuery = null) {
   const understood = [];
+  if (criteria.q) {
+    understood.push(`từ khoá "${criteria.q}"`);
+  }
   if (criteria.category) {
     understood.push(`dịch vụ ${categoryLabel(criteria.category).toLowerCase()}`);
   }
@@ -570,6 +774,9 @@ function buildReply(criteria) {
   }
   if (criteria.price_max) {
     understood.push(`ngân sách dưới ${formatVnd(criteria.price_max)}`);
+  }
+  if (criteria.rating_min) {
+    understood.push(`đánh giá từ ${criteria.rating_min} sao`);
   }
   const window = criteria.time_from ? ` buổi ${windowLabel(criteria.time_from)}` : '';
   if (criteria.date) {
@@ -582,73 +789,117 @@ function buildReply(criteria) {
     (rule) => rule.label,
   );
 
+  const sentences = [];
+  // Said first and said plainly: an area OAK does not cover yet is the one fact that makes
+  // every other criterion beside the point, and silently searching the whole city instead
+  // is what leaves a customer counting salons that are nowhere near them.
+  if (unserved) {
+    const nearest = unserved.nearest.length ? `, gần nhất là ${joinVi(unserved.nearest)}` : '';
+    sentences.push(`Hiện OAK chưa có salon ở ${unserved.district}${nearest}.`);
+  }
+
   if (understood.length === 0) {
-    return `Mình chưa nhận ra tiêu chí nào trong tin nhắn, bạn cho mình biết ${joinVi(missing)} nhé.`;
+    sentences.push(
+      `Mình chưa nhận ra tiêu chí nào trong tin nhắn, bạn cho mình biết ${joinVi(missing)} nhé.`,
+    );
+  } else if (missing.length === 0) {
+    sentences.push(
+      `Mình đã hiểu bạn đang tìm ${understood.join(', ')} và đã đủ thông tin để gợi ý salon phù hợp.`,
+    );
+  } else {
+    sentences.push(
+      `Mình đã hiểu bạn đang tìm ${understood.join(', ')}, bạn cho mình biết thêm ${joinVi(missing)} để mình gợi ý chính xác hơn nhé.`,
+    );
   }
-  if (missing.length === 0) {
-    return `Mình đã hiểu bạn đang tìm ${understood.join(', ')} và đã đủ thông tin để gợi ý salon phù hợp.`;
+
+  // Said before the count, because it is why the count is the number it is: the word was
+  // let go, so the reader is not left comparing a sentence about a keyword with a page that
+  // no longer filters by one.
+  if (droppedQuery) {
+    sentences.push(
+      `Mình chưa thấy salon nào khớp từ khoá "${droppedQuery}" nên mình tìm theo các tiêu chí còn lại.`,
+    );
   }
-  return `Mình đã hiểu bạn đang tìm ${understood.join(', ')}, bạn cho mình biết thêm ${joinVi(missing)} để mình gợi ý chính xác hơn nhé.`;
+
+  // Said as what it counted, not as "phù hợp": the number knows the area, the service and
+  // the keyword and nothing else, so a budget, a date or a rating in the criteria narrows
+  // the results page further and an unnamed count would simply read as wrong.
+  if (found !== null) {
+    const counted = [
+      criteria.category ? categoryLabel(criteria.category).toLowerCase() : null,
+      criteria.district ? `ở ${criteria.district}` : null,
+      criteria.q ? `khớp "${criteria.q}"` : null,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    sentences.push(`Hiện có ${found} salon ${counted}.`);
+  }
+  return sentences.join(' ');
 }
 
-router.post('/assistant', (req, res, next) => {
+router.post('/assistant', async (req, res, next) => {
   try {
     const { message, criteria } = req.body ?? {};
     if (typeof message !== 'string' || message.trim() === '') {
       throw httpError(400, 'VALIDATION_ERROR', 'Vui lòng nhập nội dung bạn muốn tìm.');
     }
 
-    const text = normalize(message);
-    const parsed = {};
+    const parsed = parseAssistantMessage(message);
 
-    const category = CATEGORY_RULES.find((rule) => rule.pattern.test(text));
-    if (category) {
-      parsed.category = category.key;
-    }
-
-    const district = parseDistrict(text);
-    if (district) {
-      parsed.district = district;
-    }
-
-    // Distance and rating are read before the budget, and the matched distance is taken
-    // out of the text the budget rule sees, so "3km" can never become a price.
-    const radiusKm = parseRadius(text);
-    if (radiusKm !== null) {
-      parsed.radius_km = radiusKm;
-    }
-
-    const rating = parseRating(text);
-    if (rating !== null) {
-      parsed.rating_min = rating;
-    }
-
-    const budget = parseBudget(text.replace(RADIUS_PATTERN, ' '));
-    if (budget !== null) {
-      // The criteria object doubles as the query string for GET /api/search/salons,
-      // where the parameter is price_max; `budget` is kept as the human-facing alias.
-      parsed.price_max = budget;
-      parsed.budget = budget;
-    }
-
-    const date = parseDate(text);
-    if (date) {
-      parsed.date = date;
-    }
-
-    const window = TIME_WINDOWS.find((rule) => rule.pattern.test(text));
-    if (window) {
-      parsed.time_from = window.time_from;
-      parsed.time_to = window.time_to;
+    // A district the parser understood but the platform has no salon in is dropped rather
+    // than carried: as a criterion it guarantees an empty results page, and the reply says
+    // so instead.
+    let unserved = null;
+    if (parsed.district && (await selectDistrictSalonCount.get(parsed.district)).count === 0) {
+      // selectTopDistricts is city-agnostic, so a district in Đà Nẵng was being answered with
+      // "gần nhất là Quận 1" — 600km away. Only districts of the same city are near.
+      const sameCity = cityOfDistrict(parsed.district);
+      unserved = {
+        district: parsed.district,
+        // Never the district being reported — an alternative that is the same place is no
+        // alternative. Both queries count listed salons only, so the suggestion always has
+        // something behind it. An empty list renders as just "Hiện OAK chưa có salon ở X."
+        nearest: (await selectTopDistricts.all())
+          .filter((row) => row.district !== parsed.district)
+          .filter((row) => sameCity === null || cityOfDistrict(row.district) === sameCity)
+          .map((row) => row.district),
+      };
+      delete parsed.district;
     }
 
     // Parsed values win; every other usable key the caller was holding survives.
     const merged = { ...usableCriteria(criteria), ...parsed };
+    if (unserved) {
+      // Including the district the conversation held before: the reader just asked to move
+      // somewhere else, and keeping the old area would name two of them in one sentence
+      // and go on searching the one they left.
+      delete merged.district;
+    }
     const chips = CHIP_RULES.filter((rule) => merged[rule.key] == null)
       .slice(0, MAX_CHIPS)
       .map((rule) => rule.chip);
 
-    res.json({ success: true, data: { reply: buildReply(merged), criteria: merged, chips } });
+    let found = await countMatchingSalons(merged);
+    // A keyword no salon carries is dropped rather than carried: `q` is a hard filter on
+    // GET /api/search/salons, so keeping it hands the reader the empty page the rest of the
+    // reply just said had salons on it. Only when the other criteria do have salons — an
+    // area or a service with nothing in it is the reader's answer, not a keyword to blame.
+    let droppedQuery = null;
+    if (found === 0 && typeof merged.q === 'string') {
+      const withoutQuery = { ...merged };
+      delete withoutQuery.q;
+      const fallback = await countMatchingSalons(withoutQuery);
+      if (fallback !== null && fallback > 0) {
+        droppedQuery = merged.q;
+        delete merged.q;
+        found = fallback;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: { reply: buildReply(merged, found, unserved, droppedQuery), criteria: merged, chips },
+    });
   } catch (error) {
     next(error);
   }

@@ -1,8 +1,10 @@
 // Partner console: overview, bookings, services, staff, promotions, revenue, salon.
 import express from 'express';
 import { db } from '../db.js';
+import { getServiceSlots, getStaffSlots, isSalonOpenFor } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
 import { notifyUser } from '../lib/notify.js';
+import { normalisePhone, normalisedPhoneSql } from '../lib/phone.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
 import {
   SOCIAL_PROFILE_PLATFORMS,
@@ -19,6 +21,7 @@ import {
   todayISO,
   weekdayOf,
 } from '../lib/time.js';
+import { isSafeMediaUrl } from '../lib/urls.js';
 import { httpError, requireAuth, requirePartner } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -26,21 +29,40 @@ const router = express.Router();
 // One gate for the whole file: nothing below is reachable by a customer or a guest.
 router.use(requireAuth, requirePartner);
 
-const BOOKING_STATUSES = ['pending', 'confirmed', 'completed', 'cancelled'];
+const BOOKING_STATUSES = ['pending', 'confirmed', 'completed', 'cancelled', 'no_show'];
 const SERVICE_CATEGORIES = ['hair', 'nail', 'skincare', 'spa', 'eyelash', 'amenity'];
 const PROMOTION_TYPES = ['discount', 'combo', 'flash_sale'];
 
-// The only transitions a partner may drive. Terminal states list nothing, so
-// completed/cancelled bookings can never be reopened.
+// The only transitions a partner may drive. completed/cancelled list nothing, so those
+// two can never be reopened. 'no_show' is the exception on purpose: marking a customer
+// absent is a judgement made at the counter and sometimes made too early, so the way back
+// to 'confirmed' stays open as an Undo for as long as the salon needs it.
 const STATUS_TRANSITIONS = {
   pending: ['confirmed', 'cancelled'],
-  confirmed: ['completed', 'cancelled'],
+  confirmed: ['completed', 'cancelled', 'no_show'],
   completed: [],
   cancelled: [],
+  no_show: ['confirmed'],
 };
 
 const REVENUE_DEFAULT_DAYS = 30;
+// What the settings form offers, and the only values the column accepts: an open list here
+// would let a salon close its own calendar with a lead time of a year.
+const LEAD_TIME_CHOICES = [0, 60, 120, 1440];
+const CANCEL_CUTOFF_CHOICES = [2, 6, 12, 24, 48];
+const CANCEL_POLICY_MAX = 200;
+const PHOTO_CAPTION_MAX = 200;
+const TIME_OFF_REASON_MAX = 200;
+// A day-off row is a holiday or a sick leave, not a schedule: a long enough range is a
+// roster change, and an unbounded one would quietly take the salon off OAK for good.
+const TIME_OFF_MAX_DAYS = 90;
 const VIP_COMPLETED_BOOKINGS = 3;
+// The counter should be able to hold a seat before it knows who is sitting in it, so the
+// name is what the console shows when nobody typed one.
+const WALK_IN_NAME = 'Khách vãng lai';
+const REPLY_TEXT_MAX = 1000;
+const CUSTOMER_LIMIT = 50;
+const CUSTOMER_HISTORY_LIMIT = 5;
 const SEARCH_LIMIT = 5;
 const TOP_BREAKDOWN_LIMIT = 5;
 const DAYS_IN_WEEK = 7;
@@ -112,6 +134,15 @@ function optionalText(value, label) {
     throw httpError(400, 'VALIDATION_ERROR', `${label} phải là chuỗi ký tự.`);
   }
   return value.trim() === '' ? null : value.trim();
+}
+
+/** Optional free text with a ceiling, so a textarea cannot become an essay in the column. */
+function optionalLimitedText(value, label, max) {
+  const text = optionalText(value, label);
+  if (text !== null && text.length > max) {
+    throw httpError(400, 'VALIDATION_ERROR', `${label} tối đa ${max} ký tự.`);
+  }
+  return text;
 }
 
 /** Optional https URL. Empty clears the column; any non-https value is a client error. */
@@ -211,20 +242,26 @@ function requireJsonStringArray(value, label) {
  * Only a column named in the whitelist can reach the SQL, so no request body can
  * ever reassign salon_id, id or any other column the endpoint does not own.
  * Async because some parsers (booking service/staff) verify ownership in the database.
+ *
+ * `patch` is the same values keyed by column, for callers that have to compare what was
+ * asked for against what the row already holds — the raw body cannot answer that, because
+ * only the parsed value is in the shape the column is stored in.
  */
 async function buildPatch(body, columns) {
   const assignments = [];
   const values = [];
+  const patch = {};
   for (const [column, parse] of Object.entries(columns)) {
     if (Object.hasOwn(body, column)) {
       assignments.push(`"${column}" = ?`);
-      values.push(await parse(body[column]));
+      patch[column] = await parse(body[column]);
+      values.push(patch[column]);
     }
   }
   if (assignments.length === 0) {
     throw httpError(400, 'VALIDATION_ERROR', 'Không có thông tin nào để cập nhật.');
   }
-  return { assignments, values };
+  return { assignments, values, patch };
 }
 
 /** AVG() over an empty set is null; the dashboards want a number. */
@@ -232,10 +269,46 @@ function roundRating(value) {
   return value === null || value === undefined ? 0 : Math.round(value * 10) / 10;
 }
 
+/** Has this appointment's start time passed, in Vietnam time? */
+function hasStarted(date, time) {
+  const today = todayISO();
+  return date < today || (date === today && toMinutes(time) <= nowMinutes());
+}
+
 /** 'YYYY-MM-DD' -> 'DD/MM/YYYY' for the Vietnamese notification bodies. */
 function formatDateVN(iso) {
   const [year, month, day] = String(iso).split('-');
   return `${day}/${month}/${year}`;
+}
+
+// What the cancel dialog writes into the note, and the only line of it the customer is
+// shown. Matched by its prefix rather than by position: the note also holds the customer's
+// own request, and quoting that back as "the reason we cancelled" would be a lie.
+const CANCEL_REASON_PREFIX = 'Lý do huỷ:';
+
+function cancelReasonLine(note) {
+  const line = String(note ?? '')
+    .split('\n')
+    .map((entry) => entry.trim())
+    .reverse()
+    .find((entry) => entry.startsWith(CANCEL_REASON_PREFIX));
+  if (!line) {
+    return null;
+  }
+  // The reason is a sentence in the middle of others, and a free-text note rarely ends in
+  // a full stop — without one it runs straight into "Bạn có thể đặt lại…".
+  return /[.!?]$/.test(line) ? line : `${line}.`;
+}
+
+/**
+ * One phone number, one spelling — the same one lib/phone.js applies to sign-up and to
+ * the profile, so a number typed at the counter and the same number typed into an account
+ * are provably comparable. Empty stays null: a walk-in nobody named is not a customer to
+ * be looked up later.
+ */
+function storedPhone(value) {
+  const normalised = normalisePhone(value);
+  return normalised === '' ? null : normalised;
 }
 
 /* ============================================================================
@@ -249,6 +322,9 @@ const BOOKING_COLUMNS = `
     (SELECT COUNT(*) FROM bookings vb
       WHERE vb.user_id = b.user_id AND vb.salon_id = b.salon_id AND vb.status = 'completed'
     ) AS completed_count,
+    (SELECT COUNT(*) FROM bookings nb
+      WHERE nb.user_id = b.user_id AND nb.salon_id = b.salon_id AND nb.status = 'no_show'
+    ) AS no_show_count,
     sv.id AS service_id, sv.name AS service_name, sv.category AS service_category,
     sv.duration_min AS service_duration, sv.price AS service_price,
     st.id AS staff_id, st.name AS staff_name`;
@@ -286,6 +362,9 @@ function bookingShape(row) {
       phone: row.user_phone ?? row.customer_phone,
       avatar: row.user_avatar ?? null,
       vip: row.completed_count >= VIP_COMPLETED_BOOKINGS,
+      // Walk-ins carry no account, so nothing groups their history: the count is about
+      // this salon's own record of one signed-in customer.
+      no_show_count: row.no_show_count ?? 0,
     },
     service: row.service_id
       ? {
@@ -313,6 +392,7 @@ function serviceShape(row) {
     featured: row.featured,
     is_package: row.is_package,
     price_is_from: row.price_is_from,
+    sort_order: row.sort_order,
     active: row.active,
   };
 }
@@ -376,6 +456,14 @@ async function salonShape(row) {
     tags: parseJsonArray(row.tags),
     amenities: parseJsonArray(row.amenities),
     tour_url: row.tour_url,
+    // Whether the public side of the platform lists this salon at all.
+    published: row.published,
+    // How this salon takes online bookings. The customer-facing pages read the last two
+    // as well, so the wording a visitor sees is the salon's own rather than the platform's.
+    auto_confirm: row.auto_confirm,
+    lead_time_min: row.lead_time_min,
+    cancel_cutoff_hours: row.cancel_cutoff_hours,
+    cancel_policy_text: row.cancel_policy_text,
     social_links: await socialLinksForSalon(row.id),
     created_at: row.created_at,
   };
@@ -486,6 +574,8 @@ router.get('/overview', async (req, res, next) => {
         new_customers: (await selectNewCustomerCount.get(salon.id, date)).count,
         rating_avg: roundRating(rating.average),
         review_count: rating.count,
+        // What the rating card links into: how many of those reviews still owe an answer.
+        unanswered_reviews: (await selectUnansweredReviews.get(salon.id)).count,
         staff_status: staffStatus,
       },
     });
@@ -506,12 +596,39 @@ const SELECT_OWNED_BOOKING_ROW = 'SELECT * FROM bookings WHERE id = ? AND salon_
 const selectOwnedBookingRow = db.prepare(SELECT_OWNED_BOOKING_ROW);
 const selectOwnedService = db.prepare('SELECT * FROM services WHERE id = ? AND salon_id = ?');
 const selectOwnedStaff = db.prepare('SELECT * FROM staff WHERE id = ? AND salon_id = ?');
-const insertWalkInBooking = db.prepare(`
+// Run inside the create transaction, alongside the notice the linked customer gets.
+const INSERT_WALK_IN_BOOKING = `
   INSERT INTO bookings
     (user_id, salon_id, service_id, staff_id, code, date, time, status, note,
      total_price, customer_name, customer_phone, payment_method, created_at)
-  VALUES (NULL, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, 'at_salon', ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, 'at_salon', ?)
+`;
+
+/**
+ * The account behind a phone number typed at the counter, when there is exactly one.
+ *
+ * Stored numbers carry whatever spacing the person who typed them used ('0901 234 567'),
+ * so the column is folded by the same rule the counter's input is — lib/phone.js, the one
+ * lib/phone.js's own linkBookingsByPhone uses, so the two can never disagree about which
+ * account a number belongs to. Two accounts sharing a number is not a match: guessing
+ * which of them sat in the chair would put one customer's appointment in another's list.
+ *
+ * Customers only, and only live ones — the same scoping routes/auth.js applies when it
+ * links bookings at sign-up. A walk-in typed with the owner's own number would otherwise
+ * land in the owner's appointment list and raise a customer notification on it.
+ */
+const selectUsersByPhone = db.prepare(`
+  SELECT id FROM users
+  WHERE role = 'customer' AND deleted_at IS NULL AND ${normalisedPhoneSql('phone')} = ?
 `);
+
+async function accountForPhone(phone) {
+  if (!phone) {
+    return null;
+  }
+  const matches = await selectUsersByPhone.all(phone);
+  return matches.length === 1 ? matches[0].id : null;
+}
 
 const BOOKING_NOTIFICATIONS = {
   confirmed: (salon, booking) => ({
@@ -519,9 +636,38 @@ const BOOKING_NOTIFICATIONS = {
     body: `${salon.name} đã xác nhận lịch hẹn ${booking.code} ngày ${formatDateVN(booking.date)} lúc ${booking.time}.`,
     type: 'booking',
   }),
+  // A customer told only "cancelled" cannot tell whether to wait, to call, or to book
+  // elsewhere — so the reason the console just wrote into the note travels with the
+  // message, and so does the way back in.
   cancelled: (salon, booking) => ({
     title: 'Lịch hẹn đã bị huỷ',
-    body: `${salon.name} đã huỷ lịch hẹn ${booking.code} ngày ${formatDateVN(booking.date)} lúc ${booking.time}.`,
+    body: [
+      `${salon.name} đã huỷ lịch hẹn ${booking.code} ngày ${formatDateVN(booking.date)} lúc ${booking.time}.`,
+      cancelReasonLine(booking.note),
+      `Bạn có thể đặt lại tại ${salon.name}.`,
+    ]
+      .filter(Boolean)
+      .join(' '),
+    type: 'booking',
+  }),
+  // Not a status at all: the booking stays where it was and only its hour moved, which is
+  // the one thing the customer has to be told before they turn up at the old one.
+  rescheduled: (salon, booking) => ({
+    title: 'Lịch hẹn đã được dời',
+    body: `${salon.name} đã dời lịch hẹn ${booking.code} sang ${booking.time} ngày ${formatDateVN(booking.date)}.`,
+    type: 'booking',
+  }),
+  // Its own sentence, because "đã dời … sang {giờ}" naming the hour the customer already
+  // had reads as a mistake. The console posts staff_id on every save, so this is the
+  // common case: a technician swapped, the appointment itself untouched.
+  restaffed: (salon, booking) => ({
+    title: 'Lịch hẹn đổi kỹ thuật viên',
+    body: `${salon.name} đã đổi kỹ thuật viên cho lịch hẹn ${booking.code} ngày ${formatDateVN(booking.date)} lúc ${booking.time}.`,
+    type: 'booking',
+  }),
+  no_show: (salon, booking) => ({
+    title: 'Lịch hẹn được ghi nhận vắng mặt',
+    body: `${salon.name} ghi nhận bạn không đến lịch hẹn ${booking.code} ngày ${formatDateVN(booking.date)} lúc ${booking.time}. Nếu có nhầm lẫn, vui lòng liên hệ salon.`,
     type: 'booking',
   }),
   completed: (salon, booking) => ({
@@ -619,8 +765,10 @@ router.post('/bookings', async (req, res, next) => {
     const salon = await ownedSalon(req);
     const body = req.body ?? {};
 
-    const customerName = requireText(body.customer_name, 'tên khách hàng');
-    const customerPhone = requireText(body.customer_phone, 'số điện thoại khách hàng');
+    // Both optional: a walk-in is a seat taken now, and demanding a full customer record
+    // before the counter may hold it is how bookings end up never being recorded at all.
+    const customerName = optionalText(body.customer_name, 'Tên khách hàng') ?? WALK_IN_NAME;
+    const customerPhone = storedPhone(optionalText(body.customer_phone, 'Số điện thoại'));
     const date = requireDate(body.date, 'Ngày hẹn');
     // A walk-in booked into the past would silently rewrite the revenue history that
     // GET /api/partner/revenue reads.
@@ -641,29 +789,54 @@ router.post('/bookings', async (req, res, next) => {
         ? null
         : await activeStaffIdForBooking(body.staff_id, salon.id);
 
+    // A booking made over the phone belongs in that customer's own list, with the
+    // notifications and the "đặt lại" that come with it — the number is what ties the
+    // two together, and until now every booking taken at the counter lost the link.
+    const userId = await accountForPhone(customerPhone);
+
     // Price comes from the service row, never from the request: the counter must not
     // be able to post an arbitrary total.
+    //
+    // The transaction sits INSIDE the code retry, the way POST /api/bookings does it: a
+    // duplicate code aborts the whole Postgres transaction, so each attempt needs a fresh
+    // one. The customer's notice is written in there too — a booking the customer is
+    // never told about is worse than no booking at all.
     let bookingId;
     try {
-      await withBookingCode(async (code) => {
-        bookingId = Number(
-          (
-            await insertWalkInBooking.run(
-              salon.id,
-              service.id,
-              staffId,
-              code,
-              date,
-              time,
-              note,
-              service.price,
-              customerName,
-              customerPhone,
-              new Date().toISOString(),
-            )
-          ).lastInsertRowid,
-        );
-      });
+      await withBookingCode((code) =>
+        db.withTransaction(async (tx) => {
+          bookingId = Number(
+            (
+              await tx.run(
+                INSERT_WALK_IN_BOOKING,
+                userId,
+                salon.id,
+                service.id,
+                staffId,
+                code,
+                date,
+                time,
+                note,
+                service.price,
+                customerName,
+                customerPhone,
+                new Date().toISOString(),
+              )
+            ).lastInsertRowid,
+          );
+
+          if (userId !== null) {
+            await notifyUser(
+              tx,
+              userId,
+              'Salon đã đặt lịch giúp bạn',
+              `${salon.name} đã tạo lịch hẹn ${code} ngày ${formatDateVN(date)} lúc ${time} cho bạn.`,
+              'booking',
+              bookingId,
+            );
+          }
+        }),
+      );
     } catch (error) {
       // idx_bookings_slot: the named technician already has a live booking at this
       // slot. This route has no availability pre-check, so the index is the only gate.
@@ -677,9 +850,18 @@ router.post('/bookings', async (req, res, next) => {
       throw error;
     }
 
+    const booking = await selectOwnedBooking.get(bookingId, salon.id);
+
+    // A warning, never a refusal: a salon that stays open late for one customer is not
+    // making a mistake, it is doing its job. The console says so and saves it anyway.
+    const outsideHours = !(await isSalonOpenFor(salon.id, date, time, service.duration_min));
+
     res.json({
       success: true,
-      data: bookingShape(await selectOwnedBooking.get(bookingId, salon.id)),
+      data: bookingShape(booking),
+      ...(outsideHours
+        ? { meta: { warning: 'Giờ hẹn nằm ngoài giờ mở cửa của salon.' } }
+        : {}),
     });
   } catch (error) {
     next(error);
@@ -715,22 +897,32 @@ router.patch('/bookings/:id', async (req, res, next) => {
 
     // Built per request because the parsers need the owner's salon and the current
     // status, but the column names are still a fixed whitelist.
-    const { assignments, values } = await buildPatch(body, {
-      service_id: async (value) =>
-        (
-          await ownedRow(
-            selectOwnedService,
-            requireId(value, 'Mã dịch vụ không hợp lệ.'),
-            salon.id,
-            'Không tìm thấy dịch vụ này tại salon của bạn.',
-          )
-        ).id,
+    let newService = null;
+    const { assignments, values, patch } = await buildPatch(body, {
+      service_id: async (value) => {
+        newService = await ownedRow(
+          selectOwnedService,
+          requireId(value, 'Mã dịch vụ không hợp lệ.'),
+          salon.id,
+          'Không tìm thấy dịch vụ này tại salon của bạn.',
+        );
+        return newService.id;
+      },
       staff_id: (value) => (value === null ? null : activeStaffIdForBooking(value, salon.id)),
       date: (value) => requireDate(value, 'Ngày hẹn'),
       time: (value) => requireTime(value, 'Giờ hẹn'),
       note: (value) => optionalText(value, 'Ghi chú'),
       status: (value) => {
         requireOneOf(value, BOOKING_STATUSES, 'Trạng thái lịch hẹn không hợp lệ.');
+        // Nobody is absent from an appointment that has not started yet, and a mis-tap on
+        // tomorrow's card would otherwise notify the customer they missed it.
+        if (value === 'no_show' && !hasStarted(booking.date, booking.time)) {
+          throw httpError(
+            409,
+            'BOOKING_NOT_STARTED',
+            'Chỉ có thể đánh dấu không đến sau giờ hẹn.',
+          );
+        }
         if (!STATUS_TRANSITIONS[booking.status].includes(value)) {
           throw httpError(
             400,
@@ -742,7 +934,40 @@ router.patch('/bookings/:id', async (req, res, next) => {
       },
     });
 
-    const notification = BOOKING_NOTIFICATIONS[body.status];
+    // The price is the service's, never the request's — the same rule POST /bookings
+    // follows. Without this the console could move a booking onto a cheaper service and
+    // leave the old total on the row, quietly wrong in every revenue figure afterwards.
+    if (newService !== null && newService.id !== booking.service_id) {
+      assignments.push('"total_price" = ?');
+      values.push(newService.price);
+    }
+
+    // A move is not a status change: the booking stays exactly as confirmed as it was and
+    // only its hour changed, so the customer hears about it under its own message. What
+    // counts is that a field actually CHANGED, not that the form posted it: the edit modal
+    // sends every field every time, and telling a customer their appointment moved to the
+    // hour it already had is how a notification channel stops being believed.
+    // And only a booking that is still going to happen can be moved: re-dating a
+    // cancelled or completed row is a correction to the record, not an appointment the
+    // customer has to be told about.
+    const movable = booking.status === 'pending' || booking.status === 'confirmed';
+    const moved =
+      movable &&
+      ((Object.hasOwn(patch, 'date') && patch.date !== booking.date) ||
+        (Object.hasOwn(patch, 'time') && patch.time !== booking.time));
+    // Told apart from a move: the two say different things, and only one of them is about
+    // when to turn up. A save that changes both is a move, which is the bigger news.
+    const restaffed =
+      movable &&
+      Object.hasOwn(patch, 'staff_id') &&
+      Number(patch.staff_id ?? 0) !== Number(booking.staff_id ?? 0);
+    const notification = body.status
+      ? BOOKING_NOTIFICATIONS[body.status]
+      : moved
+        ? BOOKING_NOTIFICATIONS.rescheduled
+        : restaffed
+          ? BOOKING_NOTIFICATIONS.restaffed
+          : undefined;
 
     try {
       await db.withTransaction(async (tx) => {
@@ -783,6 +1008,300 @@ router.patch('/bookings/:id', async (req, res, next) => {
 });
 
 /* ============================================================================
+ * Free hours, and the customer behind the phone number
+ * ========================================================================= */
+
+/**
+ * The hours a service can still start at on one date, as the customer wizard computes
+ * them — with a technician when one is named, across everyone who performs it when not.
+ *
+ * The counter used to type a free-text time and find out about the clash only when the
+ * unique index answered 409. Same library, same rules (roster, opening hours, days off,
+ * lead time), so the console and the public calendar never disagree.
+ *
+ * Deliberately including the salon's own lead time: a walk-in starting sooner than the
+ * salon lets customers book is an exception, and "Nhập giờ khác" is where exceptions are
+ * typed. Giving the console a lead-time-free list would make the chips disagree with the
+ * calendar the customer sees, which is the disagreement this endpoint exists to end.
+ */
+router.get('/availability', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const date = requireDate(req.query.date, 'Ngày hẹn');
+    const service = await ownedRow(
+      selectOwnedService,
+      requireId(req.query.service_id, 'Mã dịch vụ không hợp lệ.'),
+      salon.id,
+      'Không tìm thấy dịch vụ này tại salon của bạn.',
+    );
+    const staffId =
+      req.query.staff_id === undefined || req.query.staff_id === ''
+        ? null
+        : (
+            await ownedRow(
+              selectOwnedStaff,
+              requireId(req.query.staff_id, 'Mã kỹ thuật viên không hợp lệ.'),
+              salon.id,
+              'Không tìm thấy kỹ thuật viên này tại salon của bạn.',
+            )
+          ).id;
+
+    const slots =
+      staffId === null
+        ? await getServiceSlots(service.id, date)
+        : await getStaffSlots(staffId, service.id, date);
+
+    res.json({ success: true, data: { date, slots } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ============================================================================
+ * Customers
+ * ========================================================================= */
+
+// One customer of this salon is every booking that shares an account, or — for the ones
+// taken at the counter — a phone number. Rows with neither are a walk-in nobody named,
+// which is a seat that was filled, not a person to be looked up later.
+//
+// The number is folded in the query, not trusted to be folded in the column: rows written
+// before lib/phone.js existed (and every seeded one) still hold '0901 234 567', and
+// grouping on the raw text would split one person into a customer per spelling.
+const CUSTOMER_KEY = `COALESCE(CAST(b.user_id AS TEXT), NULLIF(${normalisedPhoneSql('b.customer_phone')}, ''))`;
+const CUSTOMER_NAME = 'COALESCE(u.name, b.customer_name)';
+const CUSTOMER_PHONE = 'COALESCE(u.phone, b.customer_phone)';
+
+// Newest booking first inside each group, so the name and number shown are the ones the
+// customer gave last rather than whatever they were first written as.
+const CUSTOMER_COLUMNS = `
+    ${CUSTOMER_KEY} AS key,
+    MAX(b.user_id) AS user_id,
+    (ARRAY_AGG(${CUSTOMER_NAME} ORDER BY b.date DESC, b.id DESC))[1] AS name,
+    (ARRAY_AGG(${CUSTOMER_PHONE} ORDER BY b.date DESC, b.id DESC))[1] AS phone,
+    COUNT(*) AS bookings_count,
+    COUNT(*) FILTER (WHERE b.status = 'completed') AS visits,
+    COUNT(*) FILTER (WHERE b.status = 'no_show') AS no_show_count,
+    MAX(b.date) FILTER (WHERE b.status = 'completed') AS last_visit,
+    COALESCE(SUM(b.total_price) FILTER (WHERE b.status = 'completed'), 0) AS total_spent`;
+
+function customerShape(row) {
+  return {
+    key: row.key,
+    user_id: row.user_id,
+    name: row.name,
+    phone: row.phone,
+    bookings_count: row.bookings_count,
+    visits: row.visits,
+    no_show_count: row.no_show_count,
+    last_visit: row.last_visit,
+    total_spent: row.total_spent,
+    vip: row.visits >= VIP_COMPLETED_BOOKINGS,
+  };
+}
+
+router.get('/customers', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const conditions = ['b.salon_id = ?', `${CUSTOMER_KEY} IS NOT NULL`];
+    const params = [salon.id];
+
+    const query = req.query.q ? String(req.query.q).trim() : '';
+    if (query !== '') {
+      // A number is searched for as digits on both sides: nobody types the spaces back
+      // in the same places they were saved.
+      const digits = query.replace(/[^0-9]/g, '');
+      const clauses = [`${CUSTOMER_NAME} ILIKE ?`];
+      params.push(`%${query}%`);
+      if (digits !== '') {
+        clauses.push(`regexp_replace(COALESCE(${CUSTOMER_PHONE}, ''), '[^0-9]', '', 'g') ILIKE ?`);
+        params.push(`%${digits}%`);
+      }
+      conditions.push(`(${clauses.join(' OR ')})`);
+    }
+
+    const rows = await db
+      .prepare(
+        `SELECT ${CUSTOMER_COLUMNS}
+         FROM bookings b
+         LEFT JOIN users u ON u.id = b.user_id
+         WHERE ${conditions.join(' AND ')}
+         GROUP BY ${CUSTOMER_KEY}
+         ORDER BY MAX(b.date) DESC, MIN(${CUSTOMER_NAME})
+         LIMIT ?`,
+      )
+      .all(...params, CUSTOMER_LIMIT);
+
+    res.json({
+      success: true,
+      data: rows.map(customerShape),
+      // `returned`, not `total`: this is one page of the list, and a salon with more
+      // customers than the limit must not be told it has exactly the limit.
+      meta: { returned: rows.length, limit: CUSTOMER_LIMIT },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Everything else this customer has booked here, newest first: "what did they have last
+// time" is the question asked over the counter while they are still standing at it.
+const selectCustomerHistory = db.prepare(`
+  SELECT ${BOOKING_COLUMNS} ${BOOKING_SOURCE}
+  WHERE b.salon_id = ? AND b.id <> ? AND ${CUSTOMER_KEY} = ?
+  ORDER BY b.date DESC, b.time DESC, b.id DESC
+  LIMIT ?
+`);
+
+router.get('/bookings/:id/history', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const booking = await ownedRow(
+      selectOwnedBookingRow,
+      requireId(req.params.id, 'Mã lịch hẹn không hợp lệ.'),
+      salon.id,
+      'Không tìm thấy lịch hẹn này.',
+    );
+    // Folded exactly as CUSTOMER_KEY folds the column, or a booking taken under
+    // '0901 234 567' would never match one taken under '0901234567'.
+    const key =
+      booking.user_id === null ? storedPhone(booking.customer_phone) : String(booking.user_id);
+    const rows = key
+      ? await selectCustomerHistory.all(salon.id, booking.id, key, CUSTOMER_HISTORY_LIMIT)
+      : [];
+
+    res.json({ success: true, data: rows.map(bookingShape), meta: { total: rows.length } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ============================================================================
+ * Reviews
+ * ========================================================================= */
+
+const PARTNER_REVIEW_SOURCE = `
+  FROM reviews r
+  LEFT JOIN users u ON u.id = r.user_id
+  LEFT JOIN services sv ON sv.id = r.service_id
+  LEFT JOIN staff st ON st.id = r.staff_id
+  LEFT JOIN bookings b ON b.id = r.booking_id`;
+
+const selectOwnedReview = db.prepare('SELECT * FROM reviews WHERE id = ? AND salon_id = ?');
+// The number the dashboard badge and this list both carry: reviews nobody has answered
+// yet. One statement, so the badge and the filter can never come to mean two things.
+const selectUnansweredReviews = db.prepare(
+  'SELECT COUNT(*) AS count FROM reviews WHERE salon_id = ? AND reply_text IS NULL',
+);
+const UPDATE_REVIEW_REPLY = 'UPDATE reviews SET reply_text = ?, reply_at = ? WHERE id = ?';
+
+function partnerReviewShape(row) {
+  return {
+    id: row.id,
+    rating: row.rating,
+    comment: row.comment,
+    created_at: row.created_at,
+    reply_text: row.reply_text,
+    reply_at: row.reply_at,
+    user: { name: row.user_name, avatar: row.user_avatar },
+    service: row.service_id ? { id: row.service_id, name: row.service_name } : null,
+    staff: row.staff_id ? { id: row.staff_id, name: row.staff_name } : null,
+    booking: row.booking_id
+      ? { id: row.booking_id, code: row.booking_code, date: row.booking_date }
+      : null,
+  };
+}
+
+router.get('/reviews', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const { page, limit, offset } = parsePagination(req.query, 20);
+
+    const conditions = ['r.salon_id = ?'];
+    const params = [salon.id];
+    if (req.query.rating) {
+      const rating = Number.parseInt(req.query.rating, 10);
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        throw httpError(400, 'VALIDATION_ERROR', 'Điểm đánh giá phải là số nguyên từ 1 đến 5.');
+      }
+      conditions.push('r.rating = ?');
+      params.push(rating);
+    }
+    // The one filter a salon actually works from: what still owes an answer.
+    if (req.query.unanswered === '1') {
+      conditions.push('r.reply_text IS NULL');
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const { total } = await db
+      .prepare(`SELECT COUNT(*) AS total ${PARTNER_REVIEW_SOURCE} ${where}`)
+      .get(...params);
+    const rows = await db
+      .prepare(
+        `SELECT r.id, r.rating, r.comment, r.created_at, r.reply_text, r.reply_at,
+                u.name AS user_name, u.avatar AS user_avatar,
+                sv.id AS service_id, sv.name AS service_name,
+                st.id AS staff_id, st.name AS staff_name,
+                b.id AS booking_id, b.code AS booking_code, b.date AS booking_date
+         ${PARTNER_REVIEW_SOURCE} ${where}
+         ORDER BY r.created_at DESC, r.id DESC
+         LIMIT ? OFFSET ?`,
+      )
+      .all(...params, limit, offset);
+
+    res.json({
+      success: true,
+      data: rows.map(partnerReviewShape),
+      // The unanswered count is over every review of the salon, not the page or the
+      // filter, so the badge it feeds does not change meaning when a star is pressed.
+      meta: { page, limit, total, unanswered: (await selectUnansweredReviews.get(salon.id)).count },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * The salon's public answer to one review of its own.
+ *
+ * Ownership is the review's salon_id against the owner's salon, so a partner can neither
+ * answer nor overwrite an answer under somebody else's name. An empty body takes the
+ * reply down again, which is the only way back out of one posted in anger.
+ */
+router.patch('/reviews/:id/reply', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const review = await ownedRow(
+      selectOwnedReview,
+      requireId(req.params.id, 'Mã đánh giá không hợp lệ.'),
+      salon.id,
+      'Không tìm thấy đánh giá này tại salon của bạn.',
+    );
+    const reply = optionalLimitedText((req.body ?? {}).reply_text, 'Phản hồi', REPLY_TEXT_MAX);
+    const replyAt = reply === null ? null : new Date().toISOString();
+
+    await db.withTransaction(async (tx) => {
+      await tx.run(UPDATE_REVIEW_REPLY, reply, replyAt, review.id);
+      // Only the first answer is news. A salon polishing a typo out of one it already
+      // posted must not send the customer the same notice a second and third time.
+      if (reply !== null && review.reply_text === null) {
+        await notifyUser(
+          tx,
+          review.user_id,
+          'Salon đã phản hồi đánh giá của bạn',
+          `${salon.name} vừa trả lời đánh giá của bạn: "${reply}"`,
+          'review',
+        );
+      }
+    });
+
+    res.json({ success: true, data: { id: review.id, reply_text: reply, reply_at: replyAt } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ============================================================================
  * Services
  * ========================================================================= */
 
@@ -791,9 +1310,15 @@ const selectServiceCategoryCounts = db.prepare(
 );
 const insertService = db.prepare(`
   INSERT INTO services
-    (salon_id, category, subcategory, name, description, price, duration_min, image, active)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+    (salon_id, category, subcategory, name, description, price, duration_min, image,
+     price_is_from, sort_order, active)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
 `);
+// A new service joins the end of the menu, never the middle: every existing position keeps
+// the meaning the salon gave it. COALESCE covers the very first service of a salon.
+const selectNextServicePosition = db.prepare(
+  'SELECT COALESCE(MAX(sort_order), 0) + 1 AS position FROM services WHERE salon_id = ?',
+);
 // Every booking, not just the upcoming ones: the foreign key blocks the delete as soon
 // as any row references the service, so a narrower pre-check would make the 409 arrive
 // from the pre-check or from the FK depending on the data.
@@ -812,6 +1337,10 @@ const SERVICE_COLUMNS = {
   price: (value) => requireCount(value, 'Giá dịch vụ'),
   duration_min: (value) => requireCount(value, 'Thời lượng'),
   image: (value) => optionalText(value, 'Ảnh dịch vụ'),
+  // A service whose price depends on hair length or nail set is quoted as a floor, not a
+  // figure: the customer pages read this and print "từ 250.000đ" instead of the price.
+  price_is_from: (value) => requireFlag(value, 'Giá từ'),
+  sort_order: (value) => requireCount(value, 'Thứ tự hiển thị'),
   active: (value) => requireFlag(value, 'Trạng thái hiển thị'),
 };
 
@@ -834,11 +1363,17 @@ router.get('/services', async (req, res, next) => {
     }
 
     const where = `WHERE ${conditions.join(' AND ')}`;
-    const { total } = await db
-      .prepare(`SELECT COUNT(*) AS total FROM services ${where}`)
+    // Two counts, because the console asks two questions of them: how many services the
+    // salon has, and how many the public side can see — the second is what going live
+    // requires, so the checklist and the server's refusal have to read the same number.
+    const totals = await db
+      .prepare(
+        `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE active = 1) AS active_total
+         FROM services ${where}`,
+      )
       .get(...params);
     const rows = await db
-      .prepare(`SELECT * FROM services ${where} ORDER BY category, name LIMIT ? OFFSET ?`)
+      .prepare(`SELECT * FROM services ${where} ORDER BY sort_order, name LIMIT ? OFFSET ?`)
       .all(...params, limit, offset);
 
     // Counts cover the whole salon, not the filtered page, so the category tabs keep
@@ -851,7 +1386,7 @@ router.get('/services', async (req, res, next) => {
     res.json({
       success: true,
       data: rows.map(serviceShape),
-      meta: { page, limit, total, categories },
+      meta: { page, limit, total: totals.total, active_total: totals.active_total, categories },
     });
   } catch (error) {
     next(error);
@@ -874,6 +1409,8 @@ router.post('/services', async (req, res, next) => {
           SERVICE_COLUMNS.price(body.price),
           SERVICE_COLUMNS.duration_min(body.duration_min),
           SERVICE_COLUMNS.image(body.image),
+          body.price_is_from === undefined ? 0 : SERVICE_COLUMNS.price_is_from(body.price_is_from),
+          (await selectNextServicePosition.get(salon.id)).position,
         )
       ).lastInsertRowid,
     );
@@ -909,9 +1446,17 @@ router.patch('/services/:id', async (req, res, next) => {
     await ownedRow(selectOwnedService, serviceId, salon.id, 'Không tìm thấy dịch vụ này.');
 
     const { assignments, values } = await buildPatch(req.body ?? {}, SERVICE_COLUMNS);
-    await db
-      .prepare(`UPDATE services SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`)
-      .run(...values, serviceId, salon.id);
+    await db.withTransaction(async (tx) => {
+      await tx.run(
+        `UPDATE services SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`,
+        ...values,
+        serviceId,
+        salon.id,
+      );
+      // Hiding a service is allowed even when it is the last visible one; what is not
+      // allowed is a listed salon with an empty menu, so the salon drops to draft.
+      await unpublishIfNotReady(tx, salon, req.user.id);
+    });
 
     res.json({
       success: true,
@@ -943,6 +1488,7 @@ router.delete('/services/:id', async (req, res, next) => {
         // reviews do not, and their foreign keys are what stops the delete below.
         await tx.run(DELETE_SERVICE_LINKS, serviceId);
         await tx.run(DELETE_SERVICE, serviceId, salon.id);
+        await unpublishIfNotReady(tx, salon, req.user.id);
       });
     } catch (error) {
       if (error.code === '23503') {
@@ -980,6 +1526,16 @@ const selectStaffSchedule = db.prepare(`
 const selectStaffServiceIds = db.prepare(
   'SELECT service_id FROM staff_services WHERE staff_id = ? ORDER BY service_id',
 );
+// The same links for the whole roster in one round trip: the booking form filters the
+// technician list by the service that was picked, and asking per technician would be a
+// query per row of a list that is already on screen.
+const selectSalonStaffServices = db.prepare(`
+  SELECT ss.staff_id, ss.service_id
+  FROM staff_services ss
+  JOIN staff st ON st.id = ss.staff_id
+  WHERE st.salon_id = ?
+  ORDER BY ss.service_id
+`);
 // rating > 0 so an unrated new hire (rating defaults to 0) does not drag the average
 // down: the roster figure should reflect technicians who actually have reviews.
 const selectActiveStaffRating = db.prepare(
@@ -1104,6 +1660,14 @@ router.get('/staff', async (req, res, next) => {
       schedules.get(row.staff_id).set(row.weekday, row);
     }
 
+    const serviceIds = new Map();
+    for (const row of await selectSalonStaffServices.all(salon.id)) {
+      if (!serviceIds.has(row.staff_id)) {
+        serviceIds.set(row.staff_id, []);
+      }
+      serviceIds.get(row.staff_id).push(row.service_id);
+    }
+
     let onShift = 0;
     const data = rows.map((member) => {
       const byWeekday = schedules.get(member.id) ?? new Map();
@@ -1124,6 +1688,9 @@ router.get('/staff', async (req, res, next) => {
           ? { start: today_shift.start, end: today_shift.end, is_off: today_shift.is_off }
           : null,
         next_shift: nextShift(byWeekday, today),
+        // What this technician actually does, so the booking form can stop offering a
+        // nail artist for a haircut.
+        service_ids: serviceIds.get(member.id) ?? [],
         ...staffState(windows.get(member.id), minutes),
       };
     });
@@ -1274,6 +1841,130 @@ router.delete('/staff/:id', async (req, res, next) => {
 
     // Soft delete: past bookings and reviews still point at this row.
     await deactivateStaff.run(staffId, salon.id);
+    res.json({ success: true, data: { ok: true } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ============================================================================
+ * Time off — holidays, closures and staff leave
+ * ========================================================================= */
+
+// Only what is still ahead: a holiday that has been and gone is history, and the console
+// panel is a list of what the calendar will refuse next.
+const selectTimeOff = db.prepare(`
+  SELECT t.id, t.staff_id, t.date_from, t.date_to, t.reason, st.name AS staff_name
+  FROM time_off t
+  LEFT JOIN staff st ON st.id = t.staff_id
+  WHERE t.salon_id = ? AND t.date_to >= ?
+  ORDER BY t.date_from, t.id
+`);
+const insertTimeOff = db.prepare(`
+  INSERT INTO time_off (salon_id, staff_id, date_from, date_to, reason, created_at)
+  VALUES (?, ?, ?, ?, ?, ?)
+`);
+const selectOwnedTimeOff = db.prepare('SELECT * FROM time_off WHERE id = ? AND salon_id = ?');
+const deleteTimeOff = db.prepare('DELETE FROM time_off WHERE id = ? AND salon_id = ?');
+// Nothing is cancelled here: the count is what tells the owner how many customers they are
+// about to have to call, so they can drop the range again before anyone is stranded.
+const countAffectedBookings = db.prepare(`
+  SELECT COUNT(*) AS count FROM bookings
+  WHERE salon_id = ? AND date >= ? AND date <= ? AND status IN ('pending','confirmed')
+    AND (?::int IS NULL OR staff_id = ?::int)
+`);
+
+function timeOffShape(row) {
+  return {
+    id: row.id,
+    staff_id: row.staff_id,
+    staff_name: row.staff_name ?? null,
+    date_from: row.date_from,
+    date_to: row.date_to,
+    reason: row.reason,
+  };
+}
+
+router.get('/time-off', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const rows = await selectTimeOff.all(salon.id, todayISO());
+    res.json({ success: true, data: rows.map(timeOffShape) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/time-off', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const body = req.body ?? {};
+    // NULL staff_id is the whole salon closing, which is a different thing from a
+    // technician's leave and the only way to say "we are shut that day".
+    const staffId =
+      body.staff_id === null || body.staff_id === undefined
+        ? null
+        : (
+            await ownedRow(
+              selectOwnedStaff,
+              requireId(body.staff_id, 'Mã kỹ thuật viên không hợp lệ.'),
+              salon.id,
+              'Không tìm thấy kỹ thuật viên này tại salon của bạn.',
+            )
+          ).id;
+    const dateFrom = requireDate(body.date_from, 'Ngày bắt đầu');
+    const dateTo = body.date_to === undefined ? dateFrom : requireDate(body.date_to, 'Ngày kết thúc');
+    if (dateTo < dateFrom) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.');
+    }
+    if (dateTo > addDaysISO(dateFrom, TIME_OFF_MAX_DAYS - 1)) {
+      throw httpError(
+        400,
+        'VALIDATION_ERROR',
+        `Mỗi đợt nghỉ tối đa ${TIME_OFF_MAX_DAYS} ngày.`,
+      );
+    }
+    const reason = optionalLimitedText(body.reason, 'Lý do', TIME_OFF_REASON_MAX);
+
+    const id = Number(
+      (
+        await insertTimeOff.run(
+          salon.id,
+          staffId,
+          dateFrom,
+          dateTo,
+          reason,
+          new Date().toISOString(),
+        )
+      ).lastInsertRowid,
+    );
+    const affected = (
+      await countAffectedBookings.get(salon.id, dateFrom, dateTo, staffId, staffId)
+    ).count;
+
+    res.json({
+      success: true,
+      data: {
+        id,
+        staff_id: staffId,
+        staff_name: staffId === null ? null : (await selectOwnedStaff.get(staffId, salon.id)).name,
+        date_from: dateFrom,
+        date_to: dateTo,
+        reason,
+        affected_bookings: affected,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/time-off/:id', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const id = requireId(req.params.id, 'Mã ngày nghỉ không hợp lệ.');
+    await ownedRow(selectOwnedTimeOff, id, salon.id, 'Không tìm thấy ngày nghỉ này.');
+    await deleteTimeOff.run(id, salon.id);
     res.json({ success: true, data: { ok: true } });
   } catch (error) {
     next(error);
@@ -1527,6 +2218,95 @@ router.get('/revenue', async (req, res, next) => {
 });
 
 /* ============================================================================
+ * Photo gallery
+ * ========================================================================= */
+
+// The public profile reads the same table through GET /api/salons/:id/photos, in the same
+// order, so what the console arranges here is what a visitor sees.
+const selectSalonPhotos = db.prepare(
+  'SELECT id, image, caption, sort FROM salon_photos WHERE salon_id = ? ORDER BY sort, id',
+);
+const selectOwnedPhoto = db.prepare(
+  'SELECT id, image, caption, sort FROM salon_photos WHERE id = ? AND salon_id = ?',
+);
+const selectNextPhotoPosition = db.prepare(
+  'SELECT COALESCE(MAX(sort), 0) + 1 AS position FROM salon_photos WHERE salon_id = ?',
+);
+const insertSalonPhoto = db.prepare(
+  'INSERT INTO salon_photos (salon_id, image, caption, sort) VALUES (?, ?, ?, ?)',
+);
+const updatePhotoSort = db.prepare(
+  'UPDATE salon_photos SET sort = ? WHERE id = ? AND salon_id = ?',
+);
+// Deleted inside a transaction with the publication re-check below, so it is SQL text.
+const DELETE_SALON_PHOTO = 'DELETE FROM salon_photos WHERE id = ? AND salon_id = ?';
+
+router.get('/photos', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const rows = await selectSalonPhotos.all(salon.id);
+    res.json({ success: true, data: rows, meta: { total: rows.length } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The bytes went to POST /api/uploads first; what arrives here is the url that call gave back.
+router.post('/photos', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const body = req.body ?? {};
+    const image = requireText(body.image, 'ảnh');
+    // Same guard the avatar and post-image sinks use: this url is rendered on the public
+    // salon gallery, so it may not carry a scheme of its own.
+    if (!isSafeMediaUrl(image)) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Đường dẫn ảnh không hợp lệ.');
+    }
+    const caption = optionalLimitedText(body.caption, 'Chú thích ảnh', PHOTO_CAPTION_MAX);
+    const { position } = await selectNextPhotoPosition.get(salon.id);
+    const photoId = Number(
+      (await insertSalonPhoto.run(salon.id, image, caption, position)).lastInsertRowid,
+    );
+    res.json({ success: true, data: await selectOwnedPhoto.get(photoId, salon.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Only the position: the caption and the image are what the upload put there, and a photo
+// moves in the gallery by swapping this number with its neighbour's.
+router.patch('/photos/:id', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const photoId = requireId(req.params.id, 'Mã ảnh không hợp lệ.');
+    await ownedRow(selectOwnedPhoto, photoId, salon.id, 'Không tìm thấy ảnh này.');
+    await updatePhotoSort.run(
+      requireCount((req.body ?? {}).sort, 'Thứ tự ảnh'),
+      photoId,
+      salon.id,
+    );
+    res.json({ success: true, data: await selectOwnedPhoto.get(photoId, salon.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/photos/:id', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const photoId = requireId(req.params.id, 'Mã ảnh không hợp lệ.');
+    await ownedRow(selectOwnedPhoto, photoId, salon.id, 'Không tìm thấy ảnh này.');
+    await db.withTransaction(async (tx) => {
+      await tx.run(DELETE_SALON_PHOTO, photoId, salon.id);
+      await unpublishIfNotReady(tx, salon, req.user.id);
+    });
+    res.json({ success: true, data: { ok: true } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ============================================================================
  * Salon profile
  * ========================================================================= */
 
@@ -1539,6 +2319,85 @@ const UPDATE_SALON_SUMMARY = 'UPDATE salons SET open_time = ?, close_time = ? WH
 const DELETE_SALON_SOCIAL_LINKS = 'DELETE FROM salon_social_links WHERE salon_id = ?';
 const INSERT_SALON_SOCIAL_LINK =
   'INSERT INTO salon_social_links (salon_id, platform, url) VALUES (?, ?, ?) RETURNING platform';
+
+/**
+ * A whitelisted numeric setting, without Number()'s blind spots.
+ *
+ * Number(null), Number('') and Number([]) are all 0 — a legal lead time — so a client
+ * that meant "leave this one alone" would silently reset it. Only a number or the digits
+ * of a string qualify; everything else becomes NaN and fails the whitelist.
+ */
+function toChoice(value) {
+  if (typeof value === 'number') {
+    return value;
+  }
+  return typeof value === 'string' ? Number.parseInt(value, 10) : Number.NaN;
+}
+
+// What a salon must hold before the public side may list it: somewhere to go, a week that
+// says when, something to book, and one picture. Read in one query so a refusal can name
+// what is still missing instead of only saying no.
+const PUBLISH_READINESS_SQL = `
+  SELECT
+    (COALESCE(s.address, '') <> '') AS has_address,
+    EXISTS (SELECT 1 FROM salon_hours h WHERE h.salon_id = s.id AND h.is_off = 0) AS has_hours,
+    EXISTS (SELECT 1 FROM services sv WHERE sv.salon_id = s.id AND sv.active = 1) AS has_service,
+    (COALESCE(s.image, '') <> ''
+      OR EXISTS (SELECT 1 FROM salon_photos p WHERE p.salon_id = s.id)) AS has_photo
+  FROM salons s WHERE s.id = ?
+`;
+
+const PUBLISH_REQUIREMENTS = [
+  ['has_address', 'địa chỉ'],
+  ['has_hours', 'giờ mở cửa'],
+  ['has_service', 'ít nhất một dịch vụ đang hiển thị'],
+  ['has_photo', 'ít nhất một ảnh'],
+];
+
+/**
+ * Refuse to go live with a message that names the gaps, in the order the console lists them.
+ *
+ * Read through the caller's transaction, after its writes: the answer has to be about the
+ * salon as the request leaves it, not as it was before the update ran.
+ */
+async function assertPublishable(salonId, tx) {
+  const row = await tx.get(PUBLISH_READINESS_SQL, salonId);
+  const missing = PUBLISH_REQUIREMENTS.filter(([key]) => !row[key]).map(([, label]) => label);
+  if (missing.length > 0) {
+    throw httpError(
+      409,
+      'SALON_NOT_READY',
+      `Salon chưa đủ điều kiện hiển thị trên OAK: còn thiếu ${missing.join(', ')}.`,
+    );
+  }
+}
+
+/**
+ * Take a listed salon back off the public list once a write has left it short.
+ *
+ * Hiding or deleting the last visible service — or the last photo of a salon with no
+ * cover — is allowed, but it would otherwise leave a listed profile a customer can open
+ * with nothing to book. The salon drops to draft instead, and its owner is told why so
+ * the switch does not simply appear to have flipped itself.
+ */
+async function unpublishIfNotReady(tx, salon, ownerId) {
+  if (salon.published !== 1) {
+    return;
+  }
+  const row = await tx.get(PUBLISH_READINESS_SQL, salon.id);
+  const missing = PUBLISH_REQUIREMENTS.filter(([key]) => !row[key]).map(([, label]) => label);
+  if (missing.length === 0) {
+    return;
+  }
+  await tx.run('UPDATE salons SET published = 0 WHERE id = ?', salon.id);
+  await notifyUser(
+    tx,
+    ownerId,
+    'Salon đã tạm ẩn khỏi OAK',
+    `${salon.name} không còn đủ điều kiện hiển thị: còn thiếu ${missing.join(', ')}. Bổ sung rồi bật lại công tắc “Hiển thị trên OAK”.`,
+    'general',
+  );
+}
 
 const SALON_COLUMNS = {
   name: (value) => requireText(value, 'tên salon'),
@@ -1553,6 +2412,13 @@ const SALON_COLUMNS = {
   amenities: (value) => requireJsonStringArray(value, 'Tiện ích'),
   tags: (value) => requireJsonStringArray(value, 'Thẻ phân loại'),
   tour_url: (value) => optionalHttpsUrl(value, 'Đường dẫn tour 360'),
+  auto_confirm: (value) => requireFlag(value, 'Tự động xác nhận'),
+  lead_time_min: (value) =>
+    requireOneOf(toChoice(value), LEAD_TIME_CHOICES, 'Thời gian báo trước không hợp lệ.'),
+  cancel_cutoff_hours: (value) =>
+    requireOneOf(toChoice(value), CANCEL_CUTOFF_CHOICES, 'Hạn huỷ không hợp lệ.'),
+  cancel_policy_text: (value) => optionalLimitedText(value, 'Chính sách huỷ', CANCEL_POLICY_MAX),
+  published: (value) => requireFlag(value, 'Hiển thị trên OAK'),
 };
 
 function parseSocialLinks(value) {
@@ -1663,6 +2529,12 @@ router.patch('/salon', async (req, res, next) => {
         throw httpError(400, 'VALIDATION_ERROR', 'Vĩ độ và kinh độ phải được cập nhật cùng nhau.');
       }
     }
+    // Whether this save leaves the salon listed — checked below against the row it writes,
+    // not the one it read, so no single request can both publish a salon and remove what
+    // publishing requires.
+    const staysPublished = Object.hasOwn(body, 'published')
+      ? SALON_COLUMNS.published(body.published) === 1
+      : salon.published === 1;
     const hours = body.hours === undefined ? null : parseSalonHours(body.hours);
     const socialLinks = body.social_links === undefined ? null : parseSocialLinks(body.social_links);
     // buildPatch refuses an empty SET clause, so it only runs when the body really
@@ -1697,6 +2569,17 @@ router.patch('/salon', async (req, res, next) => {
           await tx.run(INSERT_SALON_SOCIAL_LINK, salon.id, link.platform, link.url);
         }
       }
+      // Only the fields publishing depends on are worth re-checking. A listed salon
+      // saving its phone number or its cancellation policy takes nothing away, and
+      // refusing that save would strand the owner behind an error about services.
+      const touchesReadiness =
+        Object.hasOwn(body, 'published') ||
+        Object.hasOwn(body, 'address') ||
+        Object.hasOwn(body, 'image') ||
+        Boolean(hours);
+      if (staysPublished && touchesReadiness) {
+        await assertPublishable(salon.id, tx);
+      }
     });
 
     res.json({ success: true, data: await salonShape(await selectSalonById.get(salon.id)) });
@@ -1709,9 +2592,16 @@ router.patch('/salon', async (req, res, next) => {
  * Search
  * ========================================================================= */
 
+// The phone number is how a salon looks a customer up when they ring: the code is on a
+// screen they cannot see and the name is spelled three different ways. The number is
+// matched on digits alone, on both sides — the receptionist reads it off a caller ID
+// without the spaces it was saved with, and either shape has to find the other.
 const searchBookings = db.prepare(`
   SELECT id, code, customer_name FROM bookings
-  WHERE salon_id = ? AND (code ILIKE ? OR customer_name ILIKE ?)
+  WHERE salon_id = ? AND (
+    code ILIKE ? OR customer_name ILIKE ?
+    OR (? <> '' AND regexp_replace(COALESCE(customer_phone, ''), '[^0-9]', '', 'g') LIKE ?)
+  )
   ORDER BY date DESC, id DESC LIMIT ?
 `);
 const searchServices = db.prepare(
@@ -1732,8 +2622,11 @@ router.get('/search', async (req, res, next) => {
     }
 
     const term = `%${query}%`;
+    const digits = query.replace(/[^0-9]/g, '');
     const results = [
-      ...(await searchBookings.all(salon.id, term, term, SEARCH_LIMIT)).map((row) => ({
+      ...(
+        await searchBookings.all(salon.id, term, term, digits, `%${digits}%`, SEARCH_LIMIT)
+      ).map((row) => ({
         type: 'booking',
         id: row.id,
         label: [row.code, row.customer_name].filter(Boolean).join(' · '),

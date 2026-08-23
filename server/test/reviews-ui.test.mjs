@@ -311,6 +311,20 @@ test('page two of the reviews never lands on a list it was not read for', async 
   assert.equal(page.reviewPage, 1);
 });
 
+test('the salon answer sits under the review it answers, on both pages that show one', () => {
+  for (const html of [salonHtml, serviceHtml]) {
+    // Indented under the comment, labelled with the salon's name, and absent until there
+    // is an answer — a reply floating free would read as a second review.
+    assert.match(html, /x-show="review\.reply"/);
+    assert.match(html, /x-text="review\.reply \? review\.reply\.text : ''"/);
+    assert.match(html, />Phản hồi từ</);
+    assert.ok(
+      html.indexOf('x-text="review.comment"') < html.indexOf('x-show="review.reply"'),
+      'the answer must come after the comment it answers',
+    );
+  }
+});
+
 test('every review carries the date it was written and the booking behind it', () => {
   for (const html of [salonHtml, serviceHtml]) {
     assert.match(html, /x-text="OAK\.fmtDate\(review\.created_at\)"/);

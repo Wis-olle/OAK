@@ -1,7 +1,7 @@
 // Public staff profiles: detail, week availability, reviews.
 import express from 'express';
 import { db } from '../db.js';
-import { getStaffSlots, getStaffWeek } from '../lib/availability.js';
+import { getStaffSlots, getStaffWeek, timeOffOn } from '../lib/availability.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
 import { addDaysISO, isISODate, todayISO } from '../lib/time.js';
 import { httpError } from '../middleware/auth.js';
@@ -23,6 +23,8 @@ const selectStaffProfile = db.prepare(`
 `);
 
 const selectStaffExists = db.prepare('SELECT 1 FROM staff WHERE id = ? AND active = 1');
+
+const selectStaffSalon = db.prepare('SELECT salon_id FROM staff WHERE id = ?');
 
 const selectStaffReviews = db.prepare(`
   SELECT r.id, r.rating, r.comment, r.created_at,
@@ -59,15 +61,25 @@ async function staffIdOrThrow(value) {
 }
 
 /**
- * Per-day slots for one technician performing one service, in getStaffWeek's shape.
+ * Per-day slots for one technician performing one service, in getStaffWeek's shape —
+ * `closed` included, because this is the endpoint the wizard's day strip calls once a
+ * technician has been chosen, and without the flag it strikes a declared day off through
+ * as "full". The salon is read once for the whole week, the day-off rows once per date.
+ *
  * Sized by the chosen service's duration — the same calculation POST /api/bookings
  * validates against — so the picker never hides a start time the API would accept.
  */
 async function getServiceWeek(staffId, serviceId, from, days) {
+  const salonId = (await selectStaffSalon.get(staffId))?.salon_id ?? null;
   const week = [];
   for (let offset = 0; offset < days; offset += 1) {
     const date = addDaysISO(from, offset);
-    week.push({ date, slots: await getStaffSlots(staffId, serviceId, date) });
+    const off = salonId === null ? { salon: false, staff: new Set() } : await timeOffOn(salonId, date);
+    week.push({
+      date,
+      closed: off.salon || off.staff.has(staffId),
+      slots: await getStaffSlots(staffId, serviceId, date),
+    });
   }
   return week;
 }

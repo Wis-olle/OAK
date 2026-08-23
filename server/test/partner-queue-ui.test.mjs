@@ -15,6 +15,7 @@ const CONSOLE_PAGES = [
   'quan-ly-nhan-vien.html',
   'bao-cao-doanh-thu.html',
   'cai-dat-salon.html',
+  'danh-gia-salon.html',
 ];
 
 /* The dashboard factory is inline in the page, so lift it out of its <script> to drive it
@@ -350,4 +351,157 @@ test('an empty console list stays apart from a failed one', () => {
   // A load that failed raises its own error block; the empty state must not stand in for it.
   assert.match(readUi('quan-ly-dich-vu.html'), /x-show="!loading && !servicesError && services\.length === 0"/);
   assert.match(readUi('quan-ly-dich-vu.html'), /x-show="servicesError"/);
+});
+
+/* ------------------------------------------------------------ "Cần hoàn tất" */
+
+/** A confirmed booking that started `hours` from now, in the shape the console reads. */
+function bookingHoursFromNow(id, hours, durationMin = 60) {
+  const at = new Date(Date.now() + hours * 60 * 60 * 1000);
+  const pad = (value) => String(value).padStart(2, '0');
+  return {
+    id,
+    code: 'OAK-' + id,
+    status: 'confirmed',
+    date: at.getFullYear() + '-' + pad(at.getMonth() + 1) + '-' + pad(at.getDate()),
+    time: pad(at.getHours()) + ':' + pad(at.getMinutes()),
+    customer: { name: 'Khách ' + id },
+    service: { id: 1, name: 'Sơn gel', duration_min: durationMin },
+  };
+}
+
+test('the closing-out queue asks for confirmed bookings up to today, and keeps the ones over', async () => {
+  const asked = [];
+  const state = dashboard(async (path) => {
+    asked.push(path);
+    // Two hours ago (over), and two hours from now (not over yet).
+    return [bookingHoursFromNow(1, -2), bookingHoursFromNow(2, 2)];
+  });
+
+  await state.loadSettled();
+  assert.equal(asked.length, 1);
+  assert.match(asked[0], /status=confirmed/);
+  assert.match(asked[0], /to=2026-08-21$/);
+  // The request cannot know the hour, so the filtering is done against the clock here.
+  assert.equal(state.settled.length, 2);
+  assert.deepEqual(state.due().map((booking) => booking.id), [1]);
+});
+
+test('a booking still running is not due; the same booking is once its minutes are up', async () => {
+  const state = dashboard(async () => [bookingHoursFromNow(1, -0.5, 60)]);
+  await state.loadSettled();
+  // Started half an hour ago, sixty minutes long: still in the chair.
+  assert.equal(state.due().length, 0);
+
+  const shorter = dashboard(async () => [bookingHoursFromNow(1, -0.5, 15)]);
+  await shorter.loadSettled();
+  assert.equal(shorter.due().length, 1);
+});
+
+test('closing one out patches that booking and re-reads both queues and the cards', async () => {
+  const calls = [];
+  let open = [bookingHoursFromNow(7, -3)];
+  const state = dashboard(async (path, options) => {
+    calls.push({ path, method: (options && options.method) || 'GET', body: options && options.body });
+    if (options && options.method === 'PATCH') {
+      open = [];
+      return { id: 7, code: 'OAK-7', status: 'completed' };
+    }
+    if (path === '/api/partner/overview') {
+      return { date: '2026-08-21', upcoming_count: 1, staff_status: [] };
+    }
+    if (path.includes('status=confirmed')) {
+      return open.slice();
+    }
+    return pendingRows([], 0);
+  });
+
+  state.overview = { date: '2026-08-21', upcoming_count: 2, staff_status: [] };
+  await state.loadSettled();
+  await state.settle(state.due()[0], 'completed');
+
+  assert.equal(calls[1].path, '/api/partner/bookings/7');
+  assert.equal(calls[1].method, 'PATCH');
+  assert.equal(calls[1].body.status, 'completed');
+  const paths = calls.map((call) => call.path);
+  assert.ok(paths.filter((path) => path.includes('status=confirmed')).length === 2);
+  assert.ok(paths.includes('/api/partner/overview'));
+  assert.equal(state.due().length, 0);
+  assert.equal(state.acting, 0);
+});
+
+test('marking a no-show offers the way back out of it in the same breath', async () => {
+  const messages = [];
+  const patched = [];
+  const state = dashboard(async (path, options) => {
+    if (options && options.method === 'PATCH') {
+      patched.push(options.body.status);
+      return { id: 7, code: 'OAK-7', status: options.body.status };
+    }
+    if (path === '/api/partner/overview') {
+      return { date: '2026-08-21', staff_status: [] };
+    }
+    return path.includes('status=confirmed') ? [] : pendingRows([], 0);
+  });
+  state.page.OAK.toast = (message, type, action) => messages.push({ message, action });
+
+  await state.settle(bookingHoursFromNow(7, -3), 'no_show');
+  assert.deepEqual(patched, ['no_show']);
+  assert.equal(messages.length, 1);
+  // The Undo is the transition the server allows back out of no_show.
+  assert.equal(messages[0].action.actionLabel, 'Hoàn tác');
+  await messages[0].action.onAction();
+  assert.deepEqual(patched, ['no_show', 'confirmed']);
+});
+
+test('"Hoàn tất tất cả" closes them one at a time, never in a burst', async () => {
+  const order = [];
+  let live = [bookingHoursFromNow(1, -3), bookingHoursFromNow(2, -4), bookingHoursFromNow(3, -5)];
+  const state = dashboard(async (path, options) => {
+    if (options && options.method === 'PATCH') {
+      order.push(path);
+      // Every PATCH must have finished before the next one starts.
+      assert.equal(order.length, new Set(order).size);
+      live = live.filter((booking) => !path.endsWith('/' + booking.id));
+      return { id: 1, code: 'OAK-1', status: 'completed' };
+    }
+    if (path === '/api/partner/overview') {
+      return { date: '2026-08-21', staff_status: [] };
+    }
+    return path.includes('status=confirmed') ? live.slice() : pendingRows([], 0);
+  });
+
+  await state.loadSettled();
+  await state.completeAll();
+  assert.deepEqual(order, [
+    '/api/partner/bookings/1',
+    '/api/partner/bookings/2',
+    '/api/partner/bookings/3',
+  ]);
+  assert.equal(state.due().length, 0);
+  assert.equal(state.acting, 0);
+});
+
+test('the queue is a block of its own, with both answers on every row', () => {
+  const html = readUi('tong-quan-doi-tac.html');
+  assert.match(html, /<span>Cần hoàn tất<\/span>/);
+  assert.match(html, /x-show="due\(\).length > 0"/);
+  assert.match(html, /@click="settle\(booking, 'no_show'\)"/);
+  assert.match(html, /@click="settle\(booking, 'completed'\)"/);
+  assert.match(html, /@click="completeAll\(\)"/);
+  // The glyph is in the committed subset font, so it renders rather than showing its name.
+  assert.match(html, /data-icon="person_off">person_off<\/span>/);
+  const names = fs.readFileSync(path.join(root, 'tools/icons/icon-names.txt'), 'utf8').split(/\r?\n/);
+  assert.ok(names.includes('person_off'));
+});
+
+test('"Không đến" is a state of its own everywhere the console names one', () => {
+  for (const name of ['tong-quan-doi-tac.html', 'quan-ly-lich-hen.html']) {
+    const html = readUi(name);
+    assert.match(html, /no_show: 'Không đến'/, name);
+  }
+  const dashboardHtml = readUi('tong-quan-doi-tac.html');
+  // Absent is not cancelled, and the two must never be painted the same.
+  assert.match(dashboardHtml, /no_show: 'bg-tertiary-container text-on-tertiary-container'/);
+  assert.match(dashboardHtml, /no_show: \['confirmed'\]/);
 });

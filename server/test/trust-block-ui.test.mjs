@@ -18,22 +18,42 @@ const confirmation = readUi('xac-nhan-dat-lich.html');
 const salon = readUi('salon-profile.html');
 const service = readUi('chi-tiet-dich-vu.html');
 const wizard = readUi('dat-lich.html');
+const api = fs.readFileSync(path.join(root, 'ui/assets/js/oak-api.js'), 'utf8');
 
 /* The factory is inline in the page, so lift it out of its <script> to drive it here. */
+const TRUST_CANCEL_POLICY = 'Hủy/đổi miễn phí đến trước 2 tiếng';
+
 function bookingConfirmation(booking) {
   const tail = confirmation.slice(confirmation.indexOf('function oakAddMinutes('));
   const script = tail.slice(0, tail.indexOf('</script>'));
-  const context = { OAK: { fmtDate: (iso) => iso } };
+  const context = {
+    OAK: {
+      fmtDate: (iso) => iso,
+      TRUST: {
+        CANCEL_POLICY: TRUST_CANCEL_POLICY,
+        cancelPolicy: (hours) =>
+          (hours ? `Hủy/đổi miễn phí đến trước ${hours} tiếng` : TRUST_CANCEL_POLICY),
+      },
+    },
+  };
   vm.runInNewContext(`${script}\nresult = oakBookingConfirmation();`, context);
   context.result.booking = booking;
   return context.result;
 }
 
-const PENDING = { code: 'OAK123', status: 'pending', date: '2099-03-04', time: '14:30' };
+const PENDING = {
+  code: 'OAK123',
+  status: 'pending',
+  date: '2099-03-04',
+  time: '14:30',
+  // The salon's own booking settings ride along on every booking payload.
+  salon: { cancel_cutoff_hours: 2, cancel_policy_text: null },
+};
 
 test('the confirmation page reports the status the server actually wrote', () => {
-  // POST /api/bookings always inserts 'pending'; only the partner console moves a booking
-  // to 'confirmed'. Announcing "Đặt lịch thành công!" for both said the salon had agreed.
+  // POST /api/bookings inserts 'confirmed' for a salon with auto_confirm on and 'pending'
+  // for one that decides by hand. Announcing "Đặt lịch thành công!" for both said the
+  // salon had agreed when it had not yet been asked.
   const pending = bookingConfirmation(PENDING);
   assert.equal(pending.view().title + ' ' + pending.view().subtitle, 'Đã gửi yêu cầu đặt lịch');
   assert.match(pending.view().message, /Thông báo/);
@@ -53,22 +73,50 @@ test('the timeline marks how far along the booking is, and hides for one that le
   assert.equal(bookingConfirmation(null).stepIndex(), -1);
 });
 
-test('the free-cancellation deadline is the appointment less two hours, in local time', () => {
+test('the free-cancellation deadline is the appointment less the salon cutoff, in local time', () => {
   assert.equal(bookingConfirmation(PENDING).cancelDeadline(), '12:30, 04/03');
   // Two hours before 00:30 is the previous day, and the date has to move with it.
   assert.equal(
     bookingConfirmation({ ...PENDING, date: '2099-03-04', time: '00:30' }).cancelDeadline(),
     '22:30, 03/03',
   );
+  // A salon that asks for a whole day gets a deadline a whole day earlier — the same
+  // number the server refuses the cancel against.
+  assert.equal(
+    bookingConfirmation({
+      ...PENDING,
+      salon: { cancel_cutoff_hours: 24, cancel_policy_text: null },
+    }).cancelDeadline(),
+    '14:30, 03/03',
+  );
   // Nothing left to cancel, so nothing is promised about cancelling it.
   assert.equal(bookingConfirmation({ ...PENDING, status: 'cancelled' }).cancelDeadline(), '');
   assert.equal(bookingConfirmation({ ...PENDING, status: 'completed' }).cancelDeadline(), '');
 });
 
+test('the cancellation promise names this salon hours, and falls back to the platform one', () => {
+  const withCutoff = bookingConfirmation({
+    ...PENDING,
+    salon: { cancel_cutoff_hours: 24, cancel_policy_text: 'Gọi trước giúp salon.' },
+  });
+  assert.equal(withCutoff.cancelPolicy(), 'Hủy/đổi miễn phí đến trước 24 tiếng');
+  assert.equal(withCutoff.cancelPolicyNote(), 'Gọi trước giúp salon.');
+  // Before the booking has loaded there is no salon to ask, so the platform default holds.
+  assert.equal(bookingConfirmation(null).cancelPolicy(), TRUST_CANCEL_POLICY);
+  assert.equal(bookingConfirmation(null).cancelPolicyNote(), '');
+});
+
 test('the four pages of the booking path state the same three conditions', () => {
-  // Read from OAK.TRUST rather than retyped, so the wording cannot drift page to page.
+  // One sentence, written once for all four pages, so a per-salon cutoff cannot turn into
+  // four different promises — and OAK.TRUST is still what it falls back to.
+  assert.match(
+    api,
+    /return hours \? 'Hủy\/đổi miễn phí đến trước ' \+ hours \+ ' tiếng' : TRUST\.CANCEL_POLICY;/,
+  );
   for (const page of [salon, service, wizard, confirmation]) {
-    assert.match(page, /x-text="OAK\.TRUST\.CANCEL_POLICY"/);
+    assert.match(page, /OAK\.TRUST\.cancelPolicy\(/);
+    // The bare constant would say two hours for every salon.
+    assert.doesNotMatch(page, /x-text="OAK\.TRUST\.CANCEL_POLICY"/);
     assert.match(page, /x-text="OAK\.TRUST\.PAYMENT"/);
     assert.match(page, /Salon xác nhận lịch, bạn được báo trong mục Thông báo/);
     assert.match(page, /href="dieu-khoan\.html#huy-lich"/);

@@ -158,7 +158,12 @@
 <ul class="flex flex-col gap-3">
 <li class="flex items-start gap-3">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="event_available">event_available</span>
-<span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.CANCEL_POLICY"></span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-text="cancelPolicy()"></span>
+</li>
+<!-- The salon's own wording, when it wrote any. Its text, so it is never translated. -->
+<li class="flex items-start gap-3" x-cloak="" x-show="cancelPolicyNote()">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="storefront">storefront</span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-text="cancelPolicyNote()"></span>
 </li>
 <li class="flex items-start gap-3">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="payments">payments</span>
@@ -307,13 +312,16 @@
        this one is. A cancelled booking never reaches any of them, so it gets none. */
     const OAK_CONFIRMATION_STEPS = ['Chờ xác nhận', 'Đã xác nhận', 'Hoàn tất'];
 
-    /* Free cancellation closes two hours before the appointment — the same window
-       dieu-khoan.html states and the server enforces. */
-    const OAK_CANCEL_WINDOW_MIN = 120;
+    /* What a salon that never opened its booking settings still promises, and what the
+       server itself falls back to. Each salon may ask for more. */
+    const OAK_DEFAULT_CANCEL_HOURS = 2;
+    const OAK_MINUTES_PER_HOUR = 60;
 
     const OAK_CONFIRMATION_VIEW = {
-        /* POST /api/bookings always writes 'pending': the salon, not OAK, confirms. Saying
-           "thành công" here would be announcing something that has not happened yet. */
+        /* POST /api/bookings writes 'confirmed' when the salon takes bookings automatically
+           and 'pending' when it decides by hand, so the view is picked from the status the
+           server actually returned. Saying "thành công" for a pending one would be
+           announcing something that has not happened yet. */
         pending: {
             icon: 'schedule',
             tone: 'text-secondary',
@@ -334,6 +342,13 @@
             title: 'Lịch hẹn',
             subtitle: 'đã hủy',
             message: 'Lịch hẹn này đã được hủy.',
+        },
+        no_show: {
+            icon: 'person_off',
+            tone: 'text-error',
+            title: 'Lịch hẹn',
+            subtitle: 'ghi nhận không đến',
+            message: 'Salon ghi nhận bạn không đến buổi hẹn này. Nếu có nhầm lẫn, vui lòng liên hệ salon.',
         },
         completed: {
             icon: 'task_alt',
@@ -384,6 +399,24 @@
                 return ['pending', 'confirmed', 'completed'].indexOf(this.booking.status);
             },
 
+            /** How long before the start this salon still takes an online cancellation. */
+            cancelCutoffHours() {
+                return (
+                    (this.booking && this.booking.salon.cancel_cutoff_hours) ||
+                    OAK_DEFAULT_CANCEL_HOURS
+                );
+            },
+
+            /** The same promise as the other three pages, with this salon's cutoff in it. */
+            cancelPolicy() {
+                return OAK.TRUST.cancelPolicy(this.booking ? this.booking.salon.cancel_cutoff_hours : 0);
+            },
+
+            /** The salon's own wording under the conditions, when it wrote any. */
+            cancelPolicyNote() {
+                return (this.booking && this.booking.salon.cancel_policy_text) || '';
+            },
+
             /** 'HH:MM, DD/MM' — the last moment this booking can still be cancelled for free.
                 Only worth saying while there is still something to cancel. */
             cancelDeadline() {
@@ -392,7 +425,13 @@
                 }
                 const [year, month, day] = this.booking.date.split('-').map(Number);
                 const [hours, minutes] = this.booking.time.split(':').map(Number);
-                const at = new Date(year, month - 1, day, hours, minutes - OAK_CANCEL_WINDOW_MIN);
+                const at = new Date(
+                    year,
+                    month - 1,
+                    day,
+                    hours,
+                    minutes - this.cancelCutoffHours() * OAK_MINUTES_PER_HOUR,
+                );
                 const pad = (value) => String(value).padStart(2, '0');
                 return pad(at.getHours()) + ':' + pad(at.getMinutes())
                     + ', ' + pad(at.getDate()) + '/' + pad(at.getMonth() + 1);
