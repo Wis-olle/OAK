@@ -315,13 +315,18 @@ async function staffDaySlots(staffId, date, duration, knownOff = null, leadMin =
  * is why getStaffWeek is the wrong tool for a booking check. A staff member with no
  * schedule row for that weekday, or one marked is_off, has no slots at all — and since
  * staff_schedule.staff_id is a foreign key, that also covers an id that does not exist.
+ *
+ * `knownOff` and `leadMin` are staffDaySlots's own seam, passed straight through for the
+ * caller that walks a week and already holds both (routes/staff.js getServiceWeek).
  */
-export async function getStaffSlots(staffId, serviceId, date) {
+export async function getStaffSlots(staffId, serviceId, date, knownOff = null, leadMin = null) {
   const service = await selectService.get(serviceId);
   if (!service) {
     return [];
   }
-  return staffDaySlots(staffId, date, service.duration_min || FALLBACK_DURATION_MIN);
+  return staffDaySlots(
+    staffId, date, service.duration_min || FALLBACK_DURATION_MIN, knownOff, leadMin,
+  );
 }
 
 /**

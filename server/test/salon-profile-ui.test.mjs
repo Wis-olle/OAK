@@ -303,7 +303,7 @@ test('the service menu scrolls on its own so the booking button stays on screen'
   assert.match(html, /class="space-y-6 md:max-h-\[calc\(100vh-16rem\)\] md:overflow-y-auto pr-2"/);
   // The CTA is outside that container: it closes before the button opens.
   const list = html.indexOf('md:max-h-[calc(100vh-16rem)]');
-  const cta = html.indexOf('Đặt Lịch Ngay', list);
+  const cta = html.indexOf('Đặt lịch ngay', list);
   assert.ok(html.slice(list, cta).includes('</div>'));
 });
 

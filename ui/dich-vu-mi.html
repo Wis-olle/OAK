@@ -18,6 +18,22 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The photograph this page opens with. Named up here so the browser can start it in the
+     same pass as the fonts rather than when the parser reaches it far down the page, and named
+     ahead of them because five faces are ~170KB of high-priority bytes for an LCP image to
+     queue behind. -->
+<link as="image" fetchpriority="high" href="assets/images/img-753100bc3d.jpg" rel="preload">
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -48,6 +64,15 @@
 <!-- TopNavBar -->
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
+<!-- Every page draws itself with Alpine, and the bar above is written by script too, so
+     with scripting turned off there is nothing on screen and no way onward. This is that
+     way onward: one line, and the number that answers. -->
+<noscript>
+<div class="px-margin-mobile md:px-margin-desktop py-4 bg-secondary-container text-on-secondary-container font-body-md text-body-md text-center">
+<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gọi hotline để được hỗ trợ đặt lịch.</p>
+<a class="underline font-bold" href="tel:19006035">Gọi hotline 1900 6035</a>
+</div>
+</noscript>
 <!-- Main Content -->
 <main class="pt-24 pb-section-gap min-h-screen" x-data="oakEyelashPage()">
 <!-- Breadcrumb -->
@@ -79,7 +104,7 @@
 </div>
 <div class="md:col-span-7 mt-8 md:mt-0 relative h-[400px] md:h-[600px] w-full rounded-xl overflow-hidden group">
 <div class="absolute inset-0 bg-primary/10 group-hover:bg-transparent transition-colors duration-700 z-10 pointer-events-none"></div>
-<img width="1024" height="1024" alt="Cận cảnh gương mặt người phụ nữ nhắm mắt thư giãn, hàng mi và chân mày hiện rõ trên nền kem trung tính" class="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-1000 ease-out" data-alt="A soft-lit beauty close-up of a woman in a cream robe, her head slightly tilted with eyes gently closed and a serene half-smile, dark lashes and groomed brows resting against luminous skin. The lighting is soft, natural, and diffused, creating a serene and luxurious light-mode aesthetic. The color palette features creamy whites, soft neutral taupes, and subtle warm skin tones, perfectly matching a high-end modern beauty editorial." src="assets/images/img-753100bc3d.jpg">
+<img fetchpriority="high" width="1024" height="1024" alt="Cận cảnh gương mặt người phụ nữ nhắm mắt thư giãn, hàng mi và chân mày hiện rõ trên nền kem trung tính" class="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-1000 ease-out" data-alt="A soft-lit beauty close-up of a woman in a cream robe, her head slightly tilted with eyes gently closed and a serene half-smile, dark lashes and groomed brows resting against luminous skin. The lighting is soft, natural, and diffused, creating a serene and luxurious light-mode aesthetic. The color palette features creamy whites, soft neutral taupes, and subtle warm skin tones, perfectly matching a high-end modern beauty editorial." src="assets/images/img-753100bc3d.jpg">
 </div>
 </div>
 </section>
@@ -97,7 +122,7 @@
 <!-- Main Feature Card -->
 <template x-if="salons.length">
 <a :href="salonUrl(salons[0])" class="md:col-span-8 relative rounded-xl overflow-hidden group h-[400px] md:h-full cursor-pointer block" style="color:inherit;text-decoration:none">
-<img loading="lazy" :alt="salons[0].name" :src="salons[0].image" class="object-cover w-full h-full transition-transform duration-700 group-hover:scale-105">
+<img decoding="async" loading="lazy" :alt="salons[0].name" :src="salons[0].image" class="object-cover w-full h-full transition-transform duration-700 group-hover:scale-105">
 <div class="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/20 to-transparent"></div>
 <div class="absolute bottom-0 left-0 p-8 w-full">
 <div class="flex justify-between items-end">
@@ -120,7 +145,7 @@
 <div class="md:col-span-4 flex flex-col gap-gutter h-full">
 <template :key="salon.id" x-for="salon in salons.slice(1)">
 <a :href="salonUrl(salon)" class="relative rounded-xl overflow-hidden group flex-1 h-[250px] md:h-auto cursor-pointer block" style="color:inherit;text-decoration:none">
-<img loading="lazy" :alt="salon.name" :src="salon.image" class="object-cover w-full h-full transition-transform duration-700 group-hover:scale-105">
+<img decoding="async" loading="lazy" :alt="salon.name" :src="salon.image" class="object-cover w-full h-full transition-transform duration-700 group-hover:scale-105">
 <div class="absolute inset-0 bg-gradient-to-t from-primary/70 via-transparent to-transparent"></div>
 <div class="absolute bottom-0 left-0 p-6 w-full">
 <h3 class="font-headline-sm text-headline-sm text-on-primary mb-1" x-text="salon.name"></h3>
@@ -159,7 +184,7 @@
 <div @click="openService(service)" class="group flex flex-col md:flex-row gap-8 py-8 border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors px-4 -mx-4 md:px-6 md:-mx-6 rounded-lg cursor-pointer">
 <a :href="serviceUrl(service)" @click.stop="" style="display:contents;color:inherit;text-decoration:none">
 <div class="w-full md:w-48 h-48 md:h-32 rounded-lg overflow-hidden shrink-0">
-<img loading="lazy" :alt="service.name" :src="service.image" class="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-500">
+<img decoding="async" loading="lazy" :alt="service.name" :src="service.image" class="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-500">
 </div>
 </a>
 <div class="flex-1 flex flex-col justify-between">

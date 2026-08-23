@@ -21,6 +21,17 @@
 <!-- Not deferred either: the Alpine component builds the map inside its own init(). -->
 <script src="assets/js/leaflet-5a640ff863.js"></script>
 <link href="assets/css/leaflet-ec929f1100.css" rel="stylesheet">
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -45,6 +56,15 @@
 <!-- TopNavBar -->
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
+<!-- Every page draws itself with Alpine, and the bar above is written by script too, so
+     with scripting turned off there is nothing on screen and no way onward. This is that
+     way onward: one line, and the number that answers. -->
+<noscript>
+<div class="px-margin-mobile md:px-margin-desktop py-4 bg-secondary-container text-on-secondary-container font-body-md text-body-md text-center">
+<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gọi hotline để được hỗ trợ đặt lịch.</p>
+<a class="underline font-bold" href="tel:19006035">Gọi hotline 1900 6035</a>
+</div>
+</noscript>
 <!-- Main Content -->
 <!-- Below md the 120px foot of a page this tall is room the two columns cannot spare, so the
      clearance the floating list/map switch needs moves onto the result list itself. -->
@@ -62,7 +82,7 @@
 <form :class="mobileView === 'map' ? 'max-md:mb-3' : ''" @submit.prevent="applyQuery()" class="flex gap-2 mb-6">
 <div class="relative flex-grow">
 <span aria-hidden="true" class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant" data-icon="search">search</span>
-<input aria-label="Tìm dịch vụ hoặc salon" autocomplete="off" class="w-full pl-12 pr-4 py-3 rounded-full bg-surface-container-low border border-outline-variant/30 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary" enterkeyhint="search" placeholder="Dịch vụ, salon…" type="text" x-model="q" x-ref="keyword">
+<input aria-label="Tìm dịch vụ hoặc salon" autocomplete="off" class="w-full pl-12 pr-4 py-3 rounded-full bg-surface-container-low border border-outline font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/70 focus:outline-none focus:border-primary" enterkeyhint="search" placeholder="Dịch vụ, salon…" type="text" x-model="q" x-ref="keyword">
 </div>
 <button class="shrink-0 px-6 py-3 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors" type="submit">Tìm</button>
 </form>
@@ -79,9 +99,9 @@
      first salon off the screen. -->
 <div :class="mobileView === 'map' ? 'max-md:mb-0' : ''" class="flex flex-nowrap overflow-x-auto gap-2 mb-6" x-show="chips.length">
 <template :key="chip.key" x-for="chip in chips">
-<span class="inline-flex shrink-0 items-center gap-1 pl-4 pr-1 py-1 rounded-full bg-tertiary text-on-tertiary font-label-md text-label-md">
+<span class="inline-flex shrink-0 items-center gap-1 pl-4 pr-1 py-1 rounded-full bg-primary-container text-on-primary font-label-md text-label-md">
 <span class="whitespace-nowrap" x-text="chip.label"></span>
-<button @click="removeCriterion(chip.key)" aria-label="Xóa tiêu chí" class="w-6 h-6 rounded-full flex items-center justify-center hover:bg-on-tertiary/20 transition-colors" type="button">
+<button @click="removeCriterion(chip.key)" aria-label="Xóa tiêu chí" class="w-6 h-6 rounded-full flex items-center justify-center hover:bg-on-primary/20 transition-colors" type="button">
 <span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="close">close</span>
 </button>
 </span>
@@ -100,7 +120,7 @@
 <button :aria-expanded="filtersOpen" @click="filtersOpen = !filtersOpen" aria-controls="oak-filters" class="md:hidden px-4 py-2 font-label-md rounded-full bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant transition-colors flex items-center gap-2" type="button" x-text="filterButtonLabel"></button>
 <div :class="filtersOpen ? '' : 'max-md:hidden'" class="contents" id="oak-filters">
 <div class="relative">
-<button :aria-expanded="openFilter === 'category'" :class="incoming.category ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'category' ? null : 'category'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :aria-expanded="openFilter === 'category'" :class="incoming.category ? 'bg-primary-container text-on-primary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'category' ? null : 'category'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Dịch vụ <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'category') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'category'">
@@ -110,7 +130,7 @@
 </div>
 </div>
 <div class="relative">
-<button :aria-expanded="openFilter === 'district'" :class="incoming.district ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'district' ? null : 'district'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :aria-expanded="openFilter === 'district'" :class="incoming.district ? 'bg-primary-container text-on-primary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'district' ? null : 'district'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Khu vực <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'district') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px] max-h-[240px] overflow-y-auto" x-cloak="" x-show="openFilter === 'district'">
@@ -121,7 +141,7 @@
 </div>
 </div>
 <div class="relative">
-<button :aria-expanded="openFilter === 'date'" :class="incoming.date ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'date' ? null : 'date'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :aria-expanded="openFilter === 'date'" :class="incoming.date ? 'bg-primary-container text-on-primary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'date' ? null : 'date'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Thời gian <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'date') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'date'">
@@ -131,7 +151,7 @@
 </div>
 </div>
 <div class="relative">
-<button :aria-expanded="openFilter === 'price'" :class="filters.price_max ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'price' ? null : 'price'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :aria-expanded="openFilter === 'price'" :class="filters.price_max ? 'bg-primary-container text-on-primary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'price' ? null : 'price'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Giá <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'price') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'price'">
@@ -141,7 +161,7 @@
 </div>
 </div>
 <div class="relative">
-<button :aria-expanded="openFilter === 'distance'" :class="filters.radius_km ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'distance' ? null : 'distance'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :aria-expanded="openFilter === 'distance'" :class="filters.radius_km ? 'bg-primary-container text-on-primary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'distance' ? null : 'distance'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Khoảng cách <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'distance') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'distance'">
@@ -151,7 +171,7 @@
 </div>
 </div>
 <div class="relative">
-<button :aria-expanded="openFilter === 'rating'" :class="filters.rating_min ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'rating' ? null : 'rating'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :aria-expanded="openFilter === 'rating'" :class="filters.rating_min ? 'bg-primary-container text-on-primary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'rating' ? null : 'rating'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Đánh giá <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'rating') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'rating'">
@@ -161,7 +181,7 @@
 </div>
 </div>
 <div class="relative">
-<button :aria-expanded="openFilter === 'location'" :class="hasLocation ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'location' ? null : 'location'" aria-haspopup="dialog" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2 max-w-[240px]" type="button">
+<button :aria-expanded="openFilter === 'location'" :class="hasLocation ? 'bg-primary-container text-on-primary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'location' ? null : 'location'" aria-haspopup="dialog" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2 max-w-[240px]" type="button">
 <span class="truncate" x-text="locationChip"></span> <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'location') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg p-4 w-[300px]" x-cloak="" x-show="openFilter === 'location'">
@@ -170,7 +190,7 @@
                         </button>
 <!-- Nominatim asks callers not to look up on every keystroke, so this only submits. -->
 <form @submit.prevent="geocode()" class="flex gap-2 mt-3">
-<input class="flex-grow min-w-0 px-3 py-2 rounded-full bg-surface-container-low border border-outline-variant/30 font-body-md text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary" placeholder="Nhập địa chỉ..." type="text" x-model="address">
+<input class="flex-grow min-w-0 px-3 py-2 rounded-full bg-surface-container-low border border-outline font-body-md text-sm text-on-surface placeholder:text-on-surface-variant/70 focus:outline-none focus:border-primary" placeholder="Nhập địa chỉ…" type="text" x-model="address">
 <button :aria-busy="Boolean(geoPending)" :disabled="geoPending !== '' && geoPending === address.trim()" aria-label="Tìm địa chỉ" class="shrink-0 w-11 h-11 rounded-full bg-surface-container-low border border-outline-variant/30 flex items-center justify-center text-on-surface hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-on-surface" type="submit">
 <span class="material-symbols-outlined text-[18px]">search</span>
 </button>
@@ -184,12 +204,12 @@
 <button @click="clearLocation()" class="w-full mt-3 px-3 py-2 rounded-full border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button" x-show="hasLocation">Xóa vị trí</button>
 </div>
 </div>
-<button :class="filters.open_now ? 'bg-tertiary text-on-tertiary hover:bg-tertiary/90' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="toggleOpenNow()" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :class="filters.open_now ? 'bg-primary-container text-on-primary hover:bg-primary/90' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="toggleOpenNow()" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Đang mở cửa
                     </button>
 </div>
 <div class="relative">
-<button :aria-expanded="openFilter === 'sort'" :class="filters.sort ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'sort' ? null : 'sort'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :aria-expanded="openFilter === 'sort'" :class="filters.sort ? 'bg-primary-container text-on-primary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'sort' ? null : 'sort'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Sắp xếp: <span x-text="sortLabel"></span> <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'sort') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'sort'">
@@ -207,7 +227,7 @@
 <div :class="mobileView === 'map' ? 'max-md:hidden' : 'max-md:overflow-visible'" class="flex-grow overflow-y-auto p-6 md:p-8 max-md:pb-36 space-y-6">
 <!-- A rerun keeps the old results underneath, so a line of text is enough. -->
 <template x-if="loading &amp;&amp; salons.length">
-<p class="font-body-md text-body-md text-on-surface-variant">Đang tải kết quả...</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Đang tải kết quả…</p>
 </template>
 <!-- The first run has nothing underneath: cards at the size the real ones will be. -->
 <template x-if="loading &amp;&amp; !salons.length">
@@ -253,7 +273,7 @@
 <article :class="hovered === salon.id ? 'bg-surface-container-low border-outline-variant/20' : 'border-transparent'" @click="openSalon(salon)" @keydown.enter.self="openSalon(salon)" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="flex flex-col sm:flex-row gap-6 p-4 rounded-xl hover:bg-surface-container-low transition-colors group cursor-pointer border hover:border-outline-variant/20" tabindex="0">
 <div class="w-full sm:w-48 sm:h-auto shrink-0 relative rounded-lg overflow-hidden">
 <template x-if="salon.image">
-<img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-auto sm:h-full object-cover transition-transform duration-500 group-hover:scale-105">
+<img decoding="async" loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-auto sm:h-full object-cover transition-transform duration-500 group-hover:scale-105">
 </template>
 <template x-if="!salon.image">
 <div class="w-full h-32 sm:h-full flex items-center justify-center bg-surface-container">
@@ -277,7 +297,7 @@
 <div class="flex justify-between items-start mb-1">
 <h2 class="font-headline-sm text-headline-sm text-on-surface group-hover:text-primary transition-colors" x-text="salon.name"></h2>
 <div class="flex items-center gap-1 text-on-surface" x-show="salon.review_count">
-<span aria-hidden="true" class="material-symbols-outlined text-primary text-sm" data-weight="fill">star</span>
+<span aria-hidden="true" class="material-symbols-outlined oak-star oak-star-sm" data-weight="fill">star</span>
 <span class="font-label-md text-sm" x-text="ratingOf(salon)"></span>
 <span class="font-caption text-caption text-on-surface-variant" x-text="'(' + salon.review_count + ')'"></span>
 </div>
@@ -490,7 +510,7 @@
         function popupHtml(salon, url) {
             var rating = salon.review_count
                 ? '<p class="flex items-center gap-1 mb-1">'
-                    + '<span class="material-symbols-outlined text-primary text-sm" data-weight="fill">star</span>'
+                    + '<span class="material-symbols-outlined oak-star oak-star-sm" data-weight="fill">star</span>'
                     + '<span class="font-label-md text-sm text-on-surface">'
                     + Number(salon.rating || 0).toFixed(1) + '</span></p>'
                 : '';
@@ -750,7 +770,7 @@
 
             get headline() {
                 if (this.loading) {
-                    return 'Đang tìm salon phù hợp...';
+                    return 'Đang tìm salon phù hợp…';
                 }
                 /* Not "Tìm thấy 0 salon": nothing was counted, the request never landed. */
                 if (this.loadError) {
@@ -1031,6 +1051,7 @@
             /* The areas the district pill offers. Its own fallback list, so it never rejects. */
             async loadDistricts() {
                 this.districts = await OAK.districts();
+                this.applyMeta();
             },
 
             /* One call for the whole list: the heart on each card reads it back. A guest has
@@ -1071,6 +1092,35 @@
                 } catch (error) {
                     OAK.toast(error.message, 'error');
                 }
+            },
+
+            /* The <head> ships one sentence for every search, because it is written before
+               anybody has searched: "Tìm salon - OAK Beauty" is what a shared link to the
+               nail salons of Quận 1 shows, and what a search engine indexes it as. Once the
+               criteria are read out of the URL the page can say what it is a list of.
+               Only the two criteria that name a thing and a place — a date, an hour window
+               or a distance belongs to the reader, not to the page. Both of them are checked
+               against a list the page itself offers, because a crafted ?district=… would
+               otherwise be the sentence a shared link previews as and a crawler files this
+               under. Runs once, as soon as those areas are known: narrowing a filter
+               afterwards is this reader refining their own search.
+               Assembled, so both shapes carry a rule in ui/assets/js/oak-i18n.js — the head
+               is written after the English pass has been over it and never comes back. */
+            applyMeta() {
+                var category = CATEGORY_LABELS.get(this.incoming.category);
+                var district = this.districts.includes(this.incoming.district)
+                    ? this.incoming.district
+                    : '';
+                if (!category && !district) {
+                    return;
+                }
+                var kind = category ? ' ' + category : '';
+                var where = district || 'TP.HCM';
+                OAK.meta({
+                    title: 'Salon' + kind + ' tại ' + where + ' - OAK Beauty',
+                    description: 'Danh sách salon' + kind + ' tại ' + where +
+                        ' trên OAK Beauty: giá dịch vụ, đánh giá thật và khung giờ trống để đặt lịch.',
+                });
             },
 
             /* The address bar mirrors the state, so a reload or a shared link repeats this
@@ -1240,7 +1290,7 @@
                 var token = ++geoToken;
                 this.geoPending = query;
                 this.geoResults = [];
-                this.geoStatus = 'Đang tìm địa chỉ...';
+                this.geoStatus = 'Đang tìm địa chỉ…';
                 try {
                     var response = await fetch(NOMINATIM + new URLSearchParams({
                         format: 'jsonv2',

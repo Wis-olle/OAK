@@ -137,3 +137,20 @@ keys everywhere else, and shared chrome never sees a scoped key; and that sweepi
 over every string in `server/src/seed.js` changes none of them.
 
 Add a case when you add a rule — the harness fails on a rule no case covers.
+
+It also spell-checks every surface a reader meets — the pages, the two shared scripts, the
+dictionary, the parts, and every server file that can put a Vietnamese sentence in front of a
+reader (the routes, the libraries, the auth middleware, `app.js` and `db.js`) — against the
+three spellings the product settled on:
+
+| settled | rejected |
+|---|---|
+| `Hủy` / `hủy` | `Huỷ` / `huỷ` |
+| `Xóa` / `xóa` | `Xoá` / `xoá` |
+| `…` | `...` at the end of a word |
+
+Vietnamese writes those two words either way, and OAK shipped both at once: the console said
+"Huỷ" while the customer side said "Hủy", so a reader cancelled an appointment with one
+spelling and was told about it by the server in the other. `server/src/seed.js` is exempt —
+it is the salon's and the blog's own prose, not product copy — and so are the vendored
+bundles, whose minified output is full of spread syntax.

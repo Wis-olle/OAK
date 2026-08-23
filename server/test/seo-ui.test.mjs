@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -75,6 +76,30 @@ test('sitemap.xml lists the public pages and nothing behind a login', () => {
   }
 });
 
+test('the page entries survive a checkout that lands sitemap.xml with CRLF', () => {
+  /* The entry pattern ends on a bare \n, and this repo checks out with core.autocrlf=true — so
+     on Windows the file arrives with CRLF and every entry falls out of the match. The route
+     still answers 200, with a map missing all sixteen pages, and nothing else would notice.
+     The shipped lines are run here over both spellings of the same file. */
+  const source = appJs.replace(/\r\n/g, '\n');
+  const from = source.indexOf('const SITEMAP_SHELL');
+  const to = source.indexOf('// The one origin');
+  assert.ok(from !== -1 && to > from, 'app.js no longer parses ui/sitemap.xml into page entries');
+
+  const parse = (file) => {
+    const context = { fs: { readFileSync: () => file }, path, uiDir: ui };
+    vm.runInNewContext(`${source.slice(from, to)}\npages = SITEMAP_PAGES;`, context);
+    return context.pages;
+  };
+
+  const lf = parse(sitemap.replace(/\r\n/g, '\n'));
+  // The twenty listed URLs less the four query-driven shells the route replaces.
+  assert.equal(lf.length, 16, 'the parse no longer yields one entry per public page');
+  const crlf = parse(sitemap.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n'));
+  assert.equal(crlf.length, lf.length, 'a CRLF checkout of sitemap.xml drops page entries');
+  assert.equal(crlf.join(''), lf.join(''));
+});
+
 test('the server answers / with the home page and an unknown page with a branded 404', () => {
   assert.match(appJs, /app\.get\('\/',[\s\S]*?sendFile\(path\.join\(uiDir, 'kham-pha\.html'\)\)/);
   assert.match(appJs, /res\.status\(404\)\.sendFile\(path\.join\(uiDir, '404\.html'\)\)/);
@@ -87,8 +112,10 @@ test('the server answers / with the home page and an unknown page with a branded
   // Registration order is the whole behaviour: express.static would answer '/' with
   // index.html — the redirect stub — if it were mounted first, and would never reach the
   // 404 handler if that were mounted before it.
-  assert.ok(appJs.indexOf("app.get('/'") < appJs.indexOf('app.use(express.static(uiDir))'));
-  assert.ok(appJs.indexOf('app.use(express.static(uiDir))') < appJs.indexOf("'404.html'"));
+  const staticUi = appJs.indexOf('express.static(uiDir');
+  assert.ok(staticUi !== -1, 'ui/ is no longer served statically');
+  assert.ok(appJs.indexOf("app.get('/'") < staticUi);
+  assert.ok(staticUi < appJs.indexOf("'404.html'"));
 });
 
 test('the 404 page offers a way back rather than a dead end', () => {

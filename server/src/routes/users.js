@@ -128,12 +128,12 @@ const selectLiveBooking = db.prepare(`
 // to the second *after* now, because middleware/auth.js compares whole seconds with a
 // strict `<` and the caller's own token was minted inside this very second.
 const ANONYMISE_BOOKING_CONTACT = `
-  UPDATE bookings SET customer_name = 'Người dùng đã xoá', customer_phone = NULL
+  UPDATE bookings SET customer_name = 'Người dùng đã xóa', customer_phone = NULL
   WHERE user_id = ?
 `;
 const ANONYMISE_USER = `
   UPDATE users
-  SET name = 'Người dùng đã xoá',
+  SET name = 'Người dùng đã xóa',
       email = ?,
       phone = NULL,
       avatar = NULL,

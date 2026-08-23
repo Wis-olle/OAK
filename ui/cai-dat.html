@@ -18,29 +18,21 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
-<style>
-        /* Underlined inputs with floating labels (shared with the auth pages) */
-        .input-minimal {
-            border: none; border-bottom: 1px solid #c4c7c7; background-color: transparent;
-            padding: 12px 0; border-radius: 0; outline: none; box-shadow: none;
-            transition: border-color 0.3s ease; width: 100%;
-        }
-        .input-minimal:focus { border-bottom-color: #171818; box-shadow: none; }
-        .floating-label {
-            position: absolute; top: 12px; left: 0; pointer-events: none;
-            transition: 0.3s ease all; color: #747878;
-        }
-        .input-minimal:focus ~ .floating-label,
-        .input-minimal:not(:placeholder-shown) ~ .floating-label {
-            top: -12px; font-size: 12px; color: #171818;
-        }
-        /* Selects always hold a value, so their label sits in the raised position. */
-        .select-label { position: absolute; top: -12px; left: 0; font-size: 12px; color: #171818; }
-    </style>
 <title>Cài đặt - OAK Beauty</title>
 <meta content="noindex,nofollow" name="robots">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
@@ -137,7 +129,7 @@ Cài đặt
 <p class="font-body-md text-body-md text-on-surface-variant">Đổi mật khẩu đăng nhập của bạn.</p>
 <!-- Two nodes, not one string built in JavaScript: the label is a dictionary key and the
      date is left to the date rule of oak-i18n.js, which is anchored on a whole node. -->
-<p class="font-caption text-caption text-outline mt-2" x-cloak="" x-show="user.password_changed_at"><span>Đổi lần cuối:</span> <span x-text="lastPasswordChange()"></span></p>
+<p class="font-caption text-caption text-on-surface-variant mt-2" x-cloak="" x-show="user.password_changed_at"><span>Đổi lần cuối:</span> <span x-text="lastPasswordChange()"></span></p>
 </div>
 <form @submit.prevent="changePassword()" class="grid grid-cols-1 md:grid-cols-2 gap-x-gutter gap-y-8">
 <div class="relative pt-4 md:col-span-2">
@@ -170,9 +162,9 @@ Cài đặt
 <p class="font-caption text-caption text-primary md:col-span-2" role="status" x-cloak="" x-show="passwordNotice" x-text="passwordNotice"></p>
 <!-- The one consequence of the button that is not visible from it: every other device
      holding this account is signed out by the write. -->
-<p class="font-caption text-caption text-outline md:col-span-2">Đổi mật khẩu sẽ đăng xuất mọi thiết bị khác.</p>
+<p class="font-caption text-caption text-on-surface-variant md:col-span-2">Đổi mật khẩu sẽ đăng xuất mọi thiết bị khác.</p>
 <div class="md:col-span-2 flex justify-end pt-2">
-<button :disabled="passwordBusy" class="bg-primary-container text-on-primary py-4 px-10 rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors duration-300 disabled:opacity-60" type="submit" x-text="passwordBusy ? 'Đang đổi mật khẩu...' : 'Đổi mật khẩu'">
+<button :disabled="passwordBusy" class="bg-primary-container text-on-primary py-4 px-10 rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors duration-300 disabled:opacity-60" type="submit" x-text="passwordBusy ? 'Đang đổi mật khẩu…' : 'Đổi mật khẩu'">
                             Đổi mật khẩu
                         </button>
 </div>
@@ -197,7 +189,7 @@ Cài đặt
 <div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-6 md:p-8 mt-8" x-cloak="" x-show="user.role !== 'partner'">
 <h2 class="font-headline-sm text-headline-sm text-primary mb-2">Dữ liệu của bạn</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4">Xóa tài khoản sẽ gỡ hồ sơ, mục yêu thích và thông báo của bạn khỏi OAK, và không thể hoàn tác.</p>
-<p class="font-caption text-caption text-outline mb-8">Lịch hẹn và đánh giá đã viết được giữ lại cho salon dưới tên ẩn danh. Hãy hủy các lịch hẹn sắp tới trước khi xóa.</p>
+<p class="font-caption text-caption text-on-surface-variant mb-8">Lịch hẹn và đánh giá đã viết được giữ lại cho salon dưới tên ẩn danh. Hãy hủy các lịch hẹn sắp tới trước khi xóa.</p>
 <button @click="openDelete()" class="border border-error text-error font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-error-container transition-colors" type="button">Xóa tài khoản</button>
 </div>
 </div>
@@ -208,15 +200,15 @@ Cài đặt
      on this page, and the safe choice is the one that keeps the account. -->
 <div @keydown.escape.window="closeDelete()" aria-labelledby="delete-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="deleteOpen">
 <div @click="closeDelete()" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="deleteOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
-<div class="relative w-full sm:max-w-md bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-6 md:p-8" x-show="deleteOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="oak-dialog w-full sm:max-w-md p-6 md:p-8" x-show="deleteOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <h3 class="font-headline-sm text-headline-sm text-primary mb-3" id="delete-title">Xóa tài khoản</h3>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4">Nhập mật khẩu để xác nhận. Thao tác này không thể hoàn tác.</p>
 <label class="font-label-md text-label-md text-on-surface uppercase tracking-wider" for="delete-password">Mật khẩu</label>
-<input @input="deleteError = ''" autocomplete="current-password" class="w-full mt-3 bg-transparent border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md text-on-surface" id="delete-password" type="password" x-model="deletePassword">
+<input @input="deleteError = ''" autocomplete="current-password" class="w-full mt-3 bg-transparent border border-outline rounded-lg px-3 py-2 font-body-md text-body-md text-on-surface" id="delete-password" type="password" x-model="deletePassword">
 <p class="font-caption text-caption text-error mt-4" role="alert" x-cloak="" x-show="deleteError" x-text="deleteError"></p>
 <div class="flex flex-wrap justify-end gap-3 mt-8">
-<button @click="closeDelete()" class="flex-1 sm:flex-none border border-outline text-primary font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-surface-variant/50 transition-colors active:scale-95 duration-200" type="button">Giữ tài khoản</button>
-<button :disabled="deleteBusy" @click="confirmDelete()" class="flex-1 sm:flex-none bg-error text-on-error font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-error/90 transition-colors disabled:opacity-60" type="button" x-text="deleteBusy ? 'Đang xóa...' : 'Xóa tài khoản'">Xóa tài khoản</button>
+<button @click="closeDelete()" class="btn-secondary flex-1 sm:flex-none" type="button">Giữ tài khoản</button>
+<button :disabled="deleteBusy" @click="confirmDelete()" class="btn-danger flex-1 sm:flex-none" type="button" x-text="deleteBusy ? 'Đang xóa…' : 'Xóa tài khoản'">Xóa tài khoản</button>
 </div>
 </div>
 </div>

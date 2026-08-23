@@ -21,6 +21,17 @@
 <!-- Not deferred: the location map is built from the component's own markup. -->
 <script src="assets/js/leaflet-5a640ff863.js"></script>
 <link href="assets/css/leaflet-ec929f1100.css" rel="stylesheet">
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -38,12 +49,21 @@
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
-<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface" x-data="oakSalonProfile()">
 <!-- TopNavBar -->
-<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
+<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header :inert="lightbox || null"></header>
 <script src="assets/js/oak-header.js"></script>
+<!-- Every page draws itself with Alpine, and the bar above is written by script too, so
+     with scripting turned off there is nothing on screen and no way onward. This is that
+     way onward: one line, and the number that answers. -->
+<noscript>
+<div class="px-margin-mobile md:px-margin-desktop py-4 bg-secondary-container text-on-secondary-container font-body-md text-body-md text-center">
+<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gọi hotline để được hỗ trợ đặt lịch.</p>
+<a class="underline font-bold" href="tel:19006035">Gọi hotline 1900 6035</a>
+</div>
+</noscript>
 <!-- Main Content -->
-<main class="pt-24 pb-32" x-data="oakSalonProfile()">
+<main class="pt-24 pb-32" :inert="lightbox || null">
 <!-- Loading skeleton: everything real sits in the x-if below, which waits for `loading` to
      clear too — `salon` alone arrives before its photos/services/staff/reviews do. -->
 <template x-if="loading">
@@ -91,7 +111,7 @@
      that the salon published more than one photo. -->
 <div class="md:col-span-2 md:row-span-2 relative overflow-hidden rounded-lg">
 <div :aria-label="'Xem ảnh: ' + caption(0)" @click="openLightbox(0)" @keydown.enter="openLightbox(0)" @keydown.space.prevent="openLightbox(0)" class="w-full h-full overflow-hidden cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0">
-<img :alt="caption(0)" :src="photo(0)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
+<img decoding="async" :alt="caption(0)" :src="photo(0)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
 <button @click="openLightbox(0)" class="md:hidden absolute bottom-6 right-6 inline-flex items-center gap-2 rounded-full bg-black/40 px-4 min-h-[44px] text-white font-label-md text-label-md" type="button" x-show="photos.length &gt; 1">
 <span aria-hidden="true" class="material-symbols-outlined text-[16px]">image</span>
@@ -99,37 +119,22 @@
 </button>
 </div>
 <div :aria-label="'Xem ảnh: ' + caption(1)" @click="openLightbox(1)" @keydown.enter="openLightbox(1)" @keydown.space.prevent="openLightbox(1)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[1]">
-<img loading="lazy" :alt="caption(1)" :src="photo(1)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
+<img decoding="async" loading="lazy" :alt="caption(1)" :src="photo(1)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
 <div :aria-label="'Xem ảnh: ' + caption(2)" @click="openLightbox(2)" @keydown.enter="openLightbox(2)" @keydown.space.prevent="openLightbox(2)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[2]">
-<img loading="lazy" :alt="caption(2)" :src="photo(2)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
+<img decoding="async" loading="lazy" :alt="caption(2)" :src="photo(2)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
 <div :aria-label="'Xem ảnh: ' + caption(3)" @click="openLightbox(3)" @keydown.enter="openLightbox(3)" @keydown.space.prevent="openLightbox(3)" class="hidden md:block overflow-hidden rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[3]">
-<img loading="lazy" :alt="caption(3)" :src="photo(3)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
+<img decoding="async" loading="lazy" :alt="caption(3)" :src="photo(3)" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700"/>
 </div>
 <div :aria-label="'Xem ảnh: ' + caption(4)" @click="openLightbox(4)" @keydown.enter="openLightbox(4)" @keydown.space.prevent="openLightbox(4)" class="hidden md:block relative overflow-hidden rounded-lg cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background" role="button" tabindex="0" x-show="photos[4]">
-<img loading="lazy" :alt="caption(4)" :src="photo(4)" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
+<img decoding="async" loading="lazy" :alt="caption(4)" :src="photo(4)" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
 <div class="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors" x-show="morePhotos() &gt; 0">
 <span class="font-label-md text-label-md text-white uppercase tracking-widest" x-text="'+' + morePhotos() + ' Ảnh'"></span>
 </div>
 </div>
 </div>
 </section>
-<!-- Photo lightbox -->
-<div @click.self="lightbox = false" @keydown.arrow-left.window="lightbox &amp;&amp; stepLightbox(-1)" @keydown.arrow-right.window="lightbox &amp;&amp; stepLightbox(1)" @keydown.escape.window="lightbox = false" class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center gap-4 px-4 py-16 md:px-16 md:py-20" x-cloak="" x-show="lightbox">
-<button @click="lightbox = false" aria-label="Đóng" class="absolute top-6 right-6 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button">
-<span class="material-symbols-outlined">close</span>
-</button>
-<button @click="stepLightbox(-1)" aria-label="Ảnh trước" class="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="photos.length &gt; 1">
-<span class="material-symbols-outlined">chevron_left</span>
-</button>
-<img loading="lazy" :alt="caption(lightboxIndex)" :src="photo(lightboxIndex)" class="max-h-[80vh] max-w-full object-contain rounded-lg"/>
-<p class="font-body-md text-body-md text-white text-center" x-text="caption(lightboxIndex)"></p>
-<p class="font-caption text-caption text-white/60" x-show="photos.length &gt; 1" x-text="(lightboxIndex + 1) + ' / ' + photos.length"></p>
-<button @click="stepLightbox(1)" aria-label="Ảnh sau" class="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="photos.length &gt; 1">
-<span class="material-symbols-outlined">chevron_right</span>
-</button>
-</div>
 <!-- Salon Info & Booking Grid -->
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
 <div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
@@ -170,7 +175,7 @@
 </div>
 <div class="flex flex-wrap items-center gap-6 mt-6">
 <div class="flex items-center gap-1">
-<span :style="filled" aria-hidden="true" class="material-symbols-outlined text-secondary-container">star</span>
+<span aria-hidden="true" class="material-symbols-outlined oak-star oak-star-lg">star</span>
 <template x-if="salon.review_count">
 <span class="font-body-md text-body-md font-bold" x-text="Number(salon.rating).toFixed(1)"></span>
 </template>
@@ -236,15 +241,15 @@
 <h3 class="font-label-md text-label-md text-on-surface uppercase tracking-wider mb-4">Điều kiện đặt lịch</h3>
 <ul class="flex flex-col gap-3">
 <li class="flex items-start gap-3">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="event_available">event_available</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="event_available">event_available</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.cancelPolicy(salon ? salon.cancel_cutoff_hours : 0)"></span>
 </li>
 <li class="flex items-start gap-3">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="payments">payments</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="payments">payments</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.PAYMENT"></span>
 </li>
 <li class="flex items-start gap-3">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="info">info</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="info">info</span>
 <span class="font-body-md text-body-md text-on-surface-variant">Salon xác nhận lịch, bạn được báo trong mục Thông báo</span>
 </li>
 </ul>
@@ -280,7 +285,7 @@
 <button :class="tab.key === activeTab ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant hover:text-primary transition-colors'" @click="activeTab = tab.key" class="pb-2 font-label-md text-label-md uppercase tracking-wide" type="button" x-text="tab.label"></button>
 </template>
 </div>
-<!-- Service Items. A salon with a long menu used to push "Đặt Lịch Ngay" off the bottom
+<!-- Service Items. A salon with a long menu used to push "Đặt lịch ngay" off the bottom
      of a desktop screen; the list scrolls on its own now and the button stays put. -->
 <div class="space-y-6 md:max-h-[calc(100vh-16rem)] md:overflow-y-auto pr-2">
 <template x-if="!visibleServices().length">
@@ -289,7 +294,7 @@
 <template :key="service.id" x-for="service in visibleServices()">
 <div class="group"><a :href="'chi-tiet-dich-vu.html?id=' + service.id" class="cursor-pointer" style="display:block;color:inherit;text-decoration:none">
 <div class="flex items-start gap-3 mb-1">
-<img loading="lazy" :alt="service.name" :src="service.image" class="w-12 h-12 rounded-lg object-cover shrink-0" x-show="service.image"/>
+<img decoding="async" loading="lazy" :alt="service.name" :src="service.image" class="w-12 h-12 rounded-lg object-cover shrink-0" x-show="service.image"/>
 <div class="min-w-0 flex-1">
 <div class="flex justify-between items-start gap-2">
 <h4 class="font-body-md text-body-md font-medium group-hover:text-secondary-container transition-colors" x-text="service.name"></h4>
@@ -314,7 +319,7 @@
 </template>
 </div>
 <a :href="'dat-lich.html?salon_id=' + salon.id" style="display:contents;color:inherit;text-decoration:none"><button class="w-full mt-8 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200">
-                            Đặt Lịch Ngay
+                            Đặt lịch ngay
                         </button></a>
 </div>
 </div>
@@ -338,13 +343,13 @@
 <div class="bg-surface-container-low rounded-xl overflow-hidden group flex flex-col">
 <a :href="'ho-so-chuyen-gia.html?id=' + member.id" class="block" style="color:inherit;text-decoration:none">
 <div class="h-64 overflow-hidden">
-<img loading="lazy" :alt="member.name" :src="member.image" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
+<img decoding="async" loading="lazy" :alt="member.name" :src="member.image" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
 </div>
 <div class="px-6 pt-6">
 <div class="flex justify-between items-start mb-2">
 <h4 class="font-headline-sm text-headline-sm text-on-surface" x-text="member.name"></h4>
-<div class="flex items-center gap-1 text-secondary-container" x-show="member.rating">
-<span :style="filled" aria-hidden="true" class="material-symbols-outlined text-sm">star</span>
+<div class="flex items-center gap-1 text-secondary" x-show="member.rating">
+<span aria-hidden="true" class="material-symbols-outlined oak-star oak-star-sm">star</span>
 <span class="font-label-md text-label-md" x-text="Number(member.rating).toFixed(1)"></span>
 </div>
 </div>
@@ -398,7 +403,7 @@
 <button :aria-pressed="reviewFilter === row.rating" :class="reviewFilter === row.rating ? 'bg-surface-container-low' : 'hover:bg-surface-container-low'" @click="filterReviews(row.rating)" class="flex items-center gap-3 min-h-[44px] px-2 rounded-lg transition-colors" type="button">
 <span class="font-caption text-caption text-on-surface-variant w-4" x-text="row.rating"></span>
 <span class="sr-only">sao</span>
-<span :style="filled" aria-hidden="true" class="material-symbols-outlined text-sm text-secondary-container">star</span>
+<span aria-hidden="true" class="material-symbols-outlined oak-star oak-star-sm">star</span>
 <div class="flex-1 h-2 rounded-full bg-surface-variant overflow-hidden">
 <div :style="'width: ' + row.percent + '%'" class="h-full bg-secondary-container"></div>
 </div>
@@ -412,7 +417,7 @@
 <div class="md:col-span-8 flex flex-col gap-6">
 <div class="flex flex-wrap items-center justify-end gap-3">
 <label class="font-caption text-caption text-on-surface-variant" for="review-sort">Sắp xếp</label>
-<select @change="loadReviews()" class="rounded-full border border-outline-variant bg-transparent px-4 py-2 font-body-md text-body-md text-on-surface" id="review-sort" x-model="reviewSort">
+<select @change="loadReviews()" class="rounded-full border border-outline bg-transparent px-4 py-2 font-body-md text-body-md text-on-surface" id="review-sort" x-model="reviewSort">
 <option value="newest">Mới nhất</option>
 <option value="lowest">Điểm thấp trước</option>
 </select>
@@ -424,13 +429,13 @@
 <div class="border-b border-outline-variant/30 pb-6">
 <div class="flex items-center gap-3 mb-2">
 <div class="w-10 h-10 rounded-full overflow-hidden bg-surface-variant shrink-0">
-<img loading="lazy" :alt="review.user.name" :src="review.user.avatar" class="w-full h-full object-cover" x-show="review.user.avatar"/>
+<img decoding="async" loading="lazy" :alt="review.user.name" :src="review.user.avatar" class="w-full h-full object-cover" x-show="review.user.avatar"/>
 </div>
 <div>
 <p class="font-body-md text-body-md text-on-surface" x-text="review.user.name"></p>
-<div :aria-label="review.rating + '/5'" class="flex items-center gap-1 text-secondary-container" role="img">
+<div :aria-label="review.rating + '/5'" class="flex items-center gap-1" role="img">
 <template x-for="star in 5">
-<span :style="star &lt;= review.rating ? filled : ''" aria-hidden="true" class="material-symbols-outlined text-sm">star</span>
+<span :class="star &lt;= review.rating ? 'oak-star' : 'oak-star-empty'" aria-hidden="true" class="material-symbols-outlined oak-star-sm">star</span>
 </template>
 </div>
 </div>
@@ -467,13 +472,30 @@
 <span aria-hidden="true" class="material-symbols-outlined">call</span>
 </a>
 </template>
-<a :href="'dat-lich.html?salon_id=' + salon.id" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 px-6 min-h-[44px] ml-auto flex items-center justify-center">Đặt Lịch Ngay</a>
+<a :href="'dat-lich.html?salon_id=' + salon.id" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 px-6 min-h-[44px] ml-auto flex items-center justify-center">Đặt lịch ngay</a>
 </div>
 </div>
 </template>
 </main>
+<!-- Photo lightbox -->
+<template x-if="salon">
+<div @click.self="closeLightbox()" @keydown.arrow-left.window="lightbox &amp;&amp; stepLightbox(-1)" @keydown.arrow-right.window="lightbox &amp;&amp; stepLightbox(1)" @keydown.escape.window="lightbox &amp;&amp; closeLightbox()" class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center gap-4 px-4 py-16 md:px-16 md:py-20" x-cloak="" x-show="lightbox">
+<button @click="closeLightbox()" aria-label="Đóng" class="absolute top-6 right-6 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-ref="lightboxClose">
+<span class="material-symbols-outlined">close</span>
+</button>
+<button @click="stepLightbox(-1)" aria-label="Ảnh trước" class="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="photos.length &gt; 1">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<img decoding="async" loading="lazy" :alt="caption(lightboxIndex)" :src="photo(lightboxIndex)" class="max-h-[80vh] max-w-full object-contain rounded-lg"/>
+<p class="font-body-md text-body-md text-white text-center" x-text="caption(lightboxIndex)"></p>
+<p class="font-caption text-caption text-white/60" x-show="photos.length &gt; 1" x-text="(lightboxIndex + 1) + ' / ' + photos.length"></p>
+<button @click="stepLightbox(1)" aria-label="Ảnh sau" class="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="photos.length &gt; 1">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</template>
 <!-- Footer -->
-<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto" :inert="lightbox || null">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -577,6 +599,7 @@
             showAllStaff: false,
             lightbox: false,
             lightboxIndex: 0,
+            lightboxOpener: null,
             isFavorite: false,
             user: null,
             loading: true,
@@ -715,10 +738,34 @@
                 return Math.max(0, this.photos.length - OAK_GALLERY_TILES);
             },
 
-            /** The gallery tiles are the only way into the full-size viewer. */
+            /* The gallery tiles are the only way into the full-size viewer, and it is a dialog: the
+               page behind it goes inert (:inert on header/main/footer), stops scrolling
+               under it, and the caret moves inside so the next Tab is one of its own
+               controls. closeLightbox() undoes all three. */
             openLightbox(index) {
                 this.lightboxIndex = index;
+                this.lightboxOpener = document.activeElement;
                 this.lightbox = true;
+                document.body.classList.add('overflow-hidden');
+                this.$nextTick(() => this.$refs.lightboxClose && this.$refs.lightboxClose.focus());
+            },
+
+            closeLightbox() {
+                this.lightbox = false;
+                document.body.classList.remove('overflow-hidden');
+                const opener = this.lightboxOpener;
+                this.lightboxOpener = null;
+                // Not on this line: `:inert="lightbox || null"` on the landmarks is an Alpine
+                // effect flushed in a microtask, so <main> is still inert here and focus() on
+                // a tile inside it is silently dropped.
+                this.$nextTick(() => {
+                    // The tile can be gone — the salon reloaded, the reader used the keyboard
+                    // from somewhere else — and dropping the caret at the top of the document
+                    // is worse than leaving it where the browser put it.
+                    if (opener && document.contains(opener)) {
+                        opener.focus();
+                    }
+                });
             },
 
             /** Wraps around, so prev/next always have somewhere to go. */

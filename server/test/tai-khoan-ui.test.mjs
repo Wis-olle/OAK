@@ -5,6 +5,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
+import { bookingStatus } from './booking-status.mjs';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const page = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 
@@ -30,6 +32,9 @@ function factory(html, from, call, extra = {}) {
       fmtDate: (value) => String(value),
       fmtTime: (value) => String(value),
       qs: (name) => (name in query ? query[name] : null),
+      // Scrolling the composer into view asks whether the reader wants motion at all.
+      scrollBehavior: () => 'smooth',
+      bookingStatus,
     },
   };
   vm.runInNewContext(`${script}\nresult = ${call};`, context);
@@ -39,7 +44,7 @@ function factory(html, from, call, extra = {}) {
 }
 
 const myBookings = (api) =>
-  factory(bookingsHtml, 'const OAK_BOOKING_STATUS =', 'oakMyBookings()', { api });
+  factory(bookingsHtml, 'const OAK_EMPTY_MESSAGE =', 'oakMyBookings()', { api });
 const myNotifications = (api) =>
   factory(notificationsHtml, 'var OAK_NOTIFICATION_ICONS =', 'oakNotifications()', { api });
 const myReviews = (api) =>
@@ -147,13 +152,15 @@ test('a cached tab is still served without a request', async () => {
 });
 
 test('each status chip gets a readable pair of tokens, completed staying neutral', () => {
+  // The tones are one table in oak-api.js, shared with the two console pages; what this
+  // card owes is to ask it rather than hold a fourth opinion of its own.
   const state = myBookings(async () => []);
   assert.equal(state.statusClass('pending'), 'bg-secondary-container text-on-secondary-container');
-  assert.equal(state.statusClass('confirmed'), 'bg-primary-container text-on-primary');
+  assert.equal(state.statusClass('confirmed'), 'bg-success-container text-success');
   assert.equal(state.statusClass('cancelled'), 'bg-error-container text-on-error-container');
-  assert.equal(state.statusClass('completed'), 'bg-tertiary-fixed text-on-tertiary-fixed');
+  assert.equal(state.statusClass('completed'), 'bg-surface-container-high text-on-surface');
   // An unknown status falls back rather than rendering an empty class attribute.
-  assert.equal(state.statusClass('nonsense'), 'bg-tertiary-fixed text-on-tertiary-fixed');
+  assert.equal(state.statusClass('nonsense'), 'bg-surface-container-high text-on-surface');
 });
 
 test('a booking the salon never closed out says so on its own card', () => {
@@ -209,7 +216,7 @@ test('the salon owner is told about a booking the customer made or dropped', () 
   assert.match(route, /s\.owner_id AS salon_owner_id,/);
   assert.equal(route.split('booking.salon_owner_id').length - 1, 2);
   assert.match(route, /'Lịch hẹn mới cần xác nhận',/);
-  assert.match(route, /'Khách đã huỷ lịch hẹn',/);
+  assert.match(route, /'Khách đã hủy lịch hẹn',/);
 });
 
 test('"Đổi lịch" reopens the same wizard, naming the appointment it replaces', () => {
@@ -240,7 +247,7 @@ test('inside the cancellation window the dialog still opens, and offers the phon
   state.cancelTarget = bookingIn(1);
 
   assert.equal(state.cancelExpired(), true);
-  // The dialog is where the explanation lives, so opening it is never blocked...
+  // The dialog is where the explanation lives, so opening it is never blocked…
   assert.match(bookingsHtml, /@click="cancel\(booking\)"/);
   // ...the red button is simply not the thing on offer any more.
   assert.match(bookingsHtml, /x-show="!cancelExpired\(\) &amp;&amp; cancelReason !== 'Muốn đổi giờ\/KTV'"/);

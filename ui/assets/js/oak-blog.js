@@ -1,4 +1,8 @@
 const OAK_BLOG_PAGE_SIZE = 9;
+/* A reload restores what was on screen in ONE request, and the API caps a request at 50
+   rows, so five pages is as far back as that trick reaches. Beyond it the reader lands on
+   the fifth page's worth and taps "Tải thêm" again. */
+const OAK_BLOG_MAX_RESTORE_PAGE = 5;
 const OAK_DEFAULT_AVATAR = 'assets/images/img-b79c0642dd.jpg';
 
 /* The five service categories a post may be filed under, labelled the way the rest of the
@@ -134,6 +138,7 @@ function oakBlogFeed() {
         user: null,
         salon: null,
         composerOpen: false,
+        composerOpener: null,
         editingPost: null,
         previewing: false,
         previewPayload: null,
@@ -153,18 +158,132 @@ function oakBlogFeed() {
                     this.salon = null;
                 }
             }
-            await this.reloadFirstPage();
+            await this.loadPage(this.readUrl(), false);
+            this.watchLanguageSwitch();
+            // A draft is somebody's own paragraph and outranks ?compose=1, which only ever
+            // says "reopen an empty composer".
+            if (this.restoreComposerDraft()) {
+                return;
+            }
             if (OAK.qs('compose') === '1' && this.user) {
                 this.openComposer();
             }
         },
 
+        /* Choosing English reloads the page, and the composer is the one place on the blog
+           where that could throw away something written rather than merely chosen. But the
+           VI/EN pair is injected into the top bar, and an open composer makes that bar inert
+           the way every modal here does, so while a draft is on screen the switch is out of
+           reach and the page ends some other way instead: a refresh, Back, the address bar.
+           'pagehide' is the event all of those share, the reload behind the switch included,
+           so the stash hangs off both and is written whichever way this page goes. */
+        watchLanguageSwitch() {
+            const stash = () => {
+                if (this.composerOpen) {
+                    OAK.saveDraft('composer', {
+                        form: this.form,
+                        editingId: this.editingPost ? this.editingPost.id : null,
+                        userId: this.user ? this.user.id : null,
+                    });
+                }
+            };
+            window.addEventListener('oak:lang-change', stash);
+            window.addEventListener('pagehide', stash);
+        },
+
+        /** True once a draft has reopened the composer, so init() stops there. */
+        restoreComposerDraft() {
+            // Asked before the draft is taken, because taking it clears it: a session that
+            // expired over the reload must not also swallow what was written.
+            if (!this.user) {
+                return false;
+            }
+            const draft = OAK.takeDraft('composer');
+            if (!draft || !draft.form) {
+                return false;
+            }
+            // sessionStorage outlives a sign-out in the same tab, so on a shared device the
+            // next account would otherwise find the previous one's unpublished paragraph
+            // waiting in the composer under its own name.
+            if (draft.userId !== this.user.id) {
+                return false;
+            }
+            if (draft.editingId) {
+                const post = this.posts.find((item) => item.id === draft.editingId);
+                // The post is on a later page of the feed or behind another filter. Reopening
+                // its text as a new post would publish a second copy of it, so the draft is
+                // dropped instead — the post itself is still whatever was last saved.
+                if (!post) {
+                    return false;
+                }
+                this.editPost(post);
+            } else {
+                this.resetComposer();
+                this.showComposer();
+            }
+            // editPost() refuses a post this account cannot manage, and then there is no
+            // composer to put the text back into.
+            if (!this.composerOpen) {
+                return false;
+            }
+            this.form = draft.form;
+            return true;
+        },
+
+        /* What the address bar says the feed was showing, applied to this component, and the
+           page number to open on. Only values this page offers are taken: a hand-typed
+           ?category=zzz would otherwise light no chip and filter the feed to nothing. */
+        readUrl() {
+            const scope = OAK.qs('scope');
+            if (scope === 'mine' && this.user) {
+                this.scope = 'mine';
+            }
+            const type = OAK.qs('type');
+            if (this.tabs.some((tab) => tab.value === type)) {
+                this.type = type;
+            }
+            const category = OAK.qs('category');
+            if (this.categories.some((item) => item.value === category)) {
+                this.category = category;
+            }
+            const page = Number.parseInt(OAK.qs('page'), 10);
+            return Math.min(Math.max(page || 1, 1), OAK_BLOG_MAX_RESTORE_PAGE);
+        },
+
+        /* The address bar mirrors what is on screen, so a reload, a Back or a link sent to
+           somebody else opens the same feed. The same shape ket-qua-tim-kiem.html uses: only
+           the keys this page owns are written or removed, so ?compose=1 rides along
+           untouched. Called from loadPage, which is the one place that knows what landed. */
+        syncUrl() {
+            const params = new URLSearchParams(location.search);
+            const state = {
+                scope: this.scope === 'community' ? '' : this.scope,
+                type: this.type,
+                category: this.category,
+                page: this.page > 1 ? String(this.page) : '',
+            };
+            Object.keys(state).forEach((key) => {
+                if (state[key]) {
+                    params.set(key, state[key]);
+                } else {
+                    params.delete(key);
+                }
+            });
+            const search = params.toString();
+            history.replaceState(null, '', search ? location.pathname + '?' + search : location.pathname);
+        },
+
+        /* Asked for page N without appending — which is what a restored ?page=N is — this
+           reads the first N pages as one request, so the feed holds the same rows two taps
+           of "Tải thêm" would have left on it and `page` still says where the next tap
+           starts. Appending is always one page onto the end. */
         async loadPage(requestedPage, append) {
             const token = ++this.loadToken;
             this.loading = true;
             try {
                 const endpoint = this.scope === 'mine' ? '/api/posts/mine' : '/api/posts';
-                let path = endpoint + '?limit=' + OAK_BLOG_PAGE_SIZE + '&page=' + requestedPage;
+                const size = append ? OAK_BLOG_PAGE_SIZE : requestedPage * OAK_BLOG_PAGE_SIZE;
+                let path = endpoint + '?limit=' + size + '&page=' + (append ? requestedPage : 1);
                 if (this.type) {
                     path += '&type=' + encodeURIComponent(this.type);
                 }
@@ -179,11 +298,16 @@ function oakBlogFeed() {
                 this.total = rows.meta.total;
                 this.page = requestedPage;
                 this.loadError = false;
+                this.syncUrl();
             } catch (error) {
                 if (token !== this.loadToken) {
                     return;
                 }
-                if (requestedPage === 1 || this.scope === 'mine') {
+                /* A load that was not appending owns the whole list, whatever page
+                   number it asked for — a restored ?page=2 included — so its failure is the
+                   one that must say so rather than leave the feed reading "no posts yet".
+                   An append keeps the rows already on screen. */
+                if (!append || this.scope === 'mine') {
                     this.posts = [];
                     this.total = 0;
                     this.page = 1;
@@ -305,7 +429,23 @@ function oakBlogFeed() {
                 return;
             }
             this.resetComposer();
+            this.showComposer();
+        },
+
+        /* Opening the composer is opening a dialog: the page behind it goes inert (:inert
+           on header/main/footer in blog.html), stops scrolling under it, and the caret
+           moves onto the dialog's own heading — without that the next Tab walks the feed
+           behind it, which is exactly what inert is there to prevent. */
+        showComposer() {
+            this.composerOpener = document.activeElement;
             this.composerOpen = true;
+            document.body.classList.add('overflow-hidden');
+            this.$nextTick(() => {
+                const heading = document.getElementById('composer-title');
+                if (heading) {
+                    heading.focus();
+                }
+            });
         },
 
         editPost(post) {
@@ -329,16 +469,34 @@ function oakBlogFeed() {
             this.previewing = false;
             this.previewPayload = null;
             this.error = '';
-            this.composerOpen = true;
+            this.showComposer();
         },
 
         closeComposer() {
             if (this.saving) {
                 return;
             }
+            // Closing is the one unambiguous "I do not want this" the page offers, so the
+            // stash goes with it. Without this a draft written before a bfcache round trip
+            // (Back then Forward runs no init(), so nothing consumes it) comes back on the
+            // next reload after the reader threw it away.
+            OAK.takeDraft('composer');
             const type = this.form.type;
             this.composerOpen = false;
+            document.body.classList.remove('overflow-hidden');
             this.resetComposer(type);
+            const opener = this.composerOpener;
+            this.composerOpener = null;
+            // Not on this line: `:inert="composerOpen || null"` on the landmarks is an Alpine
+            // effect flushed in a microtask, so <main> is still inert here and focus() on
+            // anything inside it — which every opener is — is silently dropped.
+            this.$nextTick(() => {
+                // The button can be gone: publishing reloads the feed, and "Sửa" belongs to
+                // a card that may no longer be on the first page.
+                if (opener && document.contains(opener)) {
+                    opener.focus();
+                }
+            });
         },
 
         async uploadImage(event) {
@@ -485,14 +643,14 @@ function oakBlogFeed() {
             if (!this.canManage(post)) {
                 return;
             }
-            if (!window.confirm('Bạn có chắc muốn xoá bài viết này?')) {
+            if (!window.confirm('Bạn có chắc muốn xóa bài viết này?')) {
                 return;
             }
             this.deletingId = post.id;
             try {
                 await OAK.api('/api/posts/' + post.id, { method: 'DELETE' });
                 await this.reloadFirstPage();
-                OAK.toast('Đã xoá bài viết.');
+                OAK.toast('Đã xóa bài viết.');
             } catch (error) {
                 OAK.toast(error.message, 'error');
             } finally {

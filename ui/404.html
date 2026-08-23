@@ -23,6 +23,17 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -51,7 +62,7 @@
      failed was a script. ket-qua-tim-kiem.html reads ?q= on load. -->
 <form action="ket-qua-tim-kiem.html" class="flex flex-col sm:flex-row gap-4 max-w-xl mx-auto mb-8" method="get">
 <label class="sr-only" for="notfound-q">Tìm salon hoặc dịch vụ</label>
-<input autocomplete="off" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 font-body-md text-body-md text-primary focus:outline-none focus:border-primary transition-colors" enterkeyhint="search" id="notfound-q" name="q" placeholder="Tìm salon hoặc dịch vụ" type="search">
+<input autocomplete="off" class="w-full bg-surface border border-outline rounded-lg px-4 py-3 font-body-md text-body-md text-primary focus:outline-none focus:border-primary transition-colors" enterkeyhint="search" id="notfound-q" name="q" placeholder="Tìm salon hoặc dịch vụ" type="search">
 <button class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-8 py-4 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 shrink-0" type="submit">Tìm kiếm</button>
 </form>
 <div class="flex flex-col sm:flex-row gap-4 justify-center">

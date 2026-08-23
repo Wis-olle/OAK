@@ -46,6 +46,8 @@ Trong Render dashboard → service `oak-demo` → **Environment**, thêm 5 biế
 | `RESEND_API_KEY` | API key của Resend — kênh gửi mail đặt lại mật khẩu (§7) |
 | `RESET_MAIL_FROM` | Địa chỉ gửi, vd. `OAK Beauty <no-reply@oakbeauty.vn>` — phải thuộc domain đã xác minh ở Resend |
 
+Một biến **tùy chọn**: `ADMIN_EMAILS` — danh sách email (ngăn cách bằng dấu phẩy) được phép ẩn/hiện bài blog qua `PATCH /api/posts/:id/status`. Không khai thì không tài khoản nào ẩn được bài (route trả 403), tức là lời hứa "gỡ nội dung vi phạm" ở Điều khoản chưa có công cụ thực thi — khai một địa chỉ trước khi mở blog cho người dùng thật.
+
 Các biến còn lại đã có sẵn giá trị trong `render.yaml`, không cần khai trong dashboard — đáng chú ý là `TZ=Asia/Ho_Chi_Minh`: container Render chạy UTC, biến này đưa đồng hồ hệ thống của container về đúng quy ước sản xuất, cho mọi thứ đọc trực tiếp từ đồng hồ đó. ("Hôm nay" và "bây giờ" của phần đặt lịch do `server/src/lib/time.js` tự ép về múi giờ VN nên đúng kể cả khi thiếu biến này.)
 
 Sau đó **Save & Deploy** (hoặc push commit mới). Lần boot đầu tiên server tự tạo bảng và seed dữ liệu mẫu vào Supabase.

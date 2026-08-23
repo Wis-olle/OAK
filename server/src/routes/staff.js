@@ -78,7 +78,9 @@ async function getServiceWeek(staffId, serviceId, from, days) {
     week.push({
       date,
       closed: off.salon || off.staff.has(staffId),
-      slots: await getStaffSlots(staffId, serviceId, date),
+      // The day-off rows this loop just read are the ones getStaffSlots would go and read
+      // again, once per day of the week.
+      slots: await getStaffSlots(staffId, serviceId, date, off),
     });
   }
   return week;

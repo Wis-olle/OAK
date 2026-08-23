@@ -18,16 +18,21 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
-<style>
-        /* Favourite tabs (this page only) */
-        .tab-button { color: #444748; padding-bottom: 0.5rem; transition: all 0.2s ease-in-out; }
-        .tab-button:hover { color: #171818; }
-        .tab-button.active { border-bottom: 2px solid #171818; font-weight: 600; color: #171818; }
-    </style>
 <title>Yêu thích - OAK Beauty</title>
 <meta content="noindex,nofollow" name="robots">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
@@ -142,7 +147,7 @@ Cài đặt
 <article class="group relative">
 <a :href="salonUrl(salon)" class="block" style="color:inherit;text-decoration:none">
 <div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
-<img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
+<img decoding="async" width="600" height="400" loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
 </div>
 <div class="flex justify-between items-start gap-3">
 <div class="min-w-0">
@@ -183,7 +188,7 @@ Cài đặt
 <article class="group relative">
 <a :href="'chi-tiet-dich-vu.html?id=' + service.id" class="block" style="color:inherit;text-decoration:none">
 <div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
-<img loading="lazy" :alt="service.name" :src="service.image" class="w-full h-full object-cover">
+<img decoding="async" width="600" height="400" loading="lazy" :alt="service.name" :src="service.image" class="w-full h-full object-cover">
 </div>
 <h3 :id="'fav-service-' + service.id" class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="service.name"></h3>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1 mb-3">

@@ -11,7 +11,7 @@
   "Đăng xuất": "Sign out",
   "Đặt lịch mới": "New appointment",
   "Tìm kiếm": "Search",
-  "Tìm dịch vụ...": "Search services...",
+  "Tìm dịch vụ…": "Search services…",
   "Thông báo": "Notifications",
   "Tài khoản": "Account",
   "Ảnh đại diện chủ salon": "Salon owner avatar",
@@ -25,7 +25,7 @@
   "Sửa": "Edit",
   "Ẩn": "Hide",
   "Hiện": "Show",
-  "Xoá": "Delete",
+  "Xóa": "Delete",
   "Chưa có dịch vụ nào phù hợp.": "No matching services yet.",
   "Không tải được dịch vụ.": "We couldn't load the services.",
   "Thử lại": "Try again",
@@ -42,7 +42,7 @@
   "Thời lượng (phút)": "Duration (minutes)",
   "Mô tả": "Description",
   "Ảnh dịch vụ": "Service image",
-  "Huỷ": "Cancel",
+  "Hủy": "Cancel",
   "Lưu": "Save",
 
   "Sửa ưu đãi": "Edit offer",
@@ -59,7 +59,7 @@
   "Giữ Ctrl để chọn nhiều dịch vụ.": "Hold Ctrl to select multiple services.",
   "Ảnh ưu đãi": "Offer image",
 
-  "Xác nhận xoá": "Confirm deletion",
+  "Xác nhận xóa": "Confirm deletion",
   "Giữ lại": "Keep",
 
   "Tóc": "Hair",
@@ -72,9 +72,9 @@
   "Không đọc được tệp ảnh.": "Could not read the image file.",
   "Ảnh vượt quá dung lượng tối đa 5MB.": "Image exceeds the 5MB maximum size.",
   "Đã lưu dịch vụ.": "Service saved.",
-  "Đã xoá dịch vụ.": "Service deleted.",
+  "Đã xóa dịch vụ.": "Service deleted.",
   "Đã lưu ưu đãi.": "Offer saved.",
-  "Đã xoá ưu đãi.": "Offer deleted.",
+  "Đã xóa ưu đãi.": "Offer deleted.",
 
   "Nội dung": "Content",
   "Giá từ": "Price from",

@@ -18,27 +18,21 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
-<style>
-        /* Underlined inputs with floating labels (shared with the auth pages) */
-        .input-minimal {
-            border: none; border-bottom: 1px solid #c4c7c7; background-color: transparent;
-            padding: 12px 0; border-radius: 0; outline: none; box-shadow: none;
-            transition: border-color 0.3s ease; width: 100%;
-        }
-        .input-minimal:focus { border-bottom-color: #171818; box-shadow: none; }
-        .floating-label {
-            position: absolute; top: 12px; left: 0; pointer-events: none;
-            transition: 0.3s ease all; color: #747878;
-        }
-        .input-minimal:focus ~ .floating-label,
-        .input-minimal:not(:placeholder-shown) ~ .floating-label {
-            top: -12px; font-size: 12px; color: #171818;
-        }
-    </style>
 <title>Đặt lại mật khẩu - OAK Beauty</title>
 <meta content="noindex,nofollow" name="robots">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
@@ -97,7 +91,7 @@
 <p class="font-caption text-caption text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
 <!-- Submit Button -->
 <div class="pt-6">
-<button :disabled="busy" class="w-full bg-primary-container text-on-primary py-4 px-6 rounded-full flex items-center justify-center font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors duration-300 disabled:opacity-60" type="submit" x-text="busy ? 'Đang cập nhật...' : 'Đặt lại mật khẩu'">
+<button :disabled="busy" class="w-full bg-primary-container text-on-primary py-4 px-6 rounded-full flex items-center justify-center font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors duration-300 disabled:opacity-60" type="submit" x-text="busy ? 'Đang cập nhật…' : 'Đặt lại mật khẩu'">
                     Đặt lại mật khẩu
                 </button>
 </div>

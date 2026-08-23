@@ -16,6 +16,17 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -30,11 +41,20 @@
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
-<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface" x-data="oakStaffProfile()">
 <!-- TopNavBar -->
-<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
+<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header :inert="lightbox || null"></header>
 <script src="assets/js/oak-header.js"></script>
-<main class="pt-24 pb-section-gap min-h-screen max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop" x-data="oakStaffProfile()">
+<!-- Every page draws itself with Alpine, and the bar above is written by script too, so
+     with scripting turned off there is nothing on screen and no way onward. This is that
+     way onward: one line, and the number that answers. -->
+<noscript>
+<div class="px-margin-mobile md:px-margin-desktop py-4 bg-secondary-container text-on-secondary-container font-body-md text-body-md text-center">
+<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gọi hotline để được hỗ trợ đặt lịch.</p>
+<a class="underline font-bold" href="tel:19006035">Gọi hotline 1900 6035</a>
+</div>
+</noscript>
+<main class="pt-24 pb-section-gap min-h-screen max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop" :inert="lightbox || null">
 <!-- The whole page lived inside x-if="staff", so a slow load showed a header, a footer and
      nothing between them. This is the shape the real hero lands in. -->
 <template x-if="loading &amp;&amp; !staff">
@@ -98,7 +118,7 @@
 <div class="md:col-span-7 order-1 md:order-2 flex justify-center md:justify-end">
 <!-- A 3/4 portrait pushed the name, the salon and the button off a phone's first screen. -->
 <div class="relative w-full max-w-md aspect-square md:aspect-[3/4] bg-surface-container-highest overflow-hidden rounded-lg">
-<img :alt="staff.name" :src="staff.image" class="w-full h-full object-cover grayscale-[20%] hover:grayscale-0 transition-all duration-700">
+<img decoding="async" :alt="staff.name" :src="staff.image" class="w-full h-full object-cover grayscale-[20%] hover:grayscale-0 transition-all duration-700">
 </div>
 </div>
 </section>
@@ -107,34 +127,19 @@
 <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-center mb-16">Tác phẩm nổi bật</h2>
 <div class="grid grid-cols-1 md:grid-cols-4 grid-rows-2 gap-4 h-auto md:h-[600px]">
 <div @click="openLightbox(0)" class="md:col-span-2 md:row-span-2 group relative overflow-hidden bg-surface-variant cursor-pointer" x-show="staff.portfolio[0]">
-<img loading="lazy" :alt="staff.name" :src="staff.portfolio[0]" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
+<img decoding="async" loading="lazy" :alt="staff.name" :src="staff.portfolio[0]" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
 </div>
 <div @click="openLightbox(1)" class="md:col-span-1 md:row-span-1 group relative overflow-hidden bg-surface-container cursor-pointer" x-show="staff.portfolio[1]">
-<img loading="lazy" :alt="staff.name" :src="staff.portfolio[1]" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
+<img decoding="async" loading="lazy" :alt="staff.name" :src="staff.portfolio[1]" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
 </div>
 <div @click="openLightbox(2)" class="md:col-span-1 md:row-span-1 group relative overflow-hidden bg-surface-container-high cursor-pointer" x-show="staff.portfolio[2]">
-<img loading="lazy" :alt="staff.name" :src="staff.portfolio[2]" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
+<img decoding="async" loading="lazy" :alt="staff.name" :src="staff.portfolio[2]" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
 </div>
 <div @click="openLightbox(3)" class="md:col-span-2 md:row-span-1 group relative overflow-hidden bg-secondary-fixed cursor-pointer" x-show="staff.portfolio[3]">
-<img loading="lazy" :alt="staff.name" :src="staff.portfolio[3]" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
+<img decoding="async" loading="lazy" :alt="staff.name" :src="staff.portfolio[3]" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
 </div>
 </div>
 </section>
-<!-- Portfolio lightbox -->
-<div @click.self="lightbox = false" @keydown.arrow-left.window="lightbox &amp;&amp; stepLightbox(-1)" @keydown.arrow-right.window="lightbox &amp;&amp; stepLightbox(1)" @keydown.escape.window="lightbox = false" class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center gap-4 px-4 py-16 md:px-16 md:py-20" x-cloak="" x-show="lightbox">
-<button @click="lightbox = false" aria-label="Đóng" class="absolute top-6 right-6 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button">
-<span class="material-symbols-outlined">close</span>
-</button>
-<button @click="stepLightbox(-1)" aria-label="Ảnh trước" class="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="staff.portfolio.length &gt; 1">
-<span class="material-symbols-outlined">chevron_left</span>
-</button>
-<img loading="lazy" :alt="staff.name" :src="staff.portfolio[lightboxIndex]" class="max-h-[80vh] max-w-full object-contain rounded-lg">
-<p class="font-body-md text-body-md text-white text-center" x-text="staff.name"></p>
-<p class="font-caption text-caption text-white/60" x-show="staff.portfolio.length &gt; 1" x-text="(lightboxIndex + 1) + ' / ' + staff.portfolio.length"></p>
-<button @click="stepLightbox(1)" aria-label="Ảnh sau" class="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="staff.portfolio.length &gt; 1">
-<span class="material-symbols-outlined">chevron_right</span>
-</button>
-</div>
 <!-- Booking & Schedule Section -->
 <section class="mt-section-gap grid grid-cols-1 md:grid-cols-2 gap-gutter items-start">
 <!-- Booking Calendar -->
@@ -216,8 +221,25 @@
 </div>
 </template>
 </main>
+<!-- Portfolio lightbox -->
+<template x-if="staff">
+<div @click.self="closeLightbox()" @keydown.arrow-left.window="lightbox &amp;&amp; stepLightbox(-1)" @keydown.arrow-right.window="lightbox &amp;&amp; stepLightbox(1)" @keydown.escape.window="lightbox &amp;&amp; closeLightbox()" class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center gap-4 px-4 py-16 md:px-16 md:py-20" x-cloak="" x-show="lightbox">
+<button @click="closeLightbox()" aria-label="Đóng" class="absolute top-6 right-6 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-ref="lightboxClose">
+<span class="material-symbols-outlined">close</span>
+</button>
+<button @click="stepLightbox(-1)" aria-label="Ảnh trước" class="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="staff.portfolio.length &gt; 1">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<img decoding="async" loading="lazy" :alt="staff.name" :src="staff.portfolio[lightboxIndex]" class="max-h-[80vh] max-w-full object-contain rounded-lg">
+<p class="font-body-md text-body-md text-white text-center" x-text="staff.name"></p>
+<p class="font-caption text-caption text-white/60" x-show="staff.portfolio.length &gt; 1" x-text="(lightboxIndex + 1) + ' / ' + staff.portfolio.length"></p>
+<button @click="stepLightbox(1)" aria-label="Ảnh sau" class="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="staff.portfolio.length &gt; 1">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</template>
 <!-- Footer -->
-<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto" :inert="lightbox || null">
 <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
 <!-- Brand Column -->
 <div class="col-span-1 md:col-span-1 flex flex-col gap-4">
@@ -293,6 +315,7 @@
             time: '',
             lightbox: false,
             lightboxIndex: 0,
+            lightboxOpener: null,
             loading: true,
             loadError: '',
 
@@ -421,10 +444,34 @@
                     .filter(Boolean);
             },
 
-            /** The portfolio tiles are the only way into the full-size viewer. */
+            /* The portfolio tiles are the only way into the full-size viewer, and it is a dialog: the
+               page behind it goes inert (:inert on header/main/footer), stops scrolling
+               under it, and the caret moves inside so the next Tab is one of its own
+               controls. closeLightbox() undoes all three. */
             openLightbox(index) {
                 this.lightboxIndex = index;
+                this.lightboxOpener = document.activeElement;
                 this.lightbox = true;
+                document.body.classList.add('overflow-hidden');
+                this.$nextTick(() => this.$refs.lightboxClose && this.$refs.lightboxClose.focus());
+            },
+
+            closeLightbox() {
+                this.lightbox = false;
+                document.body.classList.remove('overflow-hidden');
+                const opener = this.lightboxOpener;
+                this.lightboxOpener = null;
+                // Not on this line: `:inert="lightbox || null"` on the landmarks is an Alpine
+                // effect flushed in a microtask, so <main> is still inert here and focus() on
+                // a tile inside it is silently dropped.
+                this.$nextTick(() => {
+                    // The tile can be gone — the salon reloaded, the reader used the keyboard
+                    // from somewhere else — and dropping the caret at the top of the document
+                    // is worse than leaving it where the browser put it.
+                    if (opener && document.contains(opener)) {
+                        opener.focus();
+                    }
+                });
             },
 
             /** Wraps around, so prev/next always have somewhere to go. */

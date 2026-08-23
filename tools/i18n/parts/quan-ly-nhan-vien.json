@@ -11,7 +11,7 @@
   "Đăng xuất": "Sign out",
   "Đặt lịch mới": "New appointment",
   "Tìm kiếm": "Search",
-  "Tìm nhân viên...": "Search staff...",
+  "Tìm nhân viên…": "Search staff…",
   "Thông báo": "Notifications",
   "Tài khoản": "Account",
   "Ảnh đại diện chủ salon": "Salon owner avatar",
@@ -42,11 +42,11 @@
   "Nghỉ": "Off",
   "Dịch vụ phụ trách": "Assigned services",
   "Salon chưa có dịch vụ nào.": "The salon has no services yet.",
-  "Xoá": "Delete",
-  "Huỷ": "Cancel",
+  "Xóa": "Delete",
+  "Hủy": "Cancel",
   "Lưu thay đổi": "Save changes",
 
-  "Xác nhận xoá": "Confirm deletion",
+  "Xác nhận xóa": "Confirm deletion",
   "Giữ lại": "Keep",
 
   "CN": "Sun",
@@ -60,7 +60,7 @@
   "Không đọc được tệp ảnh.": "Could not read the image file.",
   "Ảnh vượt quá dung lượng tối đa 5MB.": "Image exceeds the 5MB maximum size.",
   "Đã lưu thông tin nhân viên.": "Staff details saved.",
-  "Đã xoá nhân viên.": "Staff member deleted.",
+  "Đã xóa nhân viên.": "Staff member deleted.",
   "Ngày nghỉ sắp tới": "Upcoming days off",
   "Chưa có ngày nghỉ nào.": "No days off yet.",
   "Từ ngày": "From",
@@ -71,7 +71,7 @@
   "lịch hẹn — bạn nhớ liên hệ khách.": "appointments — remember to contact those customers.",
   "Vui lòng chọn ngày bắt đầu.": "Please choose a start date.",
   "Đã thêm ngày nghỉ.": "Days off added.",
-  "Đã xoá ngày nghỉ.": "Days off removed.",
+  "Đã xóa ngày nghỉ.": "Days off removed.",
 
   "Nội dung": "Content",
   "Đánh giá": "Reviews"

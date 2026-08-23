@@ -12,6 +12,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
+import { bookingStatus, BOOKING_STATUSES } from './booking-status.mjs';
+
 import { toMinutes } from '../src/lib/time.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -66,11 +68,11 @@ function staffConsole(api) {
 }
 
 function calendar(api) {
-  return factory(calendarHtml, 'var OAK_STATUS_LABELS', 'oakPartnerBookings()', {
+  return factory(calendarHtml, 'var OAK_BOOKING_CLASSES', 'oakPartnerBookings()', {
     document: { addEventListener() {}, title: '', visibilityState: 'visible' },
     setInterval: () => {},
     matchMedia: () => ({ matches: false, addEventListener() {} }),
-    OAK: { api, toast: () => {}, qs: () => '', todayISO: () => '2026-08-21', fmtDate: (iso) => iso },
+    OAK: { api, toast: () => {}, qs: () => '', todayISO: () => '2026-08-21', fmtDate: (iso) => iso, bookingStatus, BOOKING_STATUSES },
   });
 }
 

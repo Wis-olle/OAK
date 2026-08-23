@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import express from 'express';
+import { db } from './db.js';
 import authRoutes from './routes/auth.js';
 import bookingRoutes from './routes/bookings.js';
 import eventRoutes from './routes/events.js';
@@ -50,7 +52,28 @@ app.use((req, res, next) => {
   next();
 });
 
+// Compress here rather than assume something upstream does. Without this middleware the app
+// answers `Accept-Encoding: br, gzip` with the bytes raw and no Content-Encoding at all —
+// 65KB of oak-tailwind.css and 62KB of kham-pha.html on a first visit. Whether the edge in
+// front of a given deploy makes up for that is not something this repository can promise, and
+// the cost of being wrong is paid by every first-time reader, so the app owns it.
+// Mounted above every route and both static mounts so it covers pages, bundles and API JSON
+// alike. It is inert where it should be: the default filter skips content types that are
+// already compressed (images, woff2), and a response that already carries a Content-Encoding
+// is left alone — so putting a compressing CDN in front later costs nothing here.
+app.use(compression());
+
 app.use(cookieParser());
+
+// An API answer is either personal — a booking, a favourite, a notification — or a moment's
+// truth about a shared list. Neither is safe to keep: a shared device would let the next
+// account's Back button redraw the previous one's page, and a cached list would offer a slot
+// somebody else has since taken. Mounted above every /api mount so /api/uploads and the JSON
+// 404 are covered with the rest.
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 // Mounted BEFORE express.json() on purpose: the global parser's default 100kb limit
 // would reject a 5MB base64 upload before the uploads router's own 8mb parser ran.
@@ -91,7 +114,12 @@ app.use('/api', (req, res) => {
 app.use(
   '/uploads',
   express.static(uploadsDir, {
-    setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
+    setHeaders: (res) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      // routes/uploads.js stores every file under a fresh randomUUID(), so one name is never
+      // reused for different bytes — the same promise a content hash makes, and the same year.
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    },
   }),
 );
 
@@ -102,10 +130,100 @@ app.use(
 // static handler, which would otherwise answer '/' with that stub. Every existing link to
 // kham-pha.html keeps working — the file is still served under its own name.
 app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   res.sendFile(path.join(uiDir, 'kham-pha.html'));
 });
 
-app.use(express.static(uiDir));
+/*
+ * The site map, answered from the database rather than from the committed file.
+ *
+ * The pages half of it IS that file: ui/sitemap.xml lists the twenty public pages and
+ * server/test/seo-ui.test.mjs pins the list, so there is one place to add a page. Four of
+ * its entries are query-driven shells — a salon profile, a service, a staff profile and a
+ * blog article each render "not found" without their ?slug — and this replaces those with
+ * the addresses that actually hold something: every listed salon and every published post.
+ * Registered above express.static, which would otherwise answer with the file itself.
+ */
+const SITEMAP_SHELL = /\/(blog-chi-tiet|chi-tiet-dich-vu|ho-so-chuyen-gia|salon-profile)\.html/;
+// Newlines normalised on the way in: the repo checks out with core.autocrlf=true, so on
+// Windows this file arrives with CRLF and the \n the entry pattern ends on would match
+// nothing — every page would silently drop out of the map the server answers with.
+const sitemapSource = fs
+  .readFileSync(path.join(uiDir, 'sitemap.xml'), 'utf8')
+  .replace(/\r\n/g, '\n');
+const SITEMAP_PAGES = [...sitemapSource.matchAll(/ {2}<url>[\s\S]*?<\/url>\n/g)]
+  .map((match) => match[0])
+  .filter((entry) => !SITEMAP_SHELL.test(entry));
+// The one origin the site declares for itself, taken from the same file so the two can
+// never name different hosts. robots.txt points crawlers at it under that name.
+const SITEMAP_ORIGIN = sitemapSource.match(/<loc>(https?:\/\/[^/<]+)/)[1];
+
+const sitemapEntry = (page, priority) =>
+  `  <url>\n    <loc>${SITEMAP_ORIGIN}/${page}</loc>\n` +
+  `    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>\n`;
+
+const selectSitemapSalons = db.prepare(
+  'SELECT slug FROM salons WHERE verified = 1 AND published = 1 AND slug IS NOT NULL ORDER BY id',
+);
+const selectSitemapPosts = db.prepare(
+  "SELECT slug FROM posts WHERE status = 'published' AND slug IS NOT NULL ORDER BY id",
+);
+
+app.get('/sitemap.xml', async (req, res) => {
+  res.type('application/xml');
+  try {
+    const [salons, posts] = await Promise.all([
+      selectSitemapSalons.all(),
+      selectSitemapPosts.all(),
+    ]);
+    res.send(
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+        SITEMAP_PAGES.join('') +
+        salons
+          .map((row) => sitemapEntry(`salon-profile.html?salon=${encodeURIComponent(row.slug)}`, '0.8'))
+          .join('') +
+        posts
+          .map((row) => sitemapEntry(`blog-chi-tiet.html?slug=${encodeURIComponent(row.slug)}`, '0.6'))
+          .join('') +
+        '</urlset>\n',
+    );
+  } catch (error) {
+    // A database that cannot be read is no reason to answer a crawler with a 500: the
+    // committed file is the same map minus the per-salon and per-post addresses.
+    console.error(error);
+    res.send(sitemapSource);
+  }
+});
+
+// A file whose name carries its own content hash — alpine-<hash>.js, font-<hash>.woff2,
+// img-<hash>.jpg — can be kept forever, because a new build gives it a new name and nobody
+// ever asks for the stale one again.
+// A page is the opposite case: its URL never changes, so it has to be revalidated every visit.
+// 'no-cache' does not forbid storing it — the browser still sends the ETag and still gets a 304
+// for bytes it already holds; it only forbids using that copy without asking first.
+// Everything else is what the pages ask for by a bare name — oak-api.js, oak-i18n.js,
+// oak-tailwind.css, hero-banner.webp, and font-material-subset.woff2, which tools/icons
+// rewrites in place under that same name every time icon-names.txt grows (DEPLOY.md §5). A
+// name that is reused for new bytes must never be frozen: a reader holding last year's subset
+// would draw a newly added glyph as a blank, and nothing in the URL could tell them otherwise.
+// Five minutes is long enough to carry a reader across a few pages of one visit, short enough
+// that a deploy — or a regenerated subset — reaches everybody within five minutes.
+const HASHED_ASSET = /-[0-9a-f]{8,}\.[a-z0-9]+$/;
+
+app.use(
+  express.static(uiDir, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache');
+      } else if (HASHED_ASSET.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=300');
+      }
+    },
+  }),
+);
 
 // Anything still unmatched is a page that does not exist. A browser asking for HTML gets the
 // branded 404 with a way back; everything else (an image, a fetch) gets a bare status, because

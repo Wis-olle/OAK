@@ -463,6 +463,15 @@ CREATE TABLE IF NOT EXISTS post_comments (
   created_at TEXT
 );
 
+-- The whole of moderation, for now: a post or a comment can leave the public feed without
+-- anyone's words being deleted. 'published' is the default and the backfill, so nothing
+-- that already exists changes; routes/posts.js filters the public reads on it and
+-- PATCH /api/posts/:id/status is the only thing that writes it.
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'published';
+ALTER TABLE post_comments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'published';
+UPDATE posts SET status = 'published' WHERE status IS NULL;
+UPDATE post_comments SET status = 'published' WHERE status IS NULL;
+
 -- Anonymous product measurement — see routes/events.js. Deliberately the one table with no
 -- reference to users: an event says what happened and on which page, never who. The only
 -- thread between two rows is session_hash, a one-way digest re-salted on every boot that
@@ -588,6 +597,25 @@ await pool.query(SCHEMA);
 
 // Backfills partner salons created before auto-verify.
 await pool.query('UPDATE salons SET verified = 1 WHERE verified = 0');
+
+// The name left behind when an account holder erases themselves (ANONYMISE_USER in
+// routes/users.js) is the one piece of product copy this platform writes into rows rather
+// than into a template, so the spelling sweep could not reach the rows already written: a
+// console list would show the old spelling of it beside the new one, which is the split the
+// sweep exists to close. Written as "every erased account carries today's wording" rather
+// than as a search for yesterday's, so it needs no second spelling of its own and is a
+// no-op from the second boot on. Erased accounts are exactly the ones with deleted_at.
+const ERASED_NAME = 'Người dùng đã xóa';
+await pool.query(
+  'UPDATE users SET name = $1 WHERE deleted_at IS NOT NULL AND name <> $1',
+  [ERASED_NAME],
+);
+await pool.query(
+  `UPDATE bookings SET customer_name = $1
+   WHERE customer_name <> $1
+     AND user_id IN (SELECT id FROM users WHERE deleted_at IS NOT NULL)`,
+  [ERASED_NAME],
+);
 
 if ((await pool.query('SELECT COUNT(*) AS count FROM users')).rows[0].count === 0) {
   await seed(db);

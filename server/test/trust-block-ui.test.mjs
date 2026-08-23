@@ -11,6 +11,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
+import { bookingStatus } from './booking-status.mjs';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 
@@ -28,6 +30,7 @@ function bookingConfirmation(booking) {
   const script = tail.slice(0, tail.indexOf('</script>'));
   const context = {
     OAK: {
+      bookingStatus,
       fmtDate: (iso) => iso,
       TRUST: {
         CANCEL_POLICY: TRUST_CANCEL_POLICY,
@@ -62,6 +65,10 @@ test('the confirmation page reports the status the server actually wrote', () =>
   const confirmed = bookingConfirmation({ ...PENDING, status: 'confirmed' });
   assert.equal(confirmed.view().subtitle, 'đã xác nhận');
   assert.notEqual(confirmed.view().title, pending.view().title);
+  // The glyph is the shared one, and it is read lazily: the map is built while the page's
+  // own inline script runs, so nothing in it may touch window.OAK before Alpine boots.
+  assert.equal(pending.view().icon, bookingStatus('pending').icon);
+  assert.equal(confirmed.view().icon, bookingStatus('confirmed').icon);
 });
 
 test('the timeline marks how far along the booking is, and hides for one that left it', () => {

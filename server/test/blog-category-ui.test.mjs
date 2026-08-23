@@ -16,9 +16,17 @@ function feed({ api, search = '' } = {}) {
   const context = {
     URL,
     URLSearchParams,
-    location: { search, href: '' },
+    location: { search, pathname: 'blog.html', href: '' },
+    history: { replaceState() {} },
     FileReader: class {},
-    document: { getElementById: () => null },
+    document: {
+      getElementById: () => null,
+      // The composer is a dialog now: it locks the page behind it and hands the
+      // caret back on close.
+      body: { classList: { add: () => {}, remove: () => {} } },
+      activeElement: null,
+      contains: () => false,
+    },
     OAK: {
       api: async (path, options) => {
         requests.push({ path, options });
@@ -30,9 +38,13 @@ function feed({ api, search = '' } = {}) {
         return new Promise(() => {});
       },
       toast: () => {},
+      // closeComposer() discards any stashed draft; this harness never stashes one.
+      takeDraft: () => null,
     },
   };
   vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
+  /* Alpine's magic the composer uses: opening it moves the caret onto its heading. */
+  context.result.$nextTick = (fn) => fn();
   return { state: context.result, requests, logins };
 }
 

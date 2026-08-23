@@ -163,10 +163,17 @@ function langSwitch({ tracking = true } = {}) {
   const events = [];
   const stored = [];
   const reloads = [];
+  const dispatched = [];
   const context = {
     store: (code) => stored.push(code),
     location: { reload: () => reloads.push(1) },
-    window: { OAK: { toast: () => {} } },
+    // set() also tells the page to stash whatever is half-typed before the reload takes
+    // it, so the lifted realm needs the two halves of that: the constructor and the bus.
+    Event: class { constructor(type) { this.type = type; } },
+    window: {
+      OAK: { toast: () => {} },
+      dispatchEvent: (event) => dispatched.push(event.type),
+    },
   };
   if (tracking) {
     context.window.OAK.track = (name, meta) => events.push([name, meta]);
@@ -174,11 +181,11 @@ function langSwitch({ tracking = true } = {}) {
 
   vm.runInNewContext(`${source.slice(from, to)}
 lifted = set;`, context);
-  return { set: context.lifted, events, stored, reloads };
+  return { set: context.lifted, events, stored, reloads, dispatched };
 }
 
 test('switching language is counted before the reload that ends the page', () => {
-  const { set, events, stored, reloads } = langSwitch();
+  const { set, events, stored, reloads, dispatched } = langSwitch();
 
   set('en');
   assert.equal(events.length, 1);
@@ -188,6 +195,8 @@ test('switching language is counted before the reload that ends the page', () =>
   // Counted first, then stored, then the page goes: a beacon survives the unload.
   assert.deepEqual(stored, ['en']);
   assert.equal(reloads.length, 1);
+  // And the pages holding a half-written form are told, in the same breath, to stash it.
+  assert.deepEqual(dispatched, ['oak:lang-change']);
 
   // Anything that is not 'en' is Vietnamese, and it is reported as what it stored.
   set('vi');

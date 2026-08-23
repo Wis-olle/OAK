@@ -20,6 +20,8 @@ function searchPage(api, search) {
   const script = tail.slice(0, tail.indexOf('</script>'));
   const location = { pathname: '/ket-qua-tim-kiem.html', search: search || '' };
   const media = { matches: false, addEventListener() {}, removeEventListener() {} };
+  /* Every restatement of the <head>, in order. */
+  const head = [];
   const context = {
     URLSearchParams,
     encodeURIComponent,
@@ -34,6 +36,9 @@ function searchPage(api, search) {
     OAK: {
       api,
       toast: () => {},
+      /* The head is restated once the criteria are known; what it was asked to say is
+         handed back so a test can read it. */
+      meta: (values) => { head.push(values); },
       fmtDate: (iso) => iso,
       fmtPrice: (value) => String(value),
       /* The page reads today from the API layer rather than keeping its own copy of it. */
@@ -52,8 +57,39 @@ function searchPage(api, search) {
   /* `oak` is the page's own window.OAK. It is handed back so a test can decide what this
      browser has: the stub carries no track() by default, which is the browser served a
      cached page from before measurement existed. */
-  return { state, location, oak: context.OAK };
+  return { state, location, oak: context.OAK, head };
 }
+
+test('a search for a category in a district says so in the tab and the share card', async () => {
+  /* The page ships one <title> for every search it can run, so a link to the nail salons of
+     Quận 1 is shared and indexed as "Tìm salon". Once the criteria are read out of the URL,
+     the head can say which list this is — and it waits for the areas the page offers, so
+     both halves of that sentence are values this page itself put on screen. */
+  const nail = searchPage(async () => rows, '?category=nail&district=Qu%E1%BA%ADn%201');
+  nail.state.init();
+  await new Promise(setImmediate);
+  const head = nail.head;
+  assert.equal(head.length, 1);
+  assert.match(head[0].title, /Quận 1/);
+  assert.match(head[0].title, /Nail/);
+  assert.match(head[0].title, /OAK Beauty/);
+  assert.match(head[0].description, /Quận 1/);
+
+  // A district nobody offers is not what a shared link previews as: the sentence falls back
+  // to the city, the same way a category the page does not run is dropped.
+  const crafted = searchPage(async () => rows, '?category=nail&district=' + encodeURIComponent('<b>Quận 99'));
+  crafted.state.init();
+  await new Promise(setImmediate);
+  assert.equal(crafted.head.length, 1);
+  assert.match(crafted.head[0].title, /TP\.HCM/);
+  assert.doesNotMatch(crafted.head[0].title, /Quận 99/);
+
+  // Nothing to add to what the page already says: the head is left as it shipped.
+  const anywhere = searchPage(async () => rows, '?open_now=1');
+  anywhere.state.init();
+  await new Promise(setImmediate);
+  assert.equal(anywhere.head.length, 0);
+});
 
 test('a failed search raises loadError instead of the empty state, and retrying clears it', async () => {
   let failing = true;

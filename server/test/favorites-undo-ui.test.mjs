@@ -33,6 +33,7 @@ function toastHarness() {
   const doc = {
     createElement: () => element(),
     querySelector: () => null,
+    getElementById: (id) => body.children.find((node) => node.id === id) || null,
     contains: (node) => Boolean(node && node.inDom),
     activeElement: null,
     body,
@@ -40,6 +41,7 @@ function toastHarness() {
 
   const element = () => {
     const node = {
+      id: '',
       attributes: {},
       children: [],
       handlers: {},
@@ -47,12 +49,15 @@ function toastHarness() {
       textContent: '',
       removed: false,
       inDom: false,
+      parent: null,
       focused: 0,
       setAttribute(name, value) {
         this.attributes[name] = value;
       },
       appendChild(child) {
         this.children.push(child);
+        child.inDom = true;
+        child.parent = this;
       },
       addEventListener(name, handler) {
         (this.handlers[name] = this.handlers[name] || []).push(handler);
@@ -64,15 +69,33 @@ function toastHarness() {
       remove() {
         this.removed = true;
         this.inDom = false;
-        const at = body.children.indexOf(this);
+        const siblings = this.parent ? this.parent.children : [];
+        const at = siblings.indexOf(this);
         if (at !== -1) {
-          body.children.splice(at, 1);
+          siblings.splice(at, 1);
         }
+        this.parent = null;
       },
     };
     made.push(node);
     return node;
   };
+
+  /* The two live regions oak-header.js (and initHeader(), on a page without it) put in the
+     document before any page code can raise a message — the whole point of them is that
+     they are already there. `made` is emptied afterwards so it still holds only what the
+     message code itself created. */
+  const region = (id, role, live) => {
+    const node = element();
+    node.id = id;
+    node.setAttribute('role', role);
+    node.setAttribute('aria-live', live);
+    body.appendChild(node);
+    return node;
+  };
+  const status = region('oak-live-status', 'status', 'polite');
+  const alert = region('oak-live-alert', 'alert', 'assertive');
+  made.length = 0;
 
   const timers = new Map();
   let nextTimer = 0;
@@ -96,7 +119,9 @@ function toastHarness() {
   const fire = (node, name, event = {}) =>
     (node.handlers[name] || []).forEach((handler) => handler(event));
   const armed = () => [...timers.values()];
-  return { call: context.toastFn, made, body, doc, timers, fire, armed };
+  /* Whatever is on screen, wherever it was announced from. */
+  const onScreen = () => [...status.children, ...alert.children];
+  return { call: context.toastFn, made, body, doc, timers, fire, armed, status, alert, onScreen };
 }
 
 /** A page control for focus to have been on when a message appeared. */
@@ -132,13 +157,18 @@ test('a message stays up long enough to be read, and longer when it carries a ch
 });
 
 test('only a failure interrupts the screen reader', () => {
+  /* The urgency is the region the message is put into, not an attribute on the message:
+     a live region has to be in the document before its text arrives, so both regions are
+     already there and only their contents change. */
   const a = toastHarness();
   a.call('Đã lưu.');
-  assert.equal(a.made[0].attributes.role, 'status');
+  assert.deepEqual(a.status.children, [a.made[0]]);
+  assert.deepEqual(a.alert.children, []);
 
   const b = toastHarness();
   b.call('Hỏng rồi.', 'error');
-  assert.equal(b.made[0].attributes.role, 'alert');
+  assert.deepEqual(b.alert.children, [b.made[0]]);
+  assert.deepEqual(b.status.children, []);
 });
 
 test('the action button runs its handler once and takes the message with it', () => {
@@ -177,13 +207,13 @@ test('a second message takes the slot, timer and all, rather than stacking on th
   const harness = toastHarness();
   harness.call('Đã lưu.');
   const first = harness.made[0];
-  assert.equal(harness.body.children.length, 1);
+  assert.equal(harness.onScreen().length, 1);
   assert.equal(harness.timers.size, 1);
 
   harness.call('Đã bỏ khỏi danh sách yêu thích.', 'error');
   assert.equal(first.removed, true);
-  assert.equal(harness.body.children.length, 1);
-  assert.equal(harness.body.children[0], harness.made[1]);
+  assert.equal(harness.onScreen().length, 1);
+  assert.equal(harness.onScreen()[0], harness.made[1]);
   // One armed timer, and it belongs to the message still on screen.
   assert.equal(harness.timers.size, 1);
   assert.equal(harness.armed()[0].delay, 5000);
@@ -197,7 +227,7 @@ test('an expired message frees the slot without dragging its successor out with 
   assert.equal(harness.timers.size, 0);
 
   harness.call('Đã lưu lần nữa.');
-  assert.equal(harness.body.children.length, 1);
+  assert.equal(harness.onScreen().length, 1);
   assert.equal(harness.made[1].removed, false);
 });
 

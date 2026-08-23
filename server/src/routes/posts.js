@@ -20,9 +20,53 @@ const CATEGORIES = ['nail', 'hair', 'skincare', 'spa', 'eyelash'];
 // every visitor, so it is rejected before the post is stored.
 const YOUTUBE_EMBED = /^https:\/\/www\.youtube\.com\/embed\/[\w-]+(\?[\w=&-]*)?$/;
 
+// The whole of moderation: a post or a comment is either in the public feed or taken out of
+// it, and nothing anybody wrote is deleted to do that. Everything is created 'published'.
+const STATUSES = ['published', 'hidden'];
+
+/* Who may hide something. Nobody, unless the deploy names them: ADMIN_EMAILS is a
+   comma-separated list of accounts, and a deploy that sets nothing has no moderators rather
+   than an open door. Matched on the address because that is what an operator knows about an
+   account; roles here are 'customer' and 'partner', neither of which is this. */
+const ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+/* Demo-grade throttle on publishing to the public feed, the same shape as the one guarding the
+   password routes (routes/auth.js): a fixed window in this process's memory, keyed on the
+   author and swept on use, so an idle process holds nothing. Five posts an hour is far above
+   anybody writing about their own salon and far below what filling the feed takes; twenty is
+   the same trade for the shorter thing a comment is. Like its twin it resets on deploy and a
+   determined spammer with several accounts walks past it — a mitigation, not a rate limiter. */
+const RATE_WINDOW_MS = 60 * 60 * 1000;
+const POST_MAX_PER_HOUR = 5;
+const COMMENT_MAX_PER_HOUR = 20;
+const postAttempts = new Map();
+const commentAttempts = new Map();
+
+/** Record one write for `key` in `attempts`; true once `max` in the window is spent. */
+function rateLimited(attempts, key, max) {
+  const now = Date.now();
+  for (const [seen, entry] of attempts) {
+    if (now - entry.windowStart >= RATE_WINDOW_MS) {
+      attempts.delete(seen);
+    }
+  }
+  const entry = attempts.get(key);
+  if (!entry) {
+    attempts.set(key, { count: 1, windowStart: now });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > max;
+}
+
 const selectPostBySlug = db.prepare(`
   SELECT p.id, p.slug, p.type, p.title, p.excerpt, p.content, p.video_url, p.image, p.created_at,
-         p.source_platform, p.source_url, p.category,
+         p.status, p.source_platform, p.source_url, p.category,
          u.name AS author_name, u.avatar AS author_avatar,
          s.id AS salon_id, s.name AS salon_name, s.slug AS salon_slug
   FROM posts p
@@ -35,7 +79,7 @@ const selectComments = db.prepare(`
   SELECT c.id, c.content, c.created_at, u.name AS user_name, u.avatar AS user_avatar
   FROM post_comments c
   LEFT JOIN users u ON u.id = c.user_id
-  WHERE c.post_id = ?
+  WHERE c.post_id = ? AND c.status = 'published'
   ORDER BY c.created_at, c.id
 `);
 
@@ -163,6 +207,7 @@ async function loadPost(slug) {
     video_url: row.video_url,
     image: row.image,
     category: row.category,
+    status: row.status,
     created_at: row.created_at,
     author: { name: row.author_name, avatar: row.author_avatar },
     source: sourceOf(row),
@@ -174,7 +219,9 @@ async function loadPost(slug) {
 router.get('/', async (req, res, next) => {
   try {
     const { page, limit, offset } = parsePagination(req.query, DEFAULT_LIMIT);
-    const conditions = [];
+    // The public feed is the published half of the table; a hidden post keeps its URL,
+    // its author and its comments, and appears in none of them.
+    const conditions = ["p.status = 'published'"];
     const params = [];
 
     if (TYPES.includes(req.query.type)) {
@@ -194,7 +241,7 @@ router.get('/', async (req, res, next) => {
       params.push(`%${tag}%`, `%${tag}%`);
     }
 
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const where = `WHERE ${conditions.join(' AND ')}`;
 
     const { total } = await db
       .prepare(`SELECT COUNT(*) AS total FROM posts p ${where}`)
@@ -205,7 +252,8 @@ router.get('/', async (req, res, next) => {
                 p.source_platform, p.source_url, p.category,
                 u.name AS author_name, u.avatar AS author_avatar,
                 s.id AS salon_id, s.name AS salon_name, s.slug AS salon_slug,
-                (SELECT COUNT(*) FROM post_comments c WHERE c.post_id = p.id) AS comment_count
+                (SELECT COUNT(*) FROM post_comments c
+                  WHERE c.post_id = p.id AND c.status = 'published') AS comment_count
          FROM posts p
          LEFT JOIN users u ON u.id = p.author_id
          LEFT JOIN salons s ON s.id = p.salon_id
@@ -286,6 +334,9 @@ router.get('/mine', requireAuth, async (req, res, next) => {
         author: { name: row.author_name, avatar: row.author_avatar },
         source: sourceOf(row),
         salon: salonOf(row),
+        // The author's own list is not filtered on status, so it is the one place a hidden
+        // post is still shown; the card labels it rather than linking to a 404 unannounced.
+        status: row.status,
         can_manage: true,
         comment_count: row.comment_count,
       })),
@@ -326,6 +377,13 @@ router.post('/', requireAuth, async (req, res, next) => {
       if (await selectSourceTaken.get(source.url)) {
         throw httpError(409, 'DUPLICATE_SOURCE', 'Bài viết từ đường dẫn này đã có trên Blog OAK.');
       }
+    }
+
+    /* Checked here rather than at the top of the route: the allowance is five posts an
+       hour, not five attempts, so a rejected body — a bad video link, a duplicate source —
+       must not spend one. */
+    if (rateLimited(postAttempts, req.user.id, POST_MAX_PER_HOUR)) {
+      throw httpError(429, 'RATE_LIMITED', 'Bạn đã đăng nhiều bài trong một giờ. Vui lòng thử lại sau.');
     }
 
     const slug = await uniquePostSlug(clean.title);
@@ -407,7 +465,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
         const claimClears = body.source_platform === null
           || (typeof body.source_platform === 'string' && body.source_platform.trim() === '');
         if (Object.hasOwn(body, 'source_platform') && !claimClears) {
-          throw httpError(400, 'VALIDATION_ERROR', 'Không được khai báo nền tảng khi xoá link nguồn.');
+          throw httpError(400, 'VALIDATION_ERROR', 'Không được khai báo nền tảng khi xóa link nguồn.');
         }
         sourcePlatform = null;
         sourceUrl = null;
@@ -461,6 +519,29 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
   }
 });
 
+/* Taking a post out of the public feed, and putting it back. Deliberately not the author's
+   own route: this is the tool behind the promise the terms make about removing content, so
+   it answers only to the accounts ADMIN_EMAILS names. */
+router.patch('/:id/status', requireAuth, async (req, res, next) => {
+  try {
+    if (!ADMIN_EMAILS.has(String(req.user.email || '').toLowerCase())) {
+      throw httpError(403, 'FORBIDDEN', 'Chức năng này chỉ dành cho quản trị viên.');
+    }
+    const id = requirePostId(req.params.id);
+    const status = req.body?.status;
+    if (!STATUSES.includes(status)) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Trạng thái bài viết phải là published hoặc hidden.');
+    }
+    const result = await db.prepare('UPDATE posts SET status = ? WHERE id = ?').run(status, id);
+    if (result.changes === 0) {
+      throw httpError(404, 'NOT_FOUND', 'Không tìm thấy bài viết này.');
+    }
+    res.json({ success: true, data: { id, status } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const id = requirePostId(req.params.id);
@@ -495,6 +576,11 @@ router.post('/:id/comments', requireAuth, async (req, res, next) => {
       throw httpError(400, 'VALIDATION_ERROR', 'Vui lòng nhập nội dung bình luận.');
     }
 
+    // Same rule as the post allowance above: only a comment that lands spends one.
+    if (rateLimited(commentAttempts, req.user.id, COMMENT_MAX_PER_HOUR)) {
+      throw httpError(429, 'RATE_LIMITED', 'Bạn đã bình luận nhiều lần trong một giờ. Vui lòng thử lại sau.');
+    }
+
     const createdAt = new Date().toISOString();
     const { lastInsertRowid } = await insertComment.run(postId, req.user.id, content, createdAt);
 
@@ -516,7 +602,8 @@ router.post('/:id/comments', requireAuth, async (req, res, next) => {
 router.get('/:slug', async (req, res, next) => {
   try {
     const post = await loadPost(req.params.slug);
-    if (!post) {
+    // Hidden is hidden from its own address too, or moderation is only a tidier feed.
+    if (!post || post.status !== 'published') {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy bài viết này.');
     }
     res.json({ success: true, data: post });

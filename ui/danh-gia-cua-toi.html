@@ -18,6 +18,17 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -25,7 +36,7 @@
 <style>
         /* Review textarea (this page only): borderless field on a container surface */
         .review-textarea {
-            width: 100%; border: 1px solid #c4c7c7; border-radius: 0.25rem; background-color: #ffffff;
+            width: 100%; border: 1px solid #5e6262; border-radius: 0.25rem; background-color: #ffffff;
             padding: 12px 16px; resize: vertical; transition: border-color 0.3s ease;
         }
         .review-textarea:focus { outline: none; box-shadow: none; border-color: #171818; }
@@ -118,7 +129,7 @@ Cài đặt
 <template x-if="booking">
 <div class="flex gap-4 items-center bg-surface-container-lowest rounded-lg p-4 border border-outline-variant/20 mb-6">
 <div class="w-20 h-20 shrink-0 rounded-md overflow-hidden bg-surface-variant">
-<img loading="lazy" :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
+<img decoding="async" loading="lazy" :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
 </div>
 <div class="min-w-0">
 <h3 class="font-headline-sm text-[20px] text-primary mb-1" x-text="booking.service.name"></h3>
@@ -133,13 +144,13 @@ Cài đặt
 <!-- Star picker -->
 <div class="flex items-center gap-2 mb-6">
 <template x-for="star in 5">
-<button :aria-label="star + ' sao'" :aria-pressed="star &lt;= rating" @click="rating = star" @mouseleave="hover = 0" @mouseenter="hover = star" class="text-secondary active:scale-95 duration-200" type="button">
+<button :aria-label="star + ' sao'" :aria-pressed="star &lt;= rating" @click="rating = star" @mouseleave="hover = 0" @mouseenter="hover = star" class="inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-secondary active:scale-95 duration-200" type="button">
 <span :class="star &lt;= (hover || rating) ? 'fill' : 'text-outline-variant'" aria-hidden="true" class="material-symbols-outlined text-3xl" data-icon="star">star</span>
 </button>
 </template>
 <span class="font-label-md text-label-md text-on-surface-variant ml-2" x-text="ratingLabel()"></span>
 </div>
-<textarea class="review-textarea font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50 mb-4" placeholder="Kỹ thuật viên, không gian, kết quả… điều gì khiến bạn hài lòng?" rows="5" x-model="comment"></textarea>
+<textarea class="review-textarea font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/70 mb-4" placeholder="Kỹ thuật viên, không gian, kết quả… điều gì khiến bạn hài lòng?" rows="5" x-model="comment"></textarea>
 <p class="font-caption text-caption text-error mb-4" x-cloak="" x-show="error" x-text="error"></p>
 <div class="flex flex-wrap gap-3">
 <button :disabled="saving" @click="submit()" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-50" type="button">
@@ -157,7 +168,7 @@ Cài đặt
 <template :key="item.id" x-for="item in pending">
 <div class="bg-surface-container-lowest p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 rounded-lg border border-outline-variant/20">
 <div class="w-full md:w-32 h-32 md:h-20 shrink-0 rounded-md overflow-hidden bg-surface-variant">
-<img loading="lazy" :alt="item.salon.name" :src="item.salon.image" class="w-full h-full object-cover">
+<img decoding="async" loading="lazy" :alt="item.salon.name" :src="item.salon.image" class="w-full h-full object-cover">
 </div>
 <div class="flex-1 min-w-0">
 <h3 class="font-headline-sm text-[20px] text-primary mb-1" x-text="item.service.name"></h3>
@@ -204,7 +215,7 @@ Cài đặt
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-show="review.service" x-text="review.service ? review.service.name : ''"></p>
 </div>
 <div class="flex items-center gap-3 shrink-0">
-<span class="font-caption text-caption text-outline" x-text="OAK.fmtDate(review.created_at)"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(review.created_at)"></span>
 <button @click="startEdit(review)" class="inline-flex items-center gap-1 border border-outline text-primary font-label-md text-label-md px-4 py-2 rounded-full uppercase tracking-wider hover:bg-surface-variant/50 transition-colors active:scale-95 duration-200" type="button">
 <span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span>
                                     Sửa
@@ -385,7 +396,7 @@ Cài đặt
                 this.notice = '';
                 this.error = '';
                 // The composer sits above the list, so the form has to be brought into view.
-                this.$nextTick(() => this.$refs.composer.scrollIntoView({ behavior: 'smooth' }));
+                this.$nextTick(() => this.$refs.composer.scrollIntoView({ behavior: OAK.scrollBehavior() }));
             },
 
             ratingLabel() {

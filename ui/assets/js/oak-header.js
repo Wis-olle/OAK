@@ -49,16 +49,52 @@
    * yet. tabIndex = -1 is what makes the jump actually move focus: without it the browser
    * scrolls to the target and leaves the caret behind in the link, so the next Tab goes
    * back into the bar.
+   *
+   * data-oak-skip is what oak-utils.css takes it out of the tab order by while a dialog
+   * is open: it sits outside the three landmarks a dialog makes inert, and it points at
+   * one of them, so left alone it would be a link that moves focus nowhere.
    */
   var SKIP =
     'sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] ' +
     'focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary ' +
-    'focus:border focus:border-outline-variant focus:shadow-lg font-body-md text-body-md';
+    'focus:border focus:border-primary focus:shadow-lg font-body-md text-body-md';
 
   shell.insertAdjacentHTML(
     'beforebegin',
-    '<a class="' + SKIP + '" href="#main">Bỏ qua đến nội dung</a>',
+    '<a class="' + SKIP + '" data-oak-skip href="#main">Bỏ qua đến nội dung</a>',
   );
+
+  /*
+   * What a phone needs before it will offer "Thêm vào màn hình chính": the manifest, the
+   * colour its own chrome takes around the page, and the icon iOS uses (it reads no
+   * manifest). Written from here rather than into the <head> of every page for the same
+   * reason the bar itself is — one copy that cannot drift — and the addresses are relative
+   * like every other asset a page asks for, so they resolve under any path the site is
+   * served from. Guarded: this file is also run head-less by its own test.
+   */
+  if (document.head) {
+    [
+      ['link', { rel: 'manifest', href: 'manifest.webmanifest' }],
+      ['link', { rel: 'apple-touch-icon', href: 'assets/images/icon-192.png' }],
+      /* The same paint the bar itself is: assets/css/oak-utils.css .glass-nav. */
+      ['meta', { name: 'theme-color', content: '#fff8f4' }],
+    ].forEach(function (spec) {
+      var tag = document.createElement(spec[0]);
+      Object.keys(spec[1]).forEach(function (name) {
+        tag.setAttribute(name, spec[1][name]);
+      });
+      document.head.appendChild(tag);
+    });
+  }
+
+  /* The two empty regions OAK.toast() announces from. They go in here, at parse time,
+     because a live region has to be in the document before the text it is meant to read
+     arrives in it — see the comment on liveRegions() in oak-api.js. Guarded because a
+     cached page can meet an older oak-api.js, and a missing announcement is not a reason
+     to leave the page without a top bar. */
+  if (typeof OAK !== 'undefined' && OAK.liveRegions) {
+    OAK.liveRegions();
+  }
 
   document.addEventListener('DOMContentLoaded', function () {
     var content = document.querySelector('main');
@@ -138,6 +174,10 @@
        page: it is a rule-based helper for finding a salon, and three names for it (two of
        them promising "AI") is what makes a reader expect something it is not. */
     entry('tim-kiem-thong-minh.html', 'Trợ lý tìm salon') +
+    /* The one way in to the picture-led finder from the thirty-odd pages that are not the
+       home page. The hash is what puts the reader at the section rather than at the top of
+       it — isHere() compares whole hrefs, so this never claims to be where they already are. */
+    entry('kham-pha.html#beauty-map', 'Beauty Map') +
     area;
 
   var categories =

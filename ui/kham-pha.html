@@ -18,6 +18,22 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The photograph this page opens with. Named up here so the browser can start it in the
+     same pass as the fonts rather than when the parser reaches it far down the page, and named
+     ahead of them because five faces are ~170KB of high-priority bytes for an LCP image to
+     queue behind. -->
+<link as="image" fetchpriority="high" href="assets/images/hero-banner.webp" rel="preload">
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -274,6 +290,15 @@
 <!-- TopNavBar -->
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
+<!-- Every page draws itself with Alpine, and the bar above is written by script too, so
+     with scripting turned off there is nothing on screen and no way onward. This is that
+     way onward: one line, and the number that answers. -->
+<noscript>
+<div class="px-margin-mobile md:px-margin-desktop py-4 bg-secondary-container text-on-secondary-container font-body-md text-body-md text-center">
+<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gọi hotline để được hỗ trợ đặt lịch.</p>
+<a class="underline font-bold" href="tel:19006035">Gọi hotline 1900 6035</a>
+</div>
+</noscript>
 <!-- Main Content -->
 <main class="pt-20 flex-grow pb-section-gap">
 <!-- Hero Banner -->
@@ -294,10 +319,10 @@
      "Tất cả khu vực", 120.6px for "Thời gian bất kỳ") plus their icon, their own spacing and
      the 32px the arrow takes. What is left over goes to the service field, which is the one
      that should be widest — 221 of the 762px inside the pill, against 212 and 204. -->
-<form @submit.prevent="submit()" aria-label="Tìm kiếm salon và dịch vụ" class="oak-search-bar mb-3 flex flex-col p-2 bg-surface-container-lowest border border-outline-variant/50 rounded-3xl shadow-[0_6px_24px_rgba(23,24,24,0.10)] xl:flex-row xl:items-center xl:min-h-[64px] xl:rounded-[9999px]" role="search">
+<form @submit.prevent="submit()" aria-label="Tìm kiếm salon và dịch vụ" class="oak-search-bar mb-3 flex flex-col p-2 bg-surface-container-lowest border border-outline-variant/50 rounded-3xl shadow-[0_6px_24px_rgba(23,24,24,0.10)] xl:flex-row xl:items-center xl:min-h-[64px] xl:rounded-full" role="search">
 <div class="flex items-center gap-2 px-3 min-h-[48px] xl:flex-1 xl:min-w-0">
 <span aria-hidden="true" class="material-symbols-outlined shrink-0 text-[20px] text-on-surface-variant" data-icon="search">search</span>
-<input aria-label="Tìm kiếm dịch vụ hoặc salon" autocomplete="off" class="oak-search-field min-w-0 font-body-md text-body-md text-primary placeholder:text-on-surface-variant/50" enterkeyhint="search" placeholder="Dịch vụ, salon…" type="text" x-model="q">
+<input aria-label="Tìm kiếm dịch vụ hoặc salon" autocomplete="off" class="oak-search-field min-w-0 font-body-md text-body-md text-primary placeholder:text-on-surface-variant/70" enterkeyhint="search" placeholder="Dịch vụ, salon…" type="text" x-model="q">
 </div>
 <div class="h-px mx-3 shrink-0 bg-outline-variant/30 xl:mx-0 xl:h-8 xl:w-px"></div>
 <!-- Fixed width from xl: the options arrive from the network, so anything content-sized
@@ -325,7 +350,7 @@
 <option value="open_now">Đang mở cửa</option>
 </select>
 </div>
-<button class="mt-2 min-h-[48px] px-6 flex items-center justify-center rounded-[9999px] bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors xl:mt-0 xl:ml-2 xl:shrink-0" type="submit">Tìm kiếm</button>
+<button class="mt-2 min-h-[48px] px-6 flex items-center justify-center rounded-full bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors xl:mt-0 xl:ml-2 xl:shrink-0" type="submit">Tìm kiếm</button>
 </form>
 <a :href="assistantUrl" class="font-label-md text-label-md text-primary hover:text-secondary underline underline-offset-4 transition-colors" href="tim-kiem-thong-minh.html">Hỏi Trợ lý tìm salon</a>
 <!-- Search Suggestions -->
@@ -336,20 +361,20 @@
 <div class="flex flex-wrap gap-3 mt-8" x-cloak="" x-show="chips.length">
 <span class="font-caption text-caption text-on-surface-variant uppercase tracking-widest mr-2 py-2">Gợi ý:</span>
 <template :key="chip.key" x-for="chip in chips">
-<a :href="chipUrl(chip)" class="bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary inline-flex items-center min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-all duration-300" style="text-decoration:none" x-text="chip.label"></a>
+<a :href="chipUrl(chip)" class="bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high inline-flex items-center min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-all duration-300" style="text-decoration:none" x-text="chip.label"></a>
 </template>
 </div>
 <!-- What was searched for last, from this browser only. -->
 <div class="flex flex-wrap gap-3 mt-4" x-cloak="" x-show="recent.length">
 <span class="font-caption text-caption text-on-surface-variant uppercase tracking-widest mr-2 py-2">Gần đây:</span>
 <template :key="keyword" x-for="keyword in recent">
-<a :href="'ket-qua-tim-kiem.html?q=' + encodeURIComponent(keyword)" class="bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary inline-flex items-center min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-all duration-300" style="text-decoration:none" x-text="keyword"></a>
+<a :href="'ket-qua-tim-kiem.html?q=' + encodeURIComponent(keyword)" class="bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high inline-flex items-center min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-all duration-300" style="text-decoration:none" x-text="keyword"></a>
 </template>
 </div>
 </div>
 </div>
 <!-- Banner artwork: in flow below the copy on mobile, behind it from md up -->
-<img width="1672" height="941" alt="Người mẫu trong khung oval trên nền hồng phấn với cánh hoa hồng rơi" class="w-full h-[260px] object-cover object-right md:absolute md:inset-y-0 md:right-0 md:w-auto md:h-full md:object-contain md:[mask-image:linear-gradient(to_right,transparent,#000_64px)]" src="assets/images/hero-banner.webp">
+<img fetchpriority="high" width="1672" height="941" alt="Người mẫu trong khung oval trên nền hồng phấn với cánh hoa hồng rơi" class="w-full h-[260px] object-cover object-right md:absolute md:inset-y-0 md:right-0 md:w-auto md:h-full md:object-contain md:[mask-image:linear-gradient(to_right,transparent,#000_64px)]" src="assets/images/hero-banner.webp">
 </section>
 <!-- Next appointment. Below the hero, never inside it: the hero and its search bar are the
      one part of this page that stays put for everybody. A visitor who is not signed in asks
@@ -360,7 +385,7 @@
 <template x-if="booking">
 <div class="bg-surface-container-low p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 rounded-lg border border-outline-variant/20">
 <div class="w-full md:w-32 h-32 md:h-20 shrink-0 rounded-md overflow-hidden bg-surface-variant">
-<img loading="lazy" :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
+<img decoding="async" loading="lazy" :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
 </div>
 <div class="flex-1 min-w-0">
 <!-- Both readings sit in the markup, so the dictionary finds each of them. -->
@@ -384,7 +409,7 @@
 <template x-if="!booking &amp;&amp; pending">
 <div class="bg-surface-container-low p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 rounded-lg border border-outline-variant/20">
 <div class="w-full md:w-32 h-32 md:h-20 shrink-0 rounded-md overflow-hidden bg-surface-variant">
-<img loading="lazy" :alt="pending.salon.name" :src="pending.salon.image" class="w-full h-full object-cover">
+<img decoding="async" loading="lazy" :alt="pending.salon.name" :src="pending.salon.image" class="w-full h-full object-cover">
 </div>
 <div class="flex-1 min-w-0">
 <h2 class="font-headline-sm text-headline-sm text-primary mb-1">Bạn chưa đánh giá buổi vừa rồi</h2>
@@ -430,8 +455,15 @@
 </a>
 </div>
 </section>
+<!-- Beauty Map and the salons themselves, in one column so their order can differ from
+     their order in the markup. On a phone the map is two portraits tall — around two
+     screens of scrolling before the first bookable salon — so below md the salons come
+     first; from md the reading order of the markup comes back. The gap that used to
+     be the map's own bottom margin belongs to the column now, or reordering would move it
+     to the wrong side. -->
+<div class="flex flex-col gap-section-gap mb-section-gap">
 <!-- Beauty Map Section -->
-<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-section-gap">
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto order-2 md:order-1" id="beauty-map">
 <div class="mb-8 border-b border-outline-variant/30 pb-4">
 <h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary">Chọn vùng bạn muốn làm đẹp</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mt-2">Chạm vào tóc, mắt, da hay móng để xem dịch vụ phù hợp</p>
@@ -485,7 +517,7 @@
 </div>
 </section>
 <!-- Featured Salons Section (Bento/Asymmetric Layout) -->
-<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto order-1 md:order-2">
 <div class="flex justify-between items-end mb-8 border-b border-outline-variant/30 pb-4">
 <h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary">Salon nổi bật gần bạn</h2>
 <a class="font-label-md text-label-md text-primary hover:text-secondary uppercase tracking-wider hidden md:block" href="ket-qua-tim-kiem.html">Xem tất cả</a>
@@ -525,7 +557,7 @@
 <template x-if="salons.length">
 <a :href="salonUrl(salons[0])" class="md:col-span-8 group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
 <div class="aspect-[16/9] w-full rounded-lg overflow-hidden img-hover-zoom mb-4 bg-surface-container">
-<img loading="lazy" :alt="salons[0].name" :src="salons[0].image" class="w-full h-full object-cover">
+<img decoding="async" width="640" height="360" loading="lazy" :alt="salons[0].name" :src="salons[0].image" class="w-full h-full object-cover">
 </div>
 <div class="flex justify-between items-start">
 <div>
@@ -536,7 +568,7 @@
 </p>
 </div>
 <div class="flex items-center gap-1 bg-surface-container-low px-3 py-1 rounded-full">
-<span aria-hidden="true" class="material-symbols-outlined text-[16px] text-secondary" data-icon="star" data-weight="fill">star</span>
+<span aria-hidden="true" class="material-symbols-outlined oak-star oak-star-sm" data-icon="star" data-weight="fill">star</span>
 <span class="font-label-md text-label-md text-primary" x-text="ratingOf(salons[0])"></span>
 <span class="font-caption text-caption text-on-surface-variant" x-text="'(' + salons[0].review_count + ')'"></span>
 </div>
@@ -555,7 +587,7 @@
 <template :key="salon.id" x-for="salon in salons.slice(1)">
 <a :href="salonUrl(salon)" class="group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
 <div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
-<img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
+<img decoding="async" width="600" height="400" loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
 </div>
 <div class="flex justify-between items-start">
 <div>
@@ -566,7 +598,7 @@
 </p>
 </div>
 <div class="flex items-center gap-1">
-<span aria-hidden="true" class="material-symbols-outlined text-[14px] text-secondary" data-icon="star" data-weight="fill">star</span>
+<span aria-hidden="true" class="material-symbols-outlined oak-star oak-star-sm" data-icon="star" data-weight="fill">star</span>
 <span class="font-label-md text-label-md text-primary" x-text="ratingOf(salon)"></span>
 </div>
 </div>
@@ -578,6 +610,7 @@
 <a class="inline-block border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" href="ket-qua-tim-kiem.html">Xem tất cả</a>
 </div>
 </section>
+</div>
 <!-- Newest Salons Section -->
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mt-section-gap" x-data="oakNewSalons()">
 <div class="flex justify-between items-end mb-8 border-b border-outline-variant/30 pb-4">
@@ -611,7 +644,7 @@
 <a :href="salonUrl(salon)" class="group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
 <div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
 <template x-if="salon.image">
-<img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
+<img decoding="async" width="600" height="400" loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
 </template>
 <template x-if="!salon.image">
 <div class="w-full h-full flex items-center justify-center bg-surface-container">
@@ -625,7 +658,7 @@
 <span x-text="locationOf(salon)"></span>
 </p>
 <div class="flex items-center gap-1 mt-1" x-show="salon.review_count">
-<span aria-hidden="true" class="material-symbols-outlined text-[14px] text-secondary" data-icon="star" data-weight="fill">star</span>
+<span aria-hidden="true" class="material-symbols-outlined oak-star oak-star-sm" data-icon="star" data-weight="fill">star</span>
 <span class="font-label-md text-label-md text-primary" x-text="ratingOf(salon)"></span>
 <span class="font-caption text-caption text-on-surface-variant" x-text="'(' + salon.review_count + ')'"></span>
 </div>

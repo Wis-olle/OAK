@@ -18,6 +18,17 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -83,7 +94,7 @@
 <div class="space-y-8">
 <h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn salon</h2>
 <form @submit.prevent="searchSalons()" class="flex flex-col sm:flex-row gap-3">
-<input aria-label="Tìm salon theo tên" class="flex-grow border border-outline-variant bg-surface rounded-full px-6 py-3 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50" autocomplete="off" enterkeyhint="search" placeholder="Tìm salon theo tên..." type="text" x-model="salonQuery"/>
+<input aria-label="Tìm salon theo tên" class="flex-grow border border-outline bg-surface rounded-full px-6 py-3 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/70" autocomplete="off" enterkeyhint="search" placeholder="Tìm salon theo tên…" type="text" x-model="salonQuery"/>
 <button class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="submit">Tìm kiếm</button>
 </form>
 <p class="font-body-md text-body-md text-on-surface-variant" x-cloak="" x-show="!salonsLoading &amp;&amp; !salonsError &amp;&amp; !salons.length">Không tìm thấy salon nào.</p>
@@ -109,7 +120,7 @@
 <button :class="salon &amp;&amp; salon.id === entry.id ? 'border-primary' : 'border-outline-variant'" @click="chooseSalon(entry)" class="text-left p-3 border rounded-lg hover:border-primary transition-colors" type="button">
 <span class="block aspect-[3/2] w-full rounded overflow-hidden mb-3 bg-surface-container">
 <template x-if="entry.image">
-<img loading="lazy" :src="entry.image" alt="" class="w-full h-full object-cover"/>
+<img decoding="async" width="600" height="400" loading="lazy" :src="entry.image" alt="" class="w-full h-full object-cover"/>
 </template>
 <template x-if="!entry.image">
 <span class="w-full h-full flex items-center justify-center">
@@ -218,7 +229,7 @@
 <button :class="staffId === member.id ? 'border-primary' : 'border-outline-variant'" @click="setStaff(member.id)" class="flex items-center gap-3 min-h-[44px] px-4 py-2 border rounded-2xl text-left hover:border-primary transition-colors" type="button">
 <span class="w-10 h-10 rounded-full overflow-hidden bg-surface-container flex items-center justify-center shrink-0">
 <template x-if="member.image">
-<img loading="lazy" :src="member.image" alt="" class="w-full h-full object-cover"/>
+<img decoding="async" loading="lazy" :src="member.image" alt="" class="w-full h-full object-cover"/>
 </template>
 <template x-if="!member.image">
 <span aria-hidden="true" class="material-symbols-outlined text-[20px] text-on-surface-variant" data-icon="person">person</span>
@@ -252,7 +263,7 @@
 </div>
 <div class="relative md:max-w-xs">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="booking-date">Ngày khác</label>
-<input :min="today" @change="loadSlots(true)" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors" id="booking-date" type="date" x-model="date"/>
+<input :min="today" @change="loadSlots(true)" class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors" id="booking-date" type="date" x-model="date"/>
 </div>
 <div class="flex flex-col gap-4" x-show="!slotsLoading &amp;&amp; !slotsError &amp;&amp; !slots.length">
 <p class="font-body-md text-body-md text-on-surface-variant">Ngày này chưa có khung giờ nào, vui lòng chọn ngày khác.</p>
@@ -315,30 +326,30 @@
 <h2 class="font-headline-sm text-headline-sm text-primary mb-6 border-b border-outline-variant/20 pb-4">Tóm tắt dịch vụ</h2>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="flex gap-4">
-<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1" data-icon="storefront">storefront</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant mt-1" data-icon="storefront">storefront</span>
 <div>
-<p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Salon</p>
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider mb-1">Salon</p>
 <p class="font-body-md text-body-md font-medium" x-text="salon ? salon.name : 'Chưa chọn'">Đang tải…</p>
 </div>
 </div>
 <div class="flex gap-4">
-<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1" data-icon="spa">spa</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant mt-1" data-icon="spa">spa</span>
 <div>
-<p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Dịch vụ</p>
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider mb-1">Dịch vụ</p>
 <p class="font-body-md text-body-md font-medium" x-text="service ? service.name : 'Chưa chọn'">Đang tải…</p>
 </div>
 </div>
 <div class="flex gap-4">
-<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1" data-icon="person">person</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant mt-1" data-icon="person">person</span>
 <div>
-<p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Nhân viên</p>
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider mb-1">Nhân viên</p>
 <p class="font-body-md text-body-md font-medium" x-text="staffLabel()">Đang tải…</p>
 </div>
 </div>
 <div class="flex gap-4">
-<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1" data-icon="event">event</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant mt-1" data-icon="event">event</span>
 <div>
-<p class="font-caption text-caption text-outline uppercase tracking-wider mb-1">Thời gian</p>
+<p class="font-caption text-caption text-on-surface-variant uppercase tracking-wider mb-1">Thời gian</p>
 <p class="font-body-md text-body-md font-medium" x-text="whenLabel()">Đang tải…</p>
 </div>
 </div>
@@ -350,19 +361,19 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-name">Họ và tên *</label>
-<input :aria-invalid="fieldErrors.name ? 'true' : null" :class="fieldErrors.name ? 'border-error' : 'border-outline-variant'" @input="fieldErrors.name = ''" aria-describedby="customer-name-error" autocapitalize="words" autocomplete="name" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" enterkeyhint="next" id="customer-name" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
+<input :aria-invalid="fieldErrors.name ? 'true' : null" :class="fieldErrors.name ? 'border-error' : 'border-outline'" @input="fieldErrors.name = ''" aria-describedby="customer-name-error" autocapitalize="words" autocomplete="name" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" enterkeyhint="next" id="customer-name" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
 <p class="font-body-md text-sm text-error mt-2" id="customer-name-error" x-cloak="" x-show="fieldErrors.name" x-text="fieldErrors.name"></p>
 </div>
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-phone">Số điện thoại *</label>
-<input :aria-invalid="fieldErrors.phone ? 'true' : null" :class="fieldErrors.phone ? 'border-error' : 'border-outline-variant'" @input="fieldErrors.phone = ''" aria-describedby="customer-phone-help customer-phone-error" autocomplete="tel" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" id="customer-phone" inputmode="tel" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
+<input :aria-invalid="fieldErrors.phone ? 'true' : null" :class="fieldErrors.phone ? 'border-error' : 'border-outline'" @input="fieldErrors.phone = ''" aria-describedby="customer-phone-help customer-phone-error" autocomplete="tel" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" id="customer-phone" inputmode="tel" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
 <p class="font-caption text-caption text-on-surface-variant mt-2" id="customer-phone-help">Salon dùng số này để xác nhận lịch</p>
 <p class="font-body-md text-sm text-error mt-2" id="customer-phone-error" x-cloak="" x-show="fieldErrors.phone" x-text="fieldErrors.phone"></p>
 </div>
 </div>
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-note">Ghi chú đặc biệt (Không bắt buộc)</label>
-<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50 resize-none" id="customer-note" enterkeyhint="done" placeholder="Ví dụ: Da tay mỏng, cần làm nhẹ nhàng..." rows="3" x-model="form.note"></textarea>
+<textarea class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70 resize-none" id="customer-note" enterkeyhint="done" placeholder="Ví dụ: Da tay mỏng, cần làm nhẹ nhàng…" rows="3" x-model="form.note"></textarea>
 </div>
 </div>
 <!-- Payment: there is one way to pay and nothing to choose, so this states it rather than
@@ -387,11 +398,11 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="auth-email">Email *</label>
-<input @input="authError = ''" autocomplete="email" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" enterkeyhint="next" id="auth-email" inputmode="email" placeholder="Nhập email của bạn" type="email" x-model="auth.email"/>
+<input @input="authError = ''" autocomplete="email" class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" enterkeyhint="next" id="auth-email" inputmode="email" placeholder="Nhập email của bạn" type="email" x-model="auth.email"/>
 </div>
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="auth-password">Mật khẩu *</label>
-<input :autocomplete="authTab === 'login' ? 'current-password' : 'new-password'" @input="authError = ''" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" enterkeyhint="done" id="auth-password" placeholder="Nhập mật khẩu" type="password" x-model="auth.password"/>
+<input :autocomplete="authTab === 'login' ? 'current-password' : 'new-password'" @input="authError = ''" class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" enterkeyhint="done" id="auth-password" placeholder="Nhập mật khẩu" type="password" x-model="auth.password"/>
 </div>
 </div>
 <p class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="authTab === 'register'">Chúng tôi dùng họ tên và số điện thoại bạn vừa nhập ở trên.</p>
@@ -423,7 +434,7 @@
 <div>
 <label class="font-caption text-caption uppercase tracking-wider text-on-tertiary/80 block mb-2" for="promo-code">Mã ưu đãi</label>
 <div class="flex items-end gap-3">
-<input @change="loadQuote()" class="flex-1 min-w-0 bg-transparent border-0 border-b border-on-tertiary/30 focus:border-on-tertiary focus:ring-0 px-0 py-2 font-body-md text-body-md text-on-tertiary placeholder:text-on-tertiary/40" id="promo-code" placeholder="Nhập mã" type="text" x-model="promo"/>
+<input @change="loadQuote()" class="flex-1 min-w-0 bg-transparent border-0 border-b border-on-tertiary/50 focus:border-on-tertiary focus:ring-0 px-0 py-2 font-body-md text-body-md text-on-tertiary placeholder:text-on-tertiary/70" id="promo-code" placeholder="Nhập mã" type="text" x-model="promo"/>
 <button @click="loadQuote()" class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80 hover:text-on-tertiary transition-colors shrink-0" type="button">Áp dụng</button>
 </div>
 <p class="font-caption text-caption text-error-container mt-2" x-cloak="" x-show="promoError" x-text="promoError"></p>
@@ -692,6 +703,16 @@
                 }
                 // After the account's own details, so what the visitor typed wins over them.
                 this.restoreForm();
+                /* Choosing English reloads the page. The selection is in the url already
+                   (syncUrl), so the contact fields and the note are all that would be lost —
+                   and they go into the same stash the login round trip uses. */
+                window.addEventListener('oak:lang-change', () => {
+                    try {
+                        sessionStorage.setItem(OAK_BOOKING_FORM_KEY, JSON.stringify(this.form));
+                    } catch (error) {
+                        // Site data is blocked: the visitor retypes it.
+                    }
+                });
 
                 this.promo = OAK.qs('promo') || '';
                 // A shared or bookmarked url carries an absolute date, so it goes stale on its
@@ -890,7 +911,7 @@
                 this.stepError = '';
                 this.formError = '';
                 this.syncUrl();
-                this.$root.scrollIntoView({ behavior: 'smooth' });
+                this.$root.scrollIntoView({ behavior: OAK.scrollBehavior() });
                 // Scrolling says nothing to a screen reader. After the flush, so the step
                 // being moved to is on screen and can take focus at all; the ring is off
                 // for tabindex="-1" (assets/css/oak-utils.css), so nothing is drawn.
@@ -943,7 +964,7 @@
                     // display:none on the first tap, and an element with no box does not
                     // scroll — which is exactly the tap this line exists for.
                     this.$nextTick(() =>
-                        this.$refs.stepError.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+                        this.$refs.stepError.scrollIntoView({ behavior: OAK.scrollBehavior(), block: 'center' }),
                     );
                     return;
                 }

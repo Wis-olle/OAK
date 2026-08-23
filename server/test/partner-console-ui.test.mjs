@@ -10,6 +10,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
+import { bookingStatus, BOOKING_STATUSES } from './booking-status.mjs';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 
@@ -50,6 +52,8 @@ function factory(html, { from, until, create }, api) {
       setPendingBadge: () => {},
       requirePartner: async () => {},
       me: async () => ({ name: 'Thu Trang' }),
+      bookingStatus,
+      BOOKING_STATUSES,
     },
     toasts: [],
   };
@@ -64,14 +68,14 @@ function factory(html, { from, until, create }, api) {
 const calendar = (api) =>
   factory(
     calendarHtml,
-    { from: 'var OAK_STATUS_LABELS', until: 'oakPartnerChrome();', create: 'oakPartnerBookings()' },
+    { from: 'var OAK_BOOKING_CLASSES', until: 'oakPartnerChrome();', create: 'oakPartnerBookings()' },
     api,
   );
 
 const dashboard = (api) =>
   factory(
     dashboardHtml,
-    { from: 'var OAK_STATUS_LABELS', until: 'oakPartnerChrome();', create: 'oakPartnerOverview()' },
+    { from: 'var OAK_SEARCH_TYPES', until: 'oakPartnerChrome();', create: 'oakPartnerOverview()' },
     api,
   );
 
@@ -250,7 +254,7 @@ test('the console cancel needs a reason, and sends it where the customer can rea
   // The customer's own request survives; the reason is appended under the marker the
   // server reads back when it writes the notification.
   assert.match(patch.body.note, /^Khách muốn ngồi ghế trong cùng\n/);
-  assert.match(patch.body.note, /Lý do huỷ: Nhân viên nghỉ — KTV Lan Khuê nghỉ ốm/);
+  assert.match(patch.body.note, /Lý do hủy: Nhân viên nghỉ — KTV Lan Khuê nghỉ ốm/);
   assert.equal(state.cancelTarget, null);
 
   // The dialog says whose appointment it is before it destroys it.
@@ -307,7 +311,7 @@ test('the dashboard queue cancels through the same dialog, with the same reason'
   const patch = calls.find((call) => call.method === 'PATCH');
   assert.ok(patch, 'expected a PATCH');
   assert.equal(patch.body.status, 'cancelled');
-  assert.equal(patch.body.note, 'Lý do huỷ: Salon kín lịch');
+  assert.equal(patch.body.note, 'Lý do hủy: Salon kín lịch');
   assert.equal(state.acting, 0);
   assert.match(dashboardHtml, /@click="askCancel\(booking\)"/);
   assert.doesNotMatch(dashboardHtml, /@click="decide\(booking, 'cancelled'\)"/);

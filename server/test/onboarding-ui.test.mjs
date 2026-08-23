@@ -9,6 +9,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
+import { bookingStatus } from './booking-status.mjs';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 
@@ -36,13 +38,13 @@ function storage(broken) {
    stopping before the trailing oakPartnerChrome() call which needs a real document. */
 function dashboard(api, store) {
     const html = readUi('tong-quan-doi-tac.html');
-    const tail = html.slice(html.indexOf('var OAK_STATUS_LABELS'));
+    const tail = html.slice(html.indexOf('var OAK_SEARCH_TYPES'));
     const script = tail.slice(0, tail.lastIndexOf('oakPartnerChrome();'));
     const context = {
         document: { title: 'Tổng quan', visibilityState: 'visible', addEventListener() {} },
         setInterval: () => {},
         localStorage: store || storage(false),
-        OAK: { api, toast: () => {}, fmtDate: (iso) => String(iso), todayISO: () => '2026-08-21' },
+        OAK: { api, toast: () => {}, fmtDate: (iso) => String(iso), todayISO: () => '2026-08-21', bookingStatus },
     };
     vm.runInNewContext(`${script}\nresult = oakPartnerOverview();`, context);
     return context.result;

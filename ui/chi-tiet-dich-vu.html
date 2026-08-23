@@ -16,6 +16,17 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -36,6 +47,15 @@
 <!-- TopNavBar -->
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
+<!-- Every page draws itself with Alpine, and the bar above is written by script too, so
+     with scripting turned off there is nothing on screen and no way onward. This is that
+     way onward: one line, and the number that answers. -->
+<noscript>
+<div class="px-margin-mobile md:px-margin-desktop py-4 bg-secondary-container text-on-secondary-container font-body-md text-body-md text-center">
+<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gọi hotline để được hỗ trợ đặt lịch.</p>
+<a class="underline font-bold" href="tel:19006035">Gọi hotline 1900 6035</a>
+</div>
+</noscript>
 <main class="pt-24 pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto" x-data="oakServiceDetail()">
 <!-- Until the service lands there is nothing at all to show, so the page holds its own
      layout rather than a blank stretch that jumps when the data arrives. `loading` alone
@@ -92,7 +112,7 @@
      the free hours instead of pushing them a screen and a half down. -->
 <div class="lg:col-span-7">
 <div class="w-full aspect-[3/2] overflow-hidden rounded-xl bg-surface-container">
-<img :alt="service.name" :src="service.image" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700">
+<img decoding="async" width="600" height="400" :alt="service.name" :src="service.image" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700">
 </div>
 </div>
 <!-- Right Column: Details & Booking -->
@@ -113,7 +133,7 @@
 <!-- Which salon performs this, with everything needed to judge it: the page used to name
      no salon at all, and the whole payload for this block already arrives with the service. -->
 <div class="flex items-start gap-4 mb-8 p-4 rounded-xl bg-surface-container-low">
-<img loading="lazy" :alt="service.salon.name" :src="service.salon.image" class="w-12 h-12 rounded-full object-cover shrink-0">
+<img decoding="async" loading="lazy" :alt="service.salon.name" :src="service.salon.image" class="w-12 h-12 rounded-full object-cover shrink-0">
 <div class="min-w-0">
 <p class="font-caption text-caption text-on-surface-variant mb-1">Thực hiện tại</p>
 <a :href="salonUrl()" class="font-body-md text-body-md font-medium text-primary hover:underline" x-text="service.salon.name"></a>
@@ -138,11 +158,11 @@
 </div>
 <div class="flex items-center gap-6 mb-8 pb-8 border-b border-outline-variant/30">
 <div class="flex items-center gap-2">
-<span aria-hidden="true" class="material-symbols-outlined text-outline">schedule</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant">schedule</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="service.duration_min + ' phút'"></span>
 </div>
 <div class="flex items-center gap-2">
-<span aria-hidden="true" class="material-symbols-outlined text-outline">payments</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant">payments</span>
 <span class="font-body-md text-body-md font-semibold text-primary" x-text="priceLabel()"></span>
 </div>
 </div>
@@ -170,7 +190,7 @@
 </div>
 <div class="mb-4">
 <label class="font-caption text-caption text-tertiary block mb-1" for="service-date">Ngày khác</label>
-<input :min="today" @change="loadSlots()" class="px-3 py-1.5 rounded-full border border-outline/30 bg-transparent font-body-md text-body-md text-tertiary" id="service-date" type="date" x-model="date">
+<input :min="today" @change="loadSlots()" class="px-3 py-1.5 rounded-full border border-outline bg-transparent font-body-md text-body-md text-tertiary" id="service-date" type="date" x-model="date">
 </div>
 <!-- Nothing to dim on the first run, so the chips to come are drawn at their own size. -->
 <div aria-hidden="true" class="flex flex-wrap gap-3" x-show="slotsLoading &amp;&amp; !slots.length">
@@ -178,6 +198,9 @@
 <div class="h-11 w-24 rounded-full bg-surface-container animate-pulse"></div>
 </template>
 </div>
+<!-- The outlined buttons below keep border-outline/30: each carries a readable text label,
+     so SC 1.4.11 does not turn on their boundary alone. Only the date field needed the
+     full-strength token. -->
 <div class="flex flex-wrap items-center gap-4 mb-3" x-show="slotsError">
 <p class="font-body-md text-body-md text-error" x-text="slotsError"></p>
 <button :disabled="slotsLoading" @click="loadSlots()" class="border border-outline/30 text-tertiary font-label-md text-label-md uppercase tracking-wider px-5 py-2 rounded-full disabled:opacity-60" type="button">Thử lại</button>
@@ -197,34 +220,34 @@
 <h3 class="font-label-md text-label-md text-on-surface uppercase tracking-wider mb-4">Điều kiện đặt lịch</h3>
 <ul class="flex flex-col gap-3">
 <li class="flex items-start gap-3">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="event_available">event_available</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="event_available">event_available</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.cancelPolicy(service &amp;&amp; service.salon ? service.salon.cancel_cutoff_hours : 0)"></span>
 </li>
 <li class="flex items-start gap-3">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="payments">payments</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="payments">payments</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.PAYMENT"></span>
 </li>
 <li class="flex items-start gap-3">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="info">info</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="info">info</span>
 <span class="font-body-md text-body-md text-on-surface-variant">Salon xác nhận lịch, bạn được báo trong mục Thông báo</span>
 </li>
 <!-- "Từ 250.000đ" says the price can move without saying why or who settles it. -->
 <li class="flex items-start gap-3" x-show="service.price_is_from">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="info">info</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="info">info</span>
 <span class="font-body-md text-body-md text-on-surface-variant">Giá từ — tùy độ dài và thiết kế, salon báo giá cuối trước khi thực hiện</span>
 </li>
 </ul>
 <a class="inline-flex items-center gap-1 mt-4 font-label-md text-label-md uppercase tracking-wide text-primary hover:opacity-70 transition-opacity" href="dieu-khoan.html#huy-lich">Xem điều khoản</a>
 </div>
-<a :href="bookingUrl()" style="display:contents;color:inherit;text-decoration:none"><button class="w-full bg-primary-container text-on-primary py-4 rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors active:scale-[0.98]">
-                        Đặt Lịch Ngay
+<a :href="bookingUrl()" style="display:contents;color:inherit;text-decoration:none"><button class="w-full bg-primary-container text-on-primary py-4 rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors active:scale-95">
+                        Đặt lịch ngay
                     </button></a>
 </div>
 </div>
 <div class="lg:col-span-7 grid grid-cols-2 gap-gutter" x-show="detailPhotos.length">
 <template :key="photo.id" x-for="photo in detailPhotos">
 <div class="aspect-square overflow-hidden rounded-xl bg-surface-container">
-<img loading="lazy" :alt="photo.caption" :src="photo.image" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700">
+<img decoding="async" width="600" height="600" loading="lazy" :alt="photo.caption" :src="photo.image" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700">
 </div>
 </template>
 </div>
@@ -237,7 +260,7 @@
 <div class="flex flex-col items-center group">
 <button @click="pickStaff(member.id)" class="flex flex-col items-center" type="button">
 <div :class="staffId === member.id ? 'ring-2 ring-primary' : ''" class="w-32 h-32 rounded-full overflow-hidden mb-4 bg-surface-container">
-<img loading="lazy" :alt="member.name" :src="member.image" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+<img decoding="async" loading="lazy" :alt="member.name" :src="member.image" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
 </div>
 <h4 class="font-label-md text-label-md uppercase tracking-wider text-primary" x-text="member.name"></h4>
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-text="member.title"></p>
@@ -262,7 +285,7 @@
 <template :key="item.id" x-for="item in related">
 <a :href="'chi-tiet-dich-vu.html?id=' + item.id" class="group flex items-center gap-6 p-4 rounded-xl hover:bg-surface-container-low transition-colors">
 <div class="w-24 h-24 rounded-lg overflow-hidden shrink-0">
-<img loading="lazy" :alt="item.name" :src="item.image" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+<img decoding="async" loading="lazy" :alt="item.name" :src="item.image" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
 </div>
 <div>
 <h4 class="font-headline-sm text-headline-sm text-primary mb-2 group-hover:text-secondary transition-colors" x-text="item.name"></h4>
@@ -340,7 +363,7 @@
 <span aria-hidden="true" class="material-symbols-outlined">call</span>
 </a>
 </template>
-<a :href="bookingUrl()" class="bg-primary-container text-on-primary rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors active:scale-[0.98] px-6 min-h-[44px] flex items-center justify-center">Đặt Lịch Ngay</a>
+<a :href="bookingUrl()" class="bg-primary-container text-on-primary rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors active:scale-95 px-6 min-h-[44px] flex items-center justify-center">Đặt lịch ngay</a>
 </div>
 </div>
 </template>

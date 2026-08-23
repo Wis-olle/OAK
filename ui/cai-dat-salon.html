@@ -23,36 +23,28 @@
 <!-- Not deferred either: the map picker is built from the component's own init(). -->
 <script src="assets/js/leaflet-5a640ff863.js"></script>
 <link href="assets/css/leaflet-ec929f1100.css" rel="stylesheet">
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
-<style>
-        /* Same floating-label field as the login pages. */
-        .input-minimal {
-            border: none; border-bottom: 1px solid #c4c7c7; background-color: transparent;
-            padding: 12px 0; border-radius: 0; outline: none; box-shadow: none;
-            transition: border-color 0.3s ease; width: 100%;
-        }
-        .input-minimal:focus { border-bottom-color: #171818; box-shadow: none; }
-        .floating-label {
-            position: absolute; top: 12px; left: 0; pointer-events: none;
-            transition: 0.3s ease all; color: #747878;
-        }
-        .input-minimal:focus ~ .floating-label,
-        .input-minimal:not(:placeholder-shown) ~ .floating-label {
-            top: -12px; font-size: 12px; color: #171818;
-        }
-        /* Selects and textareas are never ":placeholder-shown", so their label stays raised. */
-        .input-minimal.always-raised ~ .floating-label { top: -12px; font-size: 12px; color: #171818; }
-    </style>
 <title>Cài đặt salon - OAK Beauty</title>
 <meta content="noindex,nofollow" name="robots">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
 <body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="salonSettings()">
-<a class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary focus:border focus:border-outline-variant focus:shadow-lg font-body-md text-body-md" href="#main">Bỏ qua đến nội dung</a>
+<a class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary focus:border focus:border-primary focus:shadow-lg font-body-md text-body-md" data-oak-skip href="#main">Bỏ qua đến nội dung</a>
 <!-- SideNavBar -->
 <nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low p-gutter z-50">
 <div class="mb-12">
@@ -138,7 +130,7 @@
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="notifications">notifications</span>
 <span aria-hidden="true" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-error text-on-error font-caption text-[10px] hidden items-center justify-center" data-oak-pending-count></span>
 </a>
-<a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
+<a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="cai-dat-salon.html#tai-khoan">
 <span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 flex items-center justify-center">
 <span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant" data-oak-avatar-icon>person</span>
 <img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover hidden" data-oak-avatar-img/>
@@ -199,7 +191,7 @@
 <ul class="space-y-2">
 <template :key="item.key" x-for="item in publishChecks()">
 <li :class="item.done ? 'text-on-surface-variant' : 'text-on-surface'" class="flex items-center gap-3 font-body-md text-body-md">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-[#2e7d32]" x-show="item.done">check_circle</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-success" x-show="item.done">check_circle</span>
 <span aria-hidden="true" class="w-4 h-4 rounded-full border border-outline-variant shrink-0" x-show="!item.done"></span>
 <span x-text="item.label"></span>
 </li>
@@ -282,7 +274,7 @@
                     </button>
 <button @click="clearPin()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-error hover:text-error transition-colors" type="button" x-cloak x-show="hasPin">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">location_off</span>
-                        Xoá ghim
+                        Xóa ghim
                     </button>
 <span class="font-caption text-caption text-on-surface-variant" x-text="pinText"></span>
 </div>
@@ -378,7 +370,7 @@
 <span class="font-label-md text-label-md text-primary" x-text="dayRange(row)"></span>
 <span class="font-caption text-caption text-on-surface-variant" x-text="row.staff_id ? row.staff_name : 'Cả salon'"></span>
 <span class="font-caption text-caption text-on-surface-variant" x-show="row.reason" x-text="row.reason"></span>
-<button @click="removeTimeOff(row)" class="ml-auto font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-error transition-colors" type="button">Xoá</button>
+<button @click="removeTimeOff(row)" class="ml-auto font-label-md text-label-md uppercase tracking-wider text-on-surface-variant hover:text-error transition-colors" type="button">Xóa</button>
 </div>
 </template>
 <p class="font-body-md text-body-md text-on-surface-variant" x-show="timeOff.length === 0">Chưa khai báo ngày nghỉ nào.</p>
@@ -436,7 +428,7 @@
 <section class="bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
 <h3 class="font-headline-sm text-headline-sm text-on-background mb-6">Ảnh bìa</h3>
 <div class="aspect-[4/3] w-full rounded-xl overflow-hidden bg-surface-variant mb-4">
-<img loading="lazy" alt="Ảnh bìa salon" class="w-full h-full object-cover" x-cloak x-show="form.image" :src="form.image"/>
+<img decoding="async" width="600" height="450" loading="lazy" alt="Ảnh bìa salon" class="w-full h-full object-cover" x-cloak x-show="form.image" :src="form.image"/>
 <div class="w-full h-full flex flex-col items-center justify-center text-on-surface-variant" x-cloak x-show="!form.image">
 <span aria-hidden="true" class="material-symbols-outlined text-[40px]">add_photo_alternate</span>
 <p class="font-caption text-caption mt-2">Chưa có ảnh bìa</p>
@@ -457,7 +449,7 @@
 <div class="grid grid-cols-2 gap-4 mb-6" x-show="photos.length > 0">
 <template :key="photo.id" x-for="(photo, index) in photos">
 <div class="relative aspect-square rounded-xl overflow-hidden bg-surface-variant">
-<img loading="lazy" :alt="photo.caption || 'Ảnh salon'" :src="photo.image" class="w-full h-full object-cover"/>
+<img decoding="async" width="600" height="600" loading="lazy" :alt="photo.caption || 'Ảnh salon'" :src="photo.image" class="w-full h-full object-cover"/>
 <div class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 px-1 py-1 bg-surface/80 backdrop-blur">
 <button :disabled="index === 0 || photoBusy" @click="movePhoto(index, -1)" aria-label="Đưa ảnh lên trước" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">chevron_left</span>
@@ -465,7 +457,7 @@
 <button :disabled="index === photos.length - 1 || photoBusy" @click="movePhoto(index, 1)" aria-label="Đưa ảnh xuống sau" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">chevron_right</span>
 </button>
-<button :disabled="photoBusy" @click="removePhoto(photo)" aria-label="Xoá ảnh" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-error transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<button :disabled="photoBusy" @click="removePhoto(photo)" aria-label="Xóa ảnh" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-error transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">delete</span>
 </button>
 </div>
@@ -488,6 +480,84 @@
 </section>
 </div>
 </form>
+
+<!-- The owner's own account, in the console rather than on the customer profile page: the
+     avatar in the bar above leads here, and what a salon owner needs from that entry is
+     their name, their number, their password and the language, not a rail of appointments
+     and favourites. Outside the salon form on purpose; each half saves on its own request. -->
+<section class="mt-12 scroll-mt-24" id="tai-khoan" x-data="salonAccount()">
+<div class="mb-8">
+<h2 class="font-headline-lg text-headline-lg text-on-background">Tài khoản chủ salon</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2">Thông tin đăng nhập của bạn, tách khỏi thông tin salon ở trên.</p>
+</div>
+<template x-if="user">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+<div class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-6">Thông tin cá nhân</h3>
+<form @submit.prevent="saveProfile()" class="grid grid-cols-1 gap-y-8">
+<div class="relative pt-4">
+<input autocomplete="name" class="input-minimal font-body-md text-body-md text-primary" id="account-name" placeholder=" " required="" type="text" x-model="profile.name"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="account-name">Họ và tên</label>
+</div>
+<div class="relative pt-4">
+<input autocomplete="tel" class="input-minimal font-body-md text-body-md text-primary" id="account-phone" placeholder=" " type="tel" x-model="profile.phone"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="account-phone">Số điện thoại</label>
+</div>
+<p class="font-caption text-caption text-error" role="alert" x-cloak x-show="profileError" x-text="profileError"></p>
+<p class="font-caption text-caption text-primary" role="status" x-cloak x-show="profileNotice" x-text="profileNotice"></p>
+<div class="flex justify-end">
+<button :disabled="profileBusy" class="btn-primary" type="submit" x-text="profileBusy ? 'Đang lưu…' : 'Lưu tài khoản'">Lưu tài khoản</button>
+</div>
+</form>
+<h3 class="font-headline-sm text-headline-sm text-on-background mt-12 mb-2">Ngôn ngữ hiển thị</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Áp dụng cho toàn bộ giao diện OAK Beauty.</p>
+<div aria-label="Ngôn ngữ hiển thị" class="flex flex-wrap gap-3" role="group">
+<button :aria-pressed="lang === 'vi'" :class="lang === 'vi' ? 'bg-secondary-container text-on-secondary-container font-bold' : 'text-on-surface-variant hover:bg-surface-container-high'" @click="setLang('vi')" class="px-6 py-3 rounded-full border border-outline-variant font-label-md text-label-md transition-colors" type="button">Tiếng Việt</button>
+<button :aria-pressed="lang === 'en'" :class="lang === 'en' ? 'bg-secondary-container text-on-secondary-container font-bold' : 'text-on-surface-variant hover:bg-surface-container-high'" @click="setLang('en')" class="px-6 py-3 rounded-full border border-outline-variant font-label-md text-label-md transition-colors" type="button">English</button>
+</div>
+</div>
+<!-- Security, the same form as the customer settings page: its own submit, and its outcome
+     beside the fields it is about rather than in a toast that leaves. -->
+<div class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Bảo mật</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-8">Đổi mật khẩu đăng nhập của bạn.</p>
+<form @submit.prevent="changePassword()" class="grid grid-cols-1 gap-y-8">
+<div class="relative pt-4">
+<input :type="showCurrent ? 'text' : 'password'" @input="delete passwordErrors.current" autocomplete="current-password" class="input-minimal font-body-md text-body-md text-primary pr-10" id="account-current-password" name="current_password" placeholder=" " required="" x-model="currentPassword"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="account-current-password">Mật khẩu hiện tại</label>
+<button :aria-pressed="showCurrent" @click="showCurrent = !showCurrent" aria-label="Hiện mật khẩu" class="absolute right-0 top-4 h-12 flex items-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" x-text="showCurrent ? 'visibility_off' : 'visibility'">visibility</span>
+</button>
+<p class="font-caption text-caption text-error mt-2" x-cloak x-show="passwordErrors.current" x-text="passwordErrors.current"></p>
+</div>
+<div class="relative pt-4">
+<input :type="showNew ? 'text' : 'password'" @input="delete passwordErrors.next" autocomplete="new-password" class="input-minimal font-body-md text-body-md text-primary pr-10" id="account-new-password" name="new_password" placeholder=" " required="" x-model="newPassword"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="account-new-password">Mật khẩu mới</label>
+<button :aria-pressed="showNew" @click="showNew = !showNew" aria-label="Hiện mật khẩu" class="absolute right-0 top-4 h-12 flex items-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" x-text="showNew ? 'visibility_off' : 'visibility'">visibility</span>
+</button>
+<p class="font-caption text-caption text-on-surface-variant mt-2" x-cloak x-show="!passwordErrors.next">Tối thiểu 8 ký tự.</p>
+<p class="font-caption text-caption text-error mt-2" x-cloak x-show="passwordErrors.next" x-text="passwordErrors.next"></p>
+</div>
+<div class="relative pt-4">
+<input :type="showConfirm ? 'text' : 'password'" @input="delete passwordErrors.confirm" autocomplete="new-password" class="input-minimal font-body-md text-body-md text-primary pr-10" id="account-confirm-password" name="confirm_password" placeholder=" " required="" x-model="confirmPassword"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="account-confirm-password">Xác nhận mật khẩu mới</label>
+<button :aria-pressed="showConfirm" @click="showConfirm = !showConfirm" aria-label="Hiện mật khẩu" class="absolute right-0 top-4 h-12 flex items-center text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" x-text="showConfirm ? 'visibility_off' : 'visibility'">visibility</span>
+</button>
+<p class="font-caption text-caption text-error mt-2" x-cloak x-show="passwordErrors.confirm" x-text="passwordErrors.confirm"></p>
+</div>
+<p class="font-caption text-caption text-error" role="alert" x-cloak x-show="passwordError" x-text="passwordError"></p>
+<p class="font-caption text-caption text-primary" role="status" x-cloak x-show="passwordNotice" x-text="passwordNotice"></p>
+<p class="font-caption text-caption text-on-surface-variant">Đổi mật khẩu sẽ đăng xuất mọi thiết bị khác.</p>
+<div class="flex justify-end">
+<button :disabled="passwordBusy" class="btn-primary" type="submit" x-text="passwordBusy ? 'Đang đổi mật khẩu…' : 'Đổi mật khẩu'">Đổi mật khẩu</button>
+</div>
+</form>
+</div>
+</div>
+</template>
+</section>
 </main>
 <!-- Unsaved-changes bar. The Save button lives at the foot of the right-hand column,
      which on a phone is five sections of scrolling away. Sits above the bottom nav. -->
@@ -501,7 +571,7 @@
 <!-- Confirm Leave Modal — a console link would drop whatever is typed without a word. -->
 <div @keydown.escape.window="leaveOpen = false" aria-labelledby="leave-title" aria-modal="true" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="leaveOpen">
 <div @click="leaveOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="leaveOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
-<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-md border border-outline-variant/20 flex flex-col" x-show="leaveOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="oak-dialog transform overflow-hidden transition-all sm:w-full sm:max-w-md flex flex-col" x-show="leaveOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <div class="px-6 py-6 border-b border-outline-variant/20">
 <h3 class="font-headline-sm text-headline-sm text-primary" id="leave-title">Rời trang khi chưa lưu?</h3>
 </div>
@@ -509,10 +579,10 @@
 <p class="font-body-md text-body-md text-on-surface-variant">Mọi thay đổi chưa lưu sẽ bị mất.</p>
 </div>
 <div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4">
-<button @click="leaveOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+<button @click="leaveOpen = false" class="btn-secondary" type="button">
                     Ở lại
                 </button>
-<button @click="leave()" class="px-8 py-3 bg-error text-on-error font-label-md text-label-md uppercase tracking-wider hover:bg-error/90 transition-colors rounded-full" type="button">
+<button @click="leave()" class="btn-danger" type="button">
                     Rời trang
                 </button>
 </div>
@@ -521,7 +591,7 @@
 <!-- Confirm Undo Modal -->
 <div @keydown.escape.window="confirmOpen = false" aria-labelledby="confirm-title" aria-modal="true" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="confirmOpen">
 <div @click="confirmOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
-<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-md border border-outline-variant/20 flex flex-col" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="oak-dialog transform overflow-hidden transition-all sm:w-full sm:max-w-md flex flex-col" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <div class="px-6 py-6 border-b border-outline-variant/20">
 <h3 class="font-headline-sm text-headline-sm text-primary" id="confirm-title">Xác nhận hoàn tác</h3>
 </div>
@@ -529,10 +599,10 @@
 <p class="font-body-md text-body-md text-on-surface-variant">Mọi thay đổi chưa lưu sẽ bị bỏ.</p>
 </div>
 <div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4">
-<button @click="confirmOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+<button @click="confirmOpen = false" class="btn-secondary" type="button">
                     Giữ lại
                 </button>
-<button @click="undo()" class="px-8 py-3 bg-error text-on-error font-label-md text-label-md uppercase tracking-wider hover:bg-error/90 transition-colors rounded-full" type="button">
+<button @click="undo()" class="btn-danger" type="button">
                     Hoàn tác
                 </button>
 </div>
@@ -1037,7 +1107,7 @@
                     // public list (the server does it), so the switch above has to be re-read
                     // or it would go on saying "Đang hiển thị trên OAK" about a draft.
                     await this.refreshPublished();
-                    OAK.toast('Đã xoá ảnh.');
+                    OAK.toast('Đã xóa ảnh.');
                 } catch (error) {
                     this.photoError = error.message;
                 }
@@ -1176,16 +1246,16 @@
                     if (city && !mentions(address, city)) {
                         full.push(city);
                     }
-                    rungs.push({ q: full.join(', '), note: 'Đang tìm địa chỉ...' });
+                    rungs.push({ q: full.join(', '), note: 'Đang tìm địa chỉ…' });
 
                     var withoutDistrict = [address];
                     if (city && !mentions(address, city)) {
                         withoutDistrict.push(city);
                     }
-                    rungs.push({ q: withoutDistrict.join(', '), note: 'Đang thử bỏ quận/huyện...' });
+                    rungs.push({ q: withoutDistrict.join(', '), note: 'Đang thử bỏ quận/huyện…' });
                 }
                 if (this.areaQuery) {
-                    rungs.push({ q: this.areaQuery, note: 'Đang thử tìm theo khu vực...' });
+                    rungs.push({ q: this.areaQuery, note: 'Đang thử tìm theo khu vực…' });
                 }
                 /* Repeating a rung would only spend the rate limit twice for one answer. */
                 var seen = [];
@@ -1205,7 +1275,7 @@
 
             searchPlace() {
                 var query = String(this.placeQuery || '').trim();
-                var rungs = query ? [{ q: query, note: 'Đang tìm địa điểm...' }] : [];
+                var rungs = query ? [{ q: query, note: 'Đang tìm địa điểm…' }] : [];
                 return this.runLookups(rungs, '');
             },
 
@@ -1403,7 +1473,7 @@
                     await OAK.api('/api/partner/time-off/' + row.id, { method: 'DELETE' });
                     this.timeOffAffected = 0;
                     await this.loadTimeOff();
-                    OAK.toast('Đã xoá ngày nghỉ.');
+                    OAK.toast('Đã xóa ngày nghỉ.');
                 } catch (error) {
                     this.timeOffError = error.message;
                 }
@@ -1443,7 +1513,7 @@
                         body: { filename: file.name, data: dataUrl },
                     });
                     this.form.image = uploaded.url;
-                    OAK.toast('Đã tải ảnh lên, nhớ bấm Lưu thay đổi.');
+                    OAK.toast('Đã tải ảnh lên, nhớ bấm Lưu thay đổi.', 'info');
                 } catch (uploadError) {
                     this.error = uploadError.message;
                 }
@@ -1511,6 +1581,106 @@
                     OAK.toast(saveError.message, 'error');
                 }
                 this.saving = false;
+            },
+        };
+    }
+
+    /* The owner's own account. Its own component rather than three more fields on
+       salonSettings(): none of it belongs to the salon, none of it is part of the unsaved
+       -changes state that guards leaving the page, and each half saves on its own request. */
+    function salonAccount() {
+        return {
+            user: null,
+            lang: window.OAKI18N.lang,
+            profile: { name: '', phone: '' },
+            profileError: '',
+            profileNotice: '',
+            profileBusy: false,
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: '',
+            showCurrent: false,
+            showNew: false,
+            showConfirm: false,
+            passwordErrors: {},
+            passwordError: '',
+            passwordNotice: '',
+            passwordBusy: false,
+
+            /* OAK.me() is memoized, so this is the same answer the rest of the page got. */
+            async init() {
+                this.user = await OAK.me();
+                if (this.user) {
+                    this.profile.name = this.user.name || '';
+                    this.profile.phone = this.user.phone || '';
+                }
+            },
+
+            async saveProfile() {
+                this.profileError = '';
+                this.profileNotice = '';
+                this.profileBusy = true;
+                try {
+                    const data = await OAK.api('/api/users/me', {
+                        method: 'PATCH',
+                        body: { name: this.profile.name.trim(), phone: this.profile.phone.trim() },
+                    });
+                    this.user = data.user;
+                    // Echoed back from what was stored: the server folds a number to one shape.
+                    this.profile.phone = data.user.phone || '';
+                    this.profileNotice = 'Đã cập nhật tài khoản.';
+                } catch (error) {
+                    this.profileError = error.message;
+                } finally {
+                    this.profileBusy = false;
+                }
+            },
+
+            /** oak-i18n.js stores the choice and reloads the page, so nothing here survives it. */
+            setLang(code) {
+                if (code !== this.lang) {
+                    window.OAKI18N.set(code);
+                }
+            },
+
+            /** Client-side gate; the server checks the current password and the length again. */
+            async changePassword() {
+                this.passwordError = '';
+                this.passwordNotice = '';
+                const errors = {};
+                if (!this.currentPassword) {
+                    errors.current = 'Vui lòng nhập mật khẩu hiện tại.';
+                }
+                if (this.newPassword.length < 8) {
+                    errors.next = 'Mật khẩu mới phải có ít nhất 8 ký tự.';
+                }
+                if (this.confirmPassword !== this.newPassword) {
+                    errors.confirm = 'Mật khẩu xác nhận không khớp.';
+                }
+                this.passwordErrors = errors;
+                if (Object.keys(errors).length) {
+                    return;
+                }
+                this.passwordBusy = true;
+                try {
+                    await OAK.api('/api/auth/change-password', {
+                        method: 'POST',
+                        body: {
+                            current_password: this.currentPassword,
+                            new_password: this.newPassword,
+                        },
+                    });
+                    // Cleared on success only: after a wrong current password the owner
+                    // should not have to retype the two new ones as well.
+                    this.currentPassword = '';
+                    this.newPassword = '';
+                    this.confirmPassword = '';
+                    this.passwordNotice = 'Đã đổi mật khẩu.';
+                } catch (error) {
+                    this.passwordError = error.message;
+                } finally {
+                    this.passwordBusy = false;
+                }
             },
         };
     }

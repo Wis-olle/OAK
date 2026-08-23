@@ -235,7 +235,7 @@ test('what is erased is erased, and what is not is anonymous', () => {
   // The bookings and the reviews stay: a salon's own history and the ratings other
   // customers read are not one person's to withdraw. The row behind them carries no name.
   assert.doesNotMatch(remove, /DELETE FROM (bookings|reviews)/);
-  assert.match(usersSource, /SET name = 'Người dùng đã xoá'/);
+  assert.match(usersSource, /SET name = 'Người dùng đã xóa'/);
   assert.match(usersSource, /phone = NULL/);
   assert.match(usersSource, /avatar = NULL/);
   assert.match(usersSource, /marketing_opt_in = 0/);
@@ -248,7 +248,7 @@ test('what is erased is erased, and what is not is anonymous', () => {
   assert.match(remove, /ANONYMISE_BOOKING_CONTACT, req\.user\.id/);
   assert.match(
     usersSource,
-    /UPDATE bookings SET customer_name = 'Người dùng đã xoá', customer_phone = NULL/,
+    /UPDATE bookings SET customer_name = 'Người dùng đã xóa', customer_phone = NULL/,
   );
 });
 

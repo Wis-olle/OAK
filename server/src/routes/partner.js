@@ -136,6 +136,19 @@ function optionalText(value, label) {
   return value.trim() === '' ? null : value.trim();
 }
 
+/**
+ * An optional image path that will be rendered back into a public <img>/:src binding.
+ * Same guard, same message as the gallery-photo sink below and the avatar and post-image
+ * sinks elsewhere: text is not enough, because 'javascript:…' is text too.
+ */
+function optionalMediaUrl(value, label) {
+  const url = optionalText(value, label);
+  if (!isSafeMediaUrl(url)) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Đường dẫn ảnh không hợp lệ.');
+  }
+  return url;
+}
+
 /** Optional free text with a ceiling, so a textarea cannot become an essay in the column. */
 function optionalLimitedText(value, label, max) {
   const text = optionalText(value, label);
@@ -284,14 +297,19 @@ function formatDateVN(iso) {
 // What the cancel dialog writes into the note, and the only line of it the customer is
 // shown. Matched by its prefix rather than by position: the note also holds the customer's
 // own request, and quoting that back as "the reason we cancelled" would be a lie.
-const CANCEL_REASON_PREFIX = 'Lý do huỷ:';
+//
+// Both spellings of the word are accepted. Vietnamese puts the dấu on either vowel, the
+// dialogs write 'Lý do hủy:' since Phase 4, and the rows written before that carry the
+// other one. Matching only the settled spelling would not fail anywhere — it would quietly
+// stop showing the customer the reason their appointment was cancelled.
+const CANCEL_REASON_MATCH = /^Lý do h(?:ủy|uỷ):/;
 
 function cancelReasonLine(note) {
   const line = String(note ?? '')
     .split('\n')
     .map((entry) => entry.trim())
     .reverse()
-    .find((entry) => entry.startsWith(CANCEL_REASON_PREFIX));
+    .find((entry) => CANCEL_REASON_MATCH.test(entry));
   if (!line) {
     return null;
   }
@@ -640,9 +658,9 @@ const BOOKING_NOTIFICATIONS = {
   // elsewhere — so the reason the console just wrote into the note travels with the
   // message, and so does the way back in.
   cancelled: (salon, booking) => ({
-    title: 'Lịch hẹn đã bị huỷ',
+    title: 'Lịch hẹn đã bị hủy',
     body: [
-      `${salon.name} đã huỷ lịch hẹn ${booking.code} ngày ${formatDateVN(booking.date)} lúc ${booking.time}.`,
+      `${salon.name} đã hủy lịch hẹn ${booking.code} ngày ${formatDateVN(booking.date)} lúc ${booking.time}.`,
       cancelReasonLine(booking.note),
       `Bạn có thể đặt lại tại ${salon.name}.`,
     ]
@@ -1336,7 +1354,7 @@ const SERVICE_COLUMNS = {
   description: (value) => optionalText(value, 'Mô tả'),
   price: (value) => requireCount(value, 'Giá dịch vụ'),
   duration_min: (value) => requireCount(value, 'Thời lượng'),
-  image: (value) => optionalText(value, 'Ảnh dịch vụ'),
+  image: (value) => optionalMediaUrl(value, 'Ảnh dịch vụ'),
   // A service whose price depends on hair length or nail set is quoted as a floor, not a
   // figure: the customer pages read this and print "từ 250.000đ" instead of the price.
   price_is_from: (value) => requireFlag(value, 'Giá từ'),
@@ -1478,7 +1496,7 @@ router.delete('/services/:id', async (req, res, next) => {
       throw httpError(
         409,
         'HAS_BOOKINGS',
-        'Dịch vụ đã phát sinh lịch hẹn nên không thể xoá. Bạn có thể tạm ẩn dịch vụ.',
+        'Dịch vụ đã phát sinh lịch hẹn nên không thể xóa. Bạn có thể tạm ẩn dịch vụ.',
       );
     }
 
@@ -1495,7 +1513,7 @@ router.delete('/services/:id', async (req, res, next) => {
         throw httpError(
           409,
           'HAS_BOOKINGS',
-          'Dịch vụ đã phát sinh lịch hẹn hoặc đánh giá nên không thể xoá. Bạn có thể tạm ẩn dịch vụ.',
+          'Dịch vụ đã phát sinh lịch hẹn hoặc đánh giá nên không thể xóa. Bạn có thể tạm ẩn dịch vụ.',
         );
       }
       throw error;
@@ -1555,7 +1573,7 @@ const STAFF_COLUMNS = {
   name: (value) => requireText(value, 'tên kỹ thuật viên'),
   title: (value) => optionalText(value, 'Chức danh'),
   specialty: (value) => optionalText(value, 'Chuyên môn'),
-  image: (value) => optionalText(value, 'Ảnh đại diện'),
+  image: (value) => optionalMediaUrl(value, 'Ảnh đại diện'),
   // Patchable so a soft-deleted technician (DELETE sets active = 0) can be restored.
   active: (value) => requireFlag(value, 'Trạng thái hoạt động'),
 };
@@ -2007,7 +2025,7 @@ const PROMOTION_COLUMNS = {
   original_price: (value) => optionalCount(value, 'Giá gốc'),
   sale_price: (value) => optionalCount(value, 'Giá ưu đãi'),
   service_ids: (value) => requireServiceIdList(value, 'Danh sách dịch vụ'),
-  image: (value) => optionalText(value, 'Ảnh ưu đãi'),
+  image: (value) => optionalMediaUrl(value, 'Ảnh ưu đãi'),
   starts_at: (value) => requireDate(value, 'Ngày bắt đầu'),
   ends_at: (value) => requireDate(value, 'Ngày kết thúc'),
   active: (value) => requireFlag(value, 'Trạng thái hiển thị'),
@@ -2406,7 +2424,7 @@ const SALON_COLUMNS = {
   district: (value) => optionalText(value, 'Quận/Huyện'),
   city: (value) => optionalText(value, 'Tỉnh/Thành phố'),
   phone: (value) => optionalText(value, 'Số điện thoại'),
-  image: (value) => optionalText(value, 'Ảnh đại diện'),
+  image: (value) => optionalMediaUrl(value, 'Ảnh đại diện'),
   lat: (value) => optionalCoordinate(value, 'Vĩ độ', 90),
   lng: (value) => optionalCoordinate(value, 'Kinh độ', 180),
   amenities: (value) => requireJsonStringArray(value, 'Tiện ích'),
@@ -2416,8 +2434,8 @@ const SALON_COLUMNS = {
   lead_time_min: (value) =>
     requireOneOf(toChoice(value), LEAD_TIME_CHOICES, 'Thời gian báo trước không hợp lệ.'),
   cancel_cutoff_hours: (value) =>
-    requireOneOf(toChoice(value), CANCEL_CUTOFF_CHOICES, 'Hạn huỷ không hợp lệ.'),
-  cancel_policy_text: (value) => optionalLimitedText(value, 'Chính sách huỷ', CANCEL_POLICY_MAX),
+    requireOneOf(toChoice(value), CANCEL_CUTOFF_CHOICES, 'Hạn hủy không hợp lệ.'),
+  cancel_policy_text: (value) => optionalLimitedText(value, 'Chính sách hủy', CANCEL_POLICY_MAX),
   published: (value) => requireFlag(value, 'Hiển thị trên OAK'),
 };
 

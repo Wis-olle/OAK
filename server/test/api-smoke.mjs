@@ -34,6 +34,10 @@ const TEST_DATABASE_URL =
 const HEALTH_TIMEOUT_MS = 15000;
 const HEALTH_INTERVAL_MS = 200;
 const BODY_PREVIEW_CHARS = 300;
+/* The account routes/posts.js is told to trust with moderation, handed to the server this
+   suite spawns. In external mode the server was started by somebody else, so the blocks
+   that need it say so and step around it. */
+const ADMIN_EMAIL = 'hoangyen@oak.vn';
 const PNG_1X1 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
@@ -225,7 +229,14 @@ const childOutput = [];
 function spawnServer() {
   const child = spawn(process.execPath, ['src/index.js'], {
     cwd: serverRoot,
-    env: { ...process.env, PORT: String(TEST_PORT), DATABASE_URL: TEST_DATABASE_URL },
+    env: {
+      ...process.env,
+      PORT: String(TEST_PORT),
+      DATABASE_URL: TEST_DATABASE_URL,
+      // Who may hide a post. An address, not a role: hoangyen@oak.vn is an ordinary
+      // customer account, which is what makes the check worth testing.
+      ADMIN_EMAILS: ADMIN_EMAIL,
+    },
   });
   child.stdout.on('data', (chunk) => childOutput.push(String(chunk)));
   child.stderr.on('data', (chunk) => childOutput.push(String(chunk)));
@@ -2349,12 +2360,139 @@ async function groupPosts() {
     }
   }
 
+  /* Writing to the public feed is throttled per account, and only a post that actually
+     lands spends the allowance: everything above this line was either refused or one of
+     the two the customer has already published. */
+  const throttled = [];
+  for (let n = 3; n <= 5; n += 1) {
+    throttled.push(ok(
+      await customer.fetch('/api/posts', {
+        method: 'POST',
+        json: { type: 'article', title: `Bài chạm hạn mức ${n}`, content: 'Nội dung kiểm thử.' },
+      }),
+      `POST /api/posts (${n} of five in the hour)`,
+    ));
+  }
+  expectError(
+    await customer.fetch('/api/posts', {
+      method: 'POST',
+      json: { type: 'article', title: 'Bài thứ sáu trong giờ', content: 'Vượt hạn mức.' },
+    }),
+    429,
+    'RATE_LIMITED',
+    'POST /api/posts beyond five in one hour',
+  );
+
+  /* Moderation: a post leaves the public feed without anybody's words being deleted, and
+     only an account named in ADMIN_EMAILS can do it. */
+  const moderated = throttled[0];
+  expectError(
+    await customer.fetch(`/api/posts/${moderated.id}/status`, { method: 'PATCH', json: { status: 'hidden' } }),
+    403,
+    'FORBIDDEN',
+    'PATCH /api/posts/:id/status as the post\'s own author',
+  );
+  if (EXTERNAL_URL) {
+    skip('hiding a post: the running server declares its own ADMIN_EMAILS');
+  } else {
+    const admin = session('customer2');
+    ok(
+      await admin.fetch(`/api/posts/${moderated.id}/status`, { method: 'PATCH', json: { status: 'hidden' } }),
+      'PATCH /api/posts/:id/status as an admin',
+    );
+    const feed = ok(await guest.fetch('/api/posts?limit=50'), 'GET /api/posts after hiding one');
+    assert(feed.every((post) => post.id !== moderated.id), 'moderation: a hidden post must leave the public feed');
+    expectError(
+      await guest.fetch(`/api/posts/${moderated.slug}`),
+      404,
+      'NOT_FOUND',
+      'hidden post at its own address',
+    );
+    expectError(
+      await admin.fetch(`/api/posts/${moderated.id}/status`, { method: 'PATCH', json: { status: 'draft' } }),
+      400,
+      'VALIDATION_ERROR',
+      'PATCH /api/posts/:id/status with a status nobody defined',
+    );
+    ok(
+      await admin.fetch(`/api/posts/${moderated.id}/status`, { method: 'PATCH', json: { status: 'published' } }),
+      'PATCH /api/posts/:id/status back to published',
+    );
+    const restored = ok(await guest.fetch('/api/posts?limit=50'), 'GET /api/posts after publishing it again');
+    assert(restored.some((post) => post.id === moderated.id), 'moderation: publishing must put it back');
+  }
+
   ok(await customer.fetch(`/api/posts/${first.id}`, { method: 'DELETE' }), 'customer DELETE own post with comments');
   expectError(await guest.fetch(`/api/posts/${first.slug}`), 404, 'NOT_FOUND', 'customer-deleted post public detail');
-  ok(await customer.fetch(`/api/posts/${social.id}/comments`, { method: 'POST', json: { content: 'Sẽ bị xoá cùng bài.' } }), 'comment before owned post deletion');
+  ok(await customer.fetch(`/api/posts/${social.id}/comments`, { method: 'POST', json: { content: 'Sẽ bị xóa cùng bài.' } }), 'comment before owned post deletion');
   ok(await partnerA.fetch(`/api/posts/${social.id}`, { method: 'DELETE' }), 'DELETE /api/posts/:id as owner');
   expectError(await guest.fetch(`/api/posts/${social.slug}`), 404, 'NOT_FOUND', 'deleted post public detail');
   expectError(await partnerA.fetch(`/api/posts/${social.id}`, { method: 'DELETE' }), 404, 'NOT_FOUND', 'deleting an already deleted post');
+}
+
+/* ============================================================================
+ * 11b — sitemap
+ * ========================================================================= */
+
+/* The map a crawler reads. The pages half is the committed ui/sitemap.xml (pinned by
+   server/test/seo-ui.test.mjs); what is asserted here is the half that can only come from
+   the database — one entry per listed salon and per published post, in place of the four
+   query-driven shells that render "not found" without a ?slug. */
+async function groupSitemap() {
+  const guest = session('guest');
+
+  const response = await guest.fetch('/sitemap.xml');
+  assert(response.status === 200, 'GET /sitemap.xml: expected HTTP 200', response);
+  assert(String(response.contentType).includes('xml'), 'sitemap: expected an XML content type', response);
+  const xml = String(response.body);
+  const locations = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
+
+  const origin = locations[0].replace(/\/$/, '');
+  assert(
+    locations.every((loc) => loc.startsWith(`${origin}/`)),
+    'sitemap: every URL must be on the one origin the site declares for itself',
+    response,
+  );
+
+  const salonsResponse = await guest.fetch('/api/salons?limit=50');
+  const salons = ok(salonsResponse, 'GET /api/salons for the sitemap');
+  const listed = locations.filter((loc) => loc.includes('salon-profile.html?salon='));
+  assert(
+    listed.length === salonsResponse.body.meta.total,
+    `sitemap: ${listed.length} salon URLs for ${salonsResponse.body.meta.total} listed salons`,
+    response,
+  );
+  for (const salon of salons) {
+    assert(
+      locations.includes(`${origin}/salon-profile.html?salon=${salon.slug}`),
+      `sitemap: ${salon.slug} is on the public list but not in the map`,
+      response,
+    );
+  }
+
+  const posts = ok(await guest.fetch('/api/posts?limit=50'), 'GET /api/posts for the sitemap');
+  for (const post of posts) {
+    assert(
+      locations.includes(`${origin}/blog-chi-tiet.html?slug=${encodeURIComponent(post.slug)}`),
+      `sitemap: the published post ${post.slug} is missing from the map`,
+      response,
+    );
+  }
+
+  // The shells themselves are replaced, not added to: a bare salon-profile.html or a
+  // service page with no ?id is a "không tìm thấy" panel with a brand's name on it.
+  for (const shell of ['salon-profile.html', 'blog-chi-tiet.html', 'chi-tiet-dich-vu.html', 'ho-so-chuyen-gia.html']) {
+    assert(
+      !locations.includes(`${origin}/${shell}`),
+      `sitemap: ${shell} is listed without the query that gives it something to show`,
+      response,
+    );
+  }
+  assert(
+    locations.includes(`${origin}/`) && locations.includes(`${origin}/blog.html`),
+    'sitemap: the ordinary pages must still be in it',
+    response,
+  );
 }
 
 /* ============================================================================
@@ -2702,13 +2840,13 @@ async function groupPartner() {
   ok(
     await partner.fetch(`/api/partner/bookings/${linked.id}`, {
       method: 'PATCH',
-      json: { status: 'cancelled', note: `Khách xin ngồi gần cửa sổ\nLý do huỷ: ${reason}` },
+      json: { status: 'cancelled', note: `Khách xin ngồi gần cửa sổ\nLý do hủy: ${reason}` },
     }),
     'PATCH /api/partner/bookings/:id (cancel with a reason)',
   );
   const cancelNoticesResponse = await customerSession.fetch('/api/notifications?limit=50');
   const cancelNotice = ok(cancelNoticesResponse, 'GET /api/notifications after the console cancel')
-    .find((item) => item.booking_id === linked.id && /đã huỷ lịch hẹn/.test(item.body ?? ''));
+    .find((item) => item.booking_id === linked.id && /đã hủy lịch hẹn/.test(item.body ?? ''));
   assert(cancelNotice !== undefined, 'cancel: expected the customer to be told', cancelNoticesResponse);
   assert(
     cancelNotice.body.includes(reason),
@@ -2762,6 +2900,22 @@ async function groupPartner() {
     'PATCH /api/partner/services/:id',
   );
   assert(toggled.active === 0 && toggled.price === 210000, 'partner service patch: expected the new values');
+
+  /* A service picture is rendered into an <img> on the menu and the service page, so the
+     same rule as the salon cover holds here. */
+  for (const value of ['javascript:alert(1)', 'data:text/html,<script>alert(1)</script>']) {
+    expectError(
+      await partner.fetch(`/api/partner/services/${blocked.id}`, { method: 'PATCH', json: { image: value } }),
+      400,
+      'VALIDATION_ERROR',
+      `PATCH /api/partner/services/:id with ${value.slice(0, 16)}…`,
+    );
+  }
+  const imaged = ok(
+    await partner.fetch(`/api/partner/services/${blocked.id}`, { method: 'PATCH', json: { image: '/uploads/ok.webp' } }),
+    'PATCH /api/partner/services/:id with an uploaded path',
+  );
+  assert(imaged.image === '/uploads/ok.webp', 'partner service: a safe image path must be stored');
 
   // "Tạm ẩn dịch vụ" must actually hide it: gone from the customer side, still there
   // for the owner who hid it.
@@ -2844,7 +2998,7 @@ async function groupPartner() {
   const disposable = ok(
     await partner.fetch('/api/partner/services', {
       method: 'POST',
-      json: { name: 'Dịch vụ kiểm thử (xoá được)', category: 'nail', price: 99000, duration_min: 20 },
+      json: { name: 'Dịch vụ kiểm thử (xóa được)', category: 'nail', price: 99000, duration_min: 20 },
     }),
     'POST /api/partner/services (disposable)',
   );
@@ -2885,6 +3039,22 @@ async function groupPartner() {
     'PATCH /api/partner/staff/:id',
   );
   assert(renamed.name === 'KTV Đã Đổi Tên', 'partner staff patch: expected the new name');
+
+  /* A technician's photo ends up in an <img> on the salon profile, like the cover and the
+     service picture, so the whole router holds stored images to one rule. */
+  for (const value of ['javascript:alert(1)', 'data:text/html,<script>alert(1)</script>']) {
+    expectError(
+      await partner.fetch(`/api/partner/staff/${newStaff.id}`, { method: 'PATCH', json: { image: value } }),
+      400,
+      'VALIDATION_ERROR',
+      `PATCH /api/partner/staff/:id with ${value.slice(0, 16)}…`,
+    );
+  }
+  const pictured = ok(
+    await partner.fetch(`/api/partner/staff/${newStaff.id}`, { method: 'PATCH', json: { image: '/uploads/ok.webp' } }),
+    'PATCH /api/partner/staff/:id with an uploaded path',
+  );
+  assert(pictured.image === '/uploads/ok.webp', 'partner staff: a safe image path must be stored');
 
   const rescheduled = ok(
     await partner.fetch(`/api/partner/staff/${newStaff.id}/schedule`, {
@@ -3013,6 +3183,27 @@ async function groupPartner() {
   ok(
     await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { tags: salon.tags } }),
     'PATCH /api/partner/salon (restore)',
+  );
+
+  /* The salon image is rendered straight into an <img> on the public profile, so it is
+     held to the same rule as the gallery, the avatar and a post image: a path or an http(s)
+     URL, never a scheme a browser would execute. */
+  for (const value of ['javascript:alert(1)', 'data:text/html,<script>alert(1)</script>']) {
+    expectError(
+      await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { image: value } }),
+      400,
+      'VALIDATION_ERROR',
+      `PATCH /api/partner/salon with ${value.slice(0, 16)}…`,
+    );
+  }
+  const restoredImage = ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { image: '/uploads/ok.webp' } }),
+    'PATCH /api/partner/salon with an uploaded path',
+  );
+  assert(restoredImage.image === '/uploads/ok.webp', 'partner salon: a safe image path must be stored');
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { image: salon.image } }),
+    'PATCH /api/partner/salon (restore the cover image)',
   );
 
   const socialLinks = {
@@ -4437,6 +4628,7 @@ async function main() {
   await group('09 notifications', groupNotifications);
   await group('10 promotions', groupPromotions);
   await group('11 posts', groupPosts);
+  await group('11b sitemap', groupSitemap);
   await group('12 users', groupUsers);
   await group('13 uploads', groupUploads);
   await group('14 partner', groupPartner);

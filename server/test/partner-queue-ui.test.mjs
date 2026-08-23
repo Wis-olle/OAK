@@ -5,6 +5,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
+import { bookingStatus } from './booking-status.mjs';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 
@@ -23,7 +25,7 @@ const CONSOLE_PAGES = [
    header up against a real document. */
 function dashboard(api, setPendingBadge) {
   const html = readUi('tong-quan-doi-tac.html');
-  const tail = html.slice(html.indexOf('var OAK_STATUS_LABELS'));
+  const tail = html.slice(html.indexOf('var OAK_SEARCH_TYPES'));
   const script = tail.slice(0, tail.lastIndexOf('oakPartnerChrome();'));
   const context = {
     // Enough of a document for the tab-title counter and the visibility-gated poll; the
@@ -270,7 +272,7 @@ test('the console bell stays in the console and is filled from one shared helper
 
 test('arriving with ?status opens the same window the bell counted, and says so', () => {
   const html = readUi('quan-ly-lich-hen.html');
-  assert.match(html, /Object\.prototype\.hasOwnProperty\.call\(OAK_STATUS_LABELS, status\)/);
+  assert.match(html, /OAK\.BOOKING_STATUSES\.indexOf\(status\) !== -1/);
   assert.match(html, /this\.upcoming = true;/);
   // No date bound at all: the grid cannot draw that, so it gives way to a list.
   assert.match(html, /if \(this\.upcoming\) \{[\s\S]*?params\.set\('from', OAK\.todayISO\(\)\);[\s\S]*?params\.set\('order', 'asc'\);/);
@@ -496,12 +498,13 @@ test('the queue is a block of its own, with both answers on every row', () => {
 });
 
 test('"Không đến" is a state of its own everywhere the console names one', () => {
+  // Its label and its chip tone are one table in oak-api.js now (design-tokens-ui pins the
+  // values); what each console page still owes is to read from it, and to offer the way back.
   for (const name of ['tong-quan-doi-tac.html', 'quan-ly-lich-hen.html']) {
-    const html = readUi(name);
-    assert.match(html, /no_show: 'Không đến'/, name);
+    assert.match(readUi(name), /OAK\.bookingStatus\(status\)\.label/, name);
   }
-  const dashboardHtml = readUi('tong-quan-doi-tac.html');
+  assert.equal(bookingStatus('no_show').label, 'Không đến');
   // Absent is not cancelled, and the two must never be painted the same.
-  assert.match(dashboardHtml, /no_show: 'bg-tertiary-container text-on-tertiary-container'/);
-  assert.match(dashboardHtml, /no_show: \['confirmed'\]/);
+  assert.notEqual(bookingStatus('no_show').class, bookingStatus('cancelled').class);
+  assert.match(readUi('tong-quan-doi-tac.html'), /no_show: \['confirmed'\]/);
 });

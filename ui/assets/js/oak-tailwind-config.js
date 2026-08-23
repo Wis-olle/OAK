@@ -31,6 +31,8 @@ tailwind.config = {
                 "tertiary-fixed-dim": "#cec6ad",
                 "on-tertiary-fixed": "#1f1c0b",
                 "on-tertiary-fixed-variant": "#4c4733",
+                "success": "#2e7d32",
+                "success-container": "#e8f5e9",
                 "error": "#ba1a1a",
                 "on-error": "#ffffff",
                 "error-container": "#ffdad6",
@@ -51,14 +53,14 @@ tailwind.config = {
                 "surface-container-highest": "#ffddb2",
                 "inverse-surface": "#402d0f",
                 "inverse-on-surface": "#ffeedc",
-                "outline": "#747878",
-                "outline-variant": "#c4c7c7"
+                "outline": "#5e6262",
+                "outline-variant": "#9a9e9e"
             },
             "borderRadius": {
                 "DEFAULT": "0.125rem",
                 "lg": "0.25rem",
                 "xl": "0.5rem",
-                "full": "0.75rem"
+                "full": "9999px"
             },
             "spacing": {
                 "gutter": "24px",

@@ -16,6 +16,17 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -100,7 +111,7 @@
 <ul class="space-y-5">
 <!-- Detail Item 1 -->
 <li class="flex items-start gap-4 pb-5 border-b border-outline-variant/30">
-<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1">spa</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant mt-1">spa</span>
 <div>
 <p class="font-body-md text-body-md font-medium text-on-surface" x-text="booking ? booking.service.name : ''"></p>
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-text="booking ? 'Dịch vụ • ' + booking.service.duration_min + ' phút' : ''"></p>
@@ -108,15 +119,15 @@
 </li>
 <!-- Detail Item 2 -->
 <li class="flex items-start gap-4 pb-5 border-b border-outline-variant/30">
-<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1">calendar_today</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant mt-1">calendar_today</span>
 <div>
 <p class="font-body-md text-body-md font-medium text-on-surface" x-text="timeLabel()"></p>
-<p class="font-caption text-caption text-on-surface-variant mt-1" x-text="dateLabel()"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1" x-text="booking ? OAK.fmtDate(booking.date, 'long') : ''"></p>
 </div>
 </li>
 <!-- Detail Item 3 -->
 <li class="flex items-start gap-4 pb-5 border-b border-outline-variant/30">
-<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1">location_on</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant mt-1">location_on</span>
 <div>
 <p class="font-body-md text-body-md font-medium text-on-surface" x-text="booking ? booking.salon.name : ''"></p>
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-text="booking ? booking.salon.address : ''"></p>
@@ -125,7 +136,7 @@
 </li>
 <!-- Detail Item 4 -->
 <li class="flex items-start gap-4 pb-5 border-b border-outline-variant/30">
-<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1">payments</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant mt-1">payments</span>
 <div>
 <p class="font-body-md text-body-md font-medium text-on-surface" x-text="booking ? OAK.fmtPrice(booking.total_price) : ''"></p>
 <!-- Not "Tổng thanh toán": a service priced "từ" is settled at the salon, and the
@@ -136,7 +147,7 @@
 </li>
 <!-- Detail Item 5 -->
 <li class="flex items-start gap-4 pb-5 border-b border-outline-variant/30">
-<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1">person</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant mt-1">person</span>
 <div>
 <p class="font-body-md text-body-md font-medium text-on-surface" x-text="booking ? (booking.staff ? booking.staff.name : 'Bất kỳ') : ''"></p>
 <p class="font-caption text-caption text-on-surface-variant mt-1">Chuyên viên</p>
@@ -144,7 +155,7 @@
 </li>
 <!-- Detail Item 6 -->
 <li class="flex items-start gap-4 pb-5 border-b border-outline-variant/30" x-cloak="" x-show="booking &amp;&amp; booking.note">
-<span aria-hidden="true" class="material-symbols-outlined text-outline mt-1">edit</span>
+<span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant mt-1">edit</span>
 <div>
 <p class="font-body-md text-body-md font-medium text-on-surface" x-text="booking ? booking.note : ''"></p>
 <p class="font-caption text-caption text-on-surface-variant mt-1">Ghi chú</p>
@@ -157,20 +168,20 @@
 <h3 class="font-label-md text-label-md text-on-surface uppercase tracking-wider mb-4">Điều kiện đặt lịch</h3>
 <ul class="flex flex-col gap-3">
 <li class="flex items-start gap-3">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="event_available">event_available</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="event_available">event_available</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="cancelPolicy()"></span>
 </li>
 <!-- The salon's own wording, when it wrote any. Its text, so it is never translated. -->
 <li class="flex items-start gap-3" x-cloak="" x-show="cancelPolicyNote()">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="storefront">storefront</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="storefront">storefront</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="cancelPolicyNote()"></span>
 </li>
 <li class="flex items-start gap-3">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="payments">payments</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="payments">payments</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.PAYMENT"></span>
 </li>
 <li class="flex items-start gap-3">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="info">info</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="info">info</span>
 <span class="font-body-md text-body-md text-on-surface-variant">Salon xác nhận lịch, bạn được báo trong mục Thông báo</span>
 </li>
 </ul>
@@ -182,12 +193,12 @@
 <h3 class="font-label-md text-label-md text-on-surface uppercase tracking-wider mb-4">Cần hỗ trợ?</h3>
 <div class="flex flex-col gap-3">
 <a :href="'tel:' + (booking &amp;&amp; booking.salon.phone ? booking.salon.phone.replace(/\s/g, '') : '')" class="flex items-center gap-3 font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" x-cloak="" x-show="booking &amp;&amp; booking.salon.phone">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="call">call</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="call">call</span>
 <span>Gọi salon</span>
 <span x-text="booking ? booking.salon.phone : ''"></span>
 </a>
 <a class="flex items-center gap-3 font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="lien-he.html">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="mail">mail</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="mail">mail</span>
 <span>Liên hệ OAK</span>
 </a>
 </div>
@@ -317,41 +328,44 @@
     const OAK_DEFAULT_CANCEL_HOURS = 2;
     const OAK_MINUTES_PER_HOUR = 60;
 
+    /* The glyphs are getters, not values: this map is built while the page's own inline
+       script runs, and window.OAK must not have to exist that early. Nothing reads one
+       until Alpine boots the factory below. */
     const OAK_CONFIRMATION_VIEW = {
         /* POST /api/bookings writes 'confirmed' when the salon takes bookings automatically
            and 'pending' when it decides by hand, so the view is picked from the status the
            server actually returned. Saying "thành công" for a pending one would be
            announcing something that has not happened yet. */
         pending: {
-            icon: 'schedule',
+            get icon() { return OAK.bookingStatus('pending').icon; },
             tone: 'text-secondary',
             title: 'Đã gửi yêu cầu',
             subtitle: 'đặt lịch',
             message: 'Salon sẽ xác nhận sớm — bạn được báo trong mục Thông báo và trang Lịch hẹn của tôi.',
         },
         confirmed: {
-            icon: 'check_circle',
+            get icon() { return OAK.bookingStatus('confirmed').icon; },
             tone: 'text-primary',
             title: 'Lịch hẹn',
             subtitle: 'đã xác nhận',
             message: 'Salon đã xác nhận lịch hẹn của bạn.',
         },
         cancelled: {
-            icon: 'cancel',
+            get icon() { return OAK.bookingStatus('cancelled').icon; },
             tone: 'text-error',
             title: 'Lịch hẹn',
             subtitle: 'đã hủy',
             message: 'Lịch hẹn này đã được hủy.',
         },
         no_show: {
-            icon: 'person_off',
+            get icon() { return OAK.bookingStatus('no_show').icon; },
             tone: 'text-error',
             title: 'Lịch hẹn',
             subtitle: 'ghi nhận không đến',
             message: 'Salon ghi nhận bạn không đến buổi hẹn này. Nếu có nhầm lẫn, vui lòng liên hệ salon.',
         },
         completed: {
-            icon: 'task_alt',
+            get icon() { return OAK.bookingStatus('completed').icon; },
             tone: 'text-primary',
             title: 'Lịch hẹn',
             subtitle: 'đã hoàn thành',
@@ -445,16 +459,8 @@
                 if (!this.booking) {
                     return '';
                 }
-                const weekday = OAK.fmtDate(this.booking.date).split(',')[0];
+                const weekday = OAK.fmtDate(this.booking.date, 'weekday');
                 return this.booking.time + ' - ' + this.endTime() + ', ' + weekday;
-            },
-
-            dateLabel() {
-                if (!this.booking) {
-                    return '';
-                }
-                const [year, month, day] = this.booking.date.split('-').map(Number);
-                return day + ' Tháng ' + month + ', ' + year;
             },
 
             /** 'YYYY-MM-DD' + 'HH:MM' -> the floating local stamp Google Calendar expects. */

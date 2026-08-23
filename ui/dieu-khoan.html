@@ -18,14 +18,25 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <title>Điều khoản sử dụng - OAK Beauty</title>
-<meta content="Điều khoản sử dụng OAK Beauty: quyền và nghĩa vụ khi tạo tài khoản, đặt lịch, huỷ lịch, thanh toán và các quy định dành cho salon đối tác trên nền tảng." name="description">
+<meta content="Điều khoản sử dụng OAK Beauty: quyền và nghĩa vụ khi tạo tài khoản, đặt lịch, hủy lịch, thanh toán và các quy định dành cho salon đối tác trên nền tảng." name="description">
 <meta content="Điều khoản sử dụng - OAK Beauty" property="og:title">
-<meta content="Điều khoản sử dụng OAK Beauty: quyền và nghĩa vụ khi tạo tài khoản, đặt lịch, huỷ lịch, thanh toán và các quy định dành cho salon đối tác trên nền tảng." property="og:description">
+<meta content="Điều khoản sử dụng OAK Beauty: quyền và nghĩa vụ khi tạo tài khoản, đặt lịch, hủy lịch, thanh toán và các quy định dành cho salon đối tác trên nền tảng." property="og:description">
 <meta content="website" property="og:type">
 <!-- og:image has no host in front of it: this build knows no domain of its own. -->
 <meta content="assets/images/hero-banner.webp" property="og:image">
@@ -36,6 +47,15 @@
 <!-- TopNavBar -->
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
+<!-- Every page draws itself with Alpine, and the bar above is written by script too, so
+     with scripting turned off there is nothing on screen and no way onward. This is that
+     way onward: one line, and the number that answers. -->
+<noscript>
+<div class="px-margin-mobile md:px-margin-desktop py-4 bg-secondary-container text-on-secondary-container font-body-md text-body-md text-center">
+<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gọi hotline để được hỗ trợ đặt lịch.</p>
+<a class="underline font-bold" href="tel:19006035">Gọi hotline 1900 6035</a>
+</div>
+</noscript>
 <!-- Main Content -->
 <main class="pt-20 flex-grow pb-section-gap">
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-16 pb-12">
@@ -45,15 +65,15 @@
 <nav aria-label="Mục lục điều khoản" class="mt-8 flex flex-wrap gap-2 max-w-3xl">
 <a class="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#ve-oak-beauty">Về OAK Beauty</a>
 <a class="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#tai-khoan">Tài khoản của bạn</a>
-<a class="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#huy-lich">Đặt lịch và huỷ lịch</a>
+<a class="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#huy-lich">Đặt lịch và hủy lịch</a>
 <a class="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#gia-va-thanh-toan">Giá và thanh toán</a>
 <a class="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#noi-dung-nguoi-dung">Nội dung do người dùng đăng</a>
 <a class="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#trach-nhiem">Trách nhiệm của các bên</a>
 <a class="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#doi-tac">Dành cho salon đối tác</a>
 <a class="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#thay-doi-dieu-khoan">Thay đổi điều khoản</a>
 </nav>
-<p class="font-caption text-caption text-outline mt-6">Cập nhật lần cuối: 23/08/2026 · Có hiệu lực từ: 23/08/2026</p>
-<p class="font-caption text-caption text-outline mt-2">Phiên bản 1.1 — bổ sung mục 7 dành cho salon đối tác.</p>
+<p class="font-caption text-caption text-on-surface-variant mt-6">Cập nhật lần cuối: 23/08/2026 · Có hiệu lực từ: 23/08/2026</p>
+<p class="font-caption text-caption text-on-surface-variant mt-2">Phiên bản 1.1 — bổ sung mục 7 dành cho salon đối tác.</p>
 </section>
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
 <div class="flex flex-col gap-gutter max-w-3xl">
@@ -66,7 +86,7 @@
 
 <article class="bg-surface-container-low rounded-2xl p-8 scroll-mt-24" id="tai-khoan">
 <h2 class="font-headline-sm text-headline-sm text-primary mb-4">2. Tài khoản của bạn</h2>
-<p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Để đặt lịch, bạn cần tạo tài khoản với họ tên, email và số điện thoại chính xác. Số điện thoại là kênh salon dùng để liên hệ xác nhận, nên thông tin sai có thể khiến lịch hẹn bị huỷ.</p>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Để đặt lịch, bạn cần tạo tài khoản với họ tên, email và số điện thoại chính xác. Số điện thoại là kênh salon dùng để liên hệ xác nhận, nên thông tin sai có thể khiến lịch hẹn bị hủy.</p>
 <ul class="flex flex-col gap-2 font-body-md text-body-md text-on-surface-variant list-disc pl-5 mb-4 last:mb-0">
 <li>Bạn chịu trách nhiệm giữ bí mật mật khẩu của mình và mọi hoạt động phát sinh từ tài khoản.</li>
 <li>Mỗi người chỉ nên dùng một tài khoản khách hàng. Tài khoản đối tác dành riêng cho chủ salon và nhân sự được uỷ quyền.</li>
@@ -75,11 +95,11 @@
 </article>
 
 <article class="bg-surface-container-low rounded-2xl p-8 scroll-mt-24" id="huy-lich">
-<h2 class="font-headline-sm text-headline-sm text-primary mb-4">3. Đặt lịch và huỷ lịch</h2>
+<h2 class="font-headline-sm text-headline-sm text-primary mb-4">3. Đặt lịch và hủy lịch</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Sau khi bạn đặt, salon xác nhận dựa trên khung giờ còn trống của salon và chuyên viên bạn chọn. Lịch chỉ được coi là chốt khi ở trạng thái Đã xác nhận; nếu salon không xác nhận hoặc từ chối, bạn nhận thông báo trong mục Thông báo. Bạn xem lại toàn bộ lịch hẹn của mình tại trang <a class="underline hover:text-primary transition-colors" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a>.</p>
-<p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0"><strong class="text-primary">Chính sách huỷ:</strong> mỗi salon tự đặt hạn huỷ online của mình, mặc định là <strong class="text-primary">2 tiếng</strong> trước giờ hẹn và có thể tới 48 tiếng. Mốc áp dụng cho lịch của bạn được ghi rõ trên trang salon, trong lúc đặt và tại Lịch hẹn của tôi. Sau mốc đó hệ thống không cho phép huỷ trực tuyến — vui lòng liên hệ trực tiếp salon.</p>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0"><strong class="text-primary">Chính sách hủy:</strong> mỗi salon tự đặt hạn hủy online của mình, mặc định là <strong class="text-primary">2 tiếng</strong> trước giờ hẹn và có thể tới 48 tiếng. Mốc áp dụng cho lịch của bạn được ghi rõ trên trang salon, trong lúc đặt và tại Lịch hẹn của tôi. Sau mốc đó hệ thống không cho phép hủy trực tuyến — vui lòng liên hệ trực tiếp salon.</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Sau giờ hẹn, salon có thể đánh dấu lịch là “Không đến”. Trạng thái này hiện trong Lịch hẹn của tôi và salon hoàn tác được nếu ghi nhận nhầm. Vắng mặt không báo trước nhiều lần có thể dẫn tới việc hạn chế quyền đặt lịch của tài khoản.</p>
-<p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Salon có quyền huỷ hoặc đề nghị dời lịch trong trường hợp bất khả kháng. Khi đó bạn sẽ nhận được thông báo trong mục Thông báo.</p>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Salon có quyền hủy hoặc đề nghị dời lịch trong trường hợp bất khả kháng. Khi đó bạn sẽ nhận được thông báo trong mục Thông báo.</p>
 </article>
 
 <article class="bg-surface-container-low rounded-2xl p-8 scroll-mt-24" id="gia-va-thanh-toan">
@@ -115,7 +135,7 @@
 <li><strong class="text-primary">Thông tin phải niêm yết:</strong> giá và thời lượng từng dịch vụ, giờ mở cửa từng ngày trong tuần, địa chỉ và số điện thoại liên hệ. Giá niêm yết là giá khách trả tại salon; phát sinh phải được báo trước khi thực hiện.</li>
 <li><strong class="text-primary">Phí dịch vụ:</strong> sử dụng nền tảng miễn phí đến hết 31/12/2026. Khi bắt đầu thu phí, OAK Beauty thông báo cho đối tác trước ít nhất 30 ngày; đối tác không đồng ý có thể ngừng hợp tác trước ngày áp dụng mà không mất phí.</li>
 <li><strong class="text-primary">Xác nhận lịch hẹn:</strong> salon xác nhận hoặc từ chối một yêu cầu đặt lịch trong vòng 4 giờ làm việc kể từ khi nhận. Yêu cầu chưa được trả lời sẽ tự đóng sau ngày hẹn và khách nhận thông báo; việc này có thể ảnh hưởng tới thứ tự hiển thị của salon.</li>
-<li><strong class="text-primary">Huỷ và vắng mặt:</strong> khách huỷ miễn phí cho tới hạn huỷ salon đặt trong Cài đặt salon (mặc định 2 tiếng), đúng như mục 3. Salon chỉ huỷ lịch đã xác nhận trong trường hợp bất khả kháng và phải báo cho khách qua nền tảng; huỷ nhiều lần không lý do có thể dẫn tới tạm ngừng hiển thị.</li>
+<li><strong class="text-primary">Hủy và vắng mặt:</strong> khách hủy miễn phí cho tới hạn hủy salon đặt trong Cài đặt salon (mặc định 2 tiếng), đúng như mục 3. Salon chỉ hủy lịch đã xác nhận trong trường hợp bất khả kháng và phải báo cho khách qua nền tảng; hủy nhiều lần không lý do có thể dẫn tới tạm ngừng hiển thị.</li>
 <li><strong class="text-primary">Nội dung đăng:</strong> ảnh, bài viết và nội dung dẫn từ mạng xã hội phải thuộc quyền của salon hoặc được phép sử dụng. Salon cho phép OAK Beauty hiển thị nội dung đó trên nền tảng, và OAK Beauty có quyền gỡ nội dung vi phạm.</li>
 <li><strong class="text-primary">Dữ liệu khách hàng:</strong> thông tin khách mà salon nhận được qua nền tảng chỉ dùng để phục vụ chính lịch hẹn đó. Không dùng cho quảng cáo, không chuyển cho bên thứ ba, không giữ lại ngoài mục đích đã nêu.</li>
 <li><strong class="text-primary">Chấm dứt hợp tác:</strong> mỗi bên có thể chấm dứt bằng thông báo trước 30 ngày. Các lịch hẹn đã xác nhận trước ngày chấm dứt vẫn phải được phục vụ. OAK Beauty có thể tạm ngừng tài khoản ngay khi có dấu hiệu gian lận hoặc rủi ro an toàn cho khách.</li>

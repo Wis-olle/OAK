@@ -20,6 +20,17 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -36,7 +47,7 @@
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
 <body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="revenueReport()">
-<a class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary focus:border focus:border-outline-variant focus:shadow-lg font-body-md text-body-md" href="#main">Bỏ qua đến nội dung</a>
+<a class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary focus:border focus:border-primary focus:shadow-lg font-body-md text-body-md" data-oak-skip href="#main">Bỏ qua đến nội dung</a>
 <!-- SideNavBar -->
 <nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low p-gutter z-50">
 <div class="mb-12">
@@ -122,7 +133,7 @@
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="notifications">notifications</span>
 <span aria-hidden="true" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-error text-on-error font-caption text-[10px] hidden items-center justify-center" data-oak-pending-count></span>
 </a>
-<a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
+<a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="cai-dat-salon.html#tai-khoan">
 <span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 flex items-center justify-center">
 <span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant" data-oak-avatar-icon>person</span>
 <img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover hidden" data-oak-avatar-img/>
@@ -165,11 +176,11 @@
 <div class="flex flex-wrap items-end gap-3">
 <label class="flex flex-col gap-1">
 <span class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Từ ngày</span>
-<input class="bg-transparent border-b border-outline-variant py-2 focus:outline-none focus:border-primary font-body-md text-body-md text-on-surface" type="date" x-model="from"/>
+<input class="bg-transparent border-b border-outline py-2 focus:outline-none focus:border-primary font-body-md text-body-md text-on-surface" type="date" x-model="from"/>
 </label>
 <label class="flex flex-col gap-1">
 <span class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">Đến ngày</span>
-<input class="bg-transparent border-b border-outline-variant py-2 focus:outline-none focus:border-primary font-body-md text-body-md text-on-surface" type="date" x-model="to"/>
+<input class="bg-transparent border-b border-outline py-2 focus:outline-none focus:border-primary font-body-md text-body-md text-on-surface" type="date" x-model="to"/>
 </label>
 <button @click="applyCustom()" class="px-5 py-2 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors" type="button">Áp dụng</button>
 </div>
@@ -345,10 +356,10 @@
         return isoDay(date);
     }
 
-    /** "10/08" for the x axis, "10/08/2026" for the range caption. */
-    function shortDate(iso, withYear) {
+    /** "10/08" for the x axis. A date a reader reads rather than scans is OAK.fmtDate. */
+    function shortDate(iso) {
         var parts = String(iso).split('-');
-        return parts[2] + '/' + parts[1] + (withYear ? '/' + parts[0] : '');
+        return parts[2] + '/' + parts[1];
     }
 
     /** Axis money: 2000000 -> "2tr", 1500000 -> "1,5tr", 300000 -> "300k". */
@@ -483,9 +494,7 @@
             },
 
             get rangeLabel() {
-                return this.from && this.to
-                    ? shortDate(this.from, true) + ' – ' + shortDate(this.to, true)
-                    : '';
+                return this.from && this.to ? OAK.fmtRange(this.from, this.to) : '';
             },
 
             setPreset(days) {

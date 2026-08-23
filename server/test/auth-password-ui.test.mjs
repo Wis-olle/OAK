@@ -1045,7 +1045,7 @@ test('the dialog names both outcomes, and the safe one is the one that keeps the
 });
 
 test('the privacy policy points at the page that does it, keeping the mailbox as a fallback', () => {
-  const clause = privacyHtml.slice(privacyHtml.indexOf('Xoá tài khoản:'));
+  const clause = privacyHtml.slice(privacyHtml.indexOf('Xóa tài khoản:'));
   const item = clause.slice(0, clause.indexOf('</li>'));
   assert.match(item, /href="cai-dat\.html"/);
   // Not instead of the old route: somebody locked out of the account still needs it.

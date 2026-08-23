@@ -18,6 +18,22 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The photograph this page opens with. Named up here so the browser can start it in the
+     same pass as the fonts rather than when the parser reaches it far down the page, and named
+     ahead of them because five faces are ~170KB of high-priority bytes for an LCP image to
+     queue behind. -->
+<link as="image" fetchpriority="high" href="assets/images/img-8432feb661.jpg" rel="preload">
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -36,11 +52,20 @@
 <!-- TopNavBar -->
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
+<!-- Every page draws itself with Alpine, and the bar above is written by script too, so
+     with scripting turned off there is nothing on screen and no way onward. This is that
+     way onward: one line, and the number that answers. -->
+<noscript>
+<div class="px-margin-mobile md:px-margin-desktop py-4 bg-secondary-container text-on-secondary-container font-body-md text-body-md text-center">
+<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gọi hotline để được hỗ trợ đặt lịch.</p>
+<a class="underline font-bold" href="tel:19006035">Gọi hotline 1900 6035</a>
+</div>
+</noscript>
 <!-- Main Content -->
 <main class="pt-20 flex-grow pb-section-gap" x-data="oakAboutStats()">
 <!-- Hero -->
 <section class="relative w-full overflow-hidden mb-section-gap">
-<img width="1024" height="558" alt="Không gian spa tối giản cao cấp" class="absolute inset-0 w-full h-full object-cover" data-alt="A breathtaking, expansive view of a minimalist, high-end spa interior. Soft morning light filters through sheer curtains onto warm wood and stone surfaces." src="assets/images/img-8432feb661.jpg">
+<img fetchpriority="high" width="1024" height="558" alt="Không gian spa tối giản cao cấp" class="absolute inset-0 w-full h-full object-cover" data-alt="A breathtaking, expansive view of a minimalist, high-end spa interior. Soft morning light filters through sheer curtains onto warm wood and stone surfaces." src="assets/images/img-8432feb661.jpg">
 <div class="absolute inset-0 bg-gradient-to-r from-primary/85 via-primary/60 to-primary/20"></div>
 <div class="relative z-10 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-20 md:py-28">
 <div class="max-w-2xl">
@@ -56,7 +81,13 @@
 </section>
 <!-- Stats -->
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-gutter">
+<!-- Three dashes said nothing about why they were dashes. A cold start is the usual reason
+     and it passes, so the way out of it is a button rather than a reload of the page. -->
+<div class="flex flex-wrap items-center gap-4 bg-surface-container-low rounded-2xl p-8" role="alert" x-cloak="" x-show="statsError">
+<p class="font-body-md text-body-md text-on-surface-variant">Không tải được số liệu.</p>
+<button @click="loadStats()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Thử lại</button>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-gutter" x-show="!statsError">
 <div class="bg-surface-container-low rounded-2xl p-8 text-center">
 <p class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2" x-text="salons === null ? '—' : salons">—</p>
 <p class="font-label-md text-label-md uppercase tracking-wider text-on-surface-variant">Salon đối tác</p>
@@ -80,7 +111,7 @@
                     Đặt lịch làm đẹp ở Việt Nam vẫn còn là chuyện của tin nhắn, cuộc gọi và những bảng giá không ai chắc chắn. Khách hàng mất thời gian dò hỏi, còn salon mất khách chỉ vì lỡ một tin nhắn.
                 </p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4">
-                    OAK Beauty ra đời để xoá bỏ khoảng cách đó: một nơi bạn thấy rõ dịch vụ, giá, thời lượng và khung giờ trống của từng salon, rồi đặt lịch trong vài giây.
+                    OAK Beauty ra đời để xóa bỏ khoảng cách đó: một nơi bạn thấy rõ dịch vụ, giá, thời lượng và khung giờ trống của từng salon, rồi đặt lịch trong vài giây.
                 </p>
 <p class="font-body-md text-body-md text-on-surface-variant">
                     Với các chủ salon, chúng tôi mang đến một công cụ quản lý lịch hẹn, dịch vụ, nhân viên và doanh thu — miễn phí đến hết 31/12/2026, để họ tập trung vào điều họ giỏi nhất.
@@ -108,7 +139,7 @@
 <span class="font-caption text-caption text-secondary uppercase tracking-wider">Bước 2</span>
 <span aria-hidden="true" class="material-symbols-outlined text-[40px] text-primary" data-icon="event_available">event_available</span>
 <h3 class="font-headline-sm text-headline-sm text-primary">Đặt</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Chọn dịch vụ, chuyên viên và khung giờ còn trống. Salon xác nhận lịch của bạn và báo trong mục Thông báo; mọi lịch nằm trong Lịch hẹn của tôi để bạn theo dõi, đổi hoặc huỷ.</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Chọn dịch vụ, chuyên viên và khung giờ còn trống. Salon xác nhận lịch của bạn và báo trong mục Thông báo; mọi lịch nằm trong Lịch hẹn của tôi để bạn theo dõi, đổi hoặc hủy.</p>
 </div>
 <div class="bg-surface-container-low rounded-2xl p-8 flex flex-col gap-4">
 <span class="font-caption text-caption text-secondary uppercase tracking-wider">Bước 3</span>
@@ -149,8 +180,64 @@
 <span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary shrink-0" data-icon="schedule">schedule</span>
 <div>
 <h3 class="font-headline-sm text-headline-sm text-primary mb-2">Linh hoạt</h3>
-<p class="font-body-md text-body-md text-on-surface-variant">Đổi ý là chuyện thường. Bạn có thể huỷ miễn phí cho tới trước giờ hẹn 2 tiếng.</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Đổi ý là chuyện thường. Bạn có thể hủy miễn phí cho tới trước giờ hẹn 2 tiếng.</p>
 </div>
+</div>
+</div>
+</section>
+<!-- Salons that are actually on OAK. A page about a marketplace is a claim until the
+     names on it can be opened. Absent is not the same as broken: an empty list draws
+     nothing, a failed request says so and offers the request again. -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap" x-cloak="" x-show="partnersError || partners.length > 0">
+<div class="border-b border-outline-variant/20 pb-4 mb-12">
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Salon đang có mặt trên OAK</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-3">Một vài cái tên bạn có thể đặt lịch ngay hôm nay.</p>
+</div>
+<div class="flex flex-wrap items-center gap-4" role="alert" x-cloak="" x-show="partnersError">
+<p class="font-body-md text-body-md text-on-surface-variant">Không tải được danh sách salon.</p>
+<button @click="loadPartners()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button">Thử lại</button>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-gutter" x-show="!partnersError">
+<template :key="salon.id" x-for="salon in partners">
+<a :href="'salon-profile.html?salon=' + encodeURIComponent(salon.slug)" class="group bg-surface-container-low rounded-2xl overflow-hidden hover:shadow-lg transition-shadow">
+<div class="aspect-[4/3] w-full overflow-hidden bg-surface-variant">
+<img decoding="async" width="400" height="300" loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover" x-show="salon.image">
+</div>
+<div class="p-6">
+<p class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary transition-colors" x-text="salon.name"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-2" x-text="salon.district"></p>
+</div>
+</a>
+</template>
+</div>
+</section>
+<!-- Where OAK Beauty answers from. The same office and the same two channels the contact
+     page publishes, because those are the ones this project can prove answer. The heading
+     stops at what the three cards hold: there is no company name, registration number or
+     tax code to put in front of them yet, and a heading that promised a legal entity would
+     be the same claim without evidence this block was added to close. -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
+<div class="border-b border-outline-variant/20 pb-4 mb-12">
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Liên hệ &amp; địa chỉ</h2>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-gutter">
+<div class="bg-surface-container-low rounded-2xl p-8 flex flex-col gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary" data-icon="location_on">location_on</span>
+<h3 class="font-headline-sm text-headline-sm text-primary">Văn phòng</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Tầng 8, 72 Lê Thánh Tôn,</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Phường Bến Nghé, Quận 1, TP.HCM</p>
+</div>
+<div class="bg-surface-container-low rounded-2xl p-8 flex flex-col gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary" data-icon="call">call</span>
+<h3 class="font-headline-sm text-headline-sm text-primary">Hotline</h3>
+<p class="font-body-md text-body-md text-on-surface-variant"><a class="underline hover:text-primary transition-colors" href="tel:19006035">1900 6035</a></p>
+<p class="font-body-md text-body-md text-on-surface-variant">T2–T7 giờ hành chính.</p>
+</div>
+<div class="bg-surface-container-low rounded-2xl p-8 flex flex-col gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-[32px] text-secondary" data-icon="mail">mail</span>
+<h3 class="font-headline-sm text-headline-sm text-primary">Email</h3>
+<p class="font-body-md text-body-md text-on-surface-variant"><a class="underline hover:text-primary transition-colors" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a></p>
+<p class="font-body-md text-body-md text-on-surface-variant">Phản hồi trong vòng 24 giờ làm việc.</p>
 </div>
 </div>
 </section>
@@ -225,8 +312,17 @@ function oakAboutStats() {
         salons: null,
         services: null,
         categories: null,
+        statsError: false,
+        partners: [],
+        partnersError: false,
 
-        async init() {
+        init() {
+            this.loadStats();
+            this.loadPartners();
+        },
+
+        async loadStats() {
+            this.statsError = false;
             try {
                 const [salons, services, categories] = await Promise.all([
                     OAK.api('/api/salons?limit=1'),
@@ -238,7 +334,20 @@ function oakAboutStats() {
                 // 'amenity' is a support category, not one of the five beauty ones the hero lists.
                 this.categories = categories.filter((category) => category.key !== 'amenity').length;
             } catch (error) {
-                // An about page must still read fine offline: leave the dashes.
+                // Three dashes read as "we have no partners". Say what actually happened.
+                this.statsError = true;
+            }
+        },
+
+        /* The salons themselves. A failure and an empty list are different answers: the
+           first is worth a retry, the second is worth nothing on screen at all. */
+        async loadPartners() {
+            this.partnersError = false;
+            try {
+                this.partners = await OAK.api('/api/salons?featured=1&limit=6');
+            } catch (error) {
+                this.partners = [];
+                this.partnersError = true;
             }
         },
     };

@@ -51,8 +51,19 @@ test('a failed mine request clears community rows and grants no management actio
   let confirmed = false;
   const context = {
     URL,
+    URLSearchParams,
+    // The feed mirrors what it is showing into the address bar.
+    location: { search: '', pathname: 'blog.html', href: '' },
+    history: { replaceState() {} },
     FileReader: class {},
-    document: { getElementById: () => null },
+    document: {
+      getElementById: () => null,
+      // The composer is a dialog now: it locks the page behind it and hands the
+      // caret back on close.
+      body: { classList: { add: () => {}, remove: () => {} } },
+      activeElement: null,
+      contains: () => false,
+    },
     window: { confirm: () => { confirmed = true; return true; } },
     OAK: {
       api: async (path) => {
@@ -62,10 +73,14 @@ test('a failed mine request clears community rows and grants no management actio
         return communityRows;
       },
       toast: () => {},
+      // closeComposer() discards any stashed draft; this harness never stashes one.
+      takeDraft: () => null,
     },
   };
   vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
   const state = context.result;
+  /* Alpine's magic the composer uses: the caret is handed back a tick after it closes. */
+  state.$nextTick = (fn) => fn();
   state.user = { id: 9, role: 'customer' };
   await state.loadPage(1, false);
   assert.equal(state.posts.length, 1);
@@ -92,8 +107,19 @@ test('a failed first page raises loadError instead of the empty state, and retry
   let failing = true;
   const context = {
     URL,
+    URLSearchParams,
+    // The feed mirrors what it is showing into the address bar.
+    location: { search: '', pathname: 'blog.html', href: '' },
+    history: { replaceState() {} },
     FileReader: class {},
-    document: { getElementById: () => null },
+    document: {
+      getElementById: () => null,
+      // The composer is a dialog now: it locks the page behind it and hands the
+      // caret back on close.
+      body: { classList: { add: () => {}, remove: () => {} } },
+      activeElement: null,
+      contains: () => false,
+    },
     OAK: {
       api: async () => {
         if (failing) {
@@ -102,10 +128,14 @@ test('a failed first page raises loadError instead of the empty state, and retry
         return rows;
       },
       toast: () => {},
+      // closeComposer() discards any stashed draft; this harness never stashes one.
+      takeDraft: () => null,
     },
   };
   vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
   const state = context.result;
+  /* Alpine's magic the composer uses: the caret is handed back a tick after it closes. */
+  state.$nextTick = (fn) => fn();
   await state.loadPage(1, false);
   assert.equal(state.loadError, true);
   assert.equal(state.posts.length, 0);
@@ -125,8 +155,19 @@ test('a failed load more keeps the loaded rows, the page number and the non-erro
   let failing = false;
   const context = {
     URL,
+    URLSearchParams,
+    // The feed mirrors what it is showing into the address bar.
+    location: { search: '', pathname: 'blog.html', href: '' },
+    history: { replaceState() {} },
     FileReader: class {},
-    document: { getElementById: () => null },
+    document: {
+      getElementById: () => null,
+      // The composer is a dialog now: it locks the page behind it and hands the
+      // caret back on close.
+      body: { classList: { add: () => {}, remove: () => {} } },
+      activeElement: null,
+      contains: () => false,
+    },
     OAK: {
       api: async () => {
         if (failing) {
@@ -135,10 +176,14 @@ test('a failed load more keeps the loaded rows, the page number and the non-erro
         return rows;
       },
       toast: () => {},
+      // closeComposer() discards any stashed draft; this harness never stashes one.
+      takeDraft: () => null,
     },
   };
   vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
   const state = context.result;
+  /* Alpine's magic the composer uses: the caret is handed back a tick after it closes. */
+  state.$nextTick = (fn) => fn();
   await state.loadPage(1, false);
   assert.equal(state.posts.length, 1);
 
@@ -162,11 +207,18 @@ test('resetting the composer invalidates an abandoned image upload', async () =>
   const context = {
     URL,
     FileReader: FakeFileReader,
-    document: { getElementById: () => ({ value: 'old-file' }) },
+    document: {
+      getElementById: () => ({ value: 'old-file' }),
+      body: { classList: { add: () => {}, remove: () => {} } },
+      activeElement: null,
+      contains: () => false,
+    },
     OAK: { api: () => upload, toast: () => {} },
   };
   vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
   const state = context.result;
+  /* Alpine's magic the composer uses: the caret is handed back a tick after it closes. */
+  state.$nextTick = (fn) => fn();
   const pending = state.uploadImage({ target: { files: [{ name: 'old.png' }] } });
   await Promise.resolve();
   assert.equal(state.uploading, true);

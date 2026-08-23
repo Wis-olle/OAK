@@ -35,7 +35,12 @@ function bookingForm(api, search = '') {
       toast: (message, type) => context.toasts.push([message, type]),
       me: async () => null,
       qs: (name) => new URLSearchParams(context.location.search).get(name),
+      // A reader who asked for less motion gets 'auto'; nothing here cares which.
+      scrollBehavior: () => 'smooth',
     },
+    // init() listens for the language switch so the note survives the reload it causes.
+    window: { addEventListener: (name, handler) => context.listeners.push([name, handler]) },
+    listeners: [],
   };
   context.history = {
     replaceState: (state, title, url) => {
@@ -52,6 +57,8 @@ function bookingForm(api, search = '') {
      track() by default — the browser served a page from cache that meets an oak-api.js
      from before measurement existed — which is the case every other test here runs in. */
   context.result.oak = context.OAK;
+  context.result.listeners = context.listeners;
+  context.result.storage = context.sessionStorage;
   /* Alpine's two magics this component uses: goTo() scrolls the wizard into view and then
      hands focus to the heading of the step it opened. A test that cares about either
      replaces them. */
@@ -311,7 +318,7 @@ test('a cancel that fails hands the stranded appointment to the confirmation pag
     if (path === '/api/bookings') {
       return { id: 91 };
     }
-    throw new Error('Vui lòng huỷ trước giờ hẹn ít nhất 2 tiếng.');
+    throw new Error('Vui lòng hủy trước giờ hẹn ít nhất 2 tiếng.');
   }));
   state.reschedule = 55;
 

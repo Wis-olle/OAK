@@ -399,15 +399,27 @@
   }
 
   /**
-   * "2026-08-10" (or a full ISO string) → "Thứ Hai, 10/08/2026".
+   * "2026-08-10" (or a full ISO string) → the Vietnamese date, in one of four shapes:
+   *
+   *   fmtDate(iso)              "Thứ Hai, 10/08/2026"   what every existing caller reads
+   *   fmtDate(iso, 'long')      "10 Tháng 8, 2026"      a date standing on its own
+   *   fmtDate(iso, 'short')     "10/08/2026"            a date inside a range
+   *   fmtDate(iso, 'weekday')   "Thứ Hai"               the day name by itself
+   *
+   * The shapes are here rather than at the call sites because the same appointment was
+   * being written three ways: the card on Lịch hẹn của tôi and the confirmation page each
+   * spelled out "10 Tháng 8, 2026" by hand, and the partner calendar its own range.
    *
    * The two inputs are different kinds of thing and are read differently. A bare
    * 'YYYY-MM-DD' is a calendar date — a booking's day — and already says what it means.
    * A full timestamp is an instant, stored in UTC, and the reader's own clock decides
    * which day that instant fell on: a post written at 01:00 in Vietnam is stamped 18:00
    * the day before in UTC, and cutting the string at the 'T' would date it yesterday.
+   *
+   * Every shape is a pattern in the RULES list of oak-i18n.js, which is what turns the
+   * weekday and the month into English; a fifth shape invented at a call site would not be.
    */
-  function fmtDate(iso) {
+  function fmtDate(iso, mode) {
     if (!iso) {
       return '';
     }
@@ -433,10 +445,22 @@
       return text;
     }
     var weekday = WEEKDAYS[new Date(year, month - 1, day).getDay()];
+    if (mode === 'weekday') {
+      return weekday;
+    }
+    if (mode === 'long') {
+      return day + ' Tháng ' + month + ', ' + year;
+    }
     var pad = function (value) {
       return String(value).padStart(2, '0');
     };
-    return weekday + ', ' + pad(day) + '/' + pad(month) + '/' + year;
+    var numeric = pad(day) + '/' + pad(month) + '/' + year;
+    return mode === 'short' ? numeric : weekday + ', ' + numeric;
+  }
+
+  /** Two dates as one span: "10/08/2026 – 16/08/2026". One dash, spelled once. */
+  function fmtRange(from, to) {
+    return fmtDate(from, 'short') + ' – ' + fmtDate(to, 'short');
   }
 
   /** Normalise a stored time to "HH:MM" ("9:0" and "14:00:00" both land on HH:MM). */
@@ -450,6 +474,51 @@
 
   function qs(name) {
     return new URLSearchParams(location.search).get(name);
+  }
+
+  /* ------------------------------------------------------------------------- drafts
+   * Choosing English reloads the page (see set() in oak-i18n.js), and a reload takes any
+   * half-written form with it — a blog post, a comment, the note on a booking. The pages
+   * that hold one listen for 'oak:lang-change', hand it over here, and ask for it back in
+   * their own init(). Nothing else fires the event, so nothing else pays for it.
+   *
+   * sessionStorage and keyed by page: the draft belongs to this tab and to the load that
+   * comes straight after, and taking it clears it, so a later visit starts clean. Blocked
+   * storage costs the draft and nothing else, which is why both halves swallow.
+   */
+  function draftKey(name) {
+    return 'oak-draft:' + pageName() + ':' + name;
+  }
+
+  function saveDraft(name, value) {
+    try {
+      sessionStorage.setItem(draftKey(name), JSON.stringify(value));
+    } catch (error) {
+      // Site data is blocked: the visitor retypes it.
+    }
+  }
+
+  /** The stashed draft, cleared as it is handed over; null when there is none. */
+  function takeDraft(name) {
+    try {
+      var stashed = sessionStorage.getItem(draftKey(name));
+      sessionStorage.removeItem(draftKey(name));
+      return stashed ? JSON.parse(stashed) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * What to pass as `behavior` to scrollIntoView(). The reduced-motion rule in oak-utils.css
+   * cannot answer for these calls — an explicit behavior option beats the `scroll-behavior`
+   * property — so the four places that glide a step, an error or a composer into view ask
+   * here instead of each testing the media query for itself.
+   */
+  function scrollBehavior() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ? 'auto'
+      : 'smooth';
   }
 
   /* Where each field of meta() lands. A page carries the tags it wants; the ones it left out
@@ -509,7 +578,50 @@
   var TOAST_COLORS = {
     success: 'bg-primary text-on-primary',
     error: 'bg-error text-on-error',
+    // Not everything a toast says is good news. "Đã tải ảnh lên, nhớ bấm Lưu thay đổi."
+    // is a reminder that the work is only half done, and it read as a success in the same
+    // black as "Đã lưu". 4.52:1 for #703800 on #fda055, past AA for body text.
+    info: 'bg-secondary-container text-on-secondary-container',
   };
+
+  /* Two live regions, empty and already in the document, one per urgency. A screen reader
+     subscribes to a live region when it enters the DOM; an element created, filled and
+     appended in the same tick — which is what toast() used to do — can be added and
+     announced before anything is listening, and several of them drop it. So the regions go
+     in first and only ever change contents.
+
+     Not one region with a switchable role: `role="alert"` is `aria-live="assertive"` by
+     definition, and flipping the attribute on a node a reader is already subscribed to is
+     the least reliably implemented thing in this corner of the spec.
+
+     They carry no styling at all. The message itself is `position: fixed`, so which of the
+     two holds it makes no difference to where it lands on screen.
+
+     oak-header.js calls this while the customer bar is being written, well before any page
+     code can raise a toast. The partner console has no such file, so initHeader() below —
+     which runs on every page — calls it too. */
+  var LIVE_SPECS = {
+    status: { id: 'oak-live-status', role: 'status', live: 'polite' },
+    alert: { id: 'oak-live-alert', role: 'alert', live: 'assertive' },
+  };
+
+  /** Both regions, made if this is the first ask, keyed the way LIVE_SPECS is. */
+  function liveRegions() {
+    var regions = {};
+    Object.keys(LIVE_SPECS).forEach(function (key) {
+      var spec = LIVE_SPECS[key];
+      var region = document.getElementById(spec.id);
+      if (!region) {
+        region = document.createElement('div');
+        region.id = spec.id;
+        region.setAttribute('role', spec.role);
+        region.setAttribute('aria-live', spec.live);
+        document.body.appendChild(region);
+      }
+      regions[key] = region;
+    });
+    return regions;
+  }
 
   /**
    * How long the message stays up. Three seconds reads "Đã lưu" but not a sentence saying
@@ -557,9 +669,11 @@
       closeToast(activeToast);
     }
 
+    // An error interrupts; anything else is progress the visitor asked for. The urgency
+    // belongs to the region the message is put into, not to the message.
+    var region = liveRegions()[type === 'error' ? 'alert' : 'status'];
+
     var element = document.createElement('div');
-    // An error interrupts; anything else is progress the visitor asked for.
-    element.setAttribute('role', type === 'error' ? 'alert' : 'status');
     // A page that pins its own booking bar to the bottom edge marks it, and the message
     // clears that bar (~68px tall) instead of landing on top of it. The bar is only laid
     // out on narrow screens and at some wizard steps, so ask whether it is rendered
@@ -617,7 +731,7 @@
       });
     }
 
-    document.body.appendChild(element);
+    region.appendChild(element);
     activeToast = entry;
   }
 
@@ -971,7 +1085,9 @@
   }
 
   async function initHeader() {
-    // Before the /api/auth/me await: the picker is for guests too.
+    // Before the /api/auth/me await: the picker is for guests too, and a toast raised
+    // during the first fetch must already have somewhere to be announced from.
+    liveRegions();
     initRegionPicker();
     var user = await me();
     if (!user) {
@@ -1021,6 +1137,60 @@
     }
   }
 
+  /* One booking, one vocabulary. Before this, the same appointment was an orange chip on
+     "Lịch hẹn của tôi", a grey one on the partner dashboard and a coloured left edge on the
+     console calendar — three answers to "what state is this in?" for one row of one table.
+     Label, icon and chip tone therefore live here, beside the price and date formatters,
+     and every page that paints a status reads them from here.
+
+     `class` names the chip's own colours only; the shape (pill, padding, text size) belongs
+     to the page, because a 12px chip on a card and a strip on a calendar are not the same
+     object. `completed` is deliberately quiet: a finished appointment needs no colour to
+     shout with. The English of each label lives in the dictionary of each page that shows
+     it — the strings are ordinary text nodes by the time a reader sees them. */
+  var BOOKING_STATUSES = ['pending', 'confirmed', 'completed', 'cancelled', 'no_show'];
+
+  var BOOKING_STATUS = {
+    pending: {
+      label: 'Chờ xác nhận',
+      icon: 'schedule',
+      class: 'bg-secondary-container text-on-secondary-container',
+    },
+    confirmed: {
+      label: 'Đã xác nhận',
+      icon: 'check_circle',
+      class: 'bg-success-container text-success',
+    },
+    completed: {
+      label: 'Đã hoàn thành',
+      icon: 'task_alt',
+      class: 'bg-surface-container-high text-on-surface',
+    },
+    cancelled: {
+      label: 'Đã hủy',
+      icon: 'cancel',
+      class: 'bg-error-container text-on-error-container',
+    },
+    // Absent is not cancelled: it keeps a tone of its own so the two never read alike.
+    no_show: {
+      label: 'Không đến',
+      icon: 'person_off',
+      class: 'bg-tertiary-container text-on-tertiary-container',
+    },
+  };
+
+  /* A status the server has not taught this build about still has to render as something,
+     so it renders as itself in the neutral tone rather than as a blank chip. */
+  function bookingStatus(status) {
+    return (
+      BOOKING_STATUS[status] || {
+        label: String(status || ''),
+        icon: 'event',
+        class: 'bg-surface-container-high text-on-surface',
+      }
+    );
+  }
+
   /* One set of promises, said the same way wherever they are said. They are claims about
      how OAK works — what it costs to change your mind, when a person answers — so a page
      that words them its own way is a page that quietly promises something else.
@@ -1050,13 +1220,20 @@
     fmtPrice: fmtPrice,
     fmtPriceFrom: fmtPriceFrom,
     fmtDate: fmtDate,
+    fmtRange: fmtRange,
     fmtTime: fmtTime,
+    bookingStatus: bookingStatus,
+    BOOKING_STATUSES: BOOKING_STATUSES,
     todayISO: todayISO,
     pendingBadge: pendingBadge,
     setPendingBadge: setPendingBadge,
     qs: qs,
+    scrollBehavior: scrollBehavior,
+    saveDraft: saveDraft,
+    takeDraft: takeDraft,
     meta: meta,
     toast: toast,
+    liveRegions: liveRegions,
     track: track,
     TRUST: TRUST,
     logout: logout,

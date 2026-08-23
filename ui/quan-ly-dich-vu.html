@@ -3,6 +3,17 @@
 <html lang="vi"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -13,7 +24,7 @@
         .toggle-checkbox:checked + .toggle-label { background-color: #2c2c2c; }
         .toggle-checkbox:checked + .toggle-label:after { transform: translateX(100%); border-color: white; }
         .toggle-label {
-            width: 40px; height: 20px; background-color: #c4c7c7; border-radius: 9999px;
+            width: 40px; height: 20px; background-color: #9a9e9e; border-radius: 9999px;
             position: relative; cursor: pointer; transition: background-color 0.3s;
         }
         .toggle-label:after {
@@ -44,7 +55,7 @@
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
 <body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen selection:bg-surface-variant selection:text-on-surface" x-data="oakPartnerServices()">
-<a class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary focus:border focus:border-outline-variant focus:shadow-lg font-body-md text-body-md" href="#main">Bỏ qua đến nội dung</a>
+<a class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-5 focus:py-3 focus:rounded-full focus:bg-surface focus:text-primary focus:border focus:border-primary focus:shadow-lg font-body-md text-body-md" data-oak-skip href="#main">Bỏ qua đến nội dung</a>
 <!-- SideNavBar -->
 <nav class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low p-gutter z-50">
 <div class="mb-12">
@@ -126,7 +137,7 @@
 <div class="flex items-center gap-4 md:gap-6 shrink-0">
 <div class="relative hidden lg:block w-72">
 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
-<input @input.debounce.300ms="loadServices()" aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline-variant py-2 pl-10 pr-4 focus:outline-none focus:border-primary-container font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm dịch vụ..." type="text" x-model="query"/>
+<input @input.debounce.300ms="loadServices()" aria-label="Tìm kiếm" class="w-full bg-transparent border-b border-outline py-2 pl-10 pr-4 focus:outline-none focus:border-primary font-body-md text-body-md text-on-surface placeholder-on-surface-variant transition-colors" placeholder="Tìm dịch vụ…" type="text" x-model="query"/>
 </div>
 <!-- The console bell answers "what needs me", so it stays inside the console: the
      customer notification page has no way back to the partner pages. -->
@@ -134,7 +145,7 @@
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="notifications">notifications</span>
 <span aria-hidden="true" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-error text-on-error font-caption text-[10px] hidden items-center justify-center" data-oak-pending-count></span>
 </a>
-<a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
+<a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="cai-dat-salon.html#tai-khoan">
 <span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 flex items-center justify-center">
 <span aria-hidden="true" class="material-symbols-outlined text-on-surface-variant" data-oak-avatar-icon>person</span>
 <img alt="Ảnh đại diện chủ salon" class="w-full h-full object-cover hidden" data-oak-user-avatar/>
@@ -167,9 +178,9 @@
 </div>
 <!-- Categories -->
 <div class="flex gap-4 mb-8 overflow-x-auto pb-2">
-<button :class="category === '' ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container text-on-surface hover:bg-surface-variant'" @click="setCategory('')" class="font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap transition-colors" x-text="'Tất cả (' + totalCount() + ')'"></button>
+<button :class="category === '' ? 'bg-primary-container text-on-primary' : 'bg-surface-container text-on-surface hover:bg-surface-variant'" @click="setCategory('')" class="font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap transition-colors" x-text="'Tất cả (' + totalCount() + ')'"></button>
 <template :key="item.key" x-for="item in categoryChips()">
-<button :class="category === item.key ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container text-on-surface hover:bg-surface-variant'" @click="setCategory(item.key)" class="font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap transition-colors" x-text="item.label + ' (' + item.count + ')'"></button>
+<button :class="category === item.key ? 'bg-primary-container text-on-primary' : 'bg-surface-container text-on-surface hover:bg-surface-variant'" @click="setCategory(item.key)" class="font-label-md text-label-md uppercase px-6 py-2 rounded-full whitespace-nowrap transition-colors" x-text="item.label + ' (' + item.count + ')'"></button>
 </template>
 </div>
 <!-- Services Grid -->
@@ -178,7 +189,7 @@
 <div :class="service.active ? 'bg-surface-container-lowest' : 'bg-surface-container-lowest/50 opacity-75'" @click="openServiceCard(service)" class="group relative hover:bg-surface-container-low transition-colors duration-300 rounded-lg overflow-hidden border border-transparent hover:border-outline-variant/30 flex flex-col h-full cursor-pointer">
 <div class="aspect-[4/3] w-full overflow-hidden relative bg-surface-container-low">
 <template x-if="service.image">
-<img loading="lazy" :class="service.active ? '' : 'grayscale opacity-80 group-hover:grayscale-0'" :src="service.image" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
+<img decoding="async" width="600" height="450" loading="lazy" :class="service.active ? '' : 'grayscale opacity-80 group-hover:grayscale-0'" :src="service.image" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
 </template>
 <template x-if="!service.image">
 <div class="w-full h-full flex items-center justify-center text-outline-variant">
@@ -212,7 +223,7 @@
 <div class="w-px bg-outline-variant/20"></div>
 <button @click.stop="toggleService(service)" class="flex-1 text-center font-label-md text-label-md uppercase text-on-surface hover:text-primary transition-colors" x-text="service.active ? 'Ẩn' : 'Hiện'"></button>
 <div class="w-px bg-outline-variant/20"></div>
-<button @click.stop="removeService(service)" class="flex-1 text-center font-label-md text-label-md uppercase text-error hover:text-on-error-container transition-colors">Xoá</button>
+<button @click.stop="removeService(service)" class="flex-1 text-center font-label-md text-label-md uppercase text-error hover:text-on-error-container transition-colors">Xóa</button>
 </div>
 </div>
 </div>
@@ -242,7 +253,7 @@
 <div :class="index === 0 ? 'md:col-span-2 bg-surface-container-high' : 'bg-surface-container border border-outline-variant/20 hover:border-outline-variant'" class="rounded-xl p-8 flex flex-col justify-between relative overflow-hidden group transition-colors">
 <template x-if="index === 0 && promotion.image">
 <div class="absolute inset-0 z-0">
-<img loading="lazy" :src="promotion.image" alt="" class="w-full h-full object-cover opacity-20 mix-blend-multiply transition-transform duration-1000 group-hover:scale-105"/>
+<img decoding="async" loading="lazy" :src="promotion.image" alt="" class="w-full h-full object-cover opacity-20 mix-blend-multiply transition-transform duration-1000 group-hover:scale-105"/>
 </div>
 </template>
 <div class="relative z-10 flex justify-between items-start gap-4">
@@ -283,7 +294,7 @@
 <!-- Service Form Modal -->
 <div @keydown.escape.window="if (!confirmOpen) serviceOpen = false" aria-labelledby="service-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="serviceOpen">
 <div @click="serviceOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="serviceOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
-<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto border border-outline-variant/20 flex flex-col" x-show="serviceOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="oak-dialog transform overflow-hidden transition-all sm:w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col" x-show="serviceOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <div class="px-6 py-6 border-b border-outline-variant/20 flex justify-between items-center sticky top-0 bg-surface-container-lowest z-10">
 <h3 class="font-headline-sm text-headline-sm text-primary" id="service-title" x-text="serviceForm.id ? 'Sửa dịch vụ' : 'Thêm dịch vụ'"></h3>
 <button @click="serviceOpen = false" aria-label="Đóng" class="text-on-surface-variant hover:text-primary transition-colors">
@@ -294,12 +305,12 @@
 <form @submit.prevent="submitService()" class="space-y-6" id="service-form">
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-name">Tên dịch vụ</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-name" required type="text" x-model="serviceForm.name"/>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-name" required type="text" x-model="serviceForm.name"/>
 </div>
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-category">Danh mục</label>
-<select class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-category" required x-model="serviceForm.category">
+<select class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-category" required x-model="serviceForm.category">
 <template :key="item.key" x-for="item in allCategories()">
 <option :value="item.key" x-text="item.label"></option>
 </template>
@@ -307,11 +318,11 @@
 </div>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-price">Giá (đ)</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-price" min="0" required step="1000" type="number" x-model="serviceForm.price"/>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-price" min="0" required step="1000" type="number" x-model="serviceForm.price"/>
 </div>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-duration">Thời lượng (phút)</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-duration" min="0" required step="5" type="number" x-model="serviceForm.duration_min"/>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-duration" min="0" required step="5" type="number" x-model="serviceForm.duration_min"/>
 </div>
 </div>
 <label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer">
@@ -323,14 +334,14 @@
 </label>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-description">Mô tả</label>
-<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-description" rows="3" x-model="serviceForm.description"></textarea>
+<textarea class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="service-description" rows="3" x-model="serviceForm.description"></textarea>
 </div>
 <div class="space-y-2">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="service-image">Ảnh dịch vụ</label>
 <div class="flex items-center gap-4">
 <div class="w-24 h-20 bg-surface-container-low border border-outline-variant/30 overflow-hidden flex items-center justify-center shrink-0">
 <template x-if="serviceForm.image">
-<img loading="lazy" :src="serviceForm.image" alt="" class="w-full h-full object-cover"/>
+<img decoding="async" loading="lazy" :src="serviceForm.image" alt="" class="w-full h-full object-cover"/>
 </template>
 <template x-if="!serviceForm.image">
 <span class="material-symbols-outlined text-outline-variant">image</span>
@@ -343,10 +354,10 @@
 </form>
 </div>
 <div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4 sticky bottom-0">
-<button @click="serviceOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
-                    Huỷ
+<button @click="serviceOpen = false" class="btn-secondary" type="button">
+                    Hủy
                 </button>
-<button :disabled="saving" class="px-8 py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors rounded-full disabled:opacity-50" form="service-form" type="submit">
+<button :disabled="saving" class="btn-primary" form="service-form" type="submit">
                     Lưu
                 </button>
 </div>
@@ -355,7 +366,7 @@
 <!-- Promotion Form Modal -->
 <div @keydown.escape.window="if (!confirmOpen) promotionOpen = false" aria-labelledby="promotion-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="promotionOpen">
 <div @click="promotionOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="promotionOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
-<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto border border-outline-variant/20 flex flex-col" x-show="promotionOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="oak-dialog transform overflow-hidden transition-all sm:w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col" x-show="promotionOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <div class="px-6 py-6 border-b border-outline-variant/20 flex justify-between items-center sticky top-0 bg-surface-container-lowest z-10">
 <h3 class="font-headline-sm text-headline-sm text-primary" id="promotion-title" x-text="promotionForm.id ? 'Sửa ưu đãi' : 'Thêm ưu đãi'"></h3>
 <button @click="promotionOpen = false" aria-label="Đóng" class="text-on-surface-variant hover:text-primary transition-colors">
@@ -367,11 +378,11 @@
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-name">Tên ưu đãi</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-name" required type="text" x-model="promotionForm.title"/>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-name" required type="text" x-model="promotionForm.title"/>
 </div>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-type">Loại ưu đãi</label>
-<select class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-type" required x-model="promotionForm.type">
+<select class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-type" required x-model="promotionForm.type">
 <template :key="item.key" x-for="item in promotionTypes()">
 <option :value="item.key" x-text="item.label"></option>
 </template>
@@ -380,45 +391,45 @@
 </div>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-description">Mô tả</label>
-<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-description" rows="2" x-model="promotionForm.description"></textarea>
+<textarea class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-description" rows="2" x-model="promotionForm.description"></textarea>
 </div>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-start">Bắt đầu</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-start" required type="date" x-model="promotionForm.starts_at"/>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-start" required type="date" x-model="promotionForm.starts_at"/>
 </div>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-end">Kết thúc</label>
-<input :min="promotionForm.starts_at" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-end" required type="date" x-model="promotionForm.ends_at"/>
+<input :min="promotionForm.starts_at" class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-end" required type="date" x-model="promotionForm.ends_at"/>
 </div>
 </div>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-original">Giá gốc (đ)</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-original" min="0" step="1000" type="number" x-model="promotionForm.original_price"/>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-original" min="0" step="1000" type="number" x-model="promotionForm.original_price"/>
 </div>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-sale">Giá ưu đãi (đ)</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-sale" min="0" step="1000" type="number" x-model="promotionForm.sale_price"/>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-sale" min="0" step="1000" type="number" x-model="promotionForm.sale_price"/>
 </div>
 </div>
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-percent">Giảm (%)</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-percent" min="0" type="number" x-model="promotionForm.discount_percent"/>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-percent" min="0" type="number" x-model="promotionForm.discount_percent"/>
 </div>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-amount">Giảm (đ)</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-amount" min="0" step="1000" type="number" x-model="promotionForm.discount_amount"/>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-amount" min="0" step="1000" type="number" x-model="promotionForm.discount_amount"/>
 </div>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-code">Mã ưu đãi</label>
-<input class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-code" type="text" x-model="promotionForm.code"/>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-code" type="text" x-model="promotionForm.code"/>
 </div>
 </div>
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-services">Dịch vụ áp dụng</label>
-<select class="w-full bg-surface-container-low border border-outline-variant/30 px-3 py-2 font-body-md text-body-md text-primary" id="promotion-services" multiple size="4" x-model="promotionForm.service_ids">
+<select class="w-full bg-surface-container-lowest border border-outline text-on-surface font-body-md text-body-md rounded px-4 py-2 focus:ring-0 focus:border-primary outline-none" id="promotion-services" multiple size="4" x-model="promotionForm.service_ids">
 <template :key="service.id" x-for="service in services">
 <option :value="service.id" x-text="service.name"></option>
 </template>
@@ -430,7 +441,7 @@
 <div class="flex items-center gap-4">
 <div class="w-24 h-20 bg-surface-container-low border border-outline-variant/30 overflow-hidden flex items-center justify-center shrink-0">
 <template x-if="promotionForm.image">
-<img loading="lazy" :src="promotionForm.image" alt="" class="w-full h-full object-cover"/>
+<img decoding="async" loading="lazy" :src="promotionForm.image" alt="" class="w-full h-full object-cover"/>
 </template>
 <template x-if="!promotionForm.image">
 <span class="material-symbols-outlined text-outline-variant">image</span>
@@ -443,14 +454,14 @@
 </form>
 </div>
 <div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-between gap-4 sticky bottom-0">
-<button @click="removePromotion()" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-error hover:text-on-error-container transition-colors" type="button" x-show="promotionForm.id">
-                    Xoá
+<button @click="removePromotion()" class="btn-ghost text-error" type="button" x-show="promotionForm.id">
+                    Xóa
                 </button>
 <div class="flex gap-4 ml-auto">
-<button @click="promotionOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
-                    Huỷ
+<button @click="promotionOpen = false" class="btn-secondary" type="button">
+                    Hủy
                 </button>
-<button :disabled="saving" class="px-8 py-3 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors rounded-full disabled:opacity-50" form="promotion-form" type="submit">
+<button :disabled="saving" class="btn-primary" form="promotion-form" type="submit">
                     Lưu
                 </button>
 </div>
@@ -460,19 +471,19 @@
 <!-- Confirm Delete Modal -->
 <div @keydown.escape.window="confirmOpen = false" aria-labelledby="confirm-title" aria-modal="true" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="confirmOpen">
 <div @click="confirmOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
-<div class="relative transform overflow-hidden bg-surface-container-lowest text-left shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all sm:w-full sm:max-w-md border border-outline-variant/20 flex flex-col" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="oak-dialog transform overflow-hidden transition-all sm:w-full sm:max-w-md flex flex-col" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <div class="px-6 py-6 border-b border-outline-variant/20">
-<h3 class="font-headline-sm text-headline-sm text-primary" id="confirm-title">Xác nhận xoá</h3>
+<h3 class="font-headline-sm text-headline-sm text-primary" id="confirm-title">Xác nhận xóa</h3>
 </div>
 <div class="px-6 py-6">
 <p class="font-body-md text-body-md text-on-surface-variant" x-text="confirmMessage"></p>
 </div>
 <div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4">
-<button @click="confirmOpen = false" class="px-6 py-3 font-label-md text-label-md uppercase tracking-wider text-primary border border-outline-variant hover:bg-surface-container-highest transition-colors" type="button">
+<button @click="confirmOpen = false" class="btn-secondary" type="button">
                     Giữ lại
                 </button>
-<button @click="runConfirm()" class="px-8 py-3 bg-error text-on-error font-label-md text-label-md uppercase tracking-wider hover:bg-error/90 transition-colors rounded-full" type="button">
-                    Xoá
+<button @click="runConfirm()" class="btn-danger" type="button">
+                    Xóa
                 </button>
 </div>
 </div>
@@ -803,7 +814,7 @@
 
             removeService(service) {
                 var self = this;
-                this.askConfirm('Xoá dịch vụ "' + service.name + '"?', function () {
+                this.askConfirm('Xóa dịch vụ "' + service.name + '"?', function () {
                     self.deleteService(service);
                 });
             },
@@ -811,10 +822,10 @@
             async deleteService(service) {
                 try {
                     await OAK.api('/api/partner/services/' + service.id, { method: 'DELETE' });
-                    OAK.toast('Đã xoá dịch vụ.');
+                    OAK.toast('Đã xóa dịch vụ.');
                     await this.loadServices();
                 } catch (error) {
-                    // HAS_BOOKINGS carries the "tạm ẩn thay vì xoá" advice from the server.
+                    // HAS_BOOKINGS carries the "tạm ẩn thay vì xóa" advice from the server.
                     OAK.toast(error.message, 'error');
                 }
             },
@@ -939,7 +950,7 @@
 
             removePromotion() {
                 var self = this;
-                this.askConfirm('Xoá ưu đãi "' + this.promotionForm.title + '"?', function () {
+                this.askConfirm('Xóa ưu đãi "' + this.promotionForm.title + '"?', function () {
                     self.deletePromotion();
                 });
             },
@@ -950,7 +961,7 @@
                         method: 'DELETE',
                     });
                     this.promotionOpen = false;
-                    OAK.toast('Đã xoá ưu đãi.');
+                    OAK.toast('Đã xóa ưu đãi.');
                     await this.loadPromotions();
                 } catch (error) {
                     this.promotionError = error.message;

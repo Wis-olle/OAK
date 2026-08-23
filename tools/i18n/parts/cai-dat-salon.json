@@ -1,6 +1,5 @@
 {
   "Cài đặt salon - OAK Beauty": "Salon settings - OAK Beauty",
-
   "Tổng quan": "Overview",
   "Lịch hẹn": "Appointments",
   "Dịch vụ": "Services",
@@ -14,13 +13,11 @@
   "Tài khoản": "Account",
   "Ảnh đại diện chủ salon": "Salon owner avatar",
   "Đối tác": "Partner",
-
   "Cài đặt salon": "Salon settings",
   "Thông tin này hiển thị trên trang salon công khai của bạn.": "This information appears on your public salon page.",
   "Xem trang công khai": "View public page",
   "Đang tải thông tin salon…": "Loading salon information…",
   "Thử lại": "Try again",
-
   "Thông tin cơ bản": "Basic information",
   "Tên salon": "Salon name",
   "Mô tả": "Description",
@@ -29,23 +26,21 @@
   "Tỉnh/Thành phố": "City/Province",
   "Số điện thoại": "Phone number",
   "Đường dẫn tour 360°": "360° tour link",
-
   "Vị trí trên bản đồ": "Map location",
   "Tìm theo tên đường, chợ hay toà nhà rồi kéo ghim cho đúng cửa tiệm. Chưa có toạ độ thì salon không hiện trên bản đồ tìm kiếm.": "Search by street, market or building name, then drag the pin onto your shopfront. Without coordinates the salon does not appear on the search map.",
   "Tìm địa điểm": "Find a place",
   "Tìm từ địa chỉ": "Find from address",
-  "Xoá ghim": "Remove pin",
+  "Xóa ghim": "Remove pin",
   "Chưa đặt toạ độ": "No coordinates set",
   "Kết quả chỉ ở mức khu vực — bạn có thể kéo ghim tới đúng cửa tiệm.": "Results are area-level only — you can drag the pin onto your shopfront.",
   "Bấm lên bản đồ để đặt ghim, hoặc kéo ghim để chỉnh lại.": "Click the map to drop a pin, or drag the pin to adjust it.",
-  "Đang tìm địa chỉ...": "Searching for the address...",
-  "Đang thử bỏ quận/huyện...": "Trying without the district...",
-  "Đang thử tìm theo khu vực...": "Trying an area search...",
-  "Đang tìm địa điểm...": "Searching for the place...",
+  "Đang tìm địa chỉ…": "Searching for the address…",
+  "Đang thử bỏ quận/huyện…": "Trying without the district…",
+  "Đang thử tìm theo khu vực…": "Trying an area search…",
+  "Đang tìm địa điểm…": "Searching for the place…",
   "Nhập địa chỉ ở trên trước đã.": "Enter an address above first.",
   "Không tìm thấy địa chỉ này. Bạn bấm thẳng lên bản đồ để đặt ghim nhé.": "This address was not found. Click directly on the map to drop a pin.",
   "Không tra cứu được địa chỉ, bạn thử lại nhé.": "Could not look up the address, please try again.",
-
   "Giờ mở cửa": "Opening hours",
   "Đặt giờ riêng cho từng ngày, đánh dấu “Nghỉ” cho ngày salon đóng cửa.": "Set separate hours for each day, and tick “Off” for days the salon is closed.",
   "Nghỉ": "Off",
@@ -70,7 +65,6 @@
   "Thứ 6 — giờ đóng cửa": "Friday — closing time",
   "Thứ 7 — giờ đóng cửa": "Saturday — closing time",
   "Chủ Nhật — giờ đóng cửa": "Sunday — closing time",
-
   "Tiện ích": "Amenities",
   "Chọn những tiện ích salon của bạn đang có.": "Select the amenities your salon offers.",
   "Wifi miễn phí": "Free Wi-Fi",
@@ -87,7 +81,6 @@
   "Thanh toán thẻ": "Card payment",
   "Thẻ phân loại (cách nhau bởi dấu phẩy)": "Tags (comma separated)",
   "Ví dụ: Nail, Cao cấp, Gần trung tâm": "Example: Nail, Premium, Near the centre",
-
   "Quận 1": "District 1",
   "Quận 3": "District 3",
   "Quận 4": "District 4",
@@ -107,7 +100,6 @@
   "Huyện Bình Chánh": "Binh Chanh District",
   "Huyện Hóc Môn": "Hoc Mon District",
   "Huyện Nhà Bè": "Nha Be District",
-
   "Ảnh bìa": "Cover image",
   "Ảnh bìa salon": "Salon cover image",
   "Chưa có ảnh bìa": "No cover image yet",
@@ -124,7 +116,6 @@
   "Mọi thay đổi chưa lưu sẽ bị mất.": "All unsaved changes will be lost.",
   "Ở lại": "Stay",
   "Rời trang": "Leave page",
-
   "Ảnh vượt quá dung lượng tối đa 5MB.": "Image exceeds the 5MB maximum size.",
   "Không đọc được tệp ảnh.": "Could not read the image file.",
   "Đã tải ảnh lên, nhớ bấm Lưu thay đổi.": "Image uploaded — remember to click Save changes.",
@@ -165,9 +156,8 @@
   "lịch hẹn — bạn nhớ liên hệ khách.": "appointments — remember to contact those customers.",
   "Vui lòng chọn ngày bắt đầu.": "Please choose a start date.",
   "Đã thêm ngày nghỉ.": "Days off added.",
-  "Đã xoá ngày nghỉ.": "Days off removed.",
-  "Xoá": "Delete",
-
+  "Đã xóa ngày nghỉ.": "Days off removed.",
+  "Xóa": "Delete",
   "Nội dung": "Content",
   "Hiển thị trên OAK": "Listed on OAK",
   "Điều kiện dưới đây tính trên thông tin đã lưu, nên hãy bấm Lưu thay đổi trước khi bật.": "The conditions below are read from saved details, so save your changes before switching this on.",
@@ -187,9 +177,15 @@
   "Thêm ảnh": "Add photos",
   "Đưa ảnh lên trước": "Move photo earlier",
   "Đưa ảnh xuống sau": "Move photo later",
-  "Xoá ảnh": "Delete photo",
+  "Xóa ảnh": "Delete photo",
   "Ảnh salon": "Salon photo",
   "Đã thêm ảnh vào thư viện.": "Photos added to the gallery.",
-  "Đã xoá ảnh.": "Photo deleted.",
-  "Đánh giá": "Reviews"
+  "Đã xóa ảnh.": "Photo deleted.",
+  "Đánh giá": "Reviews",
+  "Tài khoản chủ salon": "Salon owner account",
+  "Thông tin đăng nhập của bạn, tách khỏi thông tin salon ở trên.": "Your own sign-in details, kept apart from the salon details above.",
+  "Thông tin cá nhân": "Personal details",
+  "Lưu tài khoản": "Save account",
+  "Đã cập nhật tài khoản.": "Your account has been updated.",
+  "cai-dat-salon.html::Bảo mật": "Security"
 }

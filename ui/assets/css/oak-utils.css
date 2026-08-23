@@ -53,11 +53,22 @@ textarea:not(.input-minimal):focus-visible {
 }
 
 /* Glassmorphism */
+/* The bar is fixed on all 32 pages that carry it, so whatever it does it does on every frame
+   of every scroll. A blur behind a fixed element is repainted from the page underneath each
+   time that page moves — the one effect here a mid-range Android phone cannot afford, and the
+   phone is where most of the reading happens. Below md the blur is dropped and the tint is
+   raised to .96 instead: nearly the same bar to look at, none of the per-frame cost. */
 .glass-nav {
-    background-color: rgba(255, 248, 244, 0.9);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
-    border-bottom: 1px solid rgba(196, 199, 199, 0.3);
+    background-color: rgba(255, 248, 244, 0.96);
+    border-bottom: 1px solid rgba(154, 158, 158, 0.3);
+}
+
+@media (min-width: 768px) {
+    .glass-nav {
+        background-color: rgba(255, 248, 244, 0.9);
+        -webkit-backdrop-filter: blur(20px);
+        backdrop-filter: blur(20px);
+    }
 }
 
 .glass-panel {
@@ -100,6 +111,46 @@ textarea:not(.input-minimal):focus-visible {
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* The underlined field itself, declared once. Eight pages carried a byte-identical copy of
+   these rules in their own <style> block, each repeating #c4c7c7 / #747878 / #171818 by
+   hand, so a token change reached the site everywhere except the fields. The border is a
+   control boundary and takes `outline` #5e6262 (5.88:1 on the cream surface, past the 3:1
+   of WCAG 1.4.11); the tag-qualified rules below add what @tailwindcss/forms takes away
+   from <input> in particular. */
+.input-minimal {
+    width: 100%;
+    background-color: transparent;
+    border: none;
+    border-bottom: 1px solid #5e6262;
+    border-radius: 0;
+    padding: 12px 0;
+    outline: none;
+    box-shadow: none;
+    transition: border-color 0.3s ease;
+}
+
+/* The label that sits inside an empty field and climbs out of it once there is a value.
+   `always-raised` is for the controls that never report :placeholder-shown — a <select>
+   always holds one of its options, a <textarea> is not covered by the pseudo-class. */
+.floating-label {
+    position: absolute;
+    top: 12px;
+    left: 0;
+    pointer-events: none;
+    transition: 0.3s ease all;
+    color: #5e6262;
+}
+
+/* A <select> label has nowhere to climb from, so it starts where the others end up. */
+.select-label {
+    position: absolute;
+    top: -14px;
+    left: 0;
+    font-size: 12px;
+    line-height: 1;
+    color: #171818;
+}
+
 /* The vendored Tailwind bundle bakes in @tailwindcss/forms, whose `[type="text"]`-style
    base rules tie with the pages' own `.input-minimal` / `.oak-field` classes and win on
    source order: white box, grey-500 border, 0.5rem/0.75rem padding, and a blue focus ring
@@ -110,7 +161,7 @@ textarea:not(.input-minimal):focus-visible {
 input.input-minimal {
     background-color: transparent;
     border: none;
-    border-bottom: 1px solid #c4c7c7;
+    border-bottom: 1px solid #5e6262;
     border-radius: 0;
     padding: 12px 0;
     outline: none;
@@ -135,7 +186,7 @@ textarea.input-minimal:focus {
 
 input.oak-field {
     background-color: #ffffff;
-    border: 1px solid #c4c7c7;
+    border: 1px solid #5e6262;
     border-radius: 0.5rem;
     padding: 12px 16px;
     outline: none;
@@ -174,11 +225,254 @@ input.oak-field:-webkit-autofill:focus {
 
 /* At the pages' own -12px the raised label's bottom still sat ~2px inside the field,
    so anything painted at the field's top edge (autofill band, focus ring) struck the
-   text. -18px clears the edge with a small gap. `label.floating-label` (0,3,1) beats
-   the pages' inline (0,3,0) rules regardless of stylesheet order. */
-.input-minimal:focus ~ label.floating-label,
-.input-minimal:not(:placeholder-shown) ~ label.floating-label,
-.input-minimal.always-raised ~ label.floating-label {
+   text. -14px clears the edge with a small gap. Now that the eight per-page copies are
+   gone this is the only rule that raises a label, so it carries the size and colour of
+   the raised state too. */
+.input-minimal:focus ~ .floating-label,
+.input-minimal:not(:placeholder-shown) ~ .floating-label,
+.input-minimal.always-raised ~ .floating-label {
     top: -14px;
+    font-size: 12px;
     line-height: 1;
+    color: #171818;
+}
+
+/* ---- one button grammar ------------------------------------------------------------------
+
+   Four roles, one shape. A dialog used to stack a square "Giữ lại" beside a pill "Xoá", and
+   the appointment card five square secondaries beside one pill primary, so the eye read the
+   odd one out as the important one — which it was not. All four are pills, all four clear
+   44px, all four carry the same label type, so role is told by colour alone.
+
+   Colours are the tokens as literals, the way .input-minimal above already writes them:
+   ui/assets/js/oak-tailwind-config.js is evaluated at build time, not at page time, so this
+   file cannot read it. primary-container on hover primary (13.97:1 white on #2c2c2c), error
+   at 6.46:1, and the secondary's border is `outline` #5e6262 — 6.18:1 on white, past the
+   3:1 that WCAG 1.4.11 asks of a control's boundary. */
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 24px;
+    border: 1px solid transparent;
+    border-radius: 9999px;
+    font-family: Inter, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease,
+        transform 0.2s ease;
+}
+
+.btn-primary {
+    background-color: #2c2c2c;
+    color: #ffffff;
+}
+
+.btn-primary:hover {
+    background-color: #171818;
+}
+
+.btn-secondary {
+    background-color: transparent;
+    border-color: #5e6262;
+    color: #171818;
+}
+
+.btn-secondary:hover {
+    background-color: rgba(255, 221, 178, 0.5);
+}
+
+.btn-ghost {
+    background-color: transparent;
+    color: #171818;
+}
+
+.btn-ghost:hover {
+    background-color: #ffe4c3;
+}
+
+.btn-danger {
+    background-color: #ba1a1a;
+    color: #ffffff;
+}
+
+.btn-danger:hover {
+    background-color: rgba(186, 26, 26, 0.9);
+}
+
+/* Press feedback, kept with the role rather than sprinkled on each call site: the buttons
+   these four classes replaced carried `active:scale-95`, and dropping it would have made a
+   converted button feel dead beside the 65 that still spell it out inline. */
+.btn-primary:active,
+.btn-secondary:active,
+.btn-ghost:active,
+.btn-danger:active {
+    transform: scale(0.95);
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-ghost:disabled,
+.btn-danger:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* The panel every confirm/edit dialog sits in — one surface, one border, one corner, one
+   shadow. The console drew it square, the account pages rounded and the blog composer at
+   16px; the width, the padding and the section rules stay with each dialog, because a
+   two-field confirm and a full service form are not the same box. */
+.oak-dialog {
+    position: relative;
+    text-align: left;
+    background-color: #ffffff;
+    border: 1px solid rgba(154, 158, 158, 0.2);
+    border-radius: 0.25rem;
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.1);
+}
+
+/* ---- one star -----------------------------------------------------------------------------
+
+   The same rating was orange on a salon profile, black on the results list and cream-grey
+   when empty (1.29:1 — invisible). One filled star (secondary #924c00, 6.45:1 on white),
+   one empty star (outline-variant #9a9e9e, 2.71:1 — a decoration beside a number that is
+   itself readable), three sizes. The size rules name .material-symbols-outlined too so they
+   out-rank that font's own 24px default. */
+.oak-star,
+.oak-star-empty {
+    line-height: 1;
+}
+
+.oak-star {
+    color: #924c00;
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.oak-star-empty {
+    color: #9a9e9e;
+}
+
+.material-symbols-outlined.oak-star-sm {
+    font-size: 16px;
+}
+
+.material-symbols-outlined.oak-star-md {
+    font-size: 20px;
+}
+
+.material-symbols-outlined.oak-star-lg {
+    font-size: 24px;
+}
+
+/* Underline tabs, previously declared with the same three hex values in a <style> block on
+   both pages that use them. */
+.tab-button {
+    color: #444748;
+    padding-bottom: 0.5rem;
+    transition: all 0.2s ease-in-out;
+}
+
+.tab-button:hover {
+    color: #171818;
+}
+
+.tab-button.active {
+    border-bottom: 2px solid #171818;
+    font-weight: 600;
+    color: #171818;
+}
+
+/* ---- keeping what takes focus visible, and still ------------------------------------------
+
+   Every page pins its top bar at `top-0` (80px tall) and four pin a booking bar to the
+   bottom edge. Tab moves focus by scrolling the target to the edge of the viewport, which
+   put it under one bar or the other — WCAG 2.2 2.4.11 Focus Not Obscured, and the reason
+   the legal pages had already grown their own `scroll-mt-24`.
+
+   On the root element rather than on <body>: `scroll-padding` is not one of the properties
+   that propagate from the body to the viewport, and the viewport is what scrolls here. The
+   bottom rule keys off the same attribute the toast does, so a page that grows or loses a
+   booking bar never has to remember this file exists.
+
+   The booking bars are phone-only, and the marker element stays in the DOM on a desktop
+   width with `display: none` on it, so the bottom padding is asked for at the widths the
+   bar is actually drawn at: below md for the three that carry `md:hidden`, and below lg
+   for the wizard, which keeps its bar one breakpoint further. The wizard's bar is also
+   conditional inside those widths — it appears from step 2 — and `x-show` hides it by
+   writing `display: none` inline, which is what the `:not()` reads: no bar drawn, no
+   padding held for one. */
+html {
+    scroll-padding-top: 6rem;
+}
+
+@media (max-width: 767px) {
+    html:has([data-oak-sticky-cta]:not([style*="display: none"])) {
+        scroll-padding-bottom: 5rem;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    html:has([data-oak-sticky-cta].lg\:hidden:not([style*="display: none"])) {
+        scroll-padding-bottom: 5rem;
+    }
+}
+
+/* The skip link is the one focusable thing left outside the landmarks a dialog makes inert,
+   and it points at <main> — inert at that moment — so Tab would reach a link that moves
+   focus nowhere. The three dialogs all lock the page's scroll on the same class; that is
+   what this reads, so a fourth gets it for free. */
+body.overflow-hidden [data-oak-skip] {
+    display: none;
+}
+
+/* A reader who has asked their system for less motion gets it site-wide, instead of only on
+   the Beauty Map and the assistant's typing dots — the two places that had thought to ask.
+   Durations go to a hundredth of a millisecond rather than to zero so that transitionend
+   and animationend still fire and nothing waiting on them hangs.
+
+   The pulse of a loading skeleton is the exception that has to be written out: switched off
+   at full opacity it reads as content that has finished arriving, so it is parked at 0.7 —
+   plainly still a placeholder, and no longer moving. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .animate-pulse {
+        animation: none !important;
+        opacity: 0.7;
+    }
+
+    .img-hover-zoom:hover img,
+    .btn-primary:active,
+    .btn-secondary:active,
+    .btn-ghost:active,
+    .btn-danger:active {
+        transform: none;
+    }
+
+    /* The press and hover scales are written inline, on around ninety elements between them,
+       so they are reached by what the class attribute holds rather than one by one. Zeroing
+       the duration would keep the movement and only make it instant — which reads as a jump,
+       not as stillness. !important because a Tailwind variant is (0,2,0) and these are not. */
+    [class*="active:scale"]:active,
+    .group:hover [class*="group-hover:scale"] {
+        transform: none !important;
+    }
 }

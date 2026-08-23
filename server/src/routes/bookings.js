@@ -596,28 +596,28 @@ router.patch('/:id/cancel', async (req, res, next) => {
     const booking = await ownedBooking(req);
     const { reason } = req.body ?? {};
     if (reason != null && typeof reason !== 'string') {
-      throw httpError(400, 'VALIDATION_ERROR', 'Lý do huỷ phải là chuỗi ký tự.');
+      throw httpError(400, 'VALIDATION_ERROR', 'Lý do hủy phải là chuỗi ký tự.');
     }
     // The same ceiling the dialog's textarea carries, asked again here: the note it lands
     // in is rendered in the partner console, and only the client enforces maxlength.
     if (reason && reason.length > 200) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Lý do huỷ tối đa 200 ký tự.');
+      throw httpError(400, 'VALIDATION_ERROR', 'Lý do hủy tối đa 200 ký tự.');
     }
 
     if (booking.status !== 'pending' && booking.status !== 'confirmed') {
-      throw httpError(400, 'INVALID_STATUS', 'Lịch hẹn này không thể huỷ.');
+      throw httpError(400, 'INVALID_STATUS', 'Lịch hẹn này không thể hủy.');
     }
     const cutoffHours = cancelWindowHours(booking);
     if (minutesUntilStart(booking.date, booking.time) < cutoffHours * MINUTES_PER_HOUR) {
       throw httpError(
         409,
         'CANCEL_WINDOW',
-        `Salon này nhận huỷ online chậm nhất ${cutoffHours} tiếng trước giờ hẹn. Vui lòng liên hệ salon.`,
+        `Salon này nhận hủy online chậm nhất ${cutoffHours} tiếng trước giờ hẹn. Vui lòng liên hệ salon.`,
       );
     }
 
     // Appended, not replaced: the customer's original request stays readable for the salon.
-    const cancelNote = reason ? `Lý do huỷ: ${reason}` : null;
+    const cancelNote = reason ? `Lý do hủy: ${reason}` : null;
     const note = [booking.note, cancelNote].filter(Boolean).join('\n') || null;
 
     await db.withTransaction(async (tx) => {
@@ -625,16 +625,16 @@ router.patch('/:id/cancel', async (req, res, next) => {
       await notifyUser(
         tx,
         req.user.id,
-        'Đã huỷ lịch hẹn',
-        `Lịch hẹn ${booking.code} tại ${booking.salon_name} ngày ${formatDate(booking.date)} lúc ${booking.time} đã được huỷ.`,
+        'Đã hủy lịch hẹn',
+        `Lịch hẹn ${booking.code} tại ${booking.salon_name} ngày ${formatDate(booking.date)} lúc ${booking.time} đã được hủy.`,
         'booking',
         booking.id,
       );
       await notifyUser(
         tx,
         booking.salon_owner_id,
-        'Khách đã huỷ lịch hẹn',
-        `Khách đã huỷ lịch hẹn ${booking.code} ngày ${formatDate(booking.date)} lúc ${booking.time}. Khung giờ này đã trống trở lại.`,
+        'Khách đã hủy lịch hẹn',
+        `Khách đã hủy lịch hẹn ${booking.code} ngày ${formatDate(booking.date)} lúc ${booking.time}. Khung giờ này đã trống trở lại.`,
         'booking',
         booking.id,
       );

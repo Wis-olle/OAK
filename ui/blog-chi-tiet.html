@@ -18,27 +18,21 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
-<style>
-        /* Underlined inputs with floating labels (comment form) */
-        .input-minimal {
-            border: none; border-bottom: 1px solid #c4c7c7; background-color: transparent;
-            padding: 12px 0; border-radius: 0; outline: none; box-shadow: none;
-            transition: border-color 0.3s ease; width: 100%;
-        }
-        .input-minimal:focus { border-bottom-color: #171818; box-shadow: none; }
-        .floating-label {
-            position: absolute; top: 12px; left: 0; pointer-events: none;
-            transition: 0.3s ease all; color: #747878;
-        }
-        .input-minimal:focus ~ .floating-label,
-        .input-minimal:not(:placeholder-shown) ~ .floating-label {
-            top: -12px; font-size: 12px; color: #171818;
-        }
-    </style>
 <title>Bài viết - OAK Beauty</title>
 <meta content="Bài viết từ chuyên gia và cộng đồng OAK Beauty: kinh nghiệm chăm sóc da, tóc, móng, xu hướng làm đẹp và những lời khuyên bạn có thể áp dụng ngay." name="description">
 <meta content="Bài viết - OAK Beauty" property="og:title">
@@ -53,6 +47,15 @@
 <!-- TopNavBar -->
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
+<!-- Every page draws itself with Alpine, and the bar above is written by script too, so
+     with scripting turned off there is nothing on screen and no way onward. This is that
+     way onward: one line, and the number that answers. -->
+<noscript>
+<div class="px-margin-mobile md:px-margin-desktop py-4 bg-secondary-container text-on-secondary-container font-body-md text-body-md text-center">
+<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gọi hotline để được hỗ trợ đặt lịch.</p>
+<a class="underline font-bold" href="tel:19006035">Gọi hotline 1900 6035</a>
+</div>
+</noscript>
 <!-- Main Content -->
 <main class="pt-20 flex-grow pb-section-gap" x-data="oakPostDetail()">
 <div class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto pt-8 md:pt-12">
@@ -82,10 +85,23 @@
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-6" x-text="post.title"></h1>
 <!-- Byline -->
 <div class="flex items-center gap-3 pb-8 mb-8 border-b border-outline-variant/30">
-<img :alt="post.author.name || 'Tác giả'" :src="avatarOf(post.author)" class="w-11 h-11 rounded-full object-cover bg-surface-variant shrink-0">
+<img decoding="async" :alt="post.author.name || 'Tác giả'" :src="avatarOf(post.author)" class="w-11 h-11 rounded-full object-cover bg-surface-variant shrink-0">
 <div>
 <p class="font-label-md text-label-md text-primary" x-text="post.author.name || 'Cộng đồng OAK'"></p>
 <p class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(post.created_at)"></p>
+</div>
+<!-- Sharing a post is how a blog reaches anybody who is not already here. The device's own
+     sheet where there is one, and where there is not (every desktop) the three ways a
+     reader in Vietnam actually sends a link. -->
+<div @click.outside="shareOpen = false" @keydown.escape="shareOpen = false" class="relative ml-auto shrink-0">
+<button :aria-expanded="shareOpen" @click="share()" aria-haspopup="true" aria-label="Chia sẻ" class="w-11 h-11 flex items-center justify-center rounded-full border border-outline-variant/30 text-primary hover:bg-surface-container-low transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="share">share</span>
+</button>
+<div class="absolute right-0 top-full mt-2 z-30 w-60 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2" x-cloak="" x-show="shareOpen">
+<button @click="copyLink()" class="block w-full text-left min-h-[44px] px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors" type="button">Sao chép liên kết</button>
+<a :href="zaloShareUrl" @click="shareOpen = false" class="block min-h-[44px] px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors" rel="noopener noreferrer" target="_blank">Chia sẻ qua Zalo</a>
+<a :href="facebookShareUrl" @click="shareOpen = false" class="block min-h-[44px] px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors" rel="noopener noreferrer" target="_blank">Chia sẻ qua Facebook</a>
+</div>
 </div>
 </div>
 <template x-if="post.source &amp;&amp; post.salon &amp;&amp; safeSourceUrl">
@@ -102,13 +118,13 @@
 <!-- Video player -->
 <template x-if="post.type === 'video' &amp;&amp; embedUrl">
 <div class="aspect-[16/9] w-full rounded-lg overflow-hidden bg-primary mb-8">
-<iframe :src="embedUrl" :title="post.title" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen="" class="w-full h-full" frameborder="0" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
+<iframe loading="lazy" :src="embedUrl" :title="post.title" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen="" class="w-full h-full" frameborder="0" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
 </div>
 </template>
 <!-- Article hero image -->
 <template x-if="post.type !== 'video' &amp;&amp; post.image">
 <div class="aspect-[16/9] w-full rounded-lg overflow-hidden bg-surface-container mb-8">
-<img :alt="post.title" :src="post.image" class="w-full h-full object-cover">
+<img decoding="async" width="640" height="360" :alt="post.title" :src="post.image" class="w-full h-full object-cover">
 </div>
 </template>
 <!-- Body copy: capped at a comfortable reading measure, unlike the blocks around it -->
@@ -136,7 +152,7 @@
 <div class="space-y-8 mb-10">
 <template :key="comment.id" x-for="comment in post.comments">
 <div class="flex gap-4">
-<img loading="lazy" :alt="comment.user.name || 'Người dùng'" :src="avatarOf(comment.user)" class="w-10 h-10 rounded-full object-cover bg-surface-variant shrink-0">
+<img decoding="async" loading="lazy" :alt="comment.user.name || 'Người dùng'" :src="avatarOf(comment.user)" class="w-10 h-10 rounded-full object-cover bg-surface-variant shrink-0">
 <div class="min-w-0">
 <div class="flex flex-wrap items-baseline gap-x-3">
 <p class="font-label-md text-label-md text-primary" x-text="comment.user.name || 'Người dùng OAK'"></p>
@@ -177,7 +193,7 @@
 <a :href="'blog-chi-tiet.html?slug=' + encodeURIComponent(item.slug)" class="group flex gap-4" style="color:inherit;text-decoration:none">
 <div class="relative w-24 h-20 rounded-lg overflow-hidden img-hover-zoom bg-surface-container shrink-0">
 <template x-if="item.image">
-<img loading="lazy" :alt="item.title" :src="item.image" class="w-full h-full object-cover">
+<img decoding="async" loading="lazy" :alt="item.title" :src="item.image" class="w-full h-full object-cover">
 </template>
 <template x-if="!item.image">
 <div class="w-full h-full flex items-center justify-center">
@@ -358,8 +374,66 @@
             loginUrl: 'dang-nhap-nguoi-dung.html?next=' +
                 encodeURIComponent('blog-chi-tiet.html' + location.search),
 
+            shareOpen: false,
+
+            /* Both built from the address the reader is actually on, so a post opened from
+               a search page shares as itself rather than as the blog. */
+            get zaloShareUrl() {
+                return 'https://zalo.me/share?url=' + encodeURIComponent(location.href);
+            },
+
+            get facebookShareUrl() {
+                return 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(location.href);
+            },
+
+            /** The device's own share sheet, or the menu beneath the button where there is none. */
+            async share() {
+                if (navigator.share) {
+                    try {
+                        await navigator.share({
+                            title: this.post.title,
+                            text: this.post.title,
+                            url: location.href,
+                        });
+                    } catch (error) {
+                        /* Dismissing the sheet rejects too; that is not a failure to report. */
+                    }
+                    return;
+                }
+                this.shareOpen = !this.shareOpen;
+            },
+
+            async copyLink() {
+                this.shareOpen = false;
+                try {
+                    await navigator.clipboard.writeText(location.href);
+                    OAK.toast('Đã sao chép liên kết.');
+                } catch (error) {
+                    OAK.toast('Không sao chép được liên kết.', 'error');
+                }
+            },
+
             async init() {
                 this.user = await OAK.me();
+
+                /* Choosing English reloads the page. A comment half written is the only
+                   thing on this page that a reload could destroy. The draft names its
+                   author because sessionStorage outlives a sign-out in the same tab: on a
+                   shared device the next account would otherwise find the previous one's
+                   unsent sentence waiting under its own name. Same rule as the blog
+                   composer's restoreComposerDraft(). */
+                const draft = OAK.takeDraft('comment');
+                if (draft && draft.userId === (this.user && this.user.id)) {
+                    this.commentText = draft.text;
+                }
+                window.addEventListener('oak:lang-change', () => {
+                    if (this.commentText.trim()) {
+                        OAK.saveDraft('comment', {
+                            text: this.commentText,
+                            userId: this.user && this.user.id,
+                        });
+                    }
+                });
 
                 const slug = OAK.qs('slug');
                 if (!slug) {

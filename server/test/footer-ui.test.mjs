@@ -15,12 +15,18 @@ const ui = path.join(root, 'ui');
 const pages = fs.readdirSync(ui).filter((name) => name.endsWith('.html')).sort();
 const readUi = (name) => fs.readFileSync(path.join(ui, name), 'utf8');
 
+/* The three pages that own a dialog bind `:inert` on the footer, so the page behind an open
+   dialog leaves the tab order (WCAG 2.4.11 / 2.1.2). That attribute is the page's state, not
+   the footer's copy, so it comes off before the copies are compared — everything else in the
+   block still has to match to the byte. */
+const DIALOG_INERT = / :inert="[A-Za-z]+ \|\| null"/;
+
 function footerOf(source) {
   const from = source.indexOf('<footer');
   if (from === -1) return null;
   const to = source.indexOf('</footer>', from);
   assert.ok(to !== -1, 'a page opens <footer> and never closes it');
-  return source.slice(from, to + '</footer>'.length);
+  return source.slice(from, to + '</footer>'.length).replace(DIALOG_INERT, '');
 }
 
 const withFooter = pages.filter((page) => footerOf(readUi(page)) !== null);

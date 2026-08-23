@@ -1,0 +1,17 @@
+{
+  "name": "OAK Beauty",
+  "short_name": "OAK",
+  "description": "Đặt lịch salon nail, tóc, chăm sóc da, spa và nối mi tại TP.HCM.",
+  "lang": "vi",
+  "dir": "ltr",
+  "start_url": "kham-pha.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#fff8f4",
+  "background_color": "#fff8f4",
+  "icons": [
+    { "src": "assets/images/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/images/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

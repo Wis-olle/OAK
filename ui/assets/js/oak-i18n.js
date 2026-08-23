@@ -64,7 +64,8 @@
 
   /* "Thứ Hai, 10/08/2026" — the one shape OAK.fmtDate() returns, and the thing several of the
      composed strings below are built around. Spelled once, spliced into each of them. */
-  var DATE = '(Chủ Nhật|Thứ Hai|Thứ Ba|Thứ Tư|Thứ Năm|Thứ Sáu|Thứ Bảy), (\\d{2}/\\d{2}/\\d{4})';
+  var DAY_NAMES = 'Chủ Nhật|Thứ Hai|Thứ Ba|Thứ Tư|Thứ Năm|Thứ Sáu|Thứ Bảy';
+  var DATE = '(' + DAY_NAMES + '), (\\d{2}/\\d{2}/\\d{4})';
 
   function around(before, after) {
     return new RegExp('^' + before + DATE + (after || '') + '$');
@@ -105,12 +106,18 @@
     [around(''), dated('')],
     [around('Thành viên từ '), dated('Member since ')],
     [around('Lịch trống '), dated('Available on ')],
-    // "12 Tháng 8, 2026" — dateLabel() on lich-hen-cua-toi and xac-nhan-dat-lich.
+    // "12 Tháng 8, 2026" — OAK.fmtDate(iso, 'long'), on lich-hen-cua-toi and xac-nhan.
     [/^(\d+) Tháng (\d+), (\d+)$/, function (all, day, month, year) {
       return MONTHS[Number(month) - 1] + ' ' + day + ', ' + year;
     }],
     // "Tuần 10/08/2026 – 16/08/2026" — the week heading of the partner calendar.
     [/^Tuần (\d{2}\/\d{2}\/\d{4}) – (\d{2}\/\d{2}\/\d{4})$/, 'Week of $1 – $2'],
+    // "14:00 - 15:00, Thứ Hai" — timeLabel() on xac-nhan-dat-lich, built around
+    // OAK.fmtDate(iso, 'weekday'), the one shape that puts a weekday on its own.
+    [new RegExp('^(\\d{1,2}:\\d{2} - \\d{1,2}:\\d{2}), (' + DAY_NAMES + ')$'),
+      function (all, span, weekday) {
+        return span + ', ' + WEEKDAYS[weekday];
+      }],
     [/^Ngày mở cửa cần giờ mở sớm hơn giờ đóng: (Chủ Nhật|Thứ [2-7])\.$/,
       function (all, weekday) {
         return 'An open day needs an opening time earlier than its closing time: ' +
@@ -226,8 +233,8 @@
     [/^Đã sao chép mã (.+)$/, 'Copied code $1'],
     [/^Không sao chép được mã, vui lòng chép thủ công: (.+)$/,
       'The code could not be copied, please copy it by hand: $1'],
-    [/^Xoá ưu đãi "(.+)"\?$/, 'Delete offer "$1"?'],
-    [/^Xoá dịch vụ "(.+)"\?$/, 'Delete service "$1"?'],
+    [/^Xóa ưu đãi "(.+)"\?$/, 'Delete offer "$1"?'],
+    [/^Xóa dịch vụ "(.+)"\?$/, 'Delete service "$1"?'],
 
     /* -- appointments ------------------------------------------------------------------ */
     [/^Mã đặt chỗ: (.+)$/, 'Booking code: $1'],
@@ -259,6 +266,17 @@
 
     [/^Không tải được salon nổi bật\. (.+)$/, 'Could not load the featured salons. $1'],
     [/^Không tải được salon mới\. (.+)$/, 'Could not load the new salons. $1'],
+
+    /* -- the head of a search on ket-qua-tim-kiem.html: the criteria a reader picked, put
+          into the one sentence a shared link previews as and a crawler files it under. -- */
+    [/^Salon(?: (.+))? tại (.+) - OAK Beauty$/, function (all, what, where) {
+      return salonsIn(what, where) + ' - OAK Beauty';
+    }],
+    [new RegExp('^Danh sách salon(?: (.+))? tại (.+) trên OAK Beauty: giá dịch vụ, ' +
+      'đánh giá thật và khung giờ trống để đặt lịch\\.$'), function (all, what, where) {
+      return salonsIn(what, where) +
+        ' on OAK Beauty: service prices, real reviews and open time slots to book.';
+    }],
   ];
 
   // NOSCRIPT is markup, not text, until scripting is off — and if it were off none of this
@@ -333,6 +351,30 @@
   function labelled(text) {
     var english = entry(text, ruledBare);
     return english === undefined ? text : english;
+  }
+
+  /**
+   * The six chips of ket-qua-tim-kiem.html in front of the word they qualify. The dictionary
+   * answers each of them standing on its own ("Nail" is "Nails", a heading over a set of
+   * cards); in front of "salons" the site has always used the singular ("nail salons",
+   * "eyelash salons"), which is a second English for the same word rather than a second
+   * dictionary. The area beside it is a district and needs no such thing.
+   */
+  var SALON_KINDS = {
+    'Nail': 'Nail', 'Tóc': 'Hair', 'Chăm sóc da': 'Skincare',
+    'Spa & Massage': 'Spa & massage', 'Nối mi': 'Eyelash', 'Tiện ích': 'Amenity',
+  };
+
+  /**
+   * "Salon Nail tại Quận 1" — the two criteria a search names itself by, in the title and in
+   * the description ket-qua-tim-kiem.html writes into its own head. A search that named no
+   * category arrives here with the first half missing.
+   */
+  function salonsIn(what, where) {
+    if (what === undefined) {
+      return 'Salons in ' + labelled(where);
+    }
+    return (SALON_KINDS[what] || labelled(what)) + ' salons in ' + labelled(where);
   }
 
   /**
@@ -603,6 +645,11 @@
     if (window.OAK && typeof window.OAK.track === 'function') {
       window.OAK.track('lang_switch', { to: code });
     }
+    /* The reload below is a page load like any other and throws away every unsaved field
+       on the way. Pages that hold one worth keeping — the blog composer, the comment box,
+       the note on the booking wizard — listen for this and stash it through OAK.saveDraft;
+       the listeners are synchronous, so they have all run before the reload starts. */
+    window.dispatchEvent(new Event('oak:lang-change'));
     store(code);
     location.reload();
   }

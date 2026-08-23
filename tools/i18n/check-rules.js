@@ -12,7 +12,8 @@
      4. a page-scoped key wins on its own page, the bare key wins everywhere else, and shared
         chrome never sees a scoped key;
      5. nothing in server/src/seed.js is altered, and no rule disagrees with the dictionary on
-        a string that is both a dictionary key and a composed shape. */
+        a string that is both a dictionary key and a composed shape;
+     6. no surface a reader meets goes back to "Huỷ", "Xoá" or three dots for an ellipsis. */
 
 const fs = require('fs');
 const path = require('path');
@@ -94,6 +95,9 @@ const cases = [
     ['Lịch trống Thứ Sáu, 14/08/2026', 'Available on Friday, 14/08/2026'],
     ['12 Tháng 8, 2026', 'August 12, 2026'],
     ['Tuần 10/08/2026 – 16/08/2026', 'Week of 10/08/2026 – 16/08/2026'],
+    // the confirmation page's line, the one node that carries a weekday on its own
+    ['14:00 - 15:00, Thứ Hai', '14:00 - 15:00, Monday'],
+    ['09:30 - 10:15, Chủ Nhật', '09:30 - 10:15, Sunday'],
     ['Ngày mở cửa cần giờ mở sớm hơn giờ đóng: Thứ 2.',
         'An open day needs an opening time earlier than its closing time: Monday.'],
     ['Ngày mở cửa cần giờ mở sớm hơn giờ đóng: Chủ Nhật.',
@@ -161,8 +165,8 @@ const cases = [
     ['Đã sao chép mã OAK20', 'Copied code OAK20'],
     ['Không sao chép được mã, vui lòng chép thủ công: OAK20',
         'The code could not be copied, please copy it by hand: OAK20'],
-    ['Xoá ưu đãi "Chào mừng thành viên mới"?', 'Delete offer "Chào mừng thành viên mới"?'],
-    ['Xoá dịch vụ "Gội massage đầu"?', 'Delete service "Gội massage đầu"?'],
+    ['Xóa ưu đãi "Chào mừng thành viên mới"?', 'Delete offer "Chào mừng thành viên mới"?'],
+    ['Xóa dịch vụ "Gội massage đầu"?', 'Delete service "Gội massage đầu"?'],
     // appointments
     ['Mã đặt chỗ: OAK-2026-0012', 'Booking code: OAK-2026-0012'],
     ['Số điện thoại salon: 0901 234 567', 'Salon phone number: 0901 234 567'],
@@ -187,6 +191,15 @@ const cases = [
         'Could not load the featured salons. Network error'],
     ['Không tải được salon mới. Network error',
         'Could not load the new salons. Network error'],
+    // the title and description ket-qua-tim-kiem.html writes into its own head: the category
+    // is a chip's own label and the area a district, so the dictionary answers both halves
+    ['Salon Nail tại Quận 1 - OAK Beauty', 'Nail salons in District 1 - OAK Beauty'],
+    ['Salon Chăm sóc da tại Quận 3 - OAK Beauty', 'Skincare salons in District 3 - OAK Beauty'],
+    ['Salon tại TP.HCM - OAK Beauty', 'Salons in TP.HCM - OAK Beauty'],
+    ['Danh sách salon Nối mi tại Quận 1 trên OAK Beauty: giá dịch vụ, đánh giá thật và khung giờ trống để đặt lịch.',
+        'Eyelash salons in District 1 on OAK Beauty: service prices, real reviews and open time slots to book.'],
+    ['Danh sách salon tại TP.HCM trên OAK Beauty: giá dịch vụ, đánh giá thật và khung giờ trống để đặt lịch.',
+        'Salons in TP.HCM on OAK Beauty: service prices, real reviews and open time slots to book.'],
     // server data and English output: neither may be touched
     ['Chào mừng thành viên mới - Giảm 20%', 'Chào mừng thành viên mới - Giảm 20%'],
     ['Nhớ mang theo mã đặt chỗ. Vui lòng đến sớm 10 phút.',
@@ -353,6 +366,70 @@ for (const key of Object.keys(dictionary)) {
     }
 }
 
+/* ---- 6. one spelling, one ellipsis ---------------------------------------------------- */
+
+/* Vietnamese writes the same two words either way, and OAK shipped both: the console said
+   "Huỷ"/"Xoá" and the customer side "Hủy"/"Xóa", so a reader cancelled an appointment with
+   one spelling and was told about it by the server in the other. Three dots and an ellipsis
+   were mixed the same way, inside otherwise identical busy labels. Both are settled now —
+   "Hủy", "Xóa", "…" — and this is what keeps them settled, because neither one is the kind
+   of thing a reviewer notices.
+
+   Scanned: the pages, the scripts that assemble strings no page holds, the dictionary the
+   English site reads, the parts it is built from, and every server file that can put a
+   Vietnamese sentence in front of a reader — the routes, the libraries, the auth middleware
+   and app.js/db.js, which carry their own error messages. NOT server/src/seed.js: that is
+   the salon's and the blog's own prose, which section 5 above already treats as data rather
+   than as product copy, and not the vendored bundles, whose minified output is full of
+   spread syntax.
+
+   The ellipsis pattern asks for three dots ENDING a word, which is what a busy label looks
+   like; a spread or a rest element is always preceded by a bracket, a comma or a space. */
+const BANNED = [
+    [/Huỷ/, '"Huỷ" — the settled spelling is "Hủy"'],
+    [/huỷ/, '"huỷ" — the settled spelling is "hủy"'],
+    [/Xoá/, '"Xoá" — the settled spelling is "Xóa"'],
+    [/xoá/, '"xoá" — the settled spelling is "xóa"'],
+    [/[\p{L}\p{N}]\.\.\./u, 'three dots — the settled ellipsis is "…"'],
+];
+
+const VENDORED = /-[0-9a-f]{8,}\.js$/;
+
+function scanned() {
+    const files = [];
+    const add = (dir, keep) => {
+        for (const name of fs.readdirSync(dir)) {
+            if (keep(name)) {
+                files.push(path.join(dir, name));
+            }
+        }
+    };
+    add(ui, (name) => name.endsWith('.html'));
+    add(js, (name) => name.endsWith('.js') && !VENDORED.test(name));
+    add(path.join(__dirname, 'parts'), (name) => name.endsWith('.json'));
+    add(path.join(__dirname, '../../server/src/routes'), (name) => name.endsWith('.js'));
+    add(path.join(__dirname, '../../server/src/lib'), (name) => name.endsWith('.js'));
+    add(path.join(__dirname, '../../server/src/middleware'), (name) => name.endsWith('.js'));
+    add(path.join(__dirname, '../../server/src'), (name) => name === 'app.js' || name === 'db.js');
+    return files;
+}
+
+let scannedFiles = 0;
+for (const file of scanned()) {
+    scannedFiles += 1;
+    const lines = fs.readFileSync(file, 'utf8').split('\n');
+    lines.forEach((line, index) => {
+        for (const [pattern, why] of BANNED) {
+            if (pattern.test(line)) {
+                const where = path.relative(path.join(__dirname, '../..'), file)
+                    .split(path.sep).join('/');
+                fail(`${where}:${index + 1} ` +
+                    `carries ${why}\n  ${line.trim().slice(0, 120)}`);
+            }
+        }
+    });
+}
+
 /* ---- verdict -------------------------------------------------------------------------- */
 
 if (failed) {
@@ -361,6 +438,6 @@ if (failed) {
 }
 console.log(
     `${cases.length} rule cases, ${RULES.length} rules, ${scope.length} pages scoped, ` +
-    `${seedStrings.size} seed strings, ${Object.keys(dictionary).length} dictionary entries` +
-    ' — all pass.'
+    `${seedStrings.size} seed strings, ${Object.keys(dictionary).length} dictionary entries, ` +
+    `${scannedFiles} files spell-checked — all pass.`
 );

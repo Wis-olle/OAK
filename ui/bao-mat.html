@@ -18,6 +18,17 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
@@ -36,6 +47,15 @@
 <!-- TopNavBar -->
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
+<!-- Every page draws itself with Alpine, and the bar above is written by script too, so
+     with scripting turned off there is nothing on screen and no way onward. This is that
+     way onward: one line, and the number that answers. -->
+<noscript>
+<div class="px-margin-mobile md:px-margin-desktop py-4 bg-secondary-container text-on-secondary-container font-body-md text-body-md text-center">
+<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gọi hotline để được hỗ trợ đặt lịch.</p>
+<a class="underline font-bold" href="tel:19006035">Gọi hotline 1900 6035</a>
+</div>
+</noscript>
 <!-- Main Content -->
 <main class="pt-20 flex-grow pb-section-gap">
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-16 pb-12">
@@ -51,7 +71,7 @@
 <a class="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#tre-vi-thanh-nien">Trẻ vị thành niên</a>
 <a class="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-surface-container-low text-primary font-caption text-caption hover:bg-tertiary hover:text-on-tertiary transition-colors" href="#lien-he-du-lieu">Liên hệ về dữ liệu</a>
 </nav>
-<p class="font-caption text-caption text-outline mt-6">Cập nhật lần cuối: 23/08/2026 · Có hiệu lực từ: 23/08/2026</p>
+<p class="font-caption text-caption text-on-surface-variant mt-6">Cập nhật lần cuối: 23/08/2026 · Có hiệu lực từ: 23/08/2026</p>
 </section>
 <section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
 <div class="flex flex-col gap-gutter max-w-3xl">
@@ -87,7 +107,7 @@
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">OAK Beauty dùng một cookie phiên duy nhất để ghi nhớ rằng bạn đã đăng nhập. Cookie này là cookie kỹ thuật bắt buộc: không có nó, bạn sẽ phải đăng nhập lại ở mỗi trang.</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Cookie phiên không dùng để theo dõi bạn trên các website khác. Chúng tôi không cài mã quảng cáo của bên thứ ba.</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Bài viết trên Blog có thể nhúng video từ YouTube (Google). Khi bạn mở một bài như vậy, YouTube có thể đặt cookie riêng của họ trên trình duyệt của bạn; phần đó theo chính sách của Google, không thuộc phạm vi cookie của OAK Beauty.</p>
-<p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Bạn có thể xoá cookie bất cứ lúc nào trong cài đặt trình duyệt; khi đó bạn sẽ được đăng xuất khỏi OAK Beauty.</p>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 last:mb-0">Bạn có thể xóa cookie bất cứ lúc nào trong cài đặt trình duyệt; khi đó bạn sẽ được đăng xuất khỏi OAK Beauty.</p>
 </article>
 
 <article class="bg-surface-container-low rounded-2xl p-8 scroll-mt-24" id="luu-tru-va-bao-mat">
@@ -103,9 +123,9 @@
 <ul class="flex flex-col gap-2 font-body-md text-body-md text-on-surface-variant list-disc pl-5 mb-4 last:mb-0">
 <li><strong class="text-primary">Xem và sửa:</strong> cập nhật họ tên, email, số điện thoại và ảnh đại diện tại trang <a class="underline hover:text-primary transition-colors" href="ho-so-ca-nhan.html">Hồ sơ cá nhân</a>.</li>
 <li><strong class="text-primary">Xem lịch sử:</strong> tra cứu toàn bộ lịch hẹn tại <a class="underline hover:text-primary transition-colors" href="lich-hen-cua-toi.html">Lịch hẹn của tôi</a> và đánh giá tại <a class="underline hover:text-primary transition-colors" href="danh-gia-cua-toi.html">Đánh giá của tôi</a>.</li>
-<li><strong class="text-primary">Xoá nội dung:</strong> gỡ đánh giá đã đăng hoặc bỏ salon khỏi danh sách yêu thích bất cứ lúc nào.</li>
-<li><strong class="text-primary">Xoá tài khoản:</strong> tự xoá ngay trong mục "Dữ liệu của bạn" tại trang <a class="underline hover:text-primary transition-colors" href="cai-dat.html">Cài đặt</a>: nhập mật khẩu để xác nhận, hồ sơ được ẩn danh và phiên đăng nhập bị huỷ ngay lập tức. Nếu không đăng nhập được, gửi thư từ chính địa chỉ email đã đăng ký tới <a class="underline hover:text-primary transition-colors" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a> với tiêu đề "Yêu cầu xoá tài khoản". Chúng tôi xác minh danh tính, xác nhận đã nhận trong 72 giờ và hoàn tất trong vòng 30 ngày.</li>
-<li><strong class="text-primary">Rút lại đồng ý:</strong> bạn có thể rút đồng ý bất cứ lúc nào bằng cách đóng tài khoản. Việc rút đồng ý không làm mất hiệu lực của phần đã xử lý trước đó, và những lịch hẹn đang chờ tại salon vẫn được giữ cho tới khi hoàn tất hoặc huỷ.</li>
+<li><strong class="text-primary">Xóa nội dung:</strong> gỡ đánh giá đã đăng hoặc bỏ salon khỏi danh sách yêu thích bất cứ lúc nào.</li>
+<li><strong class="text-primary">Xóa tài khoản:</strong> tự xóa ngay trong mục "Dữ liệu của bạn" tại trang <a class="underline hover:text-primary transition-colors" href="cai-dat.html">Cài đặt</a>: nhập mật khẩu để xác nhận, hồ sơ được ẩn danh và phiên đăng nhập bị hủy ngay lập tức. Nếu không đăng nhập được, gửi thư từ chính địa chỉ email đã đăng ký tới <a class="underline hover:text-primary transition-colors" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a> với tiêu đề "Yêu cầu xóa tài khoản". Chúng tôi xác minh danh tính, xác nhận đã nhận trong 72 giờ và hoàn tất trong vòng 30 ngày.</li>
+<li><strong class="text-primary">Rút lại đồng ý:</strong> bạn có thể rút đồng ý bất cứ lúc nào bằng cách đóng tài khoản. Việc rút đồng ý không làm mất hiệu lực của phần đã xử lý trước đó, và những lịch hẹn đang chờ tại salon vẫn được giữ cho tới khi hoàn tất hoặc hủy.</li>
 <li><strong class="text-primary">Phản đối và khiếu nại:</strong> bạn có quyền phản đối hoặc yêu cầu hạn chế việc xử lý dữ liệu, khiếu nại tới đầu mối ở mục 7, và khiếu nại tới cơ quan nhà nước có thẩm quyền về bảo vệ dữ liệu cá nhân.</li>
 </ul>
 </article>

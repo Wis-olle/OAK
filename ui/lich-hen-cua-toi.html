@@ -16,16 +16,21 @@
 })();
 </script>
 <script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
 <link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
-<style>
-        /* Appointment tabs (this page only) */
-        .tab-button { color: #444748; padding-bottom: 0.5rem; transition: all 0.2s ease-in-out; }
-        .tab-button:hover { color: #171818; }
-        .tab-button.active { border-bottom: 2px solid #171818; font-weight: 600; color: #171818; }
-    </style>
 <title>Lịch hẹn của tôi - OAK Beauty</title>
 <meta content="noindex,nofollow" name="robots">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
@@ -144,56 +149,56 @@ Cài đặt
 <template :key="booking.id" x-for="booking in bookings">
 <div class="group bg-surface-container-lowest p-4 md:p-6 flex flex-col md:flex-row gap-6 hover:bg-surface-container-low transition-colors rounded-lg border border-outline-variant/20">
 <div class="w-full md:w-48 h-48 md:h-32 shrink-0 rounded-md overflow-hidden bg-surface-variant">
-<img loading="lazy" :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
+<img decoding="async" loading="lazy" :alt="booking.salon.name" :src="booking.salon.image" class="w-full h-full object-cover">
 </div>
 <div class="flex-1 flex flex-col justify-between">
 <div class="flex justify-between items-start mb-2">
 <div>
-<span :class="statusClass(booking.status)" class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-sm mb-2">
+<span :class="statusClass(booking.status)" class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-full mb-2">
 <span aria-hidden="true" class="material-symbols-outlined text-[14px]" x-text="statusIcon(booking.status)"></span> <span x-text="statusLabel(booking.status)"></span>
 </span>
 <!-- The salon never closed this one out; the calendar did. Two spans rather than one
      bound label so both readings sit in the markup for the dictionary to find. -->
-<span class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-sm mb-2 bg-tertiary-fixed text-on-tertiary-fixed" x-show="booking.auto &amp;&amp; booking.status === 'completed'">Tự động hoàn tất</span>
-<span class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-sm mb-2 bg-tertiary-fixed text-on-tertiary-fixed" x-show="booking.auto &amp;&amp; booking.status === 'cancelled'">Salon không xác nhận</span>
+<span class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-full mb-2 bg-tertiary-fixed text-on-tertiary-fixed" x-show="booking.auto &amp;&amp; booking.status === 'completed'">Tự động hoàn tất</span>
+<span class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-full mb-2 bg-tertiary-fixed text-on-tertiary-fixed" x-show="booking.auto &amp;&amp; booking.status === 'cancelled'">Salon không xác nhận</span>
 <h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="booking.service.name"></h3>
 <p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-2">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">store</span> <span x-text="booking.salon.name"></span>
 </p>
-<p class="font-caption text-caption text-outline mt-1" x-text="'Mã đặt chỗ: ' + booking.code"></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1" x-text="'Mã đặt chỗ: ' + booking.code"></p>
 <!-- Two nodes, not one string built in JavaScript: the label is a dictionary key and the
      name beside it is the salon's own. -->
-<p class="font-caption text-caption text-outline mt-1" x-show="booking.staff &amp;&amp; booking.status === 'completed'"><span>KTV:</span> <span x-text="booking.staff ? booking.staff.name : ''"></span></p>
+<p class="font-caption text-caption text-on-surface-variant mt-1" x-show="booking.staff &amp;&amp; booking.status === 'completed'"><span>KTV:</span> <span x-text="booking.staff ? booking.staff.name : ''"></span></p>
 </div>
 </div>
 <div class="flex flex-col md:flex-row justify-between items-start md:items-end mt-4 md:mt-0 gap-4 md:gap-0">
 <div class="flex gap-6">
 <div class="flex flex-col">
-<span class="font-caption text-caption text-outline mb-1">Thời gian</span>
+<span class="font-caption text-caption text-on-surface-variant mb-1">Thời gian</span>
 <span class="font-label-md text-label-md text-on-surface" x-text="timeLabel(booking)"></span>
 </div>
 <div class="flex flex-col border-l border-outline-variant/30 pl-6">
-<span class="font-caption text-caption text-outline mb-1">Ngày</span>
-<span class="font-label-md text-label-md text-on-surface" x-text="dateLabel(booking.date)"></span>
+<span class="font-caption text-caption text-on-surface-variant mb-1">Ngày</span>
+<span class="font-label-md text-label-md text-on-surface" x-text="OAK.fmtDate(booking.date, 'long')"></span>
 </div>
 </div>
 <div class="flex flex-wrap gap-3 w-full md:w-auto">
-<button @click="cancel(booking)" class="flex-1 md:flex-none border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" type="button" x-show="tab === 'upcoming' &amp;&amp; !hasStarted(booking)">
+<button @click="cancel(booking)" class="btn-secondary flex-1 md:flex-none" type="button" x-show="tab === 'upcoming' &amp;&amp; !hasStarted(booking)">
                                     Hủy lịch
                                 </button>
-<a :href="rescheduleUrl(booking)" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="tab === 'upcoming' &amp;&amp; canCancel(booking)">
+<a :href="rescheduleUrl(booking)" class="btn-secondary flex-1 md:flex-none" x-show="tab === 'upcoming' &amp;&amp; canCancel(booking)">
                                     Đổi lịch
                                 </a>
-<a :href="'tel:' + (booking.salon.phone || '').replace(/\s/g, '')" @click="showPhone(booking.salon.phone)" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="booking.salon.phone">
+<a :href="'tel:' + (booking.salon.phone || '').replace(/\s/g, '')" @click="showPhone(booking.salon.phone)" class="btn-secondary flex-1 md:flex-none" x-show="booking.salon.phone">
                                     Liên hệ
                                 </a>
-<a :href="'danh-gia-cua-toi.html?booking_id=' + booking.id" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="canReview(booking)">
+<a :href="'danh-gia-cua-toi.html?booking_id=' + booking.id" class="btn-secondary flex-1 md:flex-none" x-show="canReview(booking)">
                                     Đánh giá
                                 </a>
-<a :href="rebookUrl(booking)" class="flex-1 md:flex-none inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-surface-variant/50 transition-colors" x-show="tab !== 'upcoming'">
+<a :href="rebookUrl(booking)" class="btn-secondary flex-1 md:flex-none" x-show="tab !== 'upcoming'">
                                     Đặt lại
                                 </a>
-<a :href="'xac-nhan-dat-lich.html?id=' + booking.id" class="flex-1 md:flex-none inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md px-4 py-2 uppercase tracking-wider hover:bg-primary transition-opacity rounded-full">
+<a :href="'xac-nhan-dat-lich.html?id=' + booking.id" class="btn-primary flex-1 md:flex-none">
                                     Xem chi tiết
                                 </a>
 </div>
@@ -208,7 +213,7 @@ Cài đặt
 <!-- Backdrop -->
 <div @click="closeCancel()" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="cancelTarget" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
 <!-- Modal Panel -->
-<div class="relative w-full sm:max-w-md bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-6 md:p-8" x-show="cancelTarget" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<div class="oak-dialog w-full sm:max-w-md p-6 md:p-8" x-show="cancelTarget" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <h3 class="font-headline-sm text-headline-sm text-primary mb-3" id="cancel-title">Hủy lịch hẹn</h3>
 <p class="font-body-md text-body-md text-on-surface-variant mb-4" x-text="cancelTarget ? 'Bạn chắc chắn muốn hủy lịch hẹn ' + cancelTarget.code + '? Thao tác này không thể hoàn tác.' : ''"></p>
 <!-- The deadline is its own text node so the dictionary can translate the sentence
@@ -232,18 +237,18 @@ Cài đặt
 </template>
 <!-- 194, not the server's 200: the box only shows under "Khác", and the sent reason
      carries the "Khác: " prefix. The box stops where the request would. -->
-<textarea class="w-full mt-3 bg-transparent border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md text-on-surface" maxlength="194" placeholder="Cho salon biết thêm (không bắt buộc)" rows="2" x-cloak="" x-model="cancelNote" x-show="cancelReason === 'Khác'"></textarea>
+<textarea class="w-full mt-3 bg-transparent border border-outline rounded-lg px-3 py-2 font-body-md text-body-md text-on-surface" maxlength="194" placeholder="Cho salon biết thêm (không bắt buộc)" rows="2" x-cloak="" x-model="cancelNote" x-show="cancelReason === 'Khác'"></textarea>
 </fieldset>
 <div class="flex flex-wrap justify-end gap-3">
-<button @click="closeCancel()" class="flex-1 sm:flex-none border border-outline text-primary font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-surface-variant/50 transition-colors active:scale-95 duration-200" type="button">Giữ lại</button>
+<button @click="closeCancel()" class="btn-secondary flex-1 sm:flex-none" type="button">Giữ lại</button>
 <!-- Past the deadline the server refuses, so the dialog offers the only thing that still
      works — and only when the salon published a number to dial. -->
-<a :href="'tel:' + salonPhone()" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-primary-container text-on-primary font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-primary transition-colors" x-cloak="" x-show="cancelExpired() &amp;&amp; salonPhone()">
+<a :href="'tel:' + salonPhone()" class="btn-primary flex-1 sm:flex-none" x-cloak="" x-show="cancelExpired() &amp;&amp; salonPhone()">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="call">call</span>
                 Gọi salon để hủy
             </a>
-<a :href="cancelTarget ? rescheduleUrl(cancelTarget) : '#'" class="flex-1 sm:flex-none inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-primary transition-colors" x-cloak="" x-show="!cancelExpired() &amp;&amp; cancelReason === 'Muốn đổi giờ/KTV'">Đổi lịch thay vì hủy</a>
-<button :disabled="cancelling" @click="confirmCancel()" class="flex-1 sm:flex-none bg-error text-on-error font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:opacity-90 transition-opacity active:scale-95 duration-200 disabled:opacity-50" type="button" x-show="!cancelExpired() &amp;&amp; cancelReason !== 'Muốn đổi giờ/KTV'" x-text="cancelling ? 'Đang hủy…' : 'Hủy lịch hẹn'"></button>
+<a :href="cancelTarget ? rescheduleUrl(cancelTarget) : '#'" class="btn-primary flex-1 sm:flex-none" x-cloak="" x-show="!cancelExpired() &amp;&amp; cancelReason === 'Muốn đổi giờ/KTV'">Đổi lịch thay vì hủy</a>
+<button :disabled="cancelling" @click="confirmCancel()" class="btn-danger flex-1 sm:flex-none" type="button" x-show="!cancelExpired() &amp;&amp; cancelReason !== 'Muốn đổi giờ/KTV'" x-text="cancelling ? 'Đang hủy…' : 'Hủy lịch hẹn'"></button>
 </div>
 </div>
 </div>
@@ -301,28 +306,10 @@ Cài đặt
 <script>
     /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
 
-    const OAK_BOOKING_STATUS = {
-        pending: { label: 'Chờ xác nhận', icon: 'schedule' },
-        confirmed: { label: 'Đã xác nhận', icon: 'check_circle' },
-        completed: { label: 'Đã hoàn thành', icon: 'task_alt' },
-        cancelled: { label: 'Đã hủy', icon: 'cancel' },
-        no_show: { label: 'Không đến', icon: 'person_off' },
-    };
-
     const OAK_EMPTY_MESSAGE = {
         upcoming: 'Bạn chưa có lịch hẹn nào. Khám phá salon và đặt lịch đầu tiên nhé.',
         past: 'Bạn chưa có lịch hẹn nào đã qua.',
         cancelled: 'Bạn chưa hủy lịch hẹn nào.',
-    };
-
-    /* The chip tone per status. `completed` is deliberately absent: a finished appointment
-       needs no colour of its own, so it keeps the neutral default. */
-    const OAK_BOOKING_STATUS_CLASS = {
-        pending: 'bg-secondary-container text-on-secondary-container',
-        confirmed: 'bg-primary-container text-on-primary',
-        cancelled: 'bg-error-container text-on-error-container',
-        // Absent is not cancelled: it keeps a tone of its own so the two never read alike.
-        no_show: 'bg-tertiary-container text-on-tertiary-container',
     };
 
     /* Why an appointment is being dropped. The second one is not really a cancellation at
@@ -418,16 +405,18 @@ Cài đặt
                 return booking.status === 'completed' && !this.reviewedIds.includes(booking.id);
             },
 
+            /* Label, icon and chip tone all come from oak-api.js, so this card, the partner
+               dashboard and the console calendar say the same thing about the same booking. */
             statusLabel(status) {
-                return OAK_BOOKING_STATUS[status] ? OAK_BOOKING_STATUS[status].label : status;
+                return OAK.bookingStatus(status).label;
             },
 
             statusIcon(status) {
-                return OAK_BOOKING_STATUS[status] ? OAK_BOOKING_STATUS[status].icon : 'event';
+                return OAK.bookingStatus(status).icon;
             },
 
             statusClass(status) {
-                return OAK_BOOKING_STATUS_CLASS[status] || 'bg-tertiary-fixed text-on-tertiary-fixed';
+                return OAK.bookingStatus(status).class;
             },
 
             timeLabel(booking) {
@@ -440,11 +429,6 @@ Cài đặt
                 if (number) {
                     OAK.toast('Số điện thoại salon: ' + number);
                 }
-            },
-
-            dateLabel(date) {
-                const [year, month, day] = date.split('-').map(Number);
-                return day + ' Tháng ' + month + ', ' + year;
             },
 
             /** The technician comes along when the booking named one: chooseService() in the
