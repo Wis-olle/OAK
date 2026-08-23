@@ -67,10 +67,12 @@
 <div>
 <!-- Hero Section / Breadcrumb -->
 <div class="mb-12 flex flex-col gap-4">
-<div class="flex items-center gap-2 text-on-surface-variant text-caption font-caption">
-<a class="hover:text-primary" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<!-- A service is performed somewhere, and the trail now says where: a reader arriving from
+     a category page or a search had no way back to the salon at all. -->
+<div class="flex flex-wrap items-center gap-2 text-on-surface-variant text-caption font-caption">
+<a class="hover:text-primary" href="danh-sach-salon.html">Salon</a>
 <span aria-hidden="true" class="material-symbols-outlined text-[14px]">chevron_right</span>
-<a :href="category().url" class="hover:text-primary" x-text="category().label"></a>
+<a :href="salonUrl()" class="hover:text-primary" x-text="service.salon.name"></a>
 <span aria-hidden="true" class="material-symbols-outlined text-[14px]">chevron_right</span>
 <span class="text-primary font-semibold" x-text="service.name"></span>
 </div>
@@ -99,6 +101,32 @@
 <span :style="isFavorite ? filled : ''" class="material-symbols-outlined">favorite</span>
 </button>
 </div>
+<!-- Which salon performs this, with everything needed to judge it: the page used to name
+     no salon at all, and the whole payload for this block already arrives with the service. -->
+<div class="flex items-start gap-4 mb-8 p-4 rounded-xl bg-surface-container-low">
+<img loading="lazy" :alt="service.salon.name" :src="service.salon.image" class="w-12 h-12 rounded-full object-cover shrink-0">
+<div class="min-w-0">
+<p class="font-caption text-caption text-on-surface-variant mb-1">Thực hiện tại</p>
+<a :href="salonUrl()" class="font-body-md text-body-md font-medium text-primary hover:underline" x-text="service.salon.name"></a>
+<div class="flex flex-wrap items-center gap-3 mt-1">
+<span class="flex items-center gap-1 font-caption text-caption text-on-surface-variant" x-show="service.salon.review_count">
+<span :style="filled" aria-hidden="true" class="material-symbols-outlined text-[14px] text-secondary">star</span>
+<span x-text="Number(service.salon.rating).toFixed(1)"></span>
+<span x-text="'(' + service.salon.review_count + ' đánh giá)'"></span>
+</span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="service.salon.address"></span>
+</div>
+<p class="font-caption text-caption text-on-surface-variant mt-1" x-show="hoursRange()">
+<span>Mở cửa</span> <span x-text="hoursRange()"></span>
+</p>
+<div class="flex flex-wrap items-center gap-3 mt-3" x-show="service.salon.phone">
+<a :href="'tel:' + digits(service.salon.phone)" class="inline-flex items-center gap-1 min-h-[44px] px-4 rounded-full border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wide hover:border-primary transition-colors" style="text-decoration:none">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]">call</span>Gọi</a>
+<a :href="zaloUrl()" class="inline-flex items-center gap-1 min-h-[44px] px-4 rounded-full border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wide hover:border-primary transition-colors" rel="noopener noreferrer" style="text-decoration:none" target="_blank">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]">chat_bubble</span>Zalo</a>
+</div>
+</div>
+</div>
 <div class="flex items-center gap-6 mb-8 pb-8 border-b border-outline-variant/30">
 <div class="flex items-center gap-2">
 <span aria-hidden="true" class="material-symbols-outlined text-outline">schedule</span>
@@ -126,9 +154,34 @@
 <p class="font-body-md text-body-md text-tertiary/70">Không còn lịch trống trong ngày này.</p>
 </template>
 <template :key="slot.time" x-for="slot in slots">
-<button :class="time === slot.time ? 'bg-tertiary text-on-tertiary' : 'border border-outline/30 text-tertiary hover:bg-tertiary hover:text-on-tertiary'" @click="time = (time === slot.time ? '' : slot.time)" class="px-4 py-2 rounded-full font-label-md text-label-md transition-colors" type="button" x-text="slot.time"></button>
+<button :class="time === slot.time ? 'bg-tertiary text-on-tertiary' : 'border border-outline/30 text-tertiary hover:bg-tertiary hover:text-on-tertiary'" @click="time = (time === slot.time ? '' : slot.time)" class="min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-colors" type="button" x-text="slot.time"></button>
 </template>
 </div>
+</div>
+<!-- The three conditions of booking here, stated before the button rather than after it —
+     the same three the salon page and the wizard state. -->
+<div class="bg-surface-container-low rounded-xl p-6 mb-6">
+<h3 class="font-label-md text-label-md text-on-surface uppercase tracking-wider mb-4">Điều kiện đặt lịch</h3>
+<ul class="flex flex-col gap-3">
+<li class="flex items-start gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="event_available">event_available</span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.CANCEL_POLICY"></span>
+</li>
+<li class="flex items-start gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="payments">payments</span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.PAYMENT"></span>
+</li>
+<li class="flex items-start gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="info">info</span>
+<span class="font-body-md text-body-md text-on-surface-variant">Salon xác nhận lịch, bạn được báo trong mục Thông báo</span>
+</li>
+<!-- "Từ 250.000đ" says the price can move without saying why or who settles it. -->
+<li class="flex items-start gap-3" x-show="service.price_is_from">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="info">info</span>
+<span class="font-body-md text-body-md text-on-surface-variant">Giá từ — tùy độ dài và thiết kế, salon báo giá cuối trước khi thực hiện</span>
+</li>
+</ul>
+<a class="inline-flex items-center gap-1 mt-4 font-label-md text-label-md uppercase tracking-wide text-primary hover:opacity-70 transition-opacity" href="dieu-khoan.html#huy-lich">Xem điều khoản</a>
 </div>
 <a :href="bookingUrl()" style="display:contents;color:inherit;text-decoration:none"><button class="w-full bg-primary-container text-on-primary py-4 rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors active:scale-[0.98]">
                         Đặt Lịch Ngay
@@ -174,7 +227,7 @@
 <!-- Salon Reviews -->
 <div>
 <div class="flex flex-wrap items-center justify-between gap-4 mb-8 border-b border-outline-variant/30 pb-4">
-<h2 class="font-headline-md text-headline-md text-primary">Đánh Giá Về Salon</h2>
+<h2 class="font-headline-md text-headline-md text-primary"><span>Đánh giá về</span> <span x-text="service.salon.name"></span></h2>
 <button @click="writeReview()" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="button">Viết đánh giá</button>
 </div>
 <p class="font-body-md text-body-md text-on-surface-variant" x-show="!reviews.length">Chưa có đánh giá nào. Hãy là người đầu tiên chia sẻ trải nghiệm của bạn.</p>
@@ -198,7 +251,15 @@
 </div>
 </div>
 <div class="fixed bottom-0 inset-x-0 z-40 md:hidden flex items-center justify-between gap-4 border-t border-outline-variant/30 bg-surface-container-low px-margin-mobile py-3" data-oak-sticky-cta>
-<span class="font-body-md text-body-md font-semibold text-primary" x-text="priceLabel()"></span>
+<div class="min-w-0">
+<span class="block font-body-md text-body-md font-semibold text-primary" x-text="priceLabel()"></span>
+<span class="block font-caption text-caption text-on-surface-variant truncate" x-text="service.salon.name"></span>
+</div>
+<template x-if="service.salon.phone">
+<a :href="'tel:' + digits(service.salon.phone)" aria-label="Gọi salon" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-full border border-outline-variant/30 text-primary hover:bg-surface-container transition-colors" style="text-decoration:none">
+<span aria-hidden="true" class="material-symbols-outlined">call</span>
+</a>
+</template>
 <a :href="bookingUrl()" class="bg-primary-container text-on-primary rounded-full font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors active:scale-[0.98] px-6 min-h-[44px] flex items-center justify-center">Đặt Lịch Ngay</a>
 </div>
 </div>
@@ -237,8 +298,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -250,16 +311,6 @@
 </footer>
 <div aria-hidden="true" class="h-20 md:hidden bg-tertiary"></div>
 <script>
-    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
-    const OAK_CATEGORIES = {
-        nail: { label: 'Nail', url: 'dich-vu-nail.html' },
-        hair: { label: 'Tóc', url: 'dich-vu-toc-chuyen-sau.html' },
-        skincare: { label: 'Chăm sóc da', url: 'cham-soc-da.html' },
-        spa: { label: 'Spa & Massage', url: 'spa-massage.html' },
-        eyelash: { label: 'Nối mi', url: 'dich-vu-mi.html' },
-        amenity: { label: 'Tiện ích', url: 'khong-gian-tien-ich.html' },
-    };
-
     /* Today in the visitor's own timezone — toISOString() alone would roll over in UTC+7. */
     function oakTodayISO() {
         const now = new Date();
@@ -340,8 +391,26 @@
                 return first.id;
             },
 
-            category() {
-                return OAK_CATEGORIES[this.service.category] || { label: 'Dịch vụ', url: 'ket-qua-tim-kiem.html' };
+            salonUrl() {
+                return 'salon-profile.html?salon=' + encodeURIComponent(this.service.salon.slug);
+            },
+
+            /** '09:00 – 20:00', or nothing at all when the salon has not filled its hours in. */
+            hoursRange() {
+                const salon = this.service.salon;
+                return salon.open_time && salon.close_time
+                    ? salon.open_time + ' – ' + salon.close_time
+                    : '';
+            },
+
+            /** The salon writes its number as it pleases ('0901 234 567'); tel: wants digits. */
+            digits(phone) {
+                return String(phone).replace(/\D/g, '');
+            },
+
+            /** zalo.me addresses a Vietnamese number in international form: 090… -> 8490…  */
+            zaloUrl() {
+                return 'https://zalo.me/' + this.digits(this.service.salon.phone).replace(/^0/, '84');
             },
 
             priceLabel() {

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../db.js';
+import { sendResetMail } from '../lib/mailer.js';
 import { slugify } from '../lib/text.js';
 import {
   COOKIE_NAME,
@@ -253,7 +254,7 @@ router.post('/forgot-password', async (req, res, next) => {
     // turn this endpoint into an account-enumeration oracle.
     const normalised = email.trim().toLowerCase();
     const account = await selectUserIdByEmail.get(normalised);
-    const data = { message: 'Nếu email tồn tại, liên kết đặt lại mật khẩu đã được tạo.' };
+    const data = { message: 'Nếu email tồn tại, chúng tôi đã gửi liên kết đặt lại — kiểm tra hộp thư, kể cả mục Spam.' };
 
     // Over the allowance: the reply is the ordinary one, so the throttle does not become a
     // new oracle of its own — but nothing is retired and nothing is minted, which is the
@@ -265,16 +266,16 @@ router.post('/forgot-password', async (req, res, next) => {
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString();
 
-    // DEMO ONLY — there is no mail infrastructure here, so the link comes back in the
-    // response instead of being emailed. Two things make that unacceptable in production:
-    // the field IS the reset secret, and its mere presence tells the caller the address is
-    // registered, which is the enumeration oracle the message above avoids. Wiring real
-    // mail means sending the link from here and deleting this branch.
+    // DEMO ONLY — a checkout with no mail channel has nowhere to send the link, so it comes
+    // back in the response instead. Two things make that unacceptable anywhere real: the
+    // field IS the reset secret, and its mere presence tells the caller the address is
+    // registered, which is the enumeration oracle the message above avoids.
     //
-    // The gate fails open — an unset NODE_ENV emits the field — which is the weaker
-    // direction. It is deliberate: render.yaml pins NODE_ENV=production on the deployed
-    // service, and an opt-in flag would break the demo for every local reader instead.
-    if (process.env.NODE_ENV !== 'production') {
+    // Hence both halves of the gate. RESEND_API_KEY answers "is there a way to send this?"
+    // — wherever there is one, the link is mailed and never written to a response — and the
+    // NODE_ENV half keeps a production deploy that forgot the key from falling back to the
+    // demo instead of failing quietly, which is the only direction worth failing in.
+    if (!process.env.RESEND_API_KEY && process.env.NODE_ENV !== 'production') {
       // This branch must write before it replies, because the token it just minted is what
       // the reply carries. The timing side channel that creates only matters where the
       // field is emitted at all, i.e. never in production.
@@ -283,14 +284,33 @@ router.post('/forgot-password', async (req, res, next) => {
       return res.json({ success: true, data });
     }
 
-    // Reply first, write after: a known address would otherwise take two round trips
+    // The link leaves the browser, so it has to be absolute — and what it carries is a live
+    // reset token, so the address must never come from anything the caller controls. Render
+    // publishes the service's own origin as RENDER_EXTERNAL_URL; PUBLIC_BASE_URL is the same
+    // declaration for a host that does not. A forged Host header would otherwise be enough to
+    // have OAK mail a victim a genuine link pointing at the attacker's server, so a production
+    // deploy that declared neither sends nothing at all rather than trusting the request.
+    const declaredOrigin = process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_BASE_URL;
+    if (!declaredOrigin && process.env.NODE_ENV === 'production') {
+      console.error(
+        'forgot-password: no RENDER_EXTERNAL_URL or PUBLIC_BASE_URL configured, not mailing',
+      );
+      return res.json({ success: true, data });
+    }
+    const origin = (declaredOrigin || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+
+    // Reply first, work after: a known address would otherwise take two round trips
     // longer to answer than an unknown one, and response time would say what the message
     // deliberately does not. Nothing after this line may throw into `next` — the reply is
-    // already on the wire — so the write reports failure to the log instead.
+    // already on the wire — so the write reports failure to the log instead. The mail is
+    // sent only once the token is stored, or the link would arrive dead; sendResetMail
+    // logs its own failures and never rejects.
     res.json({ success: true, data });
-    return mintReset(token, account.id, expiresAt).catch((error) => {
-      console.error('forgot-password: could not store the reset token:', error);
-    });
+    return mintReset(token, account.id, expiresAt)
+      .then(() => sendResetMail(normalised, `${origin}/dat-lai-mat-khau.html?token=${token}`))
+      .catch((error) => {
+        console.error('forgot-password: could not store the reset token:', error);
+      });
   } catch (error) {
     next(error);
   }

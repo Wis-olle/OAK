@@ -33,6 +33,190 @@
     return error;
   }
 
+  /* ---------------------------------------------------------------- cold start
+   * The API sleeps after a quarter of an hour of quiet and takes half a minute to wake,
+   * and the first request of a page load simply hangs while it does. Untreated that is a
+   * skeleton that never fills or a blank page — the site looks broken at the moment it is
+   * merely slow. So: a request is abandoned after eight seconds, the visitor is told what
+   * is happening after three, and the call that failed is tried again and again until it
+   * answers, at which point the page that never got its data asks for it again — once.
+   */
+  var REQUEST_TIMEOUT_MS = 8000;
+  var COLD_START_AFTER_MS = 3000;
+  // 3s, 6s, then every 12s: a cold start runs 30–60s, so the tail is what does the work.
+  var WAKE_DELAYS_MS = [3000, 6000, 12000];
+  // ~81 seconds of asking, past the longest cold start, and then we stop claiming it is
+  // about to come back.
+  var WAKE_ATTEMPTS = 8;
+  // Remembers that the load happening right now has already spent its automatic reload.
+  // Cleared as soon as a load succeeds, so a second cold start later in the same tab —
+  // Render sleeps again after a quarter of an hour of reading — is treated as the new
+  // event it is rather than as the loop the counter exists to stop.
+  var WOKE_KEY = 'oak-woke';
+
+  var COLD_START_MESSAGE = 'OAK đang khởi động, vui lòng đợi khoảng 30 giây…';
+  var UNREACHABLE_MESSAGE =
+    'Không kết nối được máy chủ. Vui lòng kiểm tra kết nối mạng rồi tải lại trang.';
+  // Said when the server has just answered but the page cannot be reloaded under the
+  // visitor: they have typed something, or the automatic reload is already spent.
+  var READY_MESSAGE = 'Máy chủ đã sẵn sàng. Vui lòng tải lại trang để xem nội dung.';
+
+  /* One strip across the top, reused: the waiting notice and the giving-up message are the
+     same banner saying different things, and two of them would cover the page twice over.
+     A banner rather than a toast, because the page behind it will not finish loading and
+     the explanation has to outlive three seconds. */
+  var BANNER_ID = 'oak-server-down';
+  var BANNER_CLASS = 'fixed inset-x-0 top-0 z-50 px-6 py-3 font-body-md text-body-md text-center ';
+
+  function showBanner(message, role, colors) {
+    var banner = document.getElementById(BANNER_ID);
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = BANNER_ID;
+      document.body.appendChild(banner);
+    }
+    // Waiting is progress and must not interrupt a screen reader mid-sentence; a server
+    // that is not coming back is an interruption.
+    banner.setAttribute('role', role);
+    banner.className = BANNER_CLASS + colors;
+    banner.textContent = message;
+  }
+
+  function hideBanner() {
+    var banner = document.getElementById(BANNER_ID);
+    if (banner) {
+      banner.remove();
+    }
+  }
+
+  // True while the retry loop below is running, which makes it the owner of the banner.
+  var waking = false;
+
+  /**
+   * True once the visitor has put something into this page. Most of the site renders from
+   * static markup, so a page whose data call failed is still perfectly usable — the
+   * contact form, the sign-up form and the login form all work while the API is asleep —
+   * and reloading it would throw away what was typed with no way back.
+   *
+   * What is recorded is the interaction, not the state of the fields: a page fills its own
+   * fields in (ket-qua-tim-kiem.html puts ?q= into the search box before its first await)
+   * and an untouched checkbox reads 'on' by spec, so judging by value would call almost
+   * every page "typed into" and the automatic reload would never fire where it is needed
+   * most — the first page of a cold start.
+   */
+  var visitorTyped = false;
+  function markTyped() {
+    visitorTyped = true;
+  }
+  // Capture phase: a handler that stops propagation must not also hide that somebody typed.
+  document.addEventListener('input', markTyped, true);
+  document.addEventListener('change', markTyped, true);
+
+  /**
+   * Reload, but only once per failed load and never under someone who is typing.
+   * Reloading is the only way from here to replay a page's own init(), and it is also the
+   * one thing that can loop: a server that answers the probe and then fails the reloaded
+   * page's own request lands straight back in the wake loop, and a visitor cannot leave a
+   * page that reloads every ten seconds. On that path nothing ever clears the counter, so
+   * the second time round — and whenever there is text to lose — the banner says the
+   * server is ready and the visitor decides when to reload.
+   */
+  function reloadOnce() {
+    var spent;
+    try {
+      spent = sessionStorage.getItem(WOKE_KEY) !== null;
+      if (!spent) {
+        sessionStorage.setItem(WOKE_KEY, '1');
+      }
+    } catch (error) {
+      // Storage blocked (private browsing): there is no counter to keep, so an automatic
+      // reload here would be uncapped. One click is a cheaper price than a tab that
+      // reloads itself every few seconds.
+      spent = true;
+    }
+    if (spent || visitorTyped) {
+      showBanner(READY_MESSAGE, 'status', 'bg-primary text-on-primary');
+      return;
+    }
+    location.reload();
+  }
+
+  /** Ask until the API answers, then load the page that never got its data. */
+  function startWake() {
+    if (waking) {
+      return;
+    }
+    waking = true;
+    showBanner(COLD_START_MESSAGE, 'status', 'bg-primary text-on-primary');
+
+    var attempt = 0;
+    var retry = function () {
+      if (attempt >= WAKE_ATTEMPTS) {
+        waking = false;
+        showBanner(UNREACHABLE_MESSAGE, 'alert', 'bg-error text-on-error');
+        return;
+      }
+      setTimeout(ask, WAKE_DELAYS_MS[Math.min(attempt, WAKE_DELAYS_MS.length - 1)]);
+    };
+    var ask = function () {
+      attempt += 1;
+      // The call that actually failed, not /api/health: this way the probe is the page's
+      // own request, on the page's own auth path and through api(), which gives it the
+      // same eight-second ceiling as any other read — a connection that hangs rather than
+      // fails cannot stall the loop on one attempt. A Render cold start cannot answer
+      // either route before it is ready (db.js awaits the schema query at module load, so
+      // the process does not listen until Postgres has answered), so what this buys over
+      // /api/health is the shared ceiling and one code path, not a deeper check.
+      api('/api/auth/me').then(function () {
+        waking = false;
+        hideBanner();
+        // Each page fetches its own data in its own init(), and there is no way from here
+        // to replay those calls; the page is asked for again instead. reloadOnce() is the
+        // one that decides whether that is safe — the banner has been up for anywhere
+        // between three and eighty seconds, which is long enough to have filled a form.
+        reloadOnce();
+      }, retry);
+    };
+    setTimeout(ask, WAKE_DELAYS_MS[0]);
+  }
+
+  /**
+   * Watch the one request every page makes before it can draw. Past three seconds the
+   * visitor is told the server is waking rather than left with an empty page; an answer
+   * of any kind takes the notice back down.
+   */
+  function watchColdStart(promise) {
+    var slow = setTimeout(function () {
+      showBanner(COLD_START_MESSAGE, 'status', 'bg-primary text-on-primary');
+    }, COLD_START_AFTER_MS);
+    return promise.then(
+      function (value) {
+        clearTimeout(slow);
+        hideBanner();
+        // This load got its data, so the reload it may have spent getting here is spent
+        // and done with. Without this the cap would be "one reload per tab, ever", and the
+        // next cold start in the same tab would end on the give-up message — telling the
+        // visitor their network is down at the moment the server answered.
+        try {
+          sessionStorage.removeItem(WOKE_KEY);
+        } catch (error) {
+          // Storage blocked: there was no counter to clear.
+        }
+        return value;
+      },
+      function (error) {
+        clearTimeout(slow);
+        // A failure takes the notice down too. Only a network failure means "asleep", and
+        // startWake() puts the banner straight back up for that one; every other kind —
+        // a 500 from a database still resuming, say — is not a cold start, and leaving
+        // "OAK đang khởi động" pinned over a page that has finished rendering promises
+        // something that is never going to happen.
+        hideBanner();
+        throw error;
+      },
+    );
+  }
+
   /**
    * Call the API and unwrap the {success, data} envelope.
    * Resolves with `data`; rejects with an Error carrying `.code` and a Vietnamese
@@ -46,12 +230,31 @@
       init.body = JSON.stringify(opts.body);
     }
 
+    // A read that hangs forever is worse than one that fails: the page keeps its skeleton
+    // and nothing ever says why. Reads only, though. Giving up on a write is not the same
+    // act: the server may well go on and do it, and a booking that commits on a waking
+    // instance after nine seconds would be reported to the customer as a failure to retry
+    // — and the retry then collides with the row the first one wrote. Writes carry their
+    // own spinner, and waiting is the safe answer for them.
+    var controller = null;
+    var timeout = 0;
+    if (typeof AbortController === 'function' && init.method === 'GET') {
+      controller = new AbortController();
+      init.signal = controller.signal;
+      timeout = setTimeout(function () {
+        controller.abort();
+      }, REQUEST_TIMEOUT_MS);
+    }
+
     var payload;
     try {
       var response = await fetch(path, init);
       payload = await response.json();
     } catch (error) {
+      // An abort lands here too, and reads the same way to the visitor: no answer.
       throw apiError('NETWORK_ERROR', 'Không kết nối được máy chủ, vui lòng thử lại.');
+    } finally {
+      clearTimeout(timeout);
     }
 
     if (!payload || payload.success !== true) {
@@ -106,7 +309,7 @@
   /** The signed-in user, or null. Never redirects — a guest page must still render. */
   function me() {
     if (!mePromise) {
-      mePromise = api('/api/auth/me').then(
+      mePromise = watchColdStart(api('/api/auth/me')).then(
         function (data) {
           // /api/auth/me is optional-auth: a guest resolves to {user:null}.
           var user = data ? data.user : null;
@@ -120,6 +323,10 @@
           // remembered, and requireLogin/requirePartner below act on it instead of
           // treating an unreachable server as a guest.
           serverUnreachable = error.code === 'NETWORK_ERROR';
+          if (serverUnreachable) {
+            // Most often the server is asleep rather than gone, so say so and keep asking.
+            startWake();
+          }
           return null;
         },
       );
@@ -139,20 +346,12 @@
 
   /**
    * Say plainly that the backend is down, and stop the caller the same way a redirect
-   * does. A banner rather than a toast: the page behind it will never finish loading, so
-   * the explanation has to outlive three seconds.
+   * does. While the wake-up loop is still asking it owns the banner and is saying
+   * something more useful than this — its own giving-up leaves this message behind.
    */
   function reportServerUnreachable() {
-    if (!document.getElementById('oak-server-down')) {
-      var banner = document.createElement('div');
-      banner.id = 'oak-server-down';
-      banner.setAttribute('role', 'alert');
-      banner.className =
-        'fixed inset-x-0 top-0 z-50 px-6 py-3 bg-error text-on-error ' +
-        'font-body-md text-body-md text-center';
-      banner.textContent =
-        'Không kết nối được máy chủ. Vui lòng kiểm tra server đang chạy rồi tải lại trang.';
-      document.body.appendChild(banner);
+    if (!waking) {
+      showBanner(UNREACHABLE_MESSAGE, 'alert', 'bg-error text-on-error');
     }
     return new Promise(function () {});
   }
@@ -188,17 +387,39 @@
     return (isFrom ? 'Từ ' : '') + fmtPrice(value);
   }
 
-  /** "2026-08-10" (or a full ISO string) → "Thứ Hai, 10/08/2026". */
+  /**
+   * "2026-08-10" (or a full ISO string) → "Thứ Hai, 10/08/2026".
+   *
+   * The two inputs are different kinds of thing and are read differently. A bare
+   * 'YYYY-MM-DD' is a calendar date — a booking's day — and already says what it means.
+   * A full timestamp is an instant, stored in UTC, and the reader's own clock decides
+   * which day that instant fell on: a post written at 01:00 in Vietnam is stamped 18:00
+   * the day before in UTC, and cutting the string at the 'T' would date it yesterday.
+   */
   function fmtDate(iso) {
     if (!iso) {
       return '';
     }
-    var parts = String(iso).split('T')[0].split('-');
-    var year = Number(parts[0]);
-    var month = Number(parts[1]);
-    var day = Number(parts[2]);
+    var text = String(iso);
+    var year;
+    var month;
+    var day;
+    if (text.indexOf('T') !== -1) {
+      var stamp = new Date(text);
+      if (isNaN(stamp.getTime())) {
+        return text;
+      }
+      year = stamp.getFullYear();
+      month = stamp.getMonth() + 1;
+      day = stamp.getDate();
+    } else {
+      var parts = text.split('-');
+      year = Number(parts[0]);
+      month = Number(parts[1]);
+      day = Number(parts[2]);
+    }
     if (!year || !month || !day) {
-      return String(iso);
+      return text;
     }
     var weekday = WEEKDAYS[new Date(year, month - 1, day).getDay()];
     var pad = function (value) {
@@ -329,8 +550,11 @@
     // An error interrupts; anything else is progress the visitor asked for.
     element.setAttribute('role', type === 'error' ? 'alert' : 'status');
     // A page that pins its own booking bar to the bottom edge marks it, and the message
-    // clears that bar (~68px tall) instead of landing on top of it.
-    var offset = document.querySelector('[data-oak-sticky-cta]') ? 'bottom-24' : 'bottom-6';
+    // clears that bar (~68px tall) instead of landing on top of it. The bar is only laid
+    // out on narrow screens and at some wizard steps, so ask whether it is rendered
+    // (offsetParent) rather than whether the markup merely exists.
+    var stickyBar = document.querySelector('[data-oak-sticky-cta]');
+    var offset = stickyBar && stickyBar.offsetParent ? 'bottom-24' : 'bottom-6';
     element.className =
       'fixed ' + offset + ' left-1/2 -translate-x-1/2 z-50 max-w-[90vw] px-6 py-3 rounded-full ' +
       'shadow-lg font-body-md text-body-md text-center ' +
@@ -748,6 +972,55 @@
     initNotificationBell();
   }
 
+  /* --------------------------------------------------------------- measurement
+   * One anonymous line per thing that happened: what it was, which page it was on and
+   * where the visitor came from. No account, no cookie of its own, nothing a person could
+   * be picked out of — `meta` is for counts and labels ('total', 'category'), and the
+   * server drops anything in it that could be a phone number or an address.
+   *
+   * sendBeacon first: it survives the page being left, which is exactly when the last
+   * event of a visit is sent. Not every browser here has it, so a keepalive fetch stands
+   * behind it, and the whole thing is wrapped — measurement that breaks the thing it is
+   * measuring is worse than no measurement.
+   */
+  function track(name, meta) {
+    try {
+      var body = JSON.stringify({
+        name: name,
+        page: location.pathname.replace(/^.*\//, ''),
+        // Path only: a referring url's query string can carry someone's search terms.
+        ref: String(document.referrer || '').split('?')[0].split('#')[0],
+        meta: meta || undefined,
+      });
+      if (navigator.sendBeacon) {
+        // As a Blob, so the body arrives with a Content-Type express.json() will parse.
+        if (navigator.sendBeacon('/api/events', new Blob([body], { type: 'application/json' }))) {
+          return;
+        }
+      }
+      fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body,
+        keepalive: true,
+      }).catch(function () {});
+    } catch (error) {
+      // Nothing to do and nobody to tell: an event that did not get sent is not the
+      // visitor's problem.
+    }
+  }
+
+  /* One set of promises, said the same way wherever they are said. They are claims about
+     how OAK works — what it costs to change your mind, when a person answers — so a page
+     that words them its own way is a page that quietly promises something else.
+     Their English lives in the dictionary of each page that renders them. */
+  var TRUST = {
+    CANCEL_POLICY: 'Hủy/đổi miễn phí đến trước 2 tiếng',
+    PAYMENT: 'Thanh toán tại salon, không cần cọc',
+    SUPPORT_HOURS: 'T2–T7 giờ hành chính · Hotline 1900 6035',
+    RESPONSE_SLA: '24 giờ làm việc',
+  };
+
   window.OAK = {
     api: api,
     me: me,
@@ -764,6 +1037,8 @@
     qs: qs,
     meta: meta,
     toast: toast,
+    track: track,
+    TRUST: TRUST,
     logout: logout,
   };
 

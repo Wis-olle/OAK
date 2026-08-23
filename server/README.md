@@ -1,8 +1,10 @@
 # OAK Beauty — backend
 
-Express 5 API + static host for the `ui/` pages. Data lives in a single SQLite file, opened
-through Node's built-in `node:sqlite`, and is seeded automatically the first time it is empty.
-Requires **Node 24+** (that is what `node:sqlite` is used from here).
+Express 5 API + static host for the `ui/` pages. Data lives in Postgres (Supabase in
+production, a local instance in development) reached through `pg`, and is seeded
+automatically the first time the database is empty. Requires **Node 24+** and a Postgres
+the server can connect to — without one it exits at boot, because `src/db.js` awaits the
+schema query before it listens.
 
 ## Chạy server / Running the server
 
@@ -11,13 +13,18 @@ cd server
 npm install      # once
 npm start        # http://localhost:3000
 npm run dev      # same, but restarts on file changes (node --watch)
-npm test         # spawns its own server on port 3199 against a throwaway database
+npm run test:unit # the node:test files only — no database needed
+npm test         # the above, then api-smoke against its own server on port 3199
 ```
+
+`npm test` needs a Postgres of its own (`OAK_TEST_DATABASE_URL`, default
+`postgres://postgres:postgres@localhost:5432/oak_test`) because it drops and rebuilds the
+schema. Only `npm run test:unit` runs without a database.
 
 On boot the server prints one line — if you do not see it, the server is not up:
 
 ```
-[2026-08-10T13:21:34.069Z] OAK server listening on http://localhost:3000 — db: E:\...\server\data\oak.db
+[2026-08-10T13:21:34.069Z] OAK server listening on http://localhost:3000 — db: localhost/oak
 ```
 
 Stop it with `Ctrl+C`; it prints a matching shutdown line.
@@ -27,12 +34,16 @@ Stop it with `Ctrl+C`; it prints a matching shutdown line.
 | Variable      | Default                | Notes                                                          |
 | ------------- | ---------------------- | -------------------------------------------------------------- |
 | `PORT`        | `3000`                 | The UI is served from the same origin, so `/api` calls just work. |
-| `OAK_DB_FILE` | `server/data/oak.db`   | Point it elsewhere to boot against a throwaway database.        |
+| `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/oak` | The Postgres opened on boot. Point it elsewhere to run against a throwaway database. **Required** when `NODE_ENV=production`. |
+| `OAK_TEST_DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/oak_test` | The database `npm test` drops and rebuilds. Never point it at one you want to keep. |
 | `JWT_SECRET`  | `oak-dev-secret`       | **Required** when `NODE_ENV=production`; the server refuses to start without it. |
+| `TZ`          | host clock             | Set it to `Asia/Ho_Chi_Minh` to match production. "Today" and "now" in booking are pinned to Vietnam time by `src/lib/time.js` either way. |
+| `RESEND_API_KEY` | unset               | The reset-mail channel (`src/lib/mailer.js`). Unset, nothing is mailed and `/api/auth/forgot-password` hands the link back in its own reply instead — but only when `NODE_ENV` is not `production`. Setting it retires that demo link everywhere. See DEPLOY.md §7. |
+| `RESET_MAIL_FROM` | `OAK Beauty <no-reply@oakbeauty.vn>` | The From of that one mail. Must be an address on a domain verified in Resend, or Resend refuses the send. |
 
 ```powershell
 # PowerShell — run a second, isolated instance
-$env:PORT='3330'; $env:OAK_DB_FILE='C:\temp\oak-scratch.db'; npm start
+$env:PORT='3330'; $env:DATABASE_URL='postgres://postgres:postgres@localhost:5432/oak_scratch'; npm start
 ```
 
 ## Tài khoản demo / Demo accounts
@@ -89,3 +100,29 @@ loads its data from `/api`, so a dead server makes the whole site look dead.
    On Windows the misleading `listening` line can print just before this error; the error wins.
 4. **Logged in but treated as a guest?** The session is a `httpOnly` cookie on this origin —
    open the UI through the server (`http://localhost:3000/kham-pha.html`), not as a `file://` page.
+
+## Đo lường ẩn danh / Anonymous measurement — `POST /api/events`
+
+Pages report what happened through `OAK.track(name, meta)` (`ui/assets/js/oak-api.js`), which
+sends a beacon and forgets. One row per event in the `events` table:
+
+```json
+{ "name": "booking_submit", "page": "dat-lich.html", "ref": "https://oak.vn/blog.html",
+  "meta": { "total": 12 } }
+```
+
+- **No account, no cookie of its own.** A row has no `user_id` and never gets one. The only
+  thread between two rows is `session_hash`, a one-way digest of the caller's address, their
+  user agent and today's date under a salt minted at boot — it counts a visit for one day and
+  cannot be turned back into a person or matched against yesterday.
+- **`meta` is for counts and short labels.** The route keeps numbers, booleans and strings up
+  to 40 characters, and drops anything holding an `@` or six digits in a row, so a
+  mis-instrumented page cannot write personal data here.
+- **Limits.** `name` must be `^[a-z][a-z0-9_]{2,39}$`; `page`/`ref` are trimmed to 200
+  characters and `ref` loses its query string. Over 60 calls a minute from one address the
+  route answers `429` — an in-memory counter, like the `/forgot-password` throttle, with the
+  same caveats.
+
+Read the week with `tools/sql/weekly.sql`: five queries — events this week against last,
+sessions per day, the search → wizard → booking funnel, whether the blog CTA leads to a
+booking, and where the visits came from.

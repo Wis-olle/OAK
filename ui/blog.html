@@ -75,21 +75,21 @@
 <!-- Feed scope -->
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-6">
 <div aria-label="Phạm vi bài viết" class="flex flex-wrap gap-3" role="group">
-<button :aria-pressed="scope === 'community'" :class="scope === 'community' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectScope('community')" class="px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button">Cộng đồng</button>
-<button :aria-pressed="scope === 'mine'" :class="scope === 'mine' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectScope('mine')" class="px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button" x-cloak="" x-show="user">Bài viết của tôi</button>
+<button :aria-pressed="scope === 'community'" :class="scope === 'community' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectScope('community')" class="min-h-[44px] px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button">Cộng đồng</button>
+<button :aria-pressed="scope === 'mine'" :class="scope === 'mine' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectScope('mine')" class="min-h-[44px] px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button" x-cloak="" x-show="user">Bài viết của tôi</button>
 </div>
 </section>
 <!-- Filter tabs -->
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-8">
 <div aria-label="Lọc theo loại bài" class="flex flex-wrap gap-3" role="group">
 <template :key="tab.value" x-for="tab in tabs">
-<button :aria-pressed="type === tab.value" :class="type === tab.value ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectType(tab.value)" class="px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button" x-text="tab.label"></button>
+<button :aria-pressed="type === tab.value" :class="type === tab.value ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectType(tab.value)" class="min-h-[44px] px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button" x-text="tab.label"></button>
 </template>
 </div>
 <div aria-label="Lọc theo chủ đề" class="flex flex-wrap gap-3 mt-3" role="group">
-<button :aria-pressed="category === ''" :class="category === '' ? 'bg-secondary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectCategory('')" class="px-4 py-2 rounded-full font-caption text-caption transition-all duration-300" type="button">Mọi chủ đề</button>
+<button :aria-pressed="category === ''" :class="category === '' ? 'bg-secondary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectCategory('')" class="min-h-[44px] px-4 py-2 rounded-full font-caption text-caption transition-all duration-300" type="button">Mọi chủ đề</button>
 <template :key="item.value" x-for="item in categories">
-<button :aria-pressed="category === item.value" :class="category === item.value ? 'bg-secondary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectCategory(item.value)" class="px-4 py-2 rounded-full font-caption text-caption transition-all duration-300" type="button" x-text="item.label"></button>
+<button :aria-pressed="category === item.value" :class="category === item.value ? 'bg-secondary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant hover:bg-tertiary hover:text-on-tertiary'" @click="selectCategory(item.value)" class="min-h-[44px] px-4 py-2 rounded-full font-caption text-caption transition-all duration-300" type="button" x-text="item.label"></button>
 </template>
 </div>
 </section>
@@ -195,14 +195,14 @@
 <div aria-labelledby="composer-title" aria-modal="true" class="relative w-full md:max-w-[640px] max-h-[92dvh] overflow-y-auto bg-surface rounded-t-2xl md:rounded-2xl border border-outline-variant/30 shadow-lg p-6 md:p-8" role="dialog">
 <div class="flex items-start justify-between gap-4 mb-6">
 <h2 class="font-headline-sm text-headline-sm text-primary" id="composer-title" x-text="editingPost ? 'Chỉnh sửa bài viết' : 'Chia sẻ với cộng đồng'"></h2>
-<button @click="closeComposer()" aria-label="Đóng" class="text-on-surface-variant hover:text-primary transition-colors" type="button">
+<button @click="closeComposer()" aria-label="Đóng" class="shrink-0 w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined" data-icon="close">close</span>
 </button>
 </div>
 <!-- Type toggle -->
 <div class="flex gap-3 mb-8" x-show="!previewing &amp;&amp; !editingPost">
-<button :class="form.type === 'article' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="form.type = 'article'" class="px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button">Bài viết</button>
-<button :class="form.type === 'video' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="form.type = 'video'" class="px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button">Video</button>
+<button :class="form.type === 'article' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="form.type = 'article'" class="min-h-[44px] px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button">Bài viết</button>
+<button :class="form.type === 'video' ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary'" @click="form.type = 'video'" class="min-h-[44px] px-5 py-2.5 rounded-full font-label-md text-label-md transition-all duration-300" type="button">Video</button>
 </div>
 <template x-if="user &amp;&amp; user.role === 'partner' &amp;&amp; !previewing">
 <div class="mb-8 p-4 rounded-xl bg-surface-container-low">
@@ -361,8 +361,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>

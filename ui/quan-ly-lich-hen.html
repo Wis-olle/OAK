@@ -510,6 +510,32 @@
         cancelled: [],
     };
     var OAK_WEEKDAY_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+    /* The console is a tab left open all day, so the pending queue is re-read on a timer.
+       Only while somebody is looking at it: a hidden tab makes no request at all and
+       catches up the moment it comes back into view. */
+    var OAK_POLL_MS = 60000;
+
+    /* The count rides in the tab title too — the console is usually one tab among many.
+       The prefix is stripped before it is rewritten, so it never stacks. */
+    function oakPendingTitle(total) {
+        var base = document.title.replace(/^\(\d+\) /, '');
+        document.title = total > 0 ? '(' + total + ') ' + base : base;
+    }
+
+    function oakWatchPending(refresh) {
+        setInterval(function () {
+            if (document.visibilityState === 'visible') {
+                refresh();
+            }
+        }, OAK_POLL_MS);
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') {
+                refresh();
+            }
+        });
+    }
+
     var OAK_SLOT_MINUTES = 30;
     /* The last lane map, kept outside the component so reading it is not a reactive read:
        one booking grid per page, and it is rebuilt as soon as its inputs differ. */
@@ -640,8 +666,17 @@
                 if (OAK.qs('new')) {
                     this.openCreate();
                 }
-                OAK.pendingBadge();
+                this.refreshPending();
                 this.watchViewport();
+                var self = this;
+                oakWatchPending(function () {
+                    self.refreshPending();
+                });
+            },
+
+            /* The bell count, with the tab title kept in step. */
+            async refreshPending() {
+                oakPendingTitle(await OAK.pendingBadge());
             },
 
             /* Back to the page's own default: today, one day at a time. */
@@ -846,7 +881,7 @@
                     OAK.toast('Đã cập nhật lịch hẹn ' + this.detail.code + '.');
                     await this.load();
                     // The bell counts the same bookings this just changed.
-                    OAK.pendingBadge();
+                    this.refreshPending();
                 } catch (error) {
                     OAK.toast(error.message, 'error');
                 }

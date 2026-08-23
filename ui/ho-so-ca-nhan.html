@@ -138,7 +138,7 @@ Cài đặt
 <h2 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="user.name"></h2>
 <p class="font-body-md text-body-md text-on-surface-variant mb-1" x-text="user.email"></p>
 <p class="font-caption text-caption text-outline mb-6" x-text="'Thành viên từ ' + OAK.fmtDate(user.created_at)"></p>
-<span class="inline-flex items-center gap-1 bg-tertiary-fixed text-on-tertiary-fixed-variant font-caption text-caption px-3 py-1 rounded-full mb-8" x-text="user.role === 'partner' ? 'Tài khoản đối tác' : 'Thành viên OAK'"></span>
+<span class="inline-flex items-center gap-1 bg-tertiary-fixed text-on-tertiary-fixed-variant font-caption text-caption px-3 py-1 rounded-full mb-8" x-text="user.role === 'partner' ? 'Tài khoản đối tác' : 'Tài khoản khách hàng'"></span>
 <button @click="OAK.logout()" class="w-full border border-outline text-primary font-label-md text-label-md py-3 uppercase tracking-wider rounded-full hover:bg-surface-variant/50 transition-colors" type="button">
                     Đăng xuất
                 </button>
@@ -257,8 +257,8 @@ Cài đặt
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>

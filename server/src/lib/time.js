@@ -1,8 +1,10 @@
 /*
- * Date and clock helpers. Everything here works on server LOCAL time and on plain
- * 'YYYY-MM-DD' / 'HH:MM' strings, which is what the schema stores.
+ * Date and clock helpers. "Now" is always read in Vietnam time — Render runs the
+ * container in UTC — and everything else works on plain 'YYYY-MM-DD' / 'HH:MM'
+ * strings, which is what the schema stores.
  */
 
+const APP_TZ = 'Asia/Ho_Chi_Minh';
 const ISO_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const HHMM_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MINUTES_PER_HOUR = 60;
@@ -46,13 +48,34 @@ function toISO(date) {
   return `${year}-${month}-${day}`;
 }
 
+/*
+ * Today and now in APP_TZ, whatever the process TZ is: 'en-CA' renders the date as
+ * 'YYYY-MM-DD' and hour12:false keeps the hour 00-23, so the parts are read straight.
+ */
+const VN_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: APP_TZ,
+  hour12: false,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function vnParts() {
+  return Object.fromEntries(
+    VN_FORMAT.formatToParts(new Date()).map((part) => [part.type, part.value]),
+  );
+}
+
 export function todayISO() {
-  return toISO(new Date());
+  const { year, month, day } = vnParts();
+  return `${year}-${month}-${day}`;
 }
 
 export function nowMinutes() {
-  const now = new Date();
-  return now.getHours() * MINUTES_PER_HOUR + now.getMinutes();
+  const { hour, minute } = vnParts();
+  return Number(hour) * MINUTES_PER_HOUR + Number(minute);
 }
 
 /** Shift an ISO date by n days. Built from local parts so DST can never shift the day. */

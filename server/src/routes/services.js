@@ -42,7 +42,7 @@ const SERVICE_SOURCE = 'FROM services sv JOIN salons s ON s.id = sv.salon_id';
 
 const selectServiceDetail = db.prepare(`
   SELECT ${SERVICE_CARD_COLUMNS}, sv.featured, sv.is_package,
-         s.address AS salon_address, s.image AS salon_image,
+         s.address AS salon_address, s.image AS salon_image, s.phone AS salon_phone,
          s.open_time AS salon_open_time, s.close_time AS salon_close_time,
          (SELECT ROUND(AVG(r.rating), 1) FROM reviews r WHERE r.salon_id = s.id) AS salon_rating,
          (SELECT COUNT(*) FROM reviews r WHERE r.salon_id = s.id) AS salon_review_count
@@ -240,6 +240,8 @@ router.get('/:id', async (req, res, next) => {
           ...card.salon,
           address: row.salon_address,
           image: row.salon_image,
+          // The service page offers Gọi/Zalo from this block, the way the salon page does.
+          phone: row.salon_phone,
           open_time: row.salon_open_time,
           close_time: row.salon_close_time,
           rating: row.salon_rating ?? 0,

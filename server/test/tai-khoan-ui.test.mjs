@@ -154,6 +154,62 @@ test('each status chip gets a readable pair of tokens, completed staying neutral
   assert.equal(state.statusClass('nonsense'), 'bg-tertiary-fixed text-on-tertiary-fixed');
 });
 
+test('a booking the salon never closed out says so on its own card', () => {
+  // The server sets `auto` when GET /api/bookings/mine swept the booking itself; the card
+  // reads it beside the status so "Đã hoàn thành" is not mistaken for somebody's decision.
+  assert.match(
+    bookingsHtml,
+    /x-show="booking\.auto &amp;&amp; booking\.status === 'completed'">Tự động hoàn tất</,
+  );
+  assert.match(
+    bookingsHtml,
+    /x-show="booking\.auto &amp;&amp; booking\.status === 'cancelled'">Salon không xác nhận</,
+  );
+  // Both readings are in the markup, so the dictionary can find them.
+  const dictionary = JSON.parse(
+    fs.readFileSync(path.join(root, 'tools', 'i18n', 'parts', 'lich-hen-cua-toi.json'), 'utf8'),
+  );
+  assert.ok(dictionary['Tự động hoàn tất']);
+  assert.ok(dictionary['Salon không xác nhận']);
+});
+
+test('the sweep that sets that flag runs before the list is read, once per booking', () => {
+  const route = fs.readFileSync(
+    path.join(root, 'server', 'src', 'routes', 'bookings.js'),
+    'utf8',
+  );
+  // Before the count and the page query, so a stranded booking lands in a tab at all.
+  assert.match(route, /await closePastBookings\(req\.user\.id\);/);
+  assert.ok(
+    route.indexOf('await closePastBookings(req.user.id);') < route.indexOf('const filter ='),
+  );
+  // Only yesterday and earlier, and only what the salon left open.
+  assert.match(route, /b\.date < \? AND b\.status IN \('pending', 'confirmed'\)/);
+  // The UPDATE names the status it read, so a second concurrent list writes nothing and
+  // therefore queues no second invitation to review.
+  assert.match(
+    route,
+    /UPDATE bookings SET status = \?, note = \?, auto_closed = 1 WHERE id = \? AND status = \?/,
+  );
+  assert.match(route, /if \(changes > 0 && completed\)/);
+  // The flag is a column the sweep writes, not a phrase read back out of the note: `note`
+  // also carries the customer's own words, and a customer may type anything into it.
+  assert.match(route, /auto: Boolean\(row\.auto_closed\),/);
+  assert.equal(route.includes('AUTO_NOTES'), false);
+});
+
+test('the salon owner is told about a booking the customer made or dropped', () => {
+  const route = fs.readFileSync(
+    path.join(root, 'server', 'src', 'routes', 'bookings.js'),
+    'utf8',
+  );
+  // The owner id comes off the salon join, never off the request body.
+  assert.match(route, /s\.owner_id AS salon_owner_id,/);
+  assert.equal(route.split('booking.salon_owner_id').length - 1, 2);
+  assert.match(route, /'Lịch hẹn mới cần xác nhận',/);
+  assert.match(route, /'Khách đã huỷ lịch hẹn',/);
+});
+
 test('"Đổi lịch" reopens the same wizard, naming the appointment it replaces', () => {
   const state = myBookings(async () => []);
   const booking = bookingIn(48);

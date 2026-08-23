@@ -48,6 +48,10 @@ function bookingForm(api, search = '') {
   context.result.urls = context.urls;
   context.result.toasts = context.toasts;
   context.result.location = context.location;
+  /* The page's own window.OAK, so a test can say what this browser has. It carries no
+     track() by default — the browser served a page from cache that meets an oak-api.js
+     from before measurement existed — which is the case every other test here runs in. */
+  context.result.oak = context.OAK;
   return context.result;
 }
 
@@ -345,4 +349,127 @@ test('reschedule survives a whole chain of interactions, each of which rewrites 
   }
   // And the url the page would be reloaded from still carries it.
   assert.match(state.location.search, /reschedule=55/);
+});
+
+test('the wizard states the booking terms it actually has, and no membership tier', () => {
+  // There is no tier, no points table and no loyalty endpoint anywhere in the codebase,
+  // so threatening one at the moment of commitment was a threat about nothing.
+  assert.doesNotMatch(html, /hạng thẻ/);
+  // The three conditions come from OAK.TRUST, so the salon page, the service page, the
+  // wizard and the confirmation page cannot word the same promise four different ways.
+  assert.equal(html.split('x-text="OAK.TRUST.CANCEL_POLICY"').length - 1, 2);
+  assert.equal(html.split('x-text="OAK.TRUST.PAYMENT"').length - 1, 3);
+  assert.match(html, /Điều kiện đặt lịch/);
+  assert.match(html, /href="dieu-khoan\.html#huy-lich"/);
+});
+
+test('payment is stated rather than offered as a choice that has none', () => {
+  // One label, no input, a radio drawn in <div>s: the control could not be operated and
+  // the page hard-codes payment_method anyway.
+  assert.doesNotMatch(html, /Phương thức thanh toán/);
+  assert.doesNotMatch(html, /rounded-full border-2 border-primary/);
+  assert.match(html, /payment_method: 'at_salon'/);
+});
+
+test('the wizard carries its own copy of the total and the button that acts on it', () => {
+  /* Below lg the sidebar — the total, and the only button that confirms — sits after the
+     whole form, a screenful past the choice being made. So the pair is pinned to the
+     bottom edge as well. data-oak-sticky-cta is what a toast reads to sit above it. */
+  assert.match(html, /class="fixed bottom-0 inset-x-0 z-40 lg:hidden[^"]*" data-oak-sticky-cta/);
+  // Nothing to pin until there is something to pay for, and step 1 has no button to offer.
+  assert.match(html, /x-show="service &amp;&amp; step > 1"/);
+  // The three things it says, each its own text node so English needs no rule for a
+  // sentence assembled at runtime.
+  assert.match(html, /x-text="service \? service\.name : ''"/);
+  assert.match(html, /x-text="service \? service\.duration_min \+ ' phút' : ''"/);
+  assert.match(html, /x-text="quote \? OAK\.fmtPrice\(quote\.total\) : '—'"/);
+  // The sidebar's own controls, not new ones: the same calls, the same busy states.
+  assert.match(html, /@click="next\(\)"[^>]*x-show="step !== 4"/);
+  assert.match(html, /@click="submit\(\)"[^>]*x-show="step === 4"/);
+  /* And the room it needs, so the last thing on the page is never underneath it: <main>
+     already ends in 120px of section gap, which clears the ~68px bar on its own. */
+  assert.match(html, /<main class="pt-24 flex-grow pb-section-gap/);
+});
+
+test('a step 3 that refuses to advance says so where the tap happened', async () => {
+  /* The sticky button is reachable from any scroll position, including a screenful below
+     the error paragraph, so setting stepError is not on its own visible feedback. */
+  const state = bookingForm(async () => []);
+  const scrolls = [];
+  const flush = [];
+  state.$nextTick = (fn) => flush.push(fn);
+  state.$refs = { stepError: { scrollIntoView: (options) => scrolls.push(options) } };
+  state.step = 3;
+  state.date = '2099-01-01';
+  state.time = null;
+
+  state.next();
+
+  assert.equal(state.step, 3);
+  assert.equal(state.stepError, 'Vui lòng chọn ngày và giờ hẹn.');
+  /* Not yet: x-show still has the paragraph at display:none until Alpine flushes, and an
+     element with no box does not scroll — which is the very first tap this is for. */
+  assert.equal(scrolls.length, 0);
+  flush.forEach((fn) => fn());
+  assert.equal(scrolls.length, 1);
+  assert.equal(scrolls[0].block, 'center');
+});
+
+test('everything picked at a decision point is at least 44px tall', () => {
+  /* An hour chip mis-tapped is an appointment at the wrong time. The day strip above it
+     was already 44px; the hours below it were 32. */
+  assert.match(html, /class="min-h-\[44px\] px-5 py-2 border rounded-full[^"]*" type="button" x-text="slot\.time"/);
+  // At 360px four full step names crowd into one row, so only the current one keeps its.
+  assert.match(html, /'hidden sm:inline font-caption text-caption text-on-surface-variant'/);
+  /* Which leaves the step buttons with nothing visible to name them below sm — a done step
+     shows only an aria-hidden tick — and nothing to give them height. Both are put back on
+     the button itself, so hiding the label costs neither a name nor a target. */
+  assert.match(html, /:aria-label="item\.label"/);
+  assert.match(html, /class="flex flex-col items-center justify-center gap-2 min-h-\[44px\] bg-background px-4"/);
+});
+
+test('a wizard opened and a booking made are counted; nothing else is', async () => {
+  const state = bookingForm(async (path) => {
+    if (path.startsWith('/api/salons?')) {
+      return Object.assign([], { meta: { total: 0 } });
+    }
+    if (path === '/api/bookings') {
+      return { id: 91 };
+    }
+    return [];
+  });
+  const events = [];
+  state.oak.track = (name) => events.push(name);
+
+  await state.init();
+  assert.deepEqual(events, ['wizard_start']);
+
+  readyToSubmit(state);
+  await state.submit();
+
+  assert.deepEqual(events, ['wizard_start', 'booking_submit']);
+  assert.equal(state.location.href, 'xac-nhan-dat-lich.html?id=91');
+});
+
+test('a booking the server refused is not counted as a booking', async () => {
+  const state = readyToSubmit(bookingForm(async () => {
+    throw new Error('Khung giờ này vừa có người đặt.');
+  }));
+  const events = [];
+  state.oak.track = (name) => events.push(name);
+  state.$root = { scrollIntoView: () => {} };
+
+  await state.submit();
+
+  assert.deepEqual(events, []);
+});
+
+test('a browser whose oak-api.js has no track() still books', async () => {
+  /* Every other test in this file already runs without track(); this one says so out
+     loud, because measurement that breaks a booking is worse than no measurement. */
+  const state = readyToSubmit(bookingForm(async () => ({ id: 91 })));
+  assert.equal(state.oak.track, undefined);
+
+  await assert.doesNotReject(() => state.submit());
+  assert.equal(state.location.href, 'xac-nhan-dat-lich.html?id=91');
 });

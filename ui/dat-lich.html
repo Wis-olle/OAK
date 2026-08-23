@@ -46,12 +46,12 @@
 <div class="flex items-center justify-between relative">
 <div class="absolute left-0 top-1/2 -translate-y-1/2 w-full h-[1px] bg-outline-variant/30 -z-10"></div>
 <template :key="item.n" x-for="item in steps">
-<button :aria-current="step === item.n ? 'step' : false" :class="!loading &amp;&amp; stepOpen(item.n) ? 'hover:opacity-80 transition-opacity' : 'cursor-default'" :disabled="loading || !stepOpen(item.n)" @click="goTo(item.n)" class="flex flex-col items-center gap-2 bg-background px-4" type="button">
+<button :aria-current="step === item.n ? 'step' : false" :aria-label="item.label" :class="!loading &amp;&amp; stepOpen(item.n) ? 'hover:opacity-80 transition-opacity' : 'cursor-default'" :disabled="loading || !stepOpen(item.n)" @click="goTo(item.n)" class="flex flex-col items-center justify-center gap-2 min-h-[44px] bg-background px-4" type="button">
 <div :class="stepOpen(item.n) ? 'bg-primary-container text-on-primary' : 'bg-surface-variant text-on-surface-variant'" class="w-8 h-8 rounded-full flex items-center justify-center font-label-md text-label-md">
 <span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="check" x-cloak="" x-show="stepDone(item.n)">check</span>
 <span x-show="!stepDone(item.n)" x-text="item.n"></span>
 </div>
-<span :class="step === item.n ? 'font-label-md text-label-md text-primary font-bold' : 'font-caption text-caption text-on-surface-variant'" x-text="item.label"></span>
+<span :class="step === item.n ? 'font-label-md text-label-md text-primary font-bold' : 'hidden sm:inline font-caption text-caption text-on-surface-variant'" x-text="item.label"></span>
 </button>
 </template>
 </div>
@@ -215,12 +215,19 @@
 </div>
 <div class="flex flex-wrap gap-3" :class="slotsLoading ? 'opacity-50' : ''">
 <template :key="slot.time" x-for="slot in slots">
-<button :class="time === slot.time ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" :disabled="!slot.available" @click="pickTime(slot.time)" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors disabled:opacity-40 disabled:line-through disabled:hover:border-outline-variant" type="button" x-text="slot.time"></button>
+<button :class="time === slot.time ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" :disabled="!slot.available" @click="pickTime(slot.time)" class="min-h-[44px] px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors disabled:opacity-40 disabled:line-through disabled:hover:border-outline-variant" type="button" x-text="slot.time"></button>
 </template>
 </div>
+<!-- What picking an hour costs, said where the hour is picked rather than only in the
+     sidebar the mobile reader meets at the bottom of the page. -->
+<p class="flex flex-wrap items-center gap-2 font-caption text-caption text-on-surface-variant">
+<span x-text="OAK.TRUST.CANCEL_POLICY"></span>
+<span aria-hidden="true">·</span>
+<span x-text="OAK.TRUST.PAYMENT"></span>
+</p>
 </div>
 <div class="flex flex-col gap-3">
-<p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="stepError" x-text="stepError"></p>
+<p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-ref="stepError" x-show="stepError" x-text="stepError"></p>
 <div class="flex flex-wrap items-center gap-4">
 <button @click="goTo(2)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
 <button :disabled="slotsLoading || loading" @click="next()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">Tiếp tục</button>
@@ -287,18 +294,14 @@
 <textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50 resize-none" id="customer-note" placeholder="Ví dụ: Da tay mỏng, cần làm nhẹ nhàng..." rows="3" x-model="form.note"></textarea>
 </div>
 </div>
-<!-- Payment Method -->
+<!-- Payment: there is one way to pay and nothing to choose, so this states it rather than
+     drawing a radio that cannot be unpicked. -->
 <div class="space-y-8">
-<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Phương thức thanh toán</h2>
-<label class="flex items-center justify-between p-6 border border-primary rounded-lg bg-surface-container-low transition-all">
-<div class="flex items-center gap-4">
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Thanh toán</h2>
+<div class="flex items-center gap-4 p-6 border border-outline-variant rounded-lg bg-surface-container-low">
 <span aria-hidden="true" class="material-symbols-outlined text-primary" data-icon="payments">payments</span>
-<span class="font-body-md text-body-md font-medium text-primary">Thanh toán tại salon</span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.PAYMENT"></span>
 </div>
-<div class="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center">
-<div class="w-3 h-3 rounded-full bg-primary"></div>
-</div>
-</label>
 </div>
 <div class="flex flex-wrap items-center gap-4">
 <button @click="goTo(3)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
@@ -336,17 +339,43 @@
 <p class="font-caption text-caption text-on-tertiary/80" x-cloak="" x-show="!loading &amp;&amp; !user">Bạn cần đăng nhập để hoàn tất đặt lịch — lựa chọn của bạn sẽ được giữ nguyên.</p>
 <button :disabled="busy || loading" @click="submit()" class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : (loading || user ? 'Xác nhận đặt lịch' : 'Đăng nhập &amp; xác nhận')">Xác nhận đặt lịch</button>
 </div>
+<!-- The same three conditions the salon page and the service page state, in the one place
+     the reader is about to commit to them. -->
 <div class="bg-on-tertiary/5 p-4 rounded space-y-2">
+<span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80">Điều kiện đặt lịch</span>
+<div class="flex items-start gap-2">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] mt-0.5 text-on-tertiary/80" data-icon="event_available">event_available</span>
+<span class="font-caption text-caption text-on-tertiary/70 leading-relaxed" x-text="OAK.TRUST.CANCEL_POLICY"></span>
+</div>
+<div class="flex items-start gap-2">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] mt-0.5 text-on-tertiary/80" data-icon="payments">payments</span>
+<span class="font-caption text-caption text-on-tertiary/70 leading-relaxed" x-text="OAK.TRUST.PAYMENT"></span>
+</div>
 <div class="flex items-start gap-2">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] mt-0.5 text-on-tertiary/80" data-icon="info">info</span>
-<span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80">Chính sách hủy lịch</span>
+<span class="font-caption text-caption text-on-tertiary/70 leading-relaxed">Salon xác nhận lịch, bạn được báo trong mục Thông báo</span>
 </div>
-<p class="font-caption text-caption text-on-tertiary/70 pl-6 leading-relaxed">
-                            Bạn có thể hủy hoặc thay đổi lịch hẹn miễn phí trước 2 tiếng so với giờ đặt. Hủy muộn hoặc không đến có thể ảnh hưởng đến hạng thẻ thành viên của bạn.
-                        </p>
+<a class="inline-flex items-center gap-1 font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80 hover:text-on-tertiary transition-colors" href="dieu-khoan.html#huy-lich">Xem điều khoản</a>
 </div>
 </div>
 </div>
+</div>
+<!-- The sidebar carries the total and the button that acts on it, and below lg the sidebar
+     sits after the whole form — a screenful past the choice being made. So the same pair is
+     pinned to the bottom edge here: what this costs, and the one button that moves on. Not
+     new controls, the sidebar's own — the same next()/submit(), the same disabled states.
+     data-oak-sticky-cta is what tells a toast to sit above it (assets/js/oak-api.js). -->
+<div class="fixed bottom-0 inset-x-0 z-40 lg:hidden flex items-center justify-between gap-4 border-t border-outline-variant/30 bg-surface-container-low px-margin-mobile py-3" data-oak-sticky-cta x-cloak="" x-show="service &amp;&amp; step > 1">
+<div class="min-w-0">
+<span class="block font-body-md text-body-md font-semibold text-on-surface truncate" x-text="service ? service.name : ''"></span>
+<span class="block font-caption text-caption text-on-surface-variant">
+<span x-text="service ? service.duration_min + ' phút' : ''"></span>
+<span aria-hidden="true">·</span>
+<span x-text="quote ? OAK.fmtPrice(quote.total) : '—'">—</span>
+</span>
+</div>
+<button :disabled="loading || optionsLoading || slotsLoading" @click="next()" class="shrink-0 flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 min-h-[44px] rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button" x-show="step !== 4">Tiếp tục</button>
+<button :disabled="busy || loading" @click="submit()" class="shrink-0 flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 min-h-[44px] rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button" x-show="step === 4" x-text="busy ? 'Đang xử lý…' : (loading || user ? 'Xác nhận đặt lịch' : 'Đăng nhập &amp; xác nhận')">Xác nhận đặt lịch</button>
 </div>
 </div>
 </main>
@@ -383,8 +412,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -541,6 +570,15 @@
                 if (wantedTime && !this.time) {
                     this.stepError = 'Khung giờ bạn chọn không còn trống, vui lòng chọn giờ khác.';
                 }
+
+                /* The middle of the funnel: of the visits that searched, how many opened a
+                   wizard at all. Sent once the page has settled, so it counts a wizard the
+                   visitor can actually use. Guarded, here and at every other call site: a
+                   page served from cache can meet an oak-api.js that has no track(), and
+                   measurement must never be the thing that breaks a booking. */
+                if (typeof OAK.track === 'function') {
+                    OAK.track('wizard_start');
+                }
             },
 
             /** Step 1's directory. `page` is committed only on success, so a failed "Xem thêm"
@@ -692,6 +730,14 @@
                 }
                 if (this.step === 3 && (!this.date || !this.time)) {
                     this.stepError = 'Vui lòng chọn ngày và giờ hẹn.';
+                    // The sticky button is tappable from anywhere on the page, so the
+                    // reason it did nothing has to be brought to where the finger is.
+                    // After the flush, not before: x-show still has the paragraph at
+                    // display:none on the first tap, and an element with no box does not
+                    // scroll — which is exactly the tap this line exists for.
+                    this.$nextTick(() =>
+                        this.$refs.stepError.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+                    );
                     return;
                 }
                 this.goTo(this.step + 1);
@@ -1058,6 +1104,12 @@
                             customer_phone: this.form.phone.trim(),
                         },
                     });
+                    /* Counted where it is true — the appointment exists. An attempt the
+                       server refused is not a booking, and counting it would flatter the
+                       funnel this number is read in. */
+                    if (typeof OAK.track === 'function') {
+                        OAK.track('booking_submit');
+                    }
                     const stranded = await this.dropOldBooking();
                     location.href = 'xac-nhan-dat-lich.html?id=' + booking.id
                         + (stranded ? '&reschedule_failed=' + stranded : '');

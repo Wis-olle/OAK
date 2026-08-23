@@ -123,10 +123,24 @@
 <div>
 <div class="flex items-center gap-3 mb-4">
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface" x-text="salon.name"></h1>
-<span :style="filled" aria-label="Đã xác minh" class="material-symbols-outlined text-secondary-container" role="img" x-show="salon.verified">verified</span>
+<!-- Every salon is verified=1 the moment it signs up, so a verification claim here said
+     nothing. What the icon can honestly claim is that this salon registered with OAK. -->
+<span :style="filled" aria-label="Đối tác OAK" class="material-symbols-outlined text-secondary-container" role="img" x-show="salon.verified">verified</span>
 <button :aria-pressed="isFavorite" @click="toggleFavorite()" aria-label="Lưu salon yêu thích" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-full border border-outline-variant/30 text-secondary-container hover:bg-surface-container-low transition-colors" type="button">
 <span :style="isFavorite ? filled : ''" class="material-symbols-outlined">favorite</span>
 </button>
+<!-- The number the salon already publishes: a caller who wants to ask about a price or
+     walk in today should not have to leave the page to find it. -->
+<template x-if="salon.phone">
+<a :href="'tel:' + digits(salon.phone)" aria-label="Gọi salon" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-full border border-outline-variant/30 text-secondary-container hover:bg-surface-container-low transition-colors" style="text-decoration:none">
+<span aria-hidden="true" class="material-symbols-outlined">call</span>
+</a>
+</template>
+<template x-if="salon.phone">
+<a :href="zaloUrl()" aria-label="Chat Zalo với salon" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-full border border-outline-variant/30 text-secondary-container hover:bg-surface-container-low transition-colors" rel="noopener noreferrer" style="text-decoration:none" target="_blank">
+<span aria-hidden="true" class="material-symbols-outlined">chat_bubble</span>
+</a>
+</template>
 </div>
 <p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl" x-text="salon.description"></p>
 <div class="flex flex-wrap gap-3 mt-5" x-show="safeSocialLinks().length">
@@ -187,6 +201,26 @@
 </template>
 </ul>
 </div>
+</div>
+<!-- What booking here costs and commits to, before the reader picks an hour rather than
+     only in the wizard's sidebar. The same three lines the service page and the wizard say. -->
+<div class="bg-surface-container-low rounded-xl p-6">
+<h3 class="font-label-md text-label-md text-on-surface uppercase tracking-wider mb-4">Điều kiện đặt lịch</h3>
+<ul class="flex flex-col gap-3">
+<li class="flex items-start gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="event_available">event_available</span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.CANCEL_POLICY"></span>
+</li>
+<li class="flex items-start gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="payments">payments</span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.PAYMENT"></span>
+</li>
+<li class="flex items-start gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-outline" data-icon="info">info</span>
+<span class="font-body-md text-body-md text-on-surface-variant">Salon xác nhận lịch, bạn được báo trong mục Thông báo</span>
+</li>
+</ul>
+<a class="inline-flex items-center gap-1 mt-4 font-label-md text-label-md uppercase tracking-wide text-primary hover:opacity-70 transition-opacity" href="dieu-khoan.html#huy-lich">Xem điều khoản</a>
 </div>
 </div>
 <!-- Right Column: Menu & Booking Sticky -->
@@ -321,6 +355,11 @@
 </section>
 <div class="fixed bottom-0 inset-x-0 z-40 md:hidden flex items-center justify-between gap-4 border-t border-outline-variant/30 bg-surface-container-low px-margin-mobile py-3" data-oak-sticky-cta>
 <span class="font-body-md text-body-md font-bold text-on-surface" x-cloak="" x-show="fromPriceLabel()" x-text="fromPriceLabel()"></span>
+<template x-if="salon.phone">
+<a :href="'tel:' + digits(salon.phone)" aria-label="Gọi salon" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-full border border-outline-variant/30 text-primary hover:bg-surface-container transition-colors" style="text-decoration:none">
+<span aria-hidden="true" class="material-symbols-outlined">call</span>
+</a>
+</template>
 <a :href="'dat-lich.html?salon_id=' + salon.id" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 px-6 min-h-[44px] ml-auto flex items-center justify-center">Đặt Lịch Ngay</a>
 </div>
 </div>
@@ -359,8 +398,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -475,6 +514,16 @@
 
             caption(index) {
                 return this.photos[index] ? this.photos[index].caption : this.salon.name;
+            },
+
+            /** The salon writes its number as it pleases ('0901 234 567'); tel: wants digits. */
+            digits(phone) {
+                return String(phone).replace(/\D/g, '');
+            },
+
+            /** zalo.me addresses a Vietnamese number in international form: 090… -> 8490…  */
+            zaloUrl() {
+                return 'https://zalo.me/' + this.digits(this.salon.phone).replace(/^0/, '84');
             },
 
             safeSocialLinks() {

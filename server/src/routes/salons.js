@@ -9,11 +9,18 @@ import {
 } from '../lib/cards.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
 import { SOCIAL_PROFILE_PLATFORMS } from '../lib/social-profile.js';
+import { bestMatchTier, countMatchedTokens, searchTokens } from '../lib/text.js';
 import { httpError } from '../middleware/auth.js';
 
 const router = express.Router();
 
 const DEFAULT_LIMIT = 12;
+// A name search is filtered in JS, so the rows it reads are capped first. The cap sits far
+// above the number of salons the platform holds, so meta.total still counts every match.
+// Past ~100 verified salons a match below the cap becomes unreachable and meta.total
+// under-reports; that is when q moves onto a normalized search_text column (or unaccent)
+// in SQL, and not before — the extra column is not worth carrying at this size.
+const CANDIDATE_LIMIT = 100;
 const REVIEW_LIMIT = 10;
 const RATING_VALUES = [5, 4, 3, 2, 1];
 
@@ -128,10 +135,6 @@ router.get('/', async (req, res, next) => {
     const params = [];
 
     const q = filterValue(req.query.q);
-    if (q) {
-      conditions.push('s.name ILIKE ?');
-      params.push(`%${q}%`);
-    }
 
     const city = filterValue(req.query.city);
     if (city) {
@@ -162,6 +165,29 @@ router.get('/', async (req, res, next) => {
 
     const where = `WHERE ${conditions.join(' AND ')}`;
     const order = Object.hasOwn(SORTS, req.query.sort) ? SORTS[req.query.sort] : DEFAULT_SORT;
+
+    // The name is matched in JS rather than with ILIKE, which compares diacritics and would
+    // answer 'noi mi' with an empty page; the helper strips them on both sides. Only the
+    // name — this list is the wizard's salon picker, not the search page, which also reads
+    // districts and service names — but the same best-tier rule, so "nail quận 1" answers
+    // with the nail salons instead of nothing.
+    if (q) {
+      const tokens = searchTokens(q);
+      const candidates = await db
+        .prepare(`SELECT ${SALON_CARD_COLUMNS} FROM salons s ${where} ORDER BY ${order} LIMIT ?`)
+        .all(...params, CANDIDATE_LIMIT);
+      const matched = bestMatchTier(
+        candidates
+          .map((row) => ({ ...row, matched_tokens: countMatchedTokens(tokens, [row.name]) }))
+          .filter((row) => row.matched_tokens > 0),
+      );
+      res.json({
+        success: true,
+        data: matched.slice(offset, offset + limit).map(toSalonCard),
+        meta: { page, limit, total: matched.length },
+      });
+      return;
+    }
 
     const { total } = await db
       .prepare(`SELECT COUNT(*) AS total FROM salons s ${where}`)

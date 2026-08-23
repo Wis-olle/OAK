@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { sendResetMail } from '../src/lib/mailer.js';
 
 /* The bug the pinned assertion below guards is a calendar-day rollover, so the day has to be
    pinned as well as the instant: in UTC the buggy and the correct answer are the same string. */
@@ -22,6 +23,7 @@ const headerSource = fs.readFileSync(path.join(root, 'ui/assets/js/oak-header.js
 const authSource = fs.readFileSync(path.join(root, 'server/src/routes/auth.js'), 'utf8');
 const middlewareSource = fs.readFileSync(path.join(root, 'server/src/middleware/auth.js'), 'utf8');
 const schemaSource = fs.readFileSync(path.join(root, 'server/src/db.js'), 'utf8');
+const mailerSource = fs.readFileSync(path.join(root, 'server/src/lib/mailer.js'), 'utf8');
 
 /* Each factory is inline in its page, so lift it out of its <script> and drive it here.
    `from` is the first line of the slice — everything the factory leans on sits below it. */
@@ -210,14 +212,14 @@ test('"Quên mật khẩu?" with an empty box answers on the field and makes no 
 
 test('the reset reply becomes a standing panel, and the demo link rides in it', async () => {
   const state = loginWithRefs(async () => ({
-    message: 'Nếu email tồn tại, liên kết đặt lại mật khẩu đã được tạo.',
+    message: 'Nếu email tồn tại, chúng tôi đã gửi liên kết đặt lại — kiểm tra hộp thư, kể cả mục Spam.',
     demo_reset_url: 'dat-lai-mat-khau.html?token=tok-123',
   }));
   state.email = '  Ngoc@example.com  ';
 
   await state.forgotPassword();
 
-  assert.equal(state.forgotNotice, 'Nếu email tồn tại, liên kết đặt lại mật khẩu đã được tạo.');
+  assert.equal(state.forgotNotice, 'Nếu email tồn tại, chúng tôi đã gửi liên kết đặt lại — kiểm tra hộp thư, kể cả mục Spam.');
   assert.equal(state.forgotDemoUrl, 'dat-lai-mat-khau.html?token=tok-123');
   // A panel, not a toast: on this demo it holds the only copy of the link.
   assert.deepEqual(state.toasts, []);
@@ -227,7 +229,7 @@ test('the reset reply becomes a standing panel, and the demo link rides in it', 
 
 test('an address with no account gets the panel and no link, which reads the same either way', async () => {
   const state = loginWithRefs(async () => ({
-    message: 'Nếu email tồn tại, liên kết đặt lại mật khẩu đã được tạo.',
+    message: 'Nếu email tồn tại, chúng tôi đã gửi liên kết đặt lại — kiểm tra hộp thư, kể cả mục Spam.',
   }));
   state.email = 'nobody@example.com';
 
@@ -468,10 +470,11 @@ test('forgot-password answers 200 whether or not the address is known', () => {
   const handler = authSource.slice(authSource.indexOf("router.post('/forgot-password'"));
   const body = handler.slice(0, handler.indexOf("router.post('/reset-password'"));
 
-  // Three exits — unknown/throttled, demo, production — and all three send the identical
-  // envelope, so no branch can be told from another by the reply it writes.
+  // Four exits — unknown/throttled, demo, no origin declared, production — and all four
+  // send the identical envelope, so no branch can be told from another by the reply it
+  // writes.
   const sends = body.match(/res\.json\([^)]*\)/g) || [];
-  assert.equal(sends.length, 3);
+  assert.equal(sends.length, 4);
   for (const send of sends) {
     assert.equal(send, 'res.json({ success: true, data })');
   }
@@ -483,10 +486,12 @@ test('the demo reset link can never be emitted by a production deploy', () => {
   const handler = authSource.slice(authSource.indexOf("router.post('/forgot-password'"));
   const body = handler.slice(0, handler.indexOf("router.post('/reset-password'"));
 
-  const gate = body.indexOf("if (process.env.NODE_ENV !== 'production') {");
+  const gate = body.indexOf(
+    "if (!process.env.RESEND_API_KEY && process.env.NODE_ENV !== 'production') {",
+  );
   const field = body.indexOf('data.demo_reset_url =');
   const gateEnds = body.indexOf('res.json({ success: true, data });\n    return mintReset(');
-  assert.ok(gate !== -1 && field > gate && field < gateEnds, 'the field escapes the NODE_ENV gate');
+  assert.ok(gate !== -1 && field > gate && field < gateEnds, 'the field escapes the demo gate');
   assert.match(body, /data\.demo_reset_url = `dat-lai-mat-khau\.html\?token=\$\{token\}`;/);
   // Exactly one place builds it, so the guard cannot be bypassed elsewhere.
   assert.equal((authSource.match(/demo_reset_url/g) || []).length, 1);
@@ -639,11 +644,14 @@ test('in production the reply goes out before the write, so timing says nothing'
   const handler = authSource.slice(authSource.indexOf("router.post('/forgot-password'"));
   const body = handler.slice(0, handler.indexOf("router.post('/reset-password'"));
 
-  const demo = body.indexOf("if (process.env.NODE_ENV !== 'production')");
+  const demo = body.indexOf('if (!process.env.RESEND_API_KEY');
   const production = body.indexOf('res.json({ success: true, data });\n    return mintReset(');
   assert.ok(production > demo, 'the production path is not the one after the demo branch');
   // Already replied: a failed write may not be thrown into next().
-  assert.match(body, /return mintReset\(token, account\.id, expiresAt\)\.catch\(\(error\) => \{/);
+  assert.match(
+    body,
+    /return mintReset\(token, account\.id, expiresAt\)\s*\.then\([\s\S]*?\)\s*\.catch\(\(error\) => \{/,
+  );
   // The demo branch is the reverse order on purpose — it has to know the token first.
   const demoBranch = body.slice(demo, production);
   assert.ok(demoBranch.indexOf('await mintReset(') < demoBranch.indexOf('data.demo_reset_url ='));
@@ -654,4 +662,145 @@ test('the reset link table is indexed for the lookup that retires by account', (
     schemaSource,
     /CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets\(user_id\)\s*WHERE used = 0;/,
   );
+});
+
+// ------------------------------------------------------------------ the reset mail channel
+
+/** Drive sendResetMail with fetch and console.error captured, then put both back. */
+async function withTransport(answer, run) {
+  const requests = [];
+  const logged = [];
+  const realFetch = globalThis.fetch;
+  const realError = console.error;
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    if (answer instanceof Error) {
+      throw answer;
+    }
+    return answer;
+  };
+  console.error = (...args) => logged.push(args.map(String).join(' '));
+  try {
+    return { result: await run(), requests, logged };
+  } finally {
+    globalThis.fetch = realFetch;
+    console.error = realError;
+  }
+}
+
+/** Run `body` with RESEND_API_KEY set to `key` (or unset when null), then restore it. */
+async function withKey(key, body) {
+  const previous = process.env.RESEND_API_KEY;
+  if (key === null) {
+    delete process.env.RESEND_API_KEY;
+  } else {
+    process.env.RESEND_API_KEY = key;
+  }
+  try {
+    return await body();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.RESEND_API_KEY;
+    } else {
+      process.env.RESEND_API_KEY = previous;
+    }
+  }
+}
+
+test('with no key configured no mail is attempted and nothing is logged as a failure', async () => {
+  const { result, requests, logged } = await withKey(null, () =>
+    withTransport(new Error('no request may be made'), () =>
+      sendResetMail('khach@oak.vn', 'https://oak.example/dat-lai-mat-khau.html?token=t'),
+    ),
+  );
+
+  assert.equal(result, false);
+  assert.deepEqual(requests, []);
+  assert.deepEqual(logged, []);
+});
+
+test('with a key the link is posted to Resend, and the From is configurable', async () => {
+  const previousFrom = process.env.RESET_MAIL_FROM;
+  delete process.env.RESET_MAIL_FROM;
+  const link = 'https://oak.example/dat-lai-mat-khau.html?token=tok-123';
+  const { result, requests } = await withKey('re_fake', () =>
+    withTransport({ ok: true, status: 200, text: async () => '' }, () =>
+      sendResetMail('khach@oak.vn', link),
+    ),
+  );
+
+  assert.equal(result, true);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, 'https://api.resend.com/emails');
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer re_fake');
+  const sent = JSON.parse(requests[0].options.body);
+  assert.equal(sent.to, 'khach@oak.vn');
+  assert.equal(sent.from, 'OAK Beauty <no-reply@oakbeauty.vn>');
+  // The link is the whole message; without it the mail is worthless.
+  assert.ok(sent.text.includes(link));
+
+  process.env.RESET_MAIL_FROM = 'OAK <reset@example.vn>';
+  const configured = await withKey('re_fake', () =>
+    withTransport({ ok: true, status: 200, text: async () => '' }, () =>
+      sendResetMail('khach@oak.vn', link),
+    ),
+  );
+  assert.equal(JSON.parse(configured.requests[0].options.body).from, 'OAK <reset@example.vn>');
+  if (previousFrom === undefined) {
+    delete process.env.RESET_MAIL_FROM;
+  } else {
+    process.env.RESET_MAIL_FROM = previousFrom;
+  }
+});
+
+test('a refusal and an unreachable Resend are logged, never thrown, and never name the address', async () => {
+  const refused = await withKey('re_fake', () =>
+    withTransport({ ok: false, status: 403, text: async () => 'domain is not verified' }, () =>
+      sendResetMail('khach@oak.vn', 'https://oak.example/dat-lai-mat-khau.html?token=t'),
+    ),
+  );
+  assert.equal(refused.result, false);
+  assert.equal(refused.logged.length, 1);
+  assert.match(refused.logged[0], /403/);
+
+  const offline = await withKey('re_fake', () =>
+    withTransport(new Error('getaddrinfo ENOTFOUND'), () =>
+      sendResetMail('khach@oak.vn', 'https://oak.example/dat-lai-mat-khau.html?token=t'),
+    ),
+  );
+  assert.equal(offline.result, false);
+  assert.equal(offline.logged.length, 1);
+
+  // The endpoint is built so that not even its timing says who has an account; a log line
+  // holding the address would give that away to anyone reading the Render console.
+  for (const line of [...refused.logged, ...offline.logged]) {
+    assert.doesNotMatch(line, /khach@oak\.vn/);
+  }
+});
+
+test('the reset mail is the only thing this channel can send', () => {
+  // One export, one endpoint: anything wanting to mail something else has to add a file,
+  // which is a change worth noticing rather than one line worth missing.
+  assert.equal((mailerSource.match(/^export /gm) || []).length, 1);
+  assert.match(mailerSource, /export async function sendResetMail\(to, url\)/);
+  assert.equal((mailerSource.match(/https:\/\/api\.resend\.com/g) || []).length, 1);
+  // A rejection here would land as an unhandled rejection: the reply is already sent.
+  assert.match(mailerSource, /catch \(error\) \{\s*console\.error\(/);
+});
+
+test('the mailed link is absolute and prefers the origin Render publishes', () => {
+  const handler = authSource.slice(authSource.indexOf("router.post('/forgot-password'"));
+  const body = handler.slice(0, handler.indexOf("router.post('/reset-password'"));
+
+  // A forged Host header must not be able to point the mail at another server: the origin
+  // is declared by the deploy, and in production a deploy that declared none mails nothing
+  // rather than falling back to what the caller sent.
+  assert.match(
+    body,
+    /const declaredOrigin = process\.env\.RENDER_EXTERNAL_URL \|\| process\.env\.PUBLIC_BASE_URL;/,
+  );
+  assert.match(body, /if \(!declaredOrigin && process\.env\.NODE_ENV === 'production'\) \{/);
+  const guard = body.indexOf('!declaredOrigin');
+  assert.ok(guard !== -1 && guard < body.indexOf("req.get('host')"));
+  assert.match(body, /sendResetMail\(normalised, `\$\{origin\}\/dat-lai-mat-khau\.html\?token=\$\{token\}`\)/);
 });

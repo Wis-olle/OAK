@@ -125,7 +125,7 @@
 <p class="font-body-md text-body-md text-on-surface-variant" x-show="categoryLabel">Tìm salon gần bạn và đặt lịch chỉ trong vài phút.</p>
 <p class="font-body-md text-body-md text-on-surface-variant" x-show="!categoryLabel">Khám phá các salon đang được yêu thích trên OAK và đặt lịch chỉ trong vài phút.</p>
 </div>
-<a :href="ctaUrl" class="inline-flex items-center justify-center gap-2 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 shrink-0">
+<a :href="ctaUrl" @click="trackCta()" class="inline-flex items-center justify-center gap-2 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 shrink-0">
 <span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="storefront">storefront</span>
 <span x-text="categoryLabel ? 'Tìm salon gần bạn' : 'Khám phá salon'"></span>
 </a>
@@ -241,8 +241,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -420,6 +420,18 @@
                 return OAK_POST_CATEGORY_LABELS[category]
                     ? 'ket-qua-tim-kiem.html?category=' + encodeURIComponent(category)
                     : 'kham-pha.html';
+            },
+
+            /* Whether the blog sends anyone towards a booking — the one thing it is written
+               to do, and until now an <a> nobody could count. The article's topic rides
+               along, so a subject that works can be told from one that does not; the post
+               itself is named by the page the event already carries. Guarded like every
+               other call site: a cached page can meet an oak-api.js that has no track().
+               The beacon survives the navigation this click starts. */
+            trackCta() {
+                if (typeof OAK.track === 'function') {
+                    OAK.track('blog_cta_click', { category: (this.post && this.post.category) || 'khac' });
+                }
             },
 
             /* Articles store their body in `content`; a video's blurb may live in either field. */

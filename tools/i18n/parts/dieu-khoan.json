@@ -12,7 +12,7 @@
   "Mỗi người chỉ nên dùng một tài khoản khách hàng. Tài khoản đối tác dành riêng cho chủ salon và nhân sự được uỷ quyền.": "Each person should use only one customer account. Partner accounts are reserved for salon owners and authorised staff.",
   "Chúng tôi có quyền tạm khoá tài khoản có dấu hiệu đặt lịch ảo, quấy rối salon hoặc gian lận ưu đãi.": "We may suspend any account showing signs of fake bookings, harassment of salons or abuse of offers.",
   "3. Đặt lịch và huỷ lịch": "3. Booking and cancellation",
-  "Lịch hẹn được xác nhận ngay khi bạn hoàn tất đặt, dựa trên khung giờ còn trống của salon và chuyên viên bạn chọn. Bạn xem lại toàn bộ lịch hẹn của mình tại trang": "Your appointment is confirmed as soon as you complete the booking, based on the open time slots of the salon and specialist you choose. You can review all of your appointments at",
+  "Sau khi bạn đặt, salon xác nhận dựa trên khung giờ còn trống của salon và chuyên viên bạn chọn. Lịch chỉ được coi là chốt khi ở trạng thái Đã xác nhận; nếu salon không xác nhận hoặc từ chối, bạn nhận thông báo trong mục Thông báo. Bạn xem lại toàn bộ lịch hẹn của mình tại trang": "Once you book, the salon confirms against its own open slots and those of the specialist you chose. A booking counts as settled only in the Confirmed state; if the salon does not confirm it, or declines it, you are told in Notifications. You can review all of your appointments at",
   "Lịch hẹn của tôi": "My appointments",
   "Chính sách huỷ:": "Cancellation policy:",
   "bạn có thể huỷ miễn phí cho tới trước giờ hẹn ít nhất": "you may cancel free of charge up to at least",

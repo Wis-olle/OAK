@@ -13,6 +13,6 @@
   "Vui lòng nhập email.": "Please enter your email.",
   "Vui lòng nhập mật khẩu.": "Please enter your password.",
   "Vui lòng nhập email để nhận liên kết đặt lại.": "Enter your email to get a reset link.",
-  "Nếu email tồn tại, liên kết đặt lại mật khẩu đã được tạo.": "If that email exists, a reset link has been created.",
+  "Nếu email tồn tại, chúng tôi đã gửi liên kết đặt lại — kiểm tra hộp thư, kể cả mục Spam.": "If that email exists, we have sent a reset link — check your inbox, including the Spam folder.",
   "Email hoặc mật khẩu không đúng.": "That email or password is incorrect."
 }

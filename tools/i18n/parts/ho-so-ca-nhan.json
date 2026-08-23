@@ -6,7 +6,7 @@
   "Đổi ảnh đại diện": "Change profile photo",
   "Đang tải ảnh lên...": "Uploading photo...",
   "Tài khoản đối tác": "Partner account",
-  "Thành viên OAK": "OAK member",
+  "Tài khoản khách hàng": "Customer account",
   "Đăng xuất": "Sign out",
   "Thông tin của bạn": "Your details",
   "Họ và tên": "Full name",
@@ -27,5 +27,7 @@
   "Đã cập nhật hồ sơ.": "Your profile has been updated.",
   "Ảnh vượt quá dung lượng tối đa 5MB.": "Image exceeds the 5MB maximum size.",
   "Không đọc được tệp ảnh.": "Could not read the image file.",
-  "Đã cập nhật ảnh đại diện.": "Your profile photo has been updated."
+  "Đã cập nhật ảnh đại diện.": "Your profile photo has been updated.",
+  "Hà Nội": "Hanoi",
+  "Đà Nẵng": "Da Nang"
 }

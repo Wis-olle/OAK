@@ -4,6 +4,7 @@ import { db } from '../db.js';
 import { hasSlotsInRange } from '../lib/availability.js';
 import { SALON_CARD_COLUMNS, toSalonCard } from '../lib/cards.js';
 import { haversineKm, parsePagination } from '../lib/query.js';
+import { bestMatchTier, countMatchedTokens, normalize, searchTokens } from '../lib/text.js';
 import {
   addDaysISO,
   fromMinutes,
@@ -19,9 +20,13 @@ import { httpError } from '../middleware/auth.js';
 const router = express.Router();
 
 const DEFAULT_LIMIT = 12;
-// Ranking, distance and availability are all computed in JS over every matching row, so
-// the candidate set is capped before any of that runs. The cap sits far above the number
-// of salons the platform holds, so meta.total still reports every real match.
+// Ranking, distance, availability and the diacritic-free q/style match are all computed
+// in JS over every matching row, so the candidate set is capped before any of that runs.
+// The cap sits far above the number of salons the platform holds, so meta.total still
+// reports every real match.
+// Past ~100 verified salons a match below the cap becomes unreachable and meta.total
+// under-reports; that is when q/style move onto a normalized search_text column (or
+// unaccent) in SQL, and not before — the extra column is not worth carrying at this size.
 const CANDIDATE_LIMIT = 100;
 const MAX_REASONS = 3;
 const MAX_CHIPS = 3;
@@ -48,14 +53,34 @@ const SORTS = {
   distance: (a, b) => (a.distance_km ?? Infinity) - (b.distance_km ?? Infinity),
   price: (a, b) => (a.price_from ?? Infinity) - (b.price_from ?? Infinity),
 };
+// No matched_tokens term: bestMatchTier() runs immediately before this sort and leaves
+// only the rows that matched the most words, so every row here carries the same count.
 const BY_RELEVANCE = (a, b) => b.score - a.score || b.rating - a.rating;
 
-const selectSalonServices = db.prepare(`
-  SELECT name, category, price
-  FROM services
-  WHERE salon_id = ? AND active = 1 AND category <> 'amenity'
-  ORDER BY price ASC, id ASC
-`);
+/**
+ * The bookable services of every candidate salon, cheapest first, keyed by salon id. One
+ * statement for the whole set: matching q and style reads the services of every candidate,
+ * and a query per row would be up to CANDIDATE_LIMIT round trips per search.
+ */
+async function servicesBySalon(ids) {
+  const grouped = new Map(ids.map((id) => [id, []]));
+  if (ids.length === 0) {
+    return grouped;
+  }
+  const rows = await db
+    .prepare(
+      `SELECT salon_id, name, subcategory, category, price
+       FROM services
+       WHERE salon_id IN (${ids.map(() => '?').join(',')})
+         AND active = 1 AND category <> 'amenity'
+       ORDER BY price ASC, id ASC`,
+    )
+    .all(...ids);
+  for (const row of rows) {
+    grouped.get(row.salon_id).push(row);
+  }
+  return grouped;
+}
 
 const selectTopCategories = db.prepare(`
   SELECT category, COUNT(*) AS count
@@ -74,15 +99,6 @@ const selectTopDistricts = db.prepare(`
   ORDER BY count DESC, district
   LIMIT 2
 `);
-
-/** Lowercase, diacritic-free text so the rules below can match plain ASCII. */
-function normalize(value) {
-  return String(value)
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/đ/g, 'd');
-}
 
 // Object.hasOwn, so a caller-supplied category like "toString" cannot reach an
 // inherited property and stringify a function into the reply.
@@ -132,32 +148,42 @@ function dayLabel(date) {
   return `ngày ${day}/${month}`;
 }
 
-// Services arrive cheapest first, so the first hit is also the "từ" price to quote.
-function pickMatchedService(services, category, normalizedQuery) {
+/*
+ * Scoring and the quoted service read the same query words the filter did, not the whole
+ * query string: "noi mi quan 3" matches "Nối mi Classic" on two of its words, and a
+ * whole-string compare would score every multi-word query 0 and leave the card without
+ * its "Có {dịch vụ} từ {giá}". Services arrive cheapest first, so the first service at
+ * the best word count is also the "từ" price to quote.
+ */
+function pickMatchedService(services, category, queryTokens) {
   if (category) {
     const hit = services.find((service) => service.category === category);
     if (hit) {
       return hit;
     }
   }
-  if (normalizedQuery) {
-    return services.find((service) => normalize(service.name).includes(normalizedQuery)) ?? null;
+  let best = null;
+  let bestCount = 0;
+  for (const service of services) {
+    const count = countMatchedTokens(queryTokens, [service.name]);
+    if (count > bestCount) {
+      best = service;
+      bestCount = count;
+    }
   }
-  return null;
+  return best;
 }
 
-function matchScore(card, services, normalizedQuery, category) {
+function matchScore(card, services, queryTokens, category) {
   let score = 0;
-  if (normalizedQuery) {
-    if (normalize(card.name).includes(normalizedQuery)) {
-      score += NAME_MATCH_SCORE;
-    }
-    if (services.some((service) => normalize(service.name).includes(normalizedQuery))) {
-      score += SERVICE_MATCH_SCORE;
-    }
-    if (normalize(card.district ?? '').includes(normalizedQuery)) {
-      score += DISTRICT_MATCH_SCORE;
-    }
+  if (countMatchedTokens(queryTokens, [card.name]) > 0) {
+    score += NAME_MATCH_SCORE;
+  }
+  if (services.some((service) => countMatchedTokens(queryTokens, [service.name]) > 0)) {
+    score += SERVICE_MATCH_SCORE;
+  }
+  if (countMatchedTokens(queryTokens, [card.district]) > 0) {
+    score += DISTRICT_MATCH_SCORE;
   }
   if (category && services.some((service) => service.category === category)) {
     score += CATEGORY_MATCH_SCORE;
@@ -208,25 +234,12 @@ router.get('/salons', async (req, res, next) => {
     const conditions = ['s.verified = 1'];
     const params = [];
 
-    if (q) {
-      conditions.push(`(s.name ILIKE ? OR s.district ILIKE ?
-        OR EXISTS (SELECT 1 FROM services sv
-                   WHERE sv.salon_id = s.id AND sv.active = 1 AND sv.name ILIKE ?))`);
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
-    }
+    // q and style are matched in JS over the loaded candidates, not here.
     if (category) {
       conditions.push(
         'EXISTS (SELECT 1 FROM services sv WHERE sv.salon_id = s.id AND sv.active = 1 AND sv.category = ?)',
       );
       params.push(category);
-    }
-    // The schema has no style column, so a style is matched as free text over the
-    // service subcategory and name ("Nail art", "Uốn xoăn lơi Hàn Quốc", ...).
-    if (style) {
-      conditions.push(`EXISTS (SELECT 1 FROM services sv
-        WHERE sv.salon_id = s.id AND sv.active = 1
-          AND (sv.subcategory ILIKE ? OR sv.name ILIKE ?))`);
-      params.push(`%${style}%`, `%${style}%`);
     }
     if (district) {
       conditions.push('s.district = ?');
@@ -254,18 +267,50 @@ router.get('/salons', async (req, res, next) => {
       .prepare(`SELECT ${SALON_CARD_COLUMNS} FROM salons s ${where} ORDER BY s.id LIMIT ?`)
       .all(...params, CANDIDATE_LIMIT);
 
-    const normalizedQuery = q ? normalize(q) : '';
+    // Matched here rather than in SQL, where ILIKE compares diacritics and answers 'noi mi'
+    // with an empty page. The schema has no style column either, so a style stays free text
+    // over the service subcategory and name ("Nail art", "Uốn xoăn lơi Hàn Quốc", ...).
+    // Both read the bookable services only: an amenity row ("Phòng VIP riêng tư") is a
+    // facility, not something a customer searches for by name.
+    const queryTokens = q ? searchTokens(q) : [];
+    const styleTokens = style ? searchTokens(style) : [];
+    const servicesFor = await servicesBySalon(rows.map((row) => row.id));
     const candidates = [];
     for (const row of rows) {
       const card = toSalonCard(row);
-      const services = await selectSalonServices.all(row.id);
+      const services = servicesFor.get(row.id);
+      // Per service, not over all of them at once: "sơn mi" has to be one service, not
+      // "Sơn gel" plus "Nối mi" — the same single row the SQL EXISTS used to require.
+      // Within one service the subcategory and the name are read as one text, which is
+      // wider than the old `sv.subcategory ILIKE ? OR sv.name ILIKE ?`: a style may now
+      // straddle the two columns ("Nail art" / "Vẽ móng" answers style='nail ve').
+      // Deliberate — a style is free text and a customer does not know which column a
+      // word lives in.
+      if (
+        styleTokens.length > 0 &&
+        !services.some(
+          (sv) => countMatchedTokens(styleTokens, [sv.subcategory, sv.name]) === styleTokens.length,
+        )
+      ) {
+        continue;
+      }
+      const matchedTokens = countMatchedTokens(queryTokens, [
+        card.name,
+        card.district,
+        ...services.map((sv) => sv.name),
+      ]);
+      if (queryTokens.length > 0 && matchedTokens === 0) {
+        continue;
+      }
       candidates.push({
         ...card,
         distance_km: haversineKm(lat, lng, row.lat, row.lng),
-        score: matchScore(card, services, normalizedQuery, category),
-        matched_service: pickMatchedService(services, category, normalizedQuery),
+        matched_tokens: matchedTokens,
+        score: matchScore(card, services, queryTokens, category),
+        matched_service: pickMatchedService(services, category, queryTokens),
       });
     }
+
     let filtered = candidates
       // A radius cannot filter anything when the caller gave no position to measure from.
       .filter((item) => radiusKm === null || item.distance_km === null || item.distance_km <= radiusKm)
@@ -291,13 +336,21 @@ router.get('/salons', async (req, res, next) => {
       filtered = withSlots;
     }
 
+    // Only the salons that matched the most words of the query, and taken last so a filter
+    // above can never leave an empty page while a weaker match that clears every filter is
+    // still standing. Matching every word is the top tier when some salon does; when none
+    // does, the best partial tier answers instead of nothing — no service is called "làm",
+    // so "lam nail" has to survive on "nail" — and the weaker tiers are dropped rather than
+    // padding the page below the real answer. meta.total counts the tier that is shown.
+    filtered = bestMatchTier(filtered);
+
     const comparator = Object.hasOwn(SORTS, req.query.sort) ? SORTS[req.query.sort] : BY_RELEVANCE;
     filtered.sort(comparator);
 
     const slotLabel = date ? [windowLabel(timeFrom), dayLabel(date)].filter(Boolean).join(' ') : '';
     const data = [];
     for (const item of filtered.slice(offset, offset + limit)) {
-      const { score, matched_service: matchedService, ...card } = item;
+      const { score, matched_tokens: matched, matched_service: matchedService, ...card } = item;
       const result = {
         ...card,
         // Resolved above, where it did the filtering: every survivor of a dated search has a

@@ -93,7 +93,7 @@
 <span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="content_copy">content_copy</span>
 <span x-text="promotion.code"></span>
 </button>
-<a :href="useUrl(promotion)" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200">Dùng ngay</a>
+<a @click="trackUse(promotion)" :href="useUrl(promotion)" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200">Dùng ngay</a>
 </div>
 </div>
 </article>
@@ -121,26 +121,31 @@
 <span class="font-caption text-caption text-on-surface-variant line-through" x-text="OAK.fmtPrice(promotion.original_price)"></span>
 </div>
 <span class="font-label-md text-label-md text-secondary" x-show="discountLabel(promotion)" x-text="discountLabel(promotion)"></span>
-<div class="flex flex-wrap gap-2" x-show="promotion.service_names.length">
-<template :key="name" x-for="name in promotion.service_names">
+<div class="flex flex-wrap gap-2">
+<span class="bg-surface-container-low text-on-surface-variant px-3 py-1 text-caption font-caption rounded-full">Mọi khách</span>
+<template :key="name" x-for="name in serviceChips(promotion)">
 <span class="bg-surface-container-low text-on-surface-variant px-3 py-1 text-caption font-caption rounded-full" x-text="name"></span>
 </template>
 </div>
+<p class="font-caption text-caption text-on-surface-variant flex items-center gap-1" x-show="comboServiceId(promotion)">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="info">info</span>
+<span>Giá combo áp dụng khi đặt dịch vụ này</span>
+</p>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
 <span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="store">store</span>
 <a :href="salonUrl(promotion.salon)" class="hover:text-primary transition-colors" x-text="promotion.salon.name"></a>
 </p>
 <p class="font-caption text-caption text-outline" x-text="'Hạn dùng đến ' + shortDate(promotion.ends_at)"></p>
-<p class="font-caption text-caption text-outline flex items-center gap-1" x-show="promotion.code &amp;&amp; !user">
+<p class="font-caption text-caption text-outline flex items-center gap-1" x-show="usesCode(promotion) &amp;&amp; !user">
 <span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="info">info</span>
 <span>Cần đăng nhập để áp dụng mã.</span>
 </p>
 <div class="flex flex-wrap items-center gap-3 mt-auto pt-3">
-<button @click="copyCode(promotion.code)" class="code-chip flex items-center gap-2 px-4 py-2 text-primary font-label-md text-label-md uppercase tracking-wider active:scale-95 duration-200" type="button" x-show="promotion.code">
+<button @click="copyCode(promotion.code)" class="code-chip flex items-center gap-2 px-4 py-2 text-primary font-label-md text-label-md uppercase tracking-wider active:scale-95 duration-200" type="button" x-show="usesCode(promotion)">
 <span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="content_copy">content_copy</span>
 <span x-text="promotion.code"></span>
 </button>
-<a :href="useUrl(promotion)" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200">Dùng ngay</a>
+<a @click="trackUse(promotion)" :href="useUrl(promotion)" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200">Dùng ngay</a>
 </div>
 </div>
 </article>
@@ -191,8 +196,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -245,6 +250,31 @@
                 return PROMOTION_TYPE_LABELS[promotion.type] || 'Ưu đãi';
             },
 
+            /* A combo is booked, not applied: the server refuses a combo code pasted into
+               the promo field, so its card never offers one. */
+            isCombo(promotion) {
+                return promotion.type === 'combo';
+            },
+
+            /* The combo price is only a promise the page can keep when the offer points at
+               exactly one service — that service IS the bundle and already carries the
+               price. Nothing forces a salon to shape a combo that way, so an offer naming
+               several services resolves to null: no deep link, no price claim, just the
+               salon. */
+            comboServiceId(promotion) {
+                const ids = promotion.service_ids || [];
+                return this.isCombo(promotion) && ids.length === 1 ? ids[0] : null;
+            },
+
+            /* A resolved combo's chip would only repeat the card's own title. */
+            serviceChips(promotion) {
+                return this.comboServiceId(promotion) ? [] : promotion.service_names;
+            },
+
+            usesCode(promotion) {
+                return Boolean(promotion.code) && !this.isCombo(promotion);
+            },
+
             /* Only for offers priced by a discount; combos show their sale price instead. */
             discountLabel(promotion) {
                 if (promotion.discount_percent) {
@@ -271,7 +301,10 @@
                 if (salonId) {
                     params.set('salon_id', salonId);
                 }
-                if (promotion.code) {
+                const serviceId = this.comboServiceId(promotion);
+                if (serviceId) {
+                    params.set('service_id', serviceId);
+                } else if (this.usesCode(promotion)) {
                     params.set('promo', promotion.code);
                 }
                 const query = params.toString();
@@ -285,6 +318,16 @@
                 return this.user
                     ? booking
                     : 'dang-nhap-nguoi-dung.html?next=' + encodeURIComponent(booking);
+            },
+
+            /* The one question this page exists to answer: which offers actually get taken
+               up. Kind and id only — no account, nothing that could name the visitor. */
+            trackUse(promotion) {
+                // Guarded like every other call site: a cached page may meet an older
+                // oak-api.js that has no track().
+                if (typeof OAK.track === 'function') {
+                    OAK.track('promo_use', { type: promotion.type, id: promotion.id });
+                }
             },
 
             async copyCode(code) {

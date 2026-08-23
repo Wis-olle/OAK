@@ -582,7 +582,17 @@
   }
 
   function set(next) {
-    store(next === 'en' ? 'en' : 'vi');
+    var code = next === 'en' ? 'en' : 'vi';
+    /* Whether the English option is worth the 72KB dictionary it costs. Only which
+       language was picked — a choice, not a person. Every VI/EN control on the site ends
+       here (the header pair, the partner-console pair, the standalone pill and the
+       settings page), so this is the one place it has to be counted. Guarded like every
+       other call site: a cached page can meet an oak-api.js that has no track(). The
+       reload below ends the page, and a beacon survives that. */
+    if (window.OAK && typeof window.OAK.track === 'function') {
+      window.OAK.track('lang_switch', { to: code });
+    }
+    store(code);
     location.reload();
   }
 

@@ -41,7 +41,10 @@ function searchPage(api, search) {
   const state = context.result;
   /* Alpine's own, and the only thing init() needs that a plain object has not got. */
   state.$watch = () => {};
-  return { state, location };
+  /* `oak` is the page's own window.OAK. It is handed back so a test can decide what this
+     browser has: the stub carries no track() by default, which is the browser served a
+     cached page from before measurement existed. */
+  return { state, location, oak: context.OAK };
 }
 
 test('a failed search raises loadError instead of the empty state, and retrying clears it', async () => {
@@ -335,4 +338,59 @@ test('the old salon list forwards to the search page, keyword and all', () => {
   assert.match(redirect, /get\("q"\)/);
   assert.match(redirect, /location\.replace\("ket-qua-tim-kiem\.html"/);
   assert.doesNotMatch(redirect, /oakSalonDirectory/);
+});
+
+/* A search is the top of the booking funnel, and until now nothing counted one. These pin
+   the two things that make the number readable: it is a search somebody asked for, not a
+   filter being nudged, and it carries how many salons came back. */
+
+test('a submitted search is counted once the answer is in, with the count it returned', async () => {
+  const { state, oak } = searchPage(async () => rows);
+  const events = [];
+  oak.track = (name, meta) => events.push([name, meta]);
+
+  await state.applyQuery();
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0][0], 'search_submit');
+  /* Read a field at a time: the meta object is built in the page's own realm. */
+  assert.equal(events[0][1].total, 1);
+});
+
+test('a search that never got an answer is not counted as a search with no results', async () => {
+  /* load() swallows its own failure, so applyQuery() resolves either way. Counting the
+     zero it leaves behind would make a dead network look like a keyword nobody matches —
+     the two things a search number most has to tell apart. */
+  const { state, oak } = searchPage(async () => {
+    throw new Error('Không kết nối được máy chủ.');
+  });
+  const events = [];
+  oak.track = (name, meta) => events.push([name, meta]);
+
+  await state.applyQuery();
+
+  assert.equal(state.loadError, true);
+  assert.deepEqual(events, []);
+});
+
+test('narrowing a filter is a refinement of the search, not another search', async () => {
+  const { state, oak } = searchPage(async () => rows);
+  const events = [];
+  oak.track = (name, meta) => events.push([name, meta]);
+
+  await state.load();
+  state.setSort('rating');
+
+  assert.deepEqual(events, []);
+});
+
+test('a browser whose oak-api.js has no track() still searches', async () => {
+  /* The stub carries no track(), which is a page served from cache meeting an older
+     script. Measurement that breaks the page it measures is worse than no measurement. */
+  const { state, location } = searchPage(async () => rows);
+  state.q = ' noi mi ';
+
+  await assert.doesNotReject(() => state.applyQuery());
+  assert.equal(state.q, 'noi mi');
+  assert.equal(new URLSearchParams(location.search).get('q'), 'noi mi');
 });

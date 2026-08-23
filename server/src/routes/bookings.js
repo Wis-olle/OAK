@@ -23,9 +23,11 @@ router.use(requireAuth);
 
 const BOOKING_COLUMNS = `
   b.id, b.user_id, b.code, b.date, b.time, b.status, b.total_price, b.note, b.payment_method,
+  b.auto_closed,
   sv.id AS service_id, sv.name AS service_name, sv.duration_min AS service_duration,
   s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name, s.address AS salon_address,
   s.phone AS salon_phone, s.image AS salon_image, s.lat AS salon_lat, s.lng AS salon_lng,
+  s.owner_id AS salon_owner_id,
   st.id AS staff_id, st.name AS staff_name
 `;
 
@@ -41,7 +43,7 @@ const selectService = db.prepare(
   'SELECT id, salon_id, name, price, duration_min, active FROM services WHERE id = ?',
 );
 const selectPromotion = db.prepare(
-  'SELECT code, salon_id, discount_percent, discount_amount, active, starts_at, ends_at FROM promotions WHERE code = ?',
+  'SELECT code, salon_id, type, discount_percent, discount_amount, active, starts_at, ends_at FROM promotions WHERE code = ?',
 );
 const selectSalonStaff = db.prepare('SELECT id FROM staff WHERE id = ? AND salon_id = ?');
 const selectStaffService = db.prepare(
@@ -57,6 +59,23 @@ const INSERT_BOOKING = `
   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
 `;
 const CANCEL_BOOKING = "UPDATE bookings SET status = 'cancelled', note = ? WHERE id = ?";
+
+// What the sweep below appends to the note so the salon can read why the booking closed.
+// The card does not read these back: bookings.auto_closed carries that fact instead, because
+// `note` also holds the customer's own words and a customer may write anything into it.
+const AUTO_COMPLETED_NOTE = 'Tự động hoàn tất';
+const AUTO_CANCELLED_NOTE = 'Quá giờ chưa xác nhận';
+const SELECT_STALE_BOOKINGS = `
+  SELECT b.id, b.code, b.note, b.status, s.name AS salon_name
+  FROM bookings b
+  JOIN salons s ON s.id = b.salon_id
+  WHERE b.user_id = ? AND b.date < ? AND b.status IN ('pending', 'confirmed')
+`;
+const selectStaleBookings = db.prepare(SELECT_STALE_BOOKINGS);
+// Guarded on the status the row was read with, so two lists opened at once cannot both
+// close it out and both queue the invitation to review it.
+const CLOSE_STALE_BOOKING =
+  'UPDATE bookings SET status = ?, note = ?, auto_closed = 1 WHERE id = ? AND status = ?';
 
 // The status filters double as the sort order: only "upcoming" reads forwards in time.
 // Fragments are constants picked by key, never assembled from request text.
@@ -100,6 +119,9 @@ function toBookingCard(row) {
       image: row.salon_image,
     },
     staff: row.staff_id ? { id: row.staff_id, name: row.staff_name } : null,
+    // True when closePastBookings below is what ended this booking, not the salon: the
+    // card then says so instead of implying somebody looked at it.
+    auto: Boolean(row.auto_closed),
   };
 }
 
@@ -131,6 +153,15 @@ async function requireUsablePromotion(code, salonId) {
 
   if (!usable) {
     throw httpError(400, 'INVALID_PROMOTION', 'Mã ưu đãi không hợp lệ hoặc đã hết hạn.');
+  }
+  // A combo is priced as a service of its own, not as a discount on another one: its price
+  // is already the bundle price, so applying it as a code would take the saving twice.
+  if (promotion.type === 'combo') {
+    throw httpError(
+      400,
+      'INVALID_PROMOTION',
+      'Combo được đặt như một dịch vụ, không dùng như mã giảm giá.',
+    );
   }
   return promotion;
 }
@@ -171,6 +202,51 @@ function minutesUntilStart(date, time) {
   return (new Date(year, month - 1, day, hours, minutes).getTime() - Date.now()) / 60000;
 }
 
+/**
+ * Close out the caller's own appointments whose day is over and which the salon never
+ * touched: a confirmed one happened, a pending one was never taken up.
+ *
+ * Done lazily, on the request that is about to show the list, rather than by a cron job:
+ * the answer is only ever needed when somebody looks, and the customer's own list is the
+ * one place it is looked at. An auto-completed booking is what opens the review loop, so
+ * each one gets the same invitation partner.js sends when the salon closes it by hand.
+ */
+async function closePastBookings(userId) {
+  const stale = await selectStaleBookings.all(userId, todayISO());
+  if (stale.length === 0) {
+    return;
+  }
+
+  await db.withTransaction(async (tx) => {
+    for (const booking of stale) {
+      const completed = booking.status === 'confirmed';
+      // Appended, not replaced: the customer's own request stays readable for the salon.
+      const note = [booking.note, completed ? AUTO_COMPLETED_NOTE : AUTO_CANCELLED_NOTE]
+        .filter(Boolean)
+        .join('\n');
+      const { changes } = await tx.run(
+        CLOSE_STALE_BOOKING,
+        completed ? 'completed' : 'cancelled',
+        note,
+        booking.id,
+        booking.status,
+      );
+      // Nothing changed means another request swept this row first, and it already sent
+      // the invitation — sending a second one is what the status guard is there to stop.
+      if (changes > 0 && completed) {
+        await notifyUser(
+          tx,
+          userId,
+          'Buổi hẹn đã hoàn tất',
+          `Cảm ơn bạn đã sử dụng dịch vụ tại ${booking.salon_name}. Hãy dành một phút đánh giá lịch hẹn ${booking.code} nhé!`,
+          'review',
+          booking.id,
+        );
+      }
+    }
+  });
+}
+
 // Registered before GET /:id, otherwise Express matches 'quote' and 'mine' as booking ids.
 router.get('/quote', async (req, res, next) => {
   try {
@@ -202,6 +278,10 @@ router.get('/quote', async (req, res, next) => {
 
 router.get('/mine', async (req, res, next) => {
   try {
+    // Before the list is counted or read, so a booking the salon left behind lands in the
+    // tab it belongs to instead of falling out of all three.
+    await closePastBookings(req.user.id);
+
     // Object.hasOwn, so a status like "constructor" cannot reach an inherited member
     // and put `undefined` into the WHERE clause.
     const filter = Object.hasOwn(MINE_FILTERS, req.query.status)
@@ -360,8 +440,19 @@ router.post('/', async (req, res, next) => {
           await notifyUser(
             tx,
             req.user.id,
-            'Đặt lịch thành công',
+            'Đã ghi nhận yêu cầu đặt lịch',
             `Lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(date)} lúc ${time} đã được ghi nhận.`,
+            'booking',
+            bookingId,
+          );
+          // And the salon owner, who is the only one who can move it off 'pending':
+          // until the console is opened the booking sits there. notifyUser no-ops on a
+          // salon with no owner account.
+          await notifyUser(
+            tx,
+            booking.salon_owner_id,
+            'Lịch hẹn mới cần xác nhận',
+            `Khách đã đặt lịch hẹn ${generated} ngày ${formatDate(date)} lúc ${time}, đang chờ bạn xác nhận.`,
             'booking',
             bookingId,
           );
@@ -435,6 +526,14 @@ router.patch('/:id/cancel', async (req, res, next) => {
         req.user.id,
         'Đã huỷ lịch hẹn',
         `Lịch hẹn ${booking.code} tại ${booking.salon_name} ngày ${formatDate(booking.date)} lúc ${booking.time} đã được huỷ.`,
+        'booking',
+        booking.id,
+      );
+      await notifyUser(
+        tx,
+        booking.salon_owner_id,
+        'Khách đã huỷ lịch hẹn',
+        `Khách đã huỷ lịch hẹn ${booking.code} ngày ${formatDate(booking.date)} lúc ${booking.time}. Khung giờ này đã trống trở lại.`,
         'booking',
         booking.id,
       );

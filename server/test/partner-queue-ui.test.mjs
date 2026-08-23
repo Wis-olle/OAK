@@ -25,6 +25,18 @@ function dashboard(api, setPendingBadge) {
   const tail = html.slice(html.indexOf('var OAK_STATUS_LABELS'));
   const script = tail.slice(0, tail.lastIndexOf('oakPartnerChrome();'));
   const context = {
+    // Enough of a document for the tab-title counter and the visibility-gated poll; the
+    // timer is a stub, so the interval it books never fires on its own here.
+    document: {
+      title: 'Tổng quan - OAK Beauty',
+      visibilityState: 'visible',
+      listeners: {},
+      addEventListener(name, handler) {
+        this.listeners[name] = handler;
+      },
+    },
+    ticks: [],
+    setInterval: (handler) => context.ticks.push(handler),
     OAK: {
       api,
       toast: () => {},
@@ -33,7 +45,8 @@ function dashboard(api, setPendingBadge) {
       setPendingBadge: setPendingBadge || (() => {}),
     },
   };
-  vm.runInNewContext(`${script}\nresult = oakPartnerOverview();`, context);
+  vm.runInNewContext(`${script}\nresult = oakPartnerOverview();\nresult.watch = oakWatchPending;`, context);
+  context.result.page = context;
   return context.result;
 }
 
@@ -155,6 +168,81 @@ test('the queue offers only transitions the backend accepts, one request at a ti
   resolvePatch();
   await first;
   assert.equal(state.acting, 0);
+});
+
+test('the polled read never blanks the queue that is already on screen', async () => {
+  let failing = false;
+  const state = dashboard(async () => {
+    if (failing) {
+      throw new Error('Không kết nối được máy chủ.');
+    }
+    return pendingRows([{ id: 4, status: 'pending' }], 1);
+  });
+
+  await state.loadPending();
+  assert.equal(state.pending.length, 1);
+
+  // A minute later, mid-request: no "Đang tải…" over rows the reader is looking at.
+  const polled = state.loadPending(true);
+  assert.equal(state.pendingLoading, false);
+  await polled;
+  assert.equal(state.pending.length, 1);
+
+  // And one dropped request is not news that the queue emptied.
+  failing = true;
+  await state.loadPending(true);
+  assert.equal(state.pending.length, 1);
+  assert.equal(state.pendingTotal, 1);
+  assert.equal(state.pendingError, 'Không kết nối được máy chủ.');
+});
+
+test('the pending count rides in the tab title, and the prefix never stacks', async () => {
+  let total = 2;
+  const state = dashboard(async () => pendingRows([], total));
+
+  await state.loadPending();
+  assert.equal(state.page.document.title, '(2) Tổng quan - OAK Beauty');
+  total = 3;
+  await state.loadPending();
+  assert.equal(state.page.document.title, '(3) Tổng quan - OAK Beauty');
+  // Nothing waiting: the title is the page's own again, not '(0) …'.
+  total = 0;
+  await state.loadPending();
+  assert.equal(state.page.document.title, 'Tổng quan - OAK Beauty');
+});
+
+test('the console re-reads the queue on a timer, and only while the tab is looked at', () => {
+  const state = dashboard(async () => pendingRows([], 0));
+  const refreshed = [];
+  state.watch(() => refreshed.push(1));
+
+  const [tick] = state.page.ticks;
+  assert.equal(typeof tick, 'function', 'the poll must book exactly one interval');
+  tick();
+  assert.equal(refreshed.length, 1);
+
+  // A tab nobody is looking at asks for nothing at all — the interval keeps turning but
+  // every turn of it is a no-op, which is what the Network panel has to show.
+  state.page.document.visibilityState = 'hidden';
+  tick();
+  assert.equal(refreshed.length, 1);
+
+  // Coming back into view catches up at once instead of waiting out the next minute.
+  state.page.document.visibilityState = 'visible';
+  state.page.document.listeners.visibilitychange();
+  assert.equal(refreshed.length, 2);
+});
+
+test('both console pages start that poll and paint the same badge and title', () => {
+  for (const page of ['tong-quan-doi-tac.html', 'quan-ly-lich-hen.html']) {
+    const html = readUi(page);
+    assert.match(html, /var OAK_POLL_MS = 60000;/, page);
+    assert.match(html, /oakWatchPending\(function \(\) \{/, page);
+    assert.match(html, /if \(document\.visibilityState === 'visible'\) \{/, page);
+  }
+  // The dashboard already holds the number; the calendar asks the shared helper for it.
+  assert.match(readUi('tong-quan-doi-tac.html'), /oakPendingTitle\(this\.pendingTotal\)/);
+  assert.match(readUi('quan-ly-lich-hen.html'), /oakPendingTitle\(await OAK\.pendingBadge\(\)\)/);
 });
 
 test('the console bell stays in the console and is filled from one shared helper', () => {

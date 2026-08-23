@@ -131,6 +131,10 @@ Cài đặt
 <span :class="statusClass(booking.status)" class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-sm mb-2">
 <span aria-hidden="true" class="material-symbols-outlined text-[14px]" x-text="statusIcon(booking.status)"></span> <span x-text="statusLabel(booking.status)"></span>
 </span>
+<!-- The salon never closed this one out; the calendar did. Two spans rather than one
+     bound label so both readings sit in the markup for the dictionary to find. -->
+<span class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-sm mb-2 bg-tertiary-fixed text-on-tertiary-fixed" x-show="booking.auto &amp;&amp; booking.status === 'completed'">Tự động hoàn tất</span>
+<span class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-sm mb-2 bg-tertiary-fixed text-on-tertiary-fixed" x-show="booking.auto &amp;&amp; booking.status === 'cancelled'">Salon không xác nhận</span>
 <h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="booking.service.name"></h3>
 <p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-2">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">store</span> <span x-text="booking.salon.name"></span>
@@ -230,8 +234,8 @@ Cài đặt
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>

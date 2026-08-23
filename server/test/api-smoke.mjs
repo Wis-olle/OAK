@@ -730,6 +730,91 @@ async function groupSearch() {
     plainResponse,
   );
 
+  /* Unaccented search. Vietnamese keyboards are the exception on a phone, so the plain
+     ASCII spelling has to find the accented row — the whole point of matching in JS
+     instead of leaving q to a diacritic-sensitive ILIKE. */
+  const idsOf = (rows) => rows.map((row) => row.id).sort((a, b) => a - b);
+
+  const bareResponse = await guest.fetch(`/api/search/salons?q=${encodeURIComponent('noi mi')}`);
+  const bare = ok(bareResponse, "GET /api/search/salons?q=noi mi");
+  assert(bare.length > 0, "search 'noi mi': expected at least one salon", bareResponse);
+
+  const accentedResponse = await guest.fetch(`/api/search/salons?q=${encodeURIComponent('nối mi')}`);
+  const accented = ok(accentedResponse, "GET /api/search/salons?q=nối mi");
+  assert(
+    JSON.stringify(idsOf(accented)) === JSON.stringify(idsOf(bare)),
+    "search: 'nối mi' and 'noi mi' must return the same salons",
+    accentedResponse,
+  );
+
+  // No salon and no service is called "làm", so this one survives on 'nail' alone —
+  // the partial-match tier, without which the commonest phrasing returns nothing.
+  const partialResponse = await guest.fetch(`/api/search/salons?q=${encodeURIComponent('lam nail')}`);
+  const partial = ok(partialResponse, "GET /api/search/salons?q=lam nail");
+  assert(partial.length > 0, "search 'lam nail': expected at least one salon", partialResponse);
+
+  const districtResponse = await guest.fetch(`/api/search/salons?q=${encodeURIComponent('quan 1')}`);
+  const byDistrict = ok(districtResponse, "GET /api/search/salons?q=quan 1");
+  assert(byDistrict.length > 0, "search 'quan 1': expected at least one salon", districtResponse);
+  // A digits-only word has to be a whole word: 'quan 1' is not Quận 10, 11 or 12.
+  assert(
+    byDistrict.every((item) => item.district === 'Quận 1'),
+    "search 'quan 1': every result must be in Quận 1",
+    districtResponse,
+  );
+
+  // Four words, and only the Quận 3 salons match all four: the weaker tier is dropped
+  // rather than padding the page under the real answer.
+  const tierResponse = await guest.fetch(
+    `/api/search/salons?q=${encodeURIComponent('noi mi quan 3')}`,
+  );
+  const tier = ok(tierResponse, "GET /api/search/salons?q=noi mi quan 3");
+  assert(tier.length > 0, "search 'noi mi quan 3': expected at least one salon", tierResponse);
+  assert(
+    tier.every((item) => item.district === 'Quận 3'),
+    "search 'noi mi quan 3': the best tier matched the district too",
+    tierResponse,
+  );
+
+  const junkSearchResponse = await guest.fetch('/api/search/salons?q=zzzz');
+  const junkSearch = ok(junkSearchResponse, 'GET /api/search/salons?q=zzzz');
+  assert(junkSearch.length === 0, 'search: nonsense must return no salons', junkSearchResponse);
+  assert(
+    junkSearchResponse.body.meta.total === 0,
+    'search: nonsense must report meta.total 0',
+    junkSearchResponse,
+  );
+
+  // style is free text over one service's subcategory and name, and reads unaccented too.
+  const styleResponse = await guest.fetch(`/api/search/salons?style=${encodeURIComponent('noi mi')}`);
+  const styled = ok(styleResponse, "GET /api/search/salons?style=noi mi");
+  assert(styled.length > 0, "search style 'noi mi': expected at least one salon", styleResponse);
+
+  // A style has to sit in one service: 'Sơn gel' plus 'Nối mi' is not a "sơn mi".
+  const splitStyleResponse = await guest.fetch(
+    `/api/search/salons?style=${encodeURIComponent('son mi')}`,
+  );
+  const splitStyle = ok(splitStyleResponse, "GET /api/search/salons?style=son mi");
+  assert(
+    splitStyle.length === 0,
+    "search style 'son mi': a style pieced together from two services is not a match",
+    splitStyleResponse,
+  );
+
+  // The wizard's salon picker answers the same way, over the salon name.
+  const pickerResponse = await guest.fetch('/api/salons?q=lala');
+  const picker = ok(pickerResponse, 'GET /api/salons?q=lala');
+  assert(picker.length > 0, "salons 'lala': expected at least one salon", pickerResponse);
+
+  const pickerJunkResponse = await guest.fetch('/api/salons?q=zzzz');
+  const pickerJunk = ok(pickerJunkResponse, 'GET /api/salons?q=zzzz');
+  assert(pickerJunk.length === 0, 'salons: nonsense must return no salons', pickerJunkResponse);
+  assert(
+    pickerJunkResponse.body.meta.total === 0,
+    'salons: nonsense must report meta.total 0',
+    pickerJunkResponse,
+  );
+
   const assistantResponse = await guest.fetch('/api/search/assistant', {
     method: 'POST',
     json: { message: 'nail gel Quận 1 chiều mai dưới 500k' },
@@ -1097,6 +1182,94 @@ async function groupBookings() {
     'closing-time check: a service ending exactly at closing must still be accepted',
   );
 
+  // The salon owner is told about what the customer does, because nothing moves a booking
+  // off 'pending' until somebody there looks at it.
+  const ownerBooking = ok(
+    await customer.fetch('/api/bookings', {
+      method: 'POST',
+      json: { salon_id: state.lalaId, service_id: service.id, date: addDays(state.today, 3), time: '09:30' },
+    }),
+    'POST /api/bookings (the owner-notification case)',
+  );
+  const ownerFeed = ok(await partner.fetch('/api/notifications'), 'the owner feed after a new booking');
+  const announced = ownerFeed.filter((item) => item.booking_id === ownerBooking.id);
+  assert(
+    announced.length === 1 && announced[0].type === 'booking',
+    'new booking: the salon owner must get exactly one booking notification naming it',
+  );
+
+  ok(
+    await customer.fetch(`/api/bookings/${ownerBooking.id}/cancel`, { method: 'PATCH' }),
+    'PATCH /api/bookings/:id/cancel (the owner-notification case)',
+  );
+  const ownerAfterCancel = ok(await partner.fetch('/api/notifications'), 'the owner feed after the cancel');
+  assert(
+    ownerAfterCancel.filter((item) => item.booking_id === ownerBooking.id).length === 2,
+    'cancel: the salon owner must be told the hour is free again',
+  );
+
+  // A day that has gone by closes itself out the next time the customer opens their list:
+  // a confirmed booking happened, a pending one was never taken up. Only the salon may
+  // move a booking, so that is how the day gets put behind these two.
+  const yesterday = addDays(state.today, -1);
+  const stranded = {};
+  for (const [kind, time] of [['confirmed', '08:15'], ['pending', '08:45']]) {
+    const booking = ok(
+      await customer.fetch('/api/bookings', {
+        method: 'POST',
+        json: { salon_id: state.lalaId, service_id: service.id, date: addDays(state.today, 2), time },
+      }),
+      `POST /api/bookings for the stranded-${kind} case`,
+    );
+    if (kind === 'confirmed') {
+      ok(
+        await partner.fetch(`/api/partner/bookings/${booking.id}`, {
+          method: 'PATCH',
+          json: { status: 'confirmed' },
+        }),
+        'PATCH /api/partner/bookings/:id (confirm it before its day goes by)',
+      );
+    }
+    ok(
+      await partner.fetch(`/api/partner/bookings/${booking.id}`, {
+        method: 'PATCH',
+        json: { date: yesterday },
+      }),
+      `PATCH /api/partner/bookings/:id (move the ${kind} one into yesterday)`,
+    );
+    stranded[kind] = booking.id;
+  }
+
+  const sweptResponse = await customer.fetch('/api/bookings/mine?status=completed&limit=50');
+  const swept = ok(sweptResponse, 'GET /api/bookings/mine?status=completed (after the sweep)');
+  const closed = swept.find((item) => item.id === stranded.confirmed);
+  assert(closed !== undefined, "auto-close: yesterday's confirmed booking must land in the completed tab", sweptResponse);
+  assert(closed.auto === true, 'auto-close: a card the sweep closed must say so', sweptResponse);
+
+  const droppedResponse = await customer.fetch('/api/bookings/mine?status=cancelled&limit=50');
+  const droppedList = ok(droppedResponse, 'GET /api/bookings/mine?status=cancelled (after the sweep)');
+  const dropped = droppedList.find((item) => item.id === stranded.pending);
+  assert(dropped !== undefined, "auto-close: yesterday's pending booking must land in the cancelled tab", droppedResponse);
+  assert(dropped.auto === true, 'auto-close: a cancelled card the sweep closed must say so', droppedResponse);
+
+  const invitedResponse = await customer.fetch('/api/notifications');
+  const invited = ok(invitedResponse, 'GET /api/notifications after the sweep');
+  const invitations = invited.filter(
+    (item) => item.type === 'review' && item.booking_id === stranded.confirmed,
+  );
+  assert(invitations.length === 1, 'auto-close: expected one invitation to review the closed booking', invitedResponse);
+
+  // A second look sweeps nothing: those rows are no longer pending or confirmed.
+  ok(
+    await customer.fetch('/api/bookings/mine?status=completed&limit=50'),
+    'GET /api/bookings/mine?status=completed (the second look)',
+  );
+  const repeated = ok(await customer.fetch('/api/notifications'), 'GET /api/notifications after the second look');
+  assert(
+    repeated.filter((item) => item.type === 'review' && item.booking_id === stranded.confirmed).length === 1,
+    'auto-close: a second list must not queue a second invitation',
+  );
+
   ok(
     await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: salonHours } }),
     'PATCH /api/partner/salon (restore the hours the booking group started from)',
@@ -1258,6 +1431,68 @@ async function groupPromotions() {
   assert(combo !== undefined, 'promotions: expected a combo offer', response);
   assert(combo.service_names.length > 0, 'promotions: a combo must resolve its service names', response);
   assert(combo.salon?.slug !== undefined, 'promotions: a salon offer must carry its salon block', response);
+
+  // A combo is a service, not a code. It points at the one service that IS the bundle, so
+  // uu-dai.html can deep-link the wizard at it, and that service is already priced at the
+  // sale price — which is what makes the advertised price the price actually charged.
+  assert(
+    combo.service_ids.length === 1,
+    'promotions: a combo must point at exactly one combo service',
+    response,
+  );
+  const comboServiceId = combo.service_ids[0];
+
+  const comboServiceResponse = await session('guest').fetch(`/api/services/${comboServiceId}`);
+  const comboService = ok(comboServiceResponse, 'GET /api/services/:id for the combo service');
+  assert(
+    comboService.name === combo.service_names[0],
+    'combo: the offer must name the service it books',
+    comboServiceResponse,
+  );
+  assert(
+    comboService.price === combo.sale_price,
+    'combo: the combo service must be priced at the sale price',
+    comboServiceResponse,
+  );
+
+  const customer = session('customer');
+  const comboQuoteResponse = await customer.fetch(
+    `/api/bookings/quote?service_id=${comboServiceId}`,
+  );
+  const comboQuote = ok(comboQuoteResponse, 'GET /api/bookings/quote for the combo service');
+  assert(
+    comboQuote.total === combo.sale_price,
+    'combo: booking the combo service must total the sale price',
+    comboQuoteResponse,
+  );
+
+  // And the code behind a combo is refused wherever somebody pastes it by hand, so nobody
+  // takes the bundle saving twice on top of a price that already carries it.
+  const pastedResponse = await customer.fetch(
+    `/api/bookings/quote?service_id=${comboServiceId}&promotion_code=${combo.code}`,
+  );
+  expectError(pastedResponse, 400, 'INVALID_PROMOTION', 'GET /api/bookings/quote with a combo code');
+  assert(
+    pastedResponse.body?.error?.message ===
+      'Combo được đặt như một dịch vụ, không dùng như mã giảm giá.',
+    'combo: the refusal must say a combo is booked as a service, not applied as a code',
+    pastedResponse,
+  );
+  expectError(
+    await customer.fetch('/api/bookings', {
+      method: 'POST',
+      json: {
+        salon_id: state.lalaId,
+        service_id: state.slot.service.id,
+        date: state.slot.date,
+        time: state.slot.time,
+        promotion_code: combo.code,
+      },
+    }),
+    400,
+    'INVALID_PROMOTION',
+    'POST /api/bookings with a combo code',
+  );
 }
 
 /* ============================================================================

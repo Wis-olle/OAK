@@ -234,8 +234,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -344,6 +344,13 @@
                 this.sending = true;
                 this.input = '';
                 this.messages.push({ role: 'user', text: message });
+                /* Whether anyone talks to the assistant at all — the question this page
+                   was built on and has never been able to answer. The message itself is
+                   never sent: it is what somebody typed. Guarded like every other call
+                   site, because a cached page can meet an oak-api.js that has no track(). */
+                if (typeof OAK.track === 'function') {
+                    OAK.track('assistant_message');
+                }
                 try {
                     var data = await OAK.api('/api/search/assistant', {
                         method: 'POST',

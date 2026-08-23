@@ -18,18 +18,23 @@ const selectActivePromotions = db.prepare(`
   ORDER BY (p.salon_id IS NULL) DESC, p.id
 `);
 
-const selectServiceName = db.prepare('SELECT name FROM services WHERE id = ?');
+// Hidden services drop out entirely: the id is a deep link into the wizard, so an offer
+// must never advertise a bookable price for a service the salon has taken off the menu.
+const selectServiceName = db.prepare('SELECT name FROM services WHERE id = ? AND active = 1');
 
-/** Combo offers bundle service ids; the list is only useful to a client as names. */
-async function resolveServiceNames(serviceIds) {
-  const names = [];
+/**
+ * The services an offer points at: their ids, because a combo's id is the deep link that
+ * books it at the combo price, and their names, because that is what a card can show.
+ */
+async function resolveServices(serviceIds) {
+  const services = [];
   for (const id of parseJsonArray(serviceIds).filter((value) => Number.isInteger(value))) {
     const name = (await selectServiceName.get(id))?.name;
     if (name !== undefined) {
-      names.push(name);
+      services.push({ id, name });
     }
   }
-  return names;
+  return services;
 }
 
 router.get('/', async (req, res, next) => {
@@ -39,6 +44,7 @@ router.get('/', async (req, res, next) => {
 
     const data = [];
     for (const row of rows) {
+      const services = await resolveServices(row.service_ids);
       data.push({
         id: row.id,
         code: row.code,
@@ -49,7 +55,8 @@ router.get('/', async (req, res, next) => {
         discount_amount: row.discount_amount,
         original_price: row.original_price,
         sale_price: row.sale_price,
-        service_names: await resolveServiceNames(row.service_ids),
+        service_ids: services.map((service) => service.id),
+        service_names: services.map((service) => service.name),
         image: row.image,
         starts_at: row.starts_at,
         ends_at: row.ends_at,

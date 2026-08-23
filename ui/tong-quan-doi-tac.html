@@ -395,6 +395,32 @@
         cancelled: 'bg-error-container text-on-error-container',
     };
     var OAK_SEARCH_TYPES = { booking: 'Lịch hẹn', service: 'Dịch vụ', staff: 'Nhân viên' };
+
+    /* The console is a tab left open all day, so the pending queue is re-read on a timer.
+       Only while somebody is looking at it: a hidden tab makes no request at all and
+       catches up the moment it comes back into view. */
+    var OAK_POLL_MS = 60000;
+
+    /* The count rides in the tab title too — the console is usually one tab among many.
+       The prefix is stripped before it is rewritten, so it never stacks. */
+    function oakPendingTitle(total) {
+        var base = document.title.replace(/^\(\d+\) /, '');
+        document.title = total > 0 ? '(' + total + ') ' + base : base;
+    }
+
+    function oakWatchPending(refresh) {
+        setInterval(function () {
+            if (document.visibilityState === 'visible') {
+                refresh();
+            }
+        }, OAK_POLL_MS);
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') {
+                refresh();
+            }
+        });
+    }
+
     // The only transitions the backend accepts; mirrors quan-ly-lich-hen.html.
     var OAK_TRANSITIONS = {
         pending: ['confirmed', 'cancelled'],
@@ -476,6 +502,10 @@
                 }
                 await this.loadPending();
                 this.watchViewport();
+                var self = this;
+                oakWatchPending(function () {
+                    self.loadPending(true);
+                });
             },
 
             /* Crossing back above lg puts the search field in the header again, so the
@@ -504,9 +534,13 @@
 
             /* Every upcoming booking still waiting for a decision — the table below only
                ever shows today, so a request for tomorrow had nowhere to appear.
-               order=asc: the first page has to be the soonest ones, not the furthest. */
-            async loadPending() {
-                this.pendingLoading = true;
+               order=asc: the first page has to be the soonest ones, not the furthest.
+
+               `quiet` marks the read the poll makes: the queue is already on screen, so it
+               must neither blank itself back to "Dang tai..." every minute nor throw the
+               rows away over one dropped request. */
+            async loadPending(quiet) {
+                this.pendingLoading = !quiet;
                 this.pendingError = '';
                 try {
                     var rows = await OAK.api(
@@ -518,13 +552,16 @@
                     this.pendingTotal = rows.meta ? rows.meta.total : rows.length;
                     this.pending = rows;
                 } catch (error) {
-                    this.pending = [];
-                    this.pendingTotal = 0;
+                    if (!quiet) {
+                        this.pending = [];
+                        this.pendingTotal = 0;
+                    }
                     this.pendingError = error.message;
                 } finally {
                     this.pendingLoading = false;
                     // This page already knows the number the bell wants: no count request.
                     OAK.setPendingBadge(this.pendingTotal);
+                    oakPendingTitle(this.pendingTotal);
                 }
             },
 

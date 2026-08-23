@@ -18,6 +18,11 @@ services:
         value: 24.18.0
       - key: NODE_ENV
         value: production
+      # Render containers run UTC; the app serves Vietnam, so the container clock matches
+      # production convention and anything reading it stays on VN time. What the app itself
+      # calls "today"/"now" is pinned to Asia/Ho_Chi_Minh by lib/time.js regardless.
+      - key: TZ
+        value: Asia/Ho_Chi_Minh
       - key: JWT_SECRET
         generateValue: true
       # Set these three in the Render dashboard (sync: false keeps secrets out of git).
@@ -27,4 +32,11 @@ services:
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Password-reset mail (Resend). Without RESEND_API_KEY the reset link is minted and
+      # never delivered — the account is locked out — so set it before letting anyone in.
+      # RESET_MAIL_FROM must be an address on a domain verified in Resend; see DEPLOY.md.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESET_MAIL_FROM
         sync: false

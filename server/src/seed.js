@@ -351,6 +351,32 @@ const SERVICES = [
     duration_min: 60,
     image: IMG('img-8f601b429a.jpg'),
   },
+  // A combo is a service in its own right: one row, one booking, duration_min = the sum of
+  // the parts and price = the bundle price. The combo promotions below point at these, so
+  // the offer on uu-dai.html deep-links into the wizard at the price it advertises instead
+  // of handing the customer a code nothing can apply.
+  {
+    salon: 'lala-nail-studio',
+    category: 'nail',
+    subcategory: 'Combo',
+    name: 'Combo Sơn Gel + Chăm Sóc Chân',
+    description: 'Sơn gel cơ bản và chăm sóc chân chuyên sâu trong cùng một buổi hẹn.',
+    price: 480000,
+    duration_min: 105,
+    image: IMG('img-8f601b429a.jpg'),
+    is_package: 1,
+  },
+  {
+    salon: 'lala-nail-studio',
+    category: 'nail',
+    subcategory: 'Combo',
+    name: 'Combo Đắp Gel + Nail Art',
+    description: 'Đắp gel nối móng kèm thiết kế nail art cầu kỳ, tiết kiệm 180.000đ.',
+    price: 720000,
+    duration_min: 180,
+    image: IMG('img-c92fbe9a51.jpg'),
+    is_package: 1,
+  },
   {
     salon: 'lala-nail-studio',
     category: 'amenity',
@@ -769,6 +795,11 @@ const STAFF_SERVICES = [
       'Sơn Gel Hàn Quốc',
       'Sơn Gel Cơ Bản',
       'Chăm Sóc Chân Chuyên Sâu',
+      // She performs every part of both combos, so she is the one who can take one.
+      // Deliberate trade-off: a combo is the longest service she offers, so her generic
+      // staff-profile grid (sized by her longest service) ends earlier than her shift.
+      'Combo Sơn Gel + Chăm Sóc Chân',
+      'Combo Đắp Gel + Nail Art',
     ],
   },
   {
@@ -1030,8 +1061,9 @@ const PROMOTIONS = [
     starts_at: '2026-08-01',
     ends_at: '2026-08-31',
   },
-  // Combos price a bundle of services instead of discounting one; `service_names`
-  // is resolved to real service ids inside seed().
+  // A combo points at the one combo service that IS the bundle (resolved to its id inside
+  // seed()), not at the parts: that service is what the customer books, at the sale price.
+  // A combo is therefore never applied as a code — see requireUsablePromotion.
   {
     salon: 'lala-nail-studio',
     code: 'LALACOMBO480',
@@ -1042,7 +1074,7 @@ const PROMOTIONS = [
     discount_amount: null,
     original_price: 600000,
     sale_price: 480000,
-    service_names: ['Sơn Gel Cơ Bản', 'Chăm Sóc Chân Chuyên Sâu'],
+    service_names: ['Combo Sơn Gel + Chăm Sóc Chân'],
     image: IMG('img-8f601b429a.jpg'),
     starts_at: '2026-08-01',
     ends_at: '2026-10-31',
@@ -1057,7 +1089,7 @@ const PROMOTIONS = [
     discount_amount: null,
     original_price: 900000,
     sale_price: 720000,
-    service_names: ['Đắp Gel Nối Móng', 'Thiết Kế Nail Art Cầu Kỳ'],
+    service_names: ['Combo Đắp Gel + Nail Art'],
     image: IMG('img-c92fbe9a51.jpg'),
     starts_at: '2026-08-01',
     ends_at: '2026-10-31',

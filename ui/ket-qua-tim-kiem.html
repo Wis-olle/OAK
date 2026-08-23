@@ -124,7 +124,7 @@
 <!-- Nominatim asks callers not to look up on every keystroke, so this only submits. -->
 <form @submit.prevent="geocode()" class="flex gap-2 mt-3">
 <input class="flex-grow min-w-0 px-3 py-2 rounded-full bg-surface-container-low border border-outline-variant/30 font-body-md text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary" placeholder="Nhập địa chỉ..." type="text" x-model="address">
-<button :aria-busy="Boolean(geoPending)" :disabled="geoPending !== '' && geoPending === address.trim()" aria-label="Tìm địa chỉ" class="shrink-0 w-10 h-10 rounded-full bg-surface-container-low border border-outline-variant/30 flex items-center justify-center text-on-surface hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-on-surface" type="submit">
+<button :aria-busy="Boolean(geoPending)" :disabled="geoPending !== '' && geoPending === address.trim()" aria-label="Tìm địa chỉ" class="shrink-0 w-11 h-11 rounded-full bg-surface-container-low border border-outline-variant/30 flex items-center justify-center text-on-surface hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-on-surface" type="submit">
 <span class="material-symbols-outlined text-[18px]">search</span>
 </button>
 </form>
@@ -196,8 +196,11 @@
 <span class="material-symbols-outlined text-4xl text-on-surface-variant/50" data-icon="spa">spa</span>
 </div>
 </template>
-<div class="absolute top-2 left-2 bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs font-label-md text-primary flex items-center gap-1" x-show="salon.verified">
-<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-weight="fill">verified</span> Đã xác minh
+<!-- The verified badge sat on every card: a salon is verified=1 the moment it signs up, so
+     it separated nobody from anybody. What the card can honestly single out is a salon its
+     own reviews have already singled out. -->
+<div class="absolute top-2 left-2 bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs font-label-md text-primary flex items-center gap-1" x-show="salon.review_count &gt;= 10 &amp;&amp; salon.rating &gt;= 4.7">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-weight="fill">favorite</span> Được yêu thích
                         </div>
 </div>
 <div class="flex-grow flex flex-col justify-between py-2">
@@ -238,7 +241,7 @@
 <div aria-label="Bản đồ các salon" class="w-full h-full bg-cover bg-center" style="background-image: url('assets/images/img-1a264dff88.webp')" x-ref="map"></div>
 <!-- Floating Map Controls: above Leaflet's own control layer, which sits at z-index 1000. -->
 <div class="absolute bottom-8 right-8 flex flex-col gap-2 z-[1100]">
-<button @click="locate()" aria-label="Tìm quanh vị trí của tôi" class="w-10 h-10 bg-surface rounded-full shadow flex items-center justify-center text-on-surface hover:text-primary transition-colors" type="button">
+<button @click="locate()" aria-label="Tìm quanh vị trí của tôi" class="w-11 h-11 bg-surface rounded-full shadow flex items-center justify-center text-on-surface hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined">my_location</span>
 </button>
 </div>
@@ -287,8 +290,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -769,15 +772,25 @@
             apply() {
                 var search = this.query().toString();
                 history.replaceState(null, '', search ? location.pathname + '?' + search : location.pathname);
-                this.load();
+                return this.load();
             },
 
             /* The box only reaches the search on submit; typing in it moves nothing. It is
                then shown the keyword that actually ran, trimmed as the search saw it. */
-            applyQuery() {
+            async applyQuery() {
                 this.incoming.q = this.q.trim();
                 this.q = this.incoming.q;
-                this.apply();
+                /* The one deliberate search on this page — narrowing a filter is a
+                   refinement of it, not a search of its own. Counted after the answer is
+                   in, because how many salons came back is the number that says whether
+                   searching here works; the keyword is never sent, it is what somebody
+                   typed. Guarded like every other call site, and skipped when the request
+                   failed — a network error counting as a zero-result search is the one
+                   thing the number must never say. */
+                await this.apply();
+                if (!this.loadError && typeof OAK.track === 'function') {
+                    OAK.track('search_submit', { total: this.total });
+                }
             },
 
             setSort(value) {

@@ -191,8 +191,8 @@
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
 <div class="flex gap-4">
-<a aria-label="Website" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
+<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
 </div>
 </div>
 </div>
@@ -230,6 +230,14 @@ function oakContactForm() {
             if (firstInvalid) {
                 document.getElementById(firstInvalid).focus();
                 return;
+            }
+            /* How often this form is actually used, and what about — the topic is one of
+               four fixed choices, and nothing the visitor typed goes with it. Counted here,
+               past the validation, because a draft that never left is not a message.
+               Guarded like every other call site: a cached page can meet an oak-api.js
+               that has no track(). */
+            if (typeof OAK.track === 'function') {
+                OAK.track('contact_submit', { topic: this.topic });
             }
             const subject = '[' + this.topic + '] ' + name;
             const body = message + '\n\n--\n' + name + '\nGửi từ oakbeauty.vn';

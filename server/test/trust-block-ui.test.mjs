@@ -1,0 +1,138 @@
+/*
+ * One set of promises, said the same way wherever it is said, and never said louder than
+ * the code behind it. Everything asserted here was, before this slice, a page telling the
+ * reader something the server does not do: a booking "confirmed" while it sat at 'pending',
+ * support "24/7" against office hours, a "verified" badge every salon carries by default.
+ */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
+
+const confirmation = readUi('xac-nhan-dat-lich.html');
+const salon = readUi('salon-profile.html');
+const service = readUi('chi-tiet-dich-vu.html');
+const wizard = readUi('dat-lich.html');
+
+/* The factory is inline in the page, so lift it out of its <script> to drive it here. */
+function bookingConfirmation(booking) {
+  const tail = confirmation.slice(confirmation.indexOf('function oakAddMinutes('));
+  const script = tail.slice(0, tail.indexOf('</script>'));
+  const context = { OAK: { fmtDate: (iso) => iso } };
+  vm.runInNewContext(`${script}\nresult = oakBookingConfirmation();`, context);
+  context.result.booking = booking;
+  return context.result;
+}
+
+const PENDING = { code: 'OAK123', status: 'pending', date: '2099-03-04', time: '14:30' };
+
+test('the confirmation page reports the status the server actually wrote', () => {
+  // POST /api/bookings always inserts 'pending'; only the partner console moves a booking
+  // to 'confirmed'. Announcing "Đặt lịch thành công!" for both said the salon had agreed.
+  const pending = bookingConfirmation(PENDING);
+  assert.equal(pending.view().title + ' ' + pending.view().subtitle, 'Đã gửi yêu cầu đặt lịch');
+  assert.match(pending.view().message, /Thông báo/);
+  assert.match(pending.view().message, /Lịch hẹn của tôi/);
+
+  const confirmed = bookingConfirmation({ ...PENDING, status: 'confirmed' });
+  assert.equal(confirmed.view().subtitle, 'đã xác nhận');
+  assert.notEqual(confirmed.view().title, pending.view().title);
+});
+
+test('the timeline marks how far along the booking is, and hides for one that left it', () => {
+  assert.deepEqual(Array.from(bookingConfirmation(PENDING).steps()), ['Chờ xác nhận', 'Đã xác nhận', 'Hoàn tất']);
+  assert.equal(bookingConfirmation(PENDING).stepIndex(), 0);
+  assert.equal(bookingConfirmation({ ...PENDING, status: 'confirmed' }).stepIndex(), 1);
+  assert.equal(bookingConfirmation({ ...PENDING, status: 'completed' }).stepIndex(), 2);
+  assert.equal(bookingConfirmation({ ...PENDING, status: 'cancelled' }).stepIndex(), -1);
+  assert.equal(bookingConfirmation(null).stepIndex(), -1);
+});
+
+test('the free-cancellation deadline is the appointment less two hours, in local time', () => {
+  assert.equal(bookingConfirmation(PENDING).cancelDeadline(), '12:30, 04/03');
+  // Two hours before 00:30 is the previous day, and the date has to move with it.
+  assert.equal(
+    bookingConfirmation({ ...PENDING, date: '2099-03-04', time: '00:30' }).cancelDeadline(),
+    '22:30, 03/03',
+  );
+  // Nothing left to cancel, so nothing is promised about cancelling it.
+  assert.equal(bookingConfirmation({ ...PENDING, status: 'cancelled' }).cancelDeadline(), '');
+  assert.equal(bookingConfirmation({ ...PENDING, status: 'completed' }).cancelDeadline(), '');
+});
+
+test('the four pages of the booking path state the same three conditions', () => {
+  // Read from OAK.TRUST rather than retyped, so the wording cannot drift page to page.
+  for (const page of [salon, service, wizard, confirmation]) {
+    assert.match(page, /x-text="OAK\.TRUST\.CANCEL_POLICY"/);
+    assert.match(page, /x-text="OAK\.TRUST\.PAYMENT"/);
+    assert.match(page, /Salon xác nhận lịch, bạn được báo trong mục Thông báo/);
+    assert.match(page, /href="dieu-khoan\.html#huy-lich"/);
+    assert.match(page, /Điều kiện đặt lịch/);
+  }
+});
+
+test('no page promises what the codebase does not do', () => {
+  for (const name of fs.readdirSync(path.join(root, 'ui')).filter((f) => f.endsWith('.html'))) {
+    const page = readUi(name);
+    // No tier exists anywhere in the schema; no salon is screened before it goes live;
+    // nobody answers at 3am; and a booking is not confirmed the moment it is made.
+    assert.doesNotMatch(page, /hạng thẻ/, name);
+    assert.doesNotMatch(page, /Hỗ trợ 24\/7/, name);
+    assert.doesNotMatch(page, /xác nhận ngay/, name);
+    assert.doesNotMatch(page, /Đã xác minh/, name);
+    assert.doesNotMatch(page, /xét duyệt/, name);
+  }
+});
+
+test('the support block names hours somebody keeps, and a way to reach them', () => {
+  assert.match(confirmation, /x-text="OAK\.TRUST\.SUPPORT_HOURS"/);
+  assert.match(confirmation, /href="tel:19006035"/);
+  assert.match(confirmation, /href="lien-he\.html"/);
+  // "encrypted" claimed a mechanism; these three are what bao-mat.html can actually show.
+  assert.match(confirmation, /Kết nối HTTPS, mật khẩu được băm, salon chỉ thấy thông tin lịch bạn đặt\./);
+});
+
+test('call and Zalo render only for a salon that published a number', () => {
+  for (const [page, source] of [[salon, 'salon.phone'], [service, 'service.salon.phone']]) {
+    assert.match(page, new RegExp('x-if="' + source.replace('.', '\\.') + '"'));
+    assert.match(page, /:href="'tel:' \+ digits\(/);
+    assert.match(page, /:href="zaloUrl\(\)"/);
+    assert.match(page, /rel="noopener noreferrer" style="text-decoration:none" target="_blank"/);
+  }
+});
+
+test('a Vietnamese number reaches zalo.me in the international form it wants', () => {
+  // '0901 234 567' is how a salon writes it; tel: wants digits and zalo.me wants 84…
+  const digits = (phone) => String(phone).replace(/\D/g, '');
+  const zalo = (phone) => 'https://zalo.me/' + digits(phone).replace(/^0/, '84');
+  assert.equal(digits('0901 234 567'), '0901234567');
+  assert.equal(zalo('0901 234 567'), 'https://zalo.me/84901234567');
+  // Both pages carry this rule; if either one edits it, this pins what it has to produce.
+  for (const page of [salon, service]) {
+    assert.match(page, /replace\(\/\^0\/, '84'\)/);
+  }
+});
+
+test('the service page says which salon performs the service', () => {
+  // service.salon has arrived with the payload all along; the page named none of it.
+  assert.match(service, /Thực hiện tại/);
+  assert.match(service, /salon-profile\.html\?salon='/);
+  assert.match(service, /<a class="hover:text-primary" href="danh-sach-salon\.html">Salon<\/a>/);
+  assert.match(service, /<span>Đánh giá về<\/span> <span x-text="service\.salon\.name"><\/span>/);
+  assert.doesNotMatch(service, /Đánh Giá Về Salon/);
+});
+
+test('the search card badges what the reviews earned, not what every row carries', () => {
+  const results = readUi('ket-qua-tim-kiem.html');
+  assert.match(results, /Được yêu thích/);
+  assert.match(results, /salon\.review_count &gt;= 10 &amp;&amp; salon\.rating &gt;= 4\.7/);
+});
+
+test('the salon badge claims only that the salon signed up with OAK', () => {
+  assert.match(salon, /aria-label="Đối tác OAK"/);
+});
