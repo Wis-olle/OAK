@@ -39,6 +39,7 @@
 </script>
 <script src="assets/js/oak-i18n.js"></script>
 <title>Quản lý Dịch vụ - OAK Beauty</title>
+<meta content="noindex,nofollow" name="robots">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -194,7 +195,12 @@
 </div>
 </div>
 </template>
-<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading && !servicesError && services.length === 0">Chưa có dịch vụ nào phù hợp.</p>
+<!-- OAK-EMPTY -->
+<div class="md:col-span-2 lg:col-span-3 bg-surface-container-low rounded-lg py-16 px-6 text-center" x-cloak="" x-show="!loading && !servicesError && services.length === 0">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="spa">spa</span>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Chưa có dịch vụ nào phù hợp.</p>
+<button @click="openServiceForm(null)" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="button">Thêm dịch vụ</button>
+</div>
 <div class="md:col-span-2 lg:col-span-3 flex flex-col items-start gap-3 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert" x-cloak="" x-show="servicesError">
 <div class="flex items-center gap-3">
 <span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>

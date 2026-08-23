@@ -1,0 +1,39 @@
+# OAK Beauty
+User-agent: *
+
+# API and uploaded files are not pages.
+Disallow: /api/
+Disallow: /uploads/
+
+# Account area, partner console, auth screens and redirect stubs: behind a login or
+# a redirect, so an indexed copy is a blank page in the results. Every page listed below also
+# carries <meta name="robots" content="noindex,nofollow">, and that meta is the authoritative
+# signal: a crawler that obeys a Disallow never fetches the page, so it never reads the meta.
+# Keep the two lists in step; do not replace one half with the other.
+Disallow: /bao-cao-doanh-thu.html
+Disallow: /cai-dat-salon.html
+Disallow: /cai-dat.html
+Disallow: /dang-ky.html
+Disallow: /dang-nhap-doi-tac.html
+Disallow: /dang-nhap-nguoi-dung.html
+Disallow: /danh-gia-cua-toi.html
+Disallow: /danh-sach-salon.html
+Disallow: /dat-lai-mat-khau.html
+Disallow: /dat-lich.html
+Disallow: /ho-so-ca-nhan.html
+Disallow: /index.html
+Disallow: /lich-hen-cua-toi.html
+Disallow: /quan-ly-dich-vu.html
+Disallow: /quan-ly-lich-hen.html
+Disallow: /quan-ly-nhan-vien.html
+Disallow: /salon-profile-lala-nail-studio.html
+Disallow: /thong-bao.html
+Disallow: /tong-quan-doi-tac.html
+Disallow: /xac-nhan-dat-lich.html
+Disallow: /yeu-thich.html
+
+# The branded 404 body. express.static also serves it directly at /404.html with a 200, and a
+# thin "page not found" indexed under the brand is the soft 404 the page exists to prevent.
+Disallow: /404.html
+
+Sitemap: https://oakbeauty.vn/sitemap.xml

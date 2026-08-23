@@ -21,7 +21,13 @@ function harness(browser = {}) {
   const from = clientJs.indexOf('function track(name, meta) {');
   const to = clientJs.indexOf('var TRUST = {');
   assert.ok(from !== -1 && to > from, 'oak-api.js no longer contains track()');
-  const script = clientJs.slice(from, to);
+  // track() names the page through pageName(), which sits with the module's own constants
+  // at the top of the same IIFE — lifted from the file rather than restated, so the '/'
+  // fallback under test is the shipped one.
+  const helpersFrom = clientJs.indexOf("var HOME_PAGE = 'kham-pha.html';");
+  const helpersTo = clientJs.indexOf('function apiError(');
+  assert.ok(helpersFrom !== -1 && helpersTo > helpersFrom, 'oak-api.js no longer contains pageName()');
+  const script = clientJs.slice(helpersFrom, helpersTo) + clientJs.slice(from, to);
 
   const beacons = [];
   const fetches = [];
@@ -123,4 +129,16 @@ test('an event with nothing to say carries no meta at all', () => {
   const browser = harness();
   browser.track('search_submit');
   assert.equal(JSON.parse(browser.beacons[0].blob.text).meta, undefined);
+});
+
+test('an event from the site root is labelled with the page the server serves there', () => {
+  // The server answers '/' with kham-pha.html rather than redirecting to it, so the last
+  // path segment is empty and every direct visitor's events used to arrive with no page.
+  const root = harness({ pathname: '/' });
+  root.track('search_submit');
+  assert.equal(JSON.parse(root.beacons[0].blob.text).page, 'kham-pha.html');
+
+  const named = harness({ pathname: '/kham-pha.html' });
+  named.track('search_submit');
+  assert.equal(JSON.parse(named.beacons[0].blob.text).page, 'kham-pha.html');
 });

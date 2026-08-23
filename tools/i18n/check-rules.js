@@ -137,6 +137,11 @@ const cases = [
     ['12.5% doanh thu', '12.5% of revenue'],
     // prices
     ['Từ 350.000đ', 'From 350.000đ'],
+    // price_from_label: the matched service's category in front of its price
+    ['Nối mi từ 350.000đ', 'Eyelash extensions from 350.000đ'],
+    ['Tóc từ 350.000đ', 'Hair from 350.000đ'],
+    ['Spa & Massage từ 520.000đ', 'Spa & Massage from 520.000đ'],
+    ['Chăm sóc da từ 300.000đ', 'Skincare from 300.000đ'],
     ['Giảm 20%', 'Save 20%'],
     ['Giảm 100.000đ', 'Save 100.000đ'],
     // the hour window of a search, one chip on ket-qua-tim-kiem.html
@@ -146,6 +151,8 @@ const cases = [
     ['Quận 1 • 2.5km', 'District 1 • 2.5km'],
     ['Quận 1 • từ 350.000đ', 'District 1 • from 350.000đ'],
     ['Quận 1 • 2.5km • từ 350.000đ', 'District 1 • 2.5km • from 350.000đ'],
+    ['Quận 1 • Nối mi từ 350.000đ', 'District 1 • Eyelash extensions from 350.000đ'],
+    ['Quận 1 • 2.5km • Tóc từ 350.000đ', 'District 1 • 2.5km • Hair from 350.000đ'],
     // offers
     ['Hạn dùng đến 31/12/2026', 'Valid until 31/12/2026'],
     ['Đến 31/12/2026', 'Until 31/12/2026'],

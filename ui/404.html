@@ -1,0 +1,114 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="utf-8">
+<!-- The server hands this page back for ANY unmatched path, at any depth (/blog/bai-cu is the
+     common case: an old or renamed URL). Without a base every asset and every way back would
+     resolve under that path and 404 in turn, leaving an unstyled page whose "home" link is
+     broken too. The page has no in-page anchors, so nothing else is affected. -->
+<base href="/">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
+<script src="assets/js/oak-i18n.js"></script>
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
+<title>Không tìm thấy trang - OAK Beauty</title>
+<meta content="Đường dẫn này không còn hoặc chưa từng tồn tại. Quay về trang chủ OAK Beauty hoặc tìm salon bạn cần ngay tại đây." name="description">
+<!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
+<link href="assets/css/oak-tailwind.css" rel="stylesheet">
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
+<!-- TopNavBar -->
+<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
+<script src="assets/js/oak-header.js"></script>
+<!-- Main Content -->
+<main class="pt-20 flex-grow pb-section-gap">
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-16 pb-12">
+<p class="font-label-md text-label-md uppercase tracking-wider text-secondary mb-4">Lỗi 404</p>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-6">Không tìm thấy trang này</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">Đường dẫn bạn vừa mở không còn hoặc chưa từng tồn tại. Salon và dịch vụ vẫn ở đây — thử tìm lại bên dưới.</p>
+</section>
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
+<!-- OAK-EMPTY -->
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center max-w-3xl">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="travel_explore">travel_explore</span>
+<!-- A plain GET form, not Alpine: this page has to work even when the one thing that
+     failed was a script. ket-qua-tim-kiem.html reads ?q= on load. -->
+<form action="ket-qua-tim-kiem.html" class="flex flex-col sm:flex-row gap-4 max-w-xl mx-auto mb-8" method="get">
+<label class="sr-only" for="notfound-q">Tìm salon hoặc dịch vụ</label>
+<input autocomplete="off" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 font-body-md text-body-md text-primary focus:outline-none focus:border-primary transition-colors" enterkeyhint="search" id="notfound-q" name="q" placeholder="Tìm salon hoặc dịch vụ" type="search">
+<button class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-8 py-4 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 shrink-0" type="submit">Tìm kiếm</button>
+</form>
+<div class="flex flex-col sm:flex-row gap-4 justify-center">
+<a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-8 py-4 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="kham-pha.html">Về trang chủ</a>
+<a class="inline-flex items-center justify-center border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-8 py-4 rounded-full hover:bg-surface-container-low transition-colors active:scale-95 duration-200" href="sitemap.html">Xem sơ đồ trang</a>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<!-- Brand Column -->
+<div class="col-span-1 md:col-span-1 flex flex-col gap-4">
+<span class="font-headline-sm text-headline-sm text-on-tertiary font-bold">OAK Beauty</span>
+<p class="font-caption text-caption text-on-tertiary/70 mt-4 max-w-xs">
+                    Nâng tầm vẻ đẹp Việt.<br>
+                    Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
+                </p>
+</div>
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
+</div>
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+</div>
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
+<div class="col-span-1 flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
+</div>
+</div>
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
+<div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
+<span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
+</div>
+</footer>
+</body></html>

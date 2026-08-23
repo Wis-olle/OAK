@@ -44,7 +44,7 @@
 <template x-if="loading &amp;&amp; !service">
 <div aria-label="Đang tải chi tiết dịch vụ" class="grid grid-cols-1 lg:grid-cols-12 gap-gutter animate-pulse" role="status">
 <div class="lg:col-span-7 flex flex-col gap-gutter">
-<div class="w-full aspect-[4/5] md:aspect-[3/2] rounded-xl bg-surface-container"></div>
+<div class="w-full aspect-[3/2] rounded-xl bg-surface-container"></div>
 <div class="grid grid-cols-2 gap-gutter">
 <div class="aspect-square rounded-xl bg-surface-container"></div>
 <div class="aspect-square rounded-xl bg-surface-container"></div>
@@ -61,7 +61,15 @@
 </div>
 </template>
 <template x-if="!loading &amp;&amp; !service">
-<p class="font-body-md text-body-md text-on-surface-variant">Không tìm thấy dịch vụ này.</p>
+<div>
+<!-- A failed request is not a missing service: only a 404 says the service is not there,
+     and everything else is worth a second try rather than a dead end. -->
+<div class="flex flex-wrap items-center gap-4" x-show="loadError">
+<p class="font-body-md text-body-md text-error" x-text="loadError"></p>
+<button @click="init()" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" type="button">Thử lại</button>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loadError">Không tìm thấy dịch vụ này.</p>
+</div>
 </template>
 <template x-if="service">
 <div>
@@ -79,27 +87,28 @@
 </div>
 <!-- Main Product Detail Layout (Bento Grid Style) -->
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter mb-section-gap">
-<!-- Left Column: Imagery (Asymmetric Layout) -->
-<div class="lg:col-span-7 flex flex-col gap-gutter">
-<div class="w-full aspect-[4/5] md:aspect-[3/2] overflow-hidden rounded-xl bg-surface-container">
+<!-- Left Column: Imagery (Asymmetric Layout). The two extra tiles are a separate grid
+     child rather than part of this column, so on a phone they fall below the price and
+     the free hours instead of pushing them a screen and a half down. -->
+<div class="lg:col-span-7">
+<div class="w-full aspect-[3/2] overflow-hidden rounded-xl bg-surface-container">
 <img :alt="service.name" :src="service.image" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700">
-</div>
-<div class="grid grid-cols-2 gap-gutter" x-show="detailPhotos.length">
-<template :key="photo.id" x-for="photo in detailPhotos">
-<div class="aspect-square overflow-hidden rounded-xl bg-surface-container">
-<img loading="lazy" :alt="photo.caption" :src="photo.image" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700">
-</div>
-</template>
 </div>
 </div>
 <!-- Right Column: Details & Booking -->
-<div class="lg:col-span-5 flex flex-col">
+<div class="lg:col-span-5 lg:row-span-2 flex flex-col">
 <div class="sticky top-32">
 <div class="flex items-start justify-between gap-4 mb-4">
 <h1 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary" x-text="service.name"></h1>
+<div class="flex items-center gap-2 shrink-0">
 <button :aria-pressed="isFavorite" @click="toggleFavorite()" aria-label="Lưu dịch vụ yêu thích" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-full border border-outline-variant/30 text-primary hover:bg-surface-container-low transition-colors" type="button">
 <span :style="isFavorite ? filled : ''" class="material-symbols-outlined">favorite</span>
 </button>
+<!-- Sending a service to a friend was a manual copy of the address bar until now. -->
+<button @click="share()" aria-label="Chia sẻ" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-full border border-outline-variant/30 text-primary hover:bg-surface-container-low transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined">share</span>
+</button>
+</div>
 </div>
 <!-- Which salon performs this, with everything needed to judge it: the page used to name
      no salon at all, and the whole payload for this block already arrives with the service. -->
@@ -145,16 +154,40 @@
 <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
 <h3 class="font-headline-sm text-headline-sm text-tertiary flex items-center gap-2">
 <span aria-hidden="true" class="material-symbols-outlined">event_available</span>
-<span x-text="slotHeading()"></span>
+<span x-show="!staffId" x-text="slotHeading()"></span>
+<span x-show="staffId"><span>Lịch trống của</span> <span x-text="staffName()"></span></span>
 </h3>
-<input :min="today" @change="loadSlots()" aria-label="Chọn ngày" class="px-3 py-1.5 rounded-full border border-outline/30 bg-transparent font-label-md text-label-md text-tertiary" type="date" x-model="date">
 </div>
-<div class="flex flex-wrap gap-3">
-<template x-if="!slots.length">
-<p class="font-body-md text-body-md text-tertiary/70">Không còn lịch trống trong ngày này.</p>
+<!-- The next seven days at a glance, the way the wizard shows them: a bare date field
+     made the reader guess which day this service still has room on. -->
+<div class="flex flex-wrap gap-2 mb-4" x-show="dayChips.length">
+<template :key="chip.date" x-for="chip in dayChips">
+<button :class="[date === chip.date ? 'bg-tertiary text-on-tertiary' : 'border border-outline/30 text-tertiary', chip.closed ? 'opacity-60' : (chip.full ? 'line-through opacity-60' : '')]" @click="pickDate(chip.date)" class="flex flex-col items-center justify-center min-h-[44px] px-4 py-2 rounded-2xl transition-colors" type="button">
+<span class="font-label-md text-label-md" x-text="chip.weekday"></span>
+<span class="font-caption text-caption" x-text="chip.closed ? 'Nghỉ' : chip.day"></span>
+</button>
 </template>
+</div>
+<div class="mb-4">
+<label class="font-caption text-caption text-tertiary block mb-1" for="service-date">Ngày khác</label>
+<input :min="today" @change="loadSlots()" class="px-3 py-1.5 rounded-full border border-outline/30 bg-transparent font-body-md text-body-md text-tertiary" id="service-date" type="date" x-model="date">
+</div>
+<!-- Nothing to dim on the first run, so the chips to come are drawn at their own size. -->
+<div aria-hidden="true" class="flex flex-wrap gap-3" x-show="slotsLoading &amp;&amp; !slots.length">
+<template :key="row" x-for="row in 6">
+<div class="h-11 w-24 rounded-full bg-surface-container animate-pulse"></div>
+</template>
+</div>
+<div class="flex flex-wrap items-center gap-4 mb-3" x-show="slotsError">
+<p class="font-body-md text-body-md text-error" x-text="slotsError"></p>
+<button :disabled="slotsLoading" @click="loadSlots()" class="border border-outline/30 text-tertiary font-label-md text-label-md uppercase tracking-wider px-5 py-2 rounded-full disabled:opacity-60" type="button">Thử lại</button>
+</div>
+<p class="font-body-md text-body-md text-tertiary/70" x-show="!slotsLoading &amp;&amp; !slotsError &amp;&amp; !slots.length">Không còn lịch trống trong ngày này.</p>
+<!-- A booked hour stays on screen, struck through: taking it away made a busy afternoon
+     look like a salon that never opens. -->
+<div class="flex flex-wrap gap-3" :class="slotsLoading ? 'opacity-50' : ''">
 <template :key="slot.time" x-for="slot in slots">
-<button :class="time === slot.time ? 'bg-tertiary text-on-tertiary' : 'border border-outline/30 text-tertiary hover:bg-tertiary hover:text-on-tertiary'" @click="time = (time === slot.time ? '' : slot.time)" class="min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-colors" type="button" x-text="slot.time"></button>
+<button :class="time === slot.time ? 'bg-tertiary text-on-tertiary' : (slot.available ? 'border border-outline/30 text-tertiary hover:bg-tertiary hover:text-on-tertiary' : 'border border-outline/30 text-tertiary')" :disabled="!slot.available" @click="time = (time === slot.time ? '' : slot.time)" class="min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-colors disabled:opacity-40 disabled:line-through" type="button" x-text="slot.time"></button>
 </template>
 </div>
 </div>
@@ -188,6 +221,13 @@
                     </button></a>
 </div>
 </div>
+<div class="lg:col-span-7 grid grid-cols-2 gap-gutter" x-show="detailPhotos.length">
+<template :key="photo.id" x-for="photo in detailPhotos">
+<div class="aspect-square overflow-hidden rounded-xl bg-surface-container">
+<img loading="lazy" :alt="photo.caption" :src="photo.image" class="w-full h-full object-cover hover:scale-105 transition-transform duration-700">
+</div>
+</template>
+</div>
 </div>
 <!-- Team Section -->
 <div class="mb-section-gap" x-show="staff.length">
@@ -201,6 +241,14 @@
 </div>
 <h4 class="font-label-md text-label-md uppercase tracking-wider text-primary" x-text="member.name"></h4>
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-text="member.title"></p>
+<!-- The API has carried both of these all along; the picker showed a face and a job
+     title and left the reader to choose between strangers. -->
+<p class="flex items-center gap-1 font-caption text-caption text-on-surface-variant mt-1" x-show="member.rating">
+<span :style="filled" aria-hidden="true" class="material-symbols-outlined text-[14px] text-secondary">star</span>
+<span x-text="Number(member.rating).toFixed(1)"></span>
+<span aria-hidden="true" x-show="member.years_experience">·</span>
+<span x-show="member.years_experience" x-text="member.years_experience + ' năm kinh nghiệm'"></span>
+</p>
 </button>
 <a :href="'ho-so-chuyen-gia.html?id=' + member.id" class="font-caption text-caption text-primary hover:text-secondary transition-colors mt-2">Xem hồ sơ</a>
 </div>
@@ -228,7 +276,20 @@
 <div>
 <div class="flex flex-wrap items-center justify-between gap-4 mb-8 border-b border-outline-variant/30 pb-4">
 <h2 class="font-headline-md text-headline-md text-primary"><span>Đánh giá về</span> <span x-text="service.salon.name"></span></h2>
-<button @click="writeReview()" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="button">Viết đánh giá</button>
+<!-- The button used to greet everyone and end, three steps later, in a toast saying no.
+     Only a visitor with a finished appointment here can write one, so only they see it. -->
+<template x-if="reviewGate.href">
+<a :href="reviewGate.href" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" style="text-decoration:none">
+<span x-show="!reviewGate.date">Viết đánh giá</span>
+<span x-show="reviewGate.date"><span>Đánh giá lịch hẹn ngày</span> <span x-text="reviewGate.date"></span></span>
+</a>
+</template>
+<template x-if="!reviewGate.href &amp;&amp; !reviewGate.done">
+<p class="font-caption text-caption text-on-surface-variant">Chỉ khách đã hoàn tất lịch hẹn qua OAK mới đánh giá được</p>
+</template>
+<template x-if="!reviewGate.href &amp;&amp; reviewGate.done">
+<p class="font-caption text-caption text-on-surface-variant">Bạn đã đánh giá các lịch hẹn tại salon này rồi.</p>
+</template>
 </div>
 <p class="font-body-md text-body-md text-on-surface-variant" x-show="!reviews.length">Chưa có đánh giá nào. Hãy là người đầu tiên chia sẻ trải nghiệm của bạn.</p>
 <div class="flex items-center gap-3 mb-8" x-show="reviews.length">
@@ -244,11 +305,24 @@
 <span :style="star &lt;= review.rating ? filled : ''" aria-hidden="true" class="material-symbols-outlined text-sm">star</span>
 </template>
 </div>
+<!-- Every review here is written against a completed booking, which is what the chip
+     says; the date is what tells a reader whether it still describes the salon. -->
+<div class="flex flex-wrap items-center gap-3 mb-3">
+<span class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(review.created_at)"></span>
+<span class="inline-flex items-center gap-1 rounded-full bg-tertiary-fixed px-3 py-1 font-caption text-caption text-on-tertiary-fixed-variant">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]">verified</span>
+<span>Đã đặt qua OAK</span>
+</span>
+<span class="font-caption text-caption text-on-surface-variant" x-show="review.service_name" x-text="review.service_name"></span>
+</div>
 <p class="font-body-md text-body-md text-on-surface italic mb-4" x-text="review.comment"></p>
 <p class="font-caption text-caption text-on-surface-variant" x-text="'— ' + review.user.name"></p>
 </div>
 </template>
 </div>
+<!-- Four of them fit here; the rest, and the distribution to read them against, live on
+     the salon this service belongs to. -->
+<a :href="salonUrl() + '#danh-gia'" class="inline-flex items-center gap-1 mt-6 font-label-md text-label-md uppercase tracking-wide text-primary hover:opacity-70 transition-opacity" x-show="reviewMeta.total &gt; reviews.length" x-text="'Xem tất cả ' + reviewMeta.total + ' đánh giá'"></a>
 </div>
 <div class="fixed bottom-0 inset-x-0 z-40 md:hidden flex items-center justify-between gap-4 border-t border-outline-variant/30 bg-surface-container-low px-margin-mobile py-3" data-oak-sticky-cta>
 <div class="min-w-0">
@@ -276,8 +350,9 @@
                     Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
                 </p>
 </div>
-<!-- Links Columns -->
-<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
@@ -287,25 +362,30 @@
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
-</div>
-<!-- Social/Contact -->
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<div class="flex gap-4">
-<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
 </div>
 </div>
-</div>
-<!-- Copyright -->
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
 <span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -316,6 +396,9 @@
         const now = new Date();
         return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     }
+
+    /* The day strip labels, as the wizard writes them (0 = Sunday). */
+    const OAK_WEEKDAY_SHORT = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
 
     /* Now as a local 'HH:MM', so an hour today that has already started is not offered. */
     function oakNowTime() {
@@ -334,15 +417,23 @@
             related: [],
             reviews: [],
             reviewMeta: { total: 0, average: 0 },
+            reviewGate: { href: '', date: '', done: false },
+            dayChips: [],
+            chipsToken: 0,
             today: oakTodayISO(),
             date: oakTodayISO(),
             time: '',
             staffId: null,
             slotsToken: 0,
+            slotsLoading: false,
+            slotsError: '',
             isFavorite: false,
             loading: true,
+            loadError: '',
 
             async init() {
+                this.loading = true;
+                this.loadError = '';
                 try {
                     this.service = await OAK.api('/api/services/' + (await this.resolveId()));
                     OAK.meta({
@@ -369,10 +460,16 @@
                     this.reviews = reviews;
                     this.reviewMeta = { total: reviews.meta.total, average: reviews.meta.average };
 
-                    await this.loadSlots();
+                    await Promise.all([this.loadSlots(), this.loadDayChips()]);
                     await this.loadFavorite();
+                    await this.loadReviewGate();
                 } catch (error) {
-                    OAK.toast(error.message, 'error');
+                    /* A 404 is the only answer that means "no such service"; a cold server or
+                       a dropped connection used to read as one and offered no way back. */
+                    this.service = null;
+                    this.loadError = error.code === 'NOT_FOUND'
+                        ? ''
+                        : 'Không tải được chi tiết dịch vụ.';
                 } finally {
                     this.loading = false;
                 }
@@ -417,17 +514,102 @@
                 return OAK.fmtPriceFrom(this.service.price, this.service.price_is_from);
             },
 
+            /** Hands the page's own address to whatever the device shares with, and falls
+                back to the clipboard where navigator.share does not exist (every desktop). */
+            async share() {
+                const payload = {
+                    title: this.service.name,
+                    text: this.service.name + ' · ' + this.service.salon.name,
+                    url: location.href,
+                };
+                if (navigator.share) {
+                    try {
+                        await navigator.share(payload);
+                    } catch (error) {
+                        /* Dismissing the sheet rejects too; that is not a failure to report. */
+                    }
+                    return;
+                }
+                try {
+                    await navigator.clipboard.writeText(location.href);
+                    OAK.toast('Đã sao chép liên kết.');
+                } catch (error) {
+                    OAK.toast('Không sao chép được liên kết.', 'error');
+                }
+            },
+
             slotHeading() {
                 return this.date === this.today ? 'Lịch trống hôm nay' : 'Lịch trống ' + OAK.fmtDate(this.date);
             },
 
+            /** The chosen technician's name, for the heading over their own hours. */
+            staffName() {
+                const member = this.staff.find((entry) => entry.id === this.staffId);
+                return member ? member.name : '';
+            },
+
+            /** Pick a day from the strip. A full one is still pickable — its grid then says
+                which hours are gone, which is more use than a chip that cannot be pressed. */
+            pickDate(value) {
+                if (this.date !== value) {
+                    this.date = value;
+                    this.loadSlots();
+                }
+            },
+
+            /**
+             * The next seven days, each marked full when nothing on it can be booked any more
+             * and closed when the salon does not open that day at all. Both endpoints answer
+             * ?days in the same week shape, so the strip costs one round trip either way.
+             */
+            async loadDayChips() {
+                const token = ++this.chipsToken;
+                const staffId = this.staffId;
+                const path = staffId
+                    ? '/api/staff/' + staffId + '/availability?days=7&from=' + this.today
+                        + '&service_id=' + this.service.id
+                    : '/api/services/' + this.service.id + '/availability?days=7&from=' + this.today;
+                try {
+                    const { week } = await OAK.api(path);
+                    if (token !== this.chipsToken) {
+                        return;
+                    }
+                    const passed = oakNowTime();
+                    this.dayChips = week.map((day) => ({
+                        date: day.date,
+                        weekday: day.date === this.today
+                            ? 'Hôm nay'
+                            : OAK_WEEKDAY_SHORT[new Date(day.date + 'T00:00:00').getDay()],
+                        day: day.date.slice(8) + '/' + day.date.slice(5, 7),
+                        // No hours at all on a day: nobody is taking bookings, so the
+                        // strip says so instead of offering a day with nothing on it.
+                        closed: day.slots.length === 0,
+                        full: !day.slots.some(
+                            (slot) => slot.available
+                                && (day.date !== this.today || slot.time > passed),
+                        ),
+                    }));
+                } catch (error) {
+                    if (token === this.chipsToken) {
+                        // The strip is an extra: the date field under it still works, so a
+                        // failure takes the strip away instead of raising an error of its own.
+                        this.dayChips = [];
+                    }
+                }
+            },
+
             async loadSlots() {
                 this.time = '';
+                this.slotsError = '';
                 const token = ++this.slotsToken;
                 if (!this.date) {
+                    // The token bumped above orphans any read still open, whose finally can no
+                    // longer clear the flag — so this branch clears it, or the skeleton stays.
                     this.slots = [];
+                    this.slotsLoading = false;
                     return;
                 }
+                this.slotsLoading = true;
                 // A chosen technician has their own calendar. The service endpoint ORs across
                 // everyone who performs it, so it would offer times this one person cannot
                 // take. The two answer in different shapes, so the id is read once here: a
@@ -443,16 +625,22 @@
                         return;
                     }
                     // An hour that has already started today cannot be booked any more; the
-                    // server refuses it too, so offering it would only end in an error.
+                    // server refuses it too, so offering it would only end in an error. An
+                    // hour somebody else has taken stays on screen, struck through and
+                    // unpressable: dropping it made a busy day look like a closed one.
                     const passed = this.date === this.today ? oakNowTime() : '';
                     this.slots = (staffId ? data.week[0].slots : data.slots)
-                        .filter((slot) => slot.available && slot.time > passed);
+                        .filter((slot) => slot.time > passed);
                 } catch (error) {
                     if (token !== this.slotsToken) {
                         return;
                     }
                     this.slots = [];
-                    OAK.toast(error.message, 'error');
+                    this.slotsError = 'Không tải được khung giờ trống.';
+                } finally {
+                    if (token === this.slotsToken) {
+                        this.slotsLoading = false;
+                    }
                 }
             },
 
@@ -461,15 +649,19 @@
             pickStaff(id) {
                 this.staffId = this.staffId === id ? null : id;
                 this.loadSlots();
+                this.loadDayChips();
             },
 
             /**
-             * The composer is per booking, so this picks the most recent completed booking
-             * at this salon that has not been reviewed yet — this very service first,
-             * any other after.
+             * Who may write a review here. The composer is per booking and the server only
+             * takes one against a completed booking of the visitor's own, so the page asks
+             * that question before offering the button rather than after — this very service
+             * first, any other booking at the same salon after.
              */
-            async writeReview() {
-                await OAK.requireLogin();
+            async loadReviewGate() {
+                if (!(await OAK.me())) {
+                    return;
+                }
                 try {
                     const [completed, myReviews] = await Promise.all([
                         OAK.api('/api/bookings/mine?status=completed&limit=50'),
@@ -483,33 +675,35 @@
                     const target = pending.find((booking) => booking.service.id === this.service.id)
                         || pending[0];
                     if (target) {
-                        window.location.href = 'danh-gia-cua-toi.html?booking_id=' + target.id;
-                        return;
+                        this.reviewGate = {
+                            href: 'danh-gia-cua-toi.html?booking_id=' + target.id,
+                            date: String(target.date).split('-').reverse().slice(0, 2).join('/'),
+                            done: false,
+                        };
+                    } else if (completed.meta.total > completed.length) {
+                        // Only the newest 50 came back, so an older booking here may exist:
+                        // hand the visitor the full "Chờ đánh giá" list rather than nothing.
+                        this.reviewGate = { href: 'danh-gia-cua-toi.html', date: '', done: false };
+                    } else if (here.length) {
+                        // Been here and reviewed all of it: telling this reader that only
+                        // finished customers may write one says something untrue of them.
+                        this.reviewGate = { href: '', date: '', done: true };
                     }
-                    // Only the newest 50 came back, so an older booking here may exist:
-                    // hand the visitor the full "Chờ đánh giá" list instead of claiming
-                    // there is nothing to review.
-                    if (completed.meta.total > completed.length) {
-                        window.location.href = 'danh-gia-cua-toi.html';
-                        return;
-                    }
-                    OAK.toast(
-                        here.length
-                            ? 'Bạn đã đánh giá các lịch hẹn tại salon này rồi.'
-                            : 'Bạn cần hoàn tất một lịch hẹn tại salon này trước khi viết đánh giá.',
-                        'error',
-                    );
                 } catch (error) {
-                    OAK.toast(error.message, 'error');
+                    /* The gate is an extra; a failure leaves the explanation standing. */
                 }
             },
 
             async loadFavorite() {
-                if (!(await OAK.me())) {
-                    return;
+                try {
+                    if (!(await OAK.me())) {
+                        return;
+                    }
+                    const favorites = await OAK.api('/api/favorites');
+                    this.isFavorite = favorites.services.some((item) => item.id === this.service.id);
+                } catch (error) {
+                    /* The heart is an extra; failing to read it must not take the page down. */
                 }
-                const favorites = await OAK.api('/api/favorites');
-                this.isFavorite = favorites.services.some((item) => item.id === this.service.id);
             },
 
             async toggleFavorite() {

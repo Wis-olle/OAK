@@ -11,7 +11,6 @@
   "Để sau": "Later",
   "Chờ đánh giá": "Awaiting your review",
   "Đã đánh giá": "Reviewed",
-  "Đang tải đánh giá…": "Loading reviews…",
   "Bạn chưa có đánh giá nào. Sau mỗi buổi hẹn hoàn tất, hãy để lại vài dòng cảm nhận nhé.": "You haven't written any reviews yet. After each completed appointment, do leave a few words.",
   "Xem lịch hẹn của tôi": "View my appointments",
   "Rất tệ": "Terrible",
@@ -22,5 +21,7 @@
   "Bạn đã đánh giá lịch hẹn này rồi.": "You have already reviewed this appointment.",
   "Chỉ có thể đánh giá sau khi lịch hẹn đã hoàn tất.": "You can only leave a review once the appointment is completed.",
   "Vui lòng chọn số sao trước khi gửi.": "Please choose a star rating before submitting.",
-  "Cảm ơn bạn đã gửi đánh giá!": "Thank you for your review!"
+  "Cảm ơn bạn đã gửi đánh giá!": "Thank you for your review!",
+  "Không tải được đánh giá.": "We couldn't load your reviews.",
+  "Thử lại": "Try again"
 }

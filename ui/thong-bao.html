@@ -23,6 +23,7 @@
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <title>Thông báo - OAK Beauty</title>
+<meta content="noindex,nofollow" name="robots">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -31,7 +32,7 @@
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
 <!-- Main Content -->
-<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full flex gap-gutter" x-cloak="" x-data="oakNotifications()" x-show="user">
+<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full flex gap-gutter" x-data="oakNotifications()">
 <!-- AccountNav, desktop rail. Byte-for-byte the same on the six account pages;
      the page it sits on is the one carrying aria-current. -->
 <aside class="hidden md:block w-72 shrink-0 sticky top-28 self-start" data-oak-account-nav="">
@@ -66,7 +67,9 @@ Cài đặt
 <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-8 mb-8 border-b border-outline-variant/30 pb-4">
 <div>
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Thông báo</h1>
-<p class="font-body-md text-body-md text-on-surface-variant" x-text="unreadCount ? 'Bạn có ' + unreadCount + ' thông báo chưa đọc.' : 'Bạn đã đọc hết thông báo.'"></p>
+<!-- Nothing until the count is real: the heading now stands before the reply does, and
+     "Bạn đã đọc hết thông báo." would be a claim made about an inbox nobody has read yet. -->
+<p class="font-body-md text-body-md text-on-surface-variant" x-text="loading ? '' : (unreadCount ? 'Bạn có ' + unreadCount + ' thông báo chưa đọc.' : 'Bạn đã đọc hết thông báo.')"></p>
 </div>
 <button :disabled="!unreadCount" @click="markAllRead()" class="self-start md:self-auto border border-outline text-primary font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-surface-variant/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent" type="button">
                 Đánh dấu tất cả đã đọc
@@ -102,8 +105,30 @@ Cài đặt
 </a>
 </div>
 </nav>
+<!-- Rows at the size the real ones will be, so the page has a shape before the reply. -->
+<div aria-hidden="true" class="flex flex-col gap-3" x-show="loading">
+<template :key="row" x-for="row in 3">
+<div class="flex items-start gap-4 p-4 md:p-6 rounded-lg border border-outline-variant/20">
+<div class="w-12 h-12 shrink-0 rounded-full bg-surface-container animate-pulse"></div>
+<div class="flex-1 flex flex-col gap-3">
+<div class="h-5 w-1/2 rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-3/4 rounded bg-surface-container animate-pulse"></div>
+</div>
+</div>
+</template>
+</div>
+<!-- A reply that never came is not an empty inbox, and it has its own way forward. -->
+<template x-if="!loading &amp;&amp; error">
+<div class="flex flex-col items-start gap-3 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
+<div class="flex items-center gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-surface">Không tải được thông báo.</p>
+</div>
+<button @click="load()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+</div>
+</template>
 <!-- Notification list -->
-<div class="flex flex-col gap-3">
+<div class="flex flex-col gap-3" x-cloak="" x-show="user">
 <template :key="item.id" x-for="item in items">
 <div :class="rowClass(item)" class="w-full flex items-start gap-4 p-4 md:p-6 rounded-lg border transition-colors">
 <!-- The row itself only marks the notification read; the arrow beside it is what
@@ -131,8 +156,8 @@ Cài đặt
 </div>
 </template>
 </div>
-<!-- Empty state -->
-<div class="flex flex-col items-center text-center py-16" x-show="!loading &amp;&amp; !items.length">
+<!-- OAK-EMPTY -->
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center" x-cloak="" x-show="!loading &amp;&amp; !error &amp;&amp; !items.length">
 <span aria-hidden="true" class="material-symbols-outlined text-5xl text-outline mb-4 font-light" data-icon="notifications_off">notifications_off</span>
 <p class="font-headline-sm text-headline-sm text-primary mb-2">Chưa có thông báo nào</p>
 <p class="font-body-md text-body-md text-on-surface-variant mb-8">Đặt lịch đầu tiên của bạn để nhận nhắc hẹn và ưu đãi riêng từ OAK Beauty.</p>
@@ -151,8 +176,9 @@ Cài đặt
                     Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
                 </p>
 </div>
-<!-- Links Columns -->
-<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
@@ -162,25 +188,30 @@ Cài đặt
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
-</div>
-<!-- Social/Contact -->
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<div class="flex gap-4">
-<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
 </div>
 </div>
-</div>
-<!-- Copyright -->
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
 <span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -214,13 +245,22 @@ Cài đặt
             user: null,
             items: [],
             loading: true,
+            error: '',
 
             async init() {
                 this.user = await OAK.requireLogin();
+                await this.load();
+            },
+
+            /* Held on the page rather than shown for three seconds and dropped: an empty
+               inbox and an inbox that never arrived read the same otherwise. */
+            async load() {
+                this.loading = true;
+                this.error = '';
                 try {
                     this.items = await OAK.api('/api/notifications');
                 } catch (error) {
-                    OAK.toast(error.message, 'error');
+                    this.error = error.message;
                 } finally {
                     this.loading = false;
                 }

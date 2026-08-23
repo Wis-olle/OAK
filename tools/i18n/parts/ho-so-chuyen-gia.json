@@ -1,5 +1,4 @@
 {
-  "Hồ sơ chuyên gia - Minh Anh - OAK Beauty": "Specialist profile - Minh Anh - OAK Beauty",
   "Hồ sơ chuyên gia": "Specialist profile",
   "Không tìm thấy chuyên gia này.": "This specialist could not be found.",
   "Đặt lịch ngay": "Book now",
@@ -12,5 +11,17 @@
   "Chưa có lịch trống trong tuần này.": "No openings this week.",
   "Khách hàng nói gì": "What customers say",
   "Chưa có đánh giá cho chuyên gia này.": "No reviews for this specialist yet.",
-  "Hồ sơ chuyên viên làm đẹp trên OAK Beauty: thế mạnh nghề nghiệp, số năm kinh nghiệm, dịch vụ nhận thực hiện, đánh giá của khách và lịch trống để đặt.": "A beauty specialist on OAK Beauty: what they are best at, how long they have practised, the services they take, customer reviews and free hours."
+  "Hồ sơ chuyên viên làm đẹp trên OAK Beauty: thế mạnh nghề nghiệp, số năm kinh nghiệm, dịch vụ nhận thực hiện, đánh giá của khách và lịch trống để đặt.": "A beauty specialist on OAK Beauty: what they are best at, how long they have practised, the services they take, customer reviews and free hours.",
+  "Hồ sơ chuyên gia - OAK Beauty": "Specialist profile - OAK Beauty",
+  "Đang tải hồ sơ chuyên gia": "Loading the specialist profile",
+  "Chia sẻ": "Share",
+  "Làm việc tại": "Works at",
+  "Chọn dịch vụ": "Choose a service",
+  "Chọn dịch vụ ở bước sau để chốt giờ": "Choose a service in the next step to lock the time in",
+  "Đặt lịch với": "Book with",
+  "Thử lại": "Try again",
+  "Không tải được hồ sơ chuyên gia.": "We couldn't load this specialist profile.",
+  "Không tải được lịch trống.": "We couldn't load the open times.",
+  "Đã sao chép liên kết.": "Link copied.",
+  "Không sao chép được liên kết.": "We couldn't copy the link."
 }

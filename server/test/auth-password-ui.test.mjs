@@ -41,6 +41,9 @@ function factory(html, from, call, extra = {}) {
     document: { querySelector: () => ({ href: '' }) },
     // The settings page reads the language engine off `window`, which a fresh vm has none of.
     window: { OAKI18N: { lang: 'vi', set: (code) => context.langSet.push(code) } },
+    // Only dang-ky.html reads it, and only to pick up what the wizard left behind. A page
+    // given none meets the same ReferenceError a browser with site data blocked throws.
+    ...(extra.stash === undefined ? {} : { sessionStorage: { getItem: () => extra.stash } }),
     OAK: {
       api: extra.api,
       toast: (message, type) => context.toasts.push([message, type]),
@@ -65,6 +68,8 @@ const resetPage = (api, token) =>
   });
 const loginPage = (api) =>
   factory(loginHtml, 'const OAK_NEXT_PAGE =', 'oakCustomerLogin()', { api });
+const registerPage = (stash) =>
+  factory(registerHtml, 'var OAK_NEXT_PAGE =', 'oakRegister()', { stash });
 const settingsPage = (api) =>
   factory(settingsHtml, 'function oakSettings(', 'oakSettings()', { api });
 
@@ -277,6 +282,22 @@ test('sign-up hands the browser every field it can fill, and marks the optional 
     assert.match(registerHtml, pattern);
   }
   assert.match(registerHtml, /for="phone">Số điện thoại \(không bắt buộc\)<\/label>/);
+});
+
+test('sign-up starts from what the wizard already asked for, and survives having none', () => {
+  /* A guest who filled in the wizard's contact fields and was sent here to make an account
+     must not be asked for the same name and phone twice (WCAG 3.3.7). The wizard stashes
+     them under its own key on the way out and picks them up again on the way back, so this
+     page only reads: removing them here would empty the fields the visitor returns to. */
+  const filled = registerPage(JSON.stringify({ name: 'Ngọc Anh', phone: '0901234567' }));
+  assert.equal(filled.name, 'Ngọc Anh');
+  assert.equal(filled.phone, '0901234567');
+  assert.equal(filled.email, '');
+
+  // Nothing stashed, unreadable storage, and a browser that has none at all: all empty.
+  assert.equal(registerPage(null).name, '');
+  assert.equal(registerPage('not json').phone, '');
+  assert.equal(registerPage(undefined).name, '');
 });
 
 test('the consent line points at the two documents it names, in a new tab', () => {

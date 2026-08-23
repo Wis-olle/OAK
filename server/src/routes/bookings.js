@@ -1,7 +1,7 @@
 // Customer bookings: price quote, create, list, detail, cancel.
 import express from 'express';
 import { db } from '../db.js';
-import { getStaffSlots, isSalonOpenFor } from '../lib/availability.js';
+import { getStaffSlots, isSalonOpenFor, pickAvailableStaff } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
 import { notifyUser } from '../lib/notify.js';
 import { parsePagination } from '../lib/query.js';
@@ -415,6 +415,23 @@ router.post('/', async (req, res, next) => {
     try {
       await withBookingCode((generated) =>
         db.withTransaction(async (tx) => {
+          // "Bất kỳ" is a choice of nobody in particular, not a booking against nobody:
+          // the hour has to be held on somebody's calendar or the grid keeps offering it.
+          // Chosen in here, on this transaction, so the pick and the row it is written
+          // into cannot drift apart. idx_bookings_slot catches a second booking at the same
+          // (staff, date, time) and answers 409; two overlapping start times on one
+          // technician are not covered by any index — see pickAvailableStaff().
+          const assigned =
+            staffId ??
+            (await pickAvailableStaff(tx, salonId, serviceId, date, time, service.duration_min));
+          if (assigned === null) {
+            throw httpError(
+              409,
+              'SLOT_TAKEN',
+              'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.',
+            );
+          }
+
           const bookingId = Number(
             (
               await tx.run(
@@ -422,7 +439,7 @@ router.post('/', async (req, res, next) => {
                 req.user.id,
                 salonId,
                 serviceId,
-                staffId,
+                assigned,
                 generated,
                 date,
                 time,

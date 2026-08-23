@@ -264,6 +264,28 @@ async function login(email) {
   return { client, user: response.body.data.user };
 }
 
+/**
+ * The first free (date, time) for ONE service, scanning forward from tomorrow.
+ *
+ * Every booking now holds a technician, "Bất kỳ" included, so a hardcoded hour is only
+ * bookable by luck — the roster and the day of the week decide. Anything in this suite
+ * that needs a booking to succeed asks here for the hour to use.
+ */
+async function findServiceSlot(service, skip = []) {
+  const guest = session('guest');
+  for (let offset = 1; offset <= 7; offset += 1) {
+    const date = addDays(state.today, offset);
+    const response = await guest.fetch(`/api/services/${service.id}/availability?date=${date}`);
+    for (const slot of response.body?.data?.slots ?? []) {
+      const taken = skip.some((one) => one.date === date && one.time === slot.time);
+      if (slot.available && !taken) {
+        return { date, time: slot.time };
+      }
+    }
+  }
+  return null;
+}
+
 /** The first (service, date, time) triple that is genuinely bookable, scanning forward. */
 async function findBookableSlot(salonId) {
   const guest = session('guest');
@@ -685,6 +707,31 @@ async function groupStaff() {
   ok(reviewsResponse, 'GET /api/staff/:id/reviews');
   assert(typeof reviewsResponse.body.meta.average === 'number', 'staff reviews: expected meta.average', reviewsResponse);
   assert(typeof reviewsResponse.body.meta.total === 'number', 'staff reviews: expected meta.total', reviewsResponse);
+
+  // The specialist page's service chips resize the week grid, so they need this technician's
+  // own menu — not the salon's — and every field the chip and the deep link are built from.
+  const staffServicesResponse = await guest.fetch(`/api/staff/${state.staffId}/services`);
+  const staffServices = ok(staffServicesResponse, 'GET /api/staff/:id/services');
+  assert(staffServices.length > 0, 'staff services: expected a menu', staffServicesResponse);
+  for (const key of ['id', 'name', 'price', 'price_is_from', 'duration_min', 'category']) {
+    assert(key in staffServices[0], `staff services: item missing ${key}`, staffServicesResponse);
+  }
+  assert(
+    typeof staffServices[0].price_is_from === 'boolean',
+    'staff services: price_is_from must be a boolean',
+    staffServicesResponse,
+  );
+  assert(
+    staffServicesResponse.body.meta.total === staffServices.length,
+    'staff services: meta.total must match the page',
+    staffServicesResponse,
+  );
+  expectError(
+    await guest.fetch('/api/staff/999999/services'),
+    404,
+    'NOT_FOUND',
+    'GET /api/staff/:bogusId/services',
+  );
 }
 
 /* ============================================================================
@@ -869,6 +916,137 @@ async function groupSearch() {
     'suggestions: expected 3-5 chips',
     suggestionsResponse,
   );
+  // Each chip carries what it filters by, not only what it reads as: the label
+  // "Spa & Massage" matches no salon or service name, so as a keyword it lands on an
+  // empty page and as a category it lands on every spa.
+  assert(
+    suggestions.chips.every(
+      (chip) =>
+        typeof chip.label === 'string' &&
+        chip.label.length > 0 &&
+        (chip.type === 'category' || chip.type === 'district') &&
+        typeof chip.key === 'string' &&
+        chip.key.length > 0,
+    ),
+    'suggestions: every chip must carry {label, type, key}',
+    suggestionsResponse,
+  );
+  const categoryChip = suggestions.chips.find((chip) => chip.type === 'category');
+  assert(categoryChip !== undefined, 'suggestions: expected at least one category chip', suggestionsResponse);
+  const chipHitResponse = await guest.fetch(
+    `/api/search/salons?category=${encodeURIComponent(categoryChip.key)}`,
+  );
+  const chipHit = ok(chipHitResponse, 'GET /api/search/salons?category=<chip>');
+  assert(chipHit.length > 0, 'suggestions: a chip must lead to results, never an empty page', chipHitResponse);
+
+  /* The card carries the service the search matched, so the booking link can open the
+     wizard on it — and the "from" price is that service's price rather than the cheapest
+     thing in the salon, which on a nail search used to quote a facial. */
+  const BUDGET = 300000;
+  const nailResponse = await guest.fetch(`/api/search/salons?category=nail&price_max=${BUDGET}`);
+  const nails = ok(nailResponse, 'GET /api/search/salons?category=nail&price_max=300000');
+  assert(nails.length > 0, 'category+price: expected at least one salon', nailResponse);
+  for (const salon of nails) {
+    assert(
+      salon.matched_service !== null && salon.matched_service.category === 'nail',
+      'category+price: every card must carry the nail service it matched',
+      nailResponse,
+    );
+    assert(
+      salon.matched_service.price <= BUDGET,
+      'category+price: the matched nail service must be inside the budget',
+      nailResponse,
+    );
+    assert(
+      salon.price_from === salon.matched_service.price,
+      'category+price: price_from must quote the matched service',
+      nailResponse,
+    );
+    // The card and the map pin quote this number; without the label beside it they would
+    // word it as the salon's opening price, which it no longer is.
+    assert(
+      salon.price_from_label ===
+        `Nail từ ${String(salon.price_from).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`,
+      'category+price: price_from_label must name the category the price belongs to',
+      nailResponse,
+    );
+    assert(
+      Number.isInteger(salon.matched_service.id) && typeof salon.matched_service.name === 'string',
+      'category+price: matched_service needs the id the wizard opens on',
+      nailResponse,
+    );
+  }
+
+  // The budget belongs to the category asked for: a salon whose facials are inside it and
+  // whose nails are not is not an answer to "nail under 300.000đ".
+  const everySalonResponse = await guest.fetch('/api/salons?limit=50');
+  const everySalon = ok(everySalonResponse, 'GET /api/salons?limit=50');
+  let missedByCategory = 0;
+  for (const salon of everySalon) {
+    const servicesResponse = await guest.fetch(`/api/services?salon_id=${salon.id}&limit=50`);
+    const services = ok(servicesResponse, `GET /api/services?salon_id=${salon.id}`);
+    const cheapest = (rows) => rows.reduce((low, row) => Math.min(low, row.price), Infinity);
+    const cheapestNail = cheapest(services.filter((service) => service.category === 'nail'));
+    const cheapestElse = cheapest(
+      services.filter((service) => service.category !== 'nail' && service.category !== 'amenity'),
+    );
+    const listed = nails.some((item) => item.id === salon.id);
+    assert(
+      listed === (cheapestNail <= BUDGET),
+      `category+price: salon ${salon.id} is ${listed ? '' : 'not '}listed but its cheapest nail is ${cheapestNail}`,
+      nailResponse,
+    );
+    if (cheapestNail > BUDGET && cheapestElse <= BUDGET) {
+      missedByCategory += 1;
+    }
+  }
+  // Without one such salon the assertion above would hold on any implementation, including
+  // the one that read the budget against every category at once.
+  assert(
+    missedByCategory > 0,
+    'category+price: the seed must hold a salon that is inside the budget in another category',
+    everySalonResponse,
+  );
+
+  // A bare keyword cannot narrow the budget in SQL — the EXISTS there asks whether the salon
+  // sells anything cheap enough — so the JS pass has to hold it against the service the card
+  // goes on to quote. Without it "nail dưới 200.000đ" answers with a 450.000đ nail art.
+  const KEYWORD_BUDGET = 350000;
+  const keywordResponse = await guest.fetch(`/api/search/salons?q=massage&price_max=${KEYWORD_BUDGET}`);
+  const keyword = ok(keywordResponse, 'GET /api/search/salons?q=massage&price_max=350000');
+  assert(keyword.length > 0, 'keyword+price: expected at least one salon', keywordResponse);
+  for (const salon of keyword) {
+    assert(
+      salon.price_from <= KEYWORD_BUDGET,
+      `keyword+price: salon ${salon.id} quotes ${salon.price_from}, above the budget asked for`,
+      keywordResponse,
+    );
+  }
+  // Without a salon the budget drops, the loop above would hold on any implementation —
+  // including the one that read the budget against every category at once.
+  const keywordAllResponse = await guest.fetch('/api/search/salons?q=massage');
+  const keywordAll = ok(keywordAllResponse, 'GET /api/search/salons?q=massage');
+  assert(
+    keywordAll.length > keyword.length,
+    'keyword+price: the budget must drop a salon whose matched massage is over it',
+    keywordAllResponse,
+  );
+
+  // The second page of a search, which is what "Tải thêm" asks for.
+  const firstPageResponse = await guest.fetch('/api/search/salons?limit=2&page=1');
+  const firstPage = ok(firstPageResponse, 'GET /api/search/salons?limit=2&page=1');
+  const secondPageResponse = await guest.fetch('/api/search/salons?limit=2&page=2');
+  const secondPage = ok(secondPageResponse, 'GET /api/search/salons?limit=2&page=2');
+  assert(
+    firstPageResponse.body.meta.total === secondPageResponse.body.meta.total,
+    'paging: the total must not move between pages',
+    secondPageResponse,
+  );
+  assert(
+    firstPage.every((salon) => !secondPage.some((item) => item.id === salon.id)),
+    'paging: the second page must hold none of the first',
+    secondPageResponse,
+  );
 }
 
 /* ============================================================================
@@ -997,14 +1175,33 @@ async function groupBookings() {
 
   // Clamped to 23:59 so the booking is always less than the 2h window away, whatever
   // time of day the suite runs at — no clock-dependent SKIP is needed here.
+  //
+  // Booked on a slot that is genuinely free and MOVED onto that hour by the salon, not
+  // created on it: a customer booking now reserves a technician even when it names none,
+  // so an arbitrary minute of today — an hour nobody is rostered for, or a Sunday — is
+  // exactly what POST refuses. Only the salon may put a booking on such an hour.
   const now = new Date();
   const soon = hhmm(Math.min(now.getHours() * 60 + now.getMinutes() + 30, 23 * 60 + 59));
+  const imminentSlot = await findServiceSlot(service);
+  assert(imminentSlot !== null, 'cancel-window case: needed a free slot to book first');
   const imminent = ok(
     await customer.fetch('/api/bookings', {
       method: 'POST',
-      json: { salon_id: state.lalaId, service_id: service.id, date: state.today, time: soon },
+      json: {
+        salon_id: state.lalaId,
+        service_id: service.id,
+        date: imminentSlot.date,
+        time: imminentSlot.time,
+      },
     }),
-    'POST /api/bookings for today (cancel-window case)',
+    'POST /api/bookings (cancel-window case)',
+  );
+  ok(
+    await partner.fetch(`/api/partner/bookings/${imminent.id}`, {
+      method: 'PATCH',
+      json: { date: state.today, time: soon },
+    }),
+    'PATCH /api/partner/bookings/:id (move it inside the cancel window)',
   );
   expectError(
     await customer.fetch(`/api/bookings/${imminent.id}/cancel`, { method: 'PATCH' }),
@@ -1115,11 +1312,87 @@ async function groupBookings() {
     'booking a technician who does not perform the chosen service',
   );
 
-  // A booking that names no technician reaches no slot check at all, so the salon's own
-  // opening hours are the only thing standing between a customer and a closed day.
-  const hoursDate = addDays(state.today, 1);
+  // "Bất kỳ" — a booking that names no technician — still holds one. The slot is one
+  // where a known set of performers is free, so the number of anonymous bookings it can
+  // absorb is exactly the size of that set: each must land on a different person, the
+  // one past the set is refused, and naming somebody already assigned is refused too.
+  const anonGrids = [];
+  for (const performer of ok(
+    await guest.fetch(`/api/services/${chosen.service.id}/staff`),
+    'performers for the auto-assign check',
+  )) {
+    anonGrids.push({
+      performer,
+      week: ok(
+        await guest.fetch(
+          // Sized by the service actually being booked, not by the technician's longest
+          // one, so the free set here is the set pickAvailableStaff() chooses from.
+          `/api/staff/${performer.id}/availability?from=${addDays(state.today, 1)}&days=7` +
+            `&service_id=${chosen.service.id}`,
+        ),
+        `week grid for ${performer.name} (auto-assign)`,
+      ).week,
+    });
+  }
+  const anonSlot = findSharedSlot(anonGrids);
+  assert(
+    anonSlot !== null,
+    'auto-assign: needed an hour where at least two performers of one service are free',
+  );
+  const anonBody = {
+    salon_id: state.lalaId,
+    service_id: chosen.service.id,
+    date: anonSlot.date,
+    time: anonSlot.time,
+  };
+
+  const assigned = [];
+  for (const performer of anonSlot.performers) {
+    const response = await customer.fetch('/api/bookings', { method: 'POST', json: anonBody });
+    const anonymous = ok(response, `POST /api/bookings without a technician (${performer.name}'s turn)`);
+    assert(
+      anonymous.staff?.name,
+      'booking without a technician: the assigned technician must be named back',
+      response,
+    );
+    assert(
+      !assigned.includes(anonymous.staff.id),
+      'two "Bất kỳ" bookings at the same hour must land on different technicians',
+      response,
+    );
+    assigned.push(anonymous.staff.id);
+  }
+
+  expectError(
+    await customer.fetch('/api/bookings', { method: 'POST', json: anonBody }),
+    409,
+    'SLOT_TAKEN',
+    'a "Bất kỳ" booking once every free technician of that hour has been assigned',
+  );
+  expectError(
+    await customer.fetch('/api/bookings', {
+      method: 'POST',
+      json: { ...anonBody, staff_id: assigned[0] },
+    }),
+    409,
+    'SLOT_TAKEN',
+    'naming the technician a "Bất kỳ" booking was assigned to, at that same hour',
+  );
+
+  // A day the salon declared closed is refused before any calendar is consulted, and the
+  // message must say the salon is shut rather than that somebody took the hour. The slot
+  // is read off the grid while the day is still open, so the only thing that changes
+  // between the refusal and the control below it is the salon's own hours.
+  const openSlot = await findServiceSlot(service);
+  assert(openSlot !== null, 'opening-hours check: needed a free slot to close the day on');
+  const hoursDate = openSlot.date;
   const hoursWeekday = weekdayOf(hoursDate);
-  const walkIn = { salon_id: state.lalaId, service_id: service.id, date: hoursDate, time: '10:00' };
+  const walkIn = {
+    salon_id: state.lalaId,
+    service_id: service.id,
+    date: hoursDate,
+    time: openSlot.time,
+  };
 
   ok(
     await partner.fetch('/api/partner/salon', {
@@ -1160,7 +1433,6 @@ async function groupBookings() {
     }),
     'PATCH /api/partner/salon (an 08:00-14:00 window on that day)',
   );
-  const lastLegalStart = hhmm(14 * 60 - service.duration_min);
   expectError(
     await customer.fetch('/api/bookings', {
       method: 'POST',
@@ -1169,6 +1441,23 @@ async function groupBookings() {
     400,
     'VALIDATION_ERROR',
     'POST /api/bookings that would run one minute past closing',
+  );
+  // The last START the narrowed window offers, read off the grid rather than computed:
+  // a booking holds a technician even when it names none, so the hour has to be one the
+  // roster actually starts on. That it finishes by closing time is asserted here.
+  const closingGrid = ok(
+    await guest.fetch(`/api/services/${service.id}/availability?date=${hoursDate}`),
+    'GET /api/services/:id/availability inside the 08:00-14:00 window',
+  ).slots.filter((slot) => slot.available);
+  assert(
+    closingGrid.length > 0,
+    'closing-time check: the narrowed window must still offer a bookable slot',
+  );
+  const lastLegalStart = closingGrid[closingGrid.length - 1].time;
+  assert(
+    Number(lastLegalStart.slice(0, 2)) * 60 + Number(lastLegalStart.slice(3)) +
+      service.duration_min <= 14 * 60,
+    'closing-time check: the last slot offered must still finish by closing time',
   );
   const untilClosing = ok(
     await customer.fetch('/api/bookings', {
@@ -1184,10 +1473,12 @@ async function groupBookings() {
 
   // The salon owner is told about what the customer does, because nothing moves a booking
   // off 'pending' until somebody there looks at it.
+  const ownerSlot = await findServiceSlot(service);
+  assert(ownerSlot !== null, 'owner-notification case: needed a free slot');
   const ownerBooking = ok(
     await customer.fetch('/api/bookings', {
       method: 'POST',
-      json: { salon_id: state.lalaId, service_id: service.id, date: addDays(state.today, 3), time: '09:30' },
+      json: { salon_id: state.lalaId, service_id: service.id, ...ownerSlot },
     }),
     'POST /api/bookings (the owner-notification case)',
   );
@@ -1213,11 +1504,15 @@ async function groupBookings() {
   // move a booking, so that is how the day gets put behind these two.
   const yesterday = addDays(state.today, -1);
   const stranded = {};
-  for (const [kind, time] of [['confirmed', '08:15'], ['pending', '08:45']]) {
+  const strandedSlots = [];
+  for (const kind of ['confirmed', 'pending']) {
+    const slot = await findServiceSlot(service, strandedSlots);
+    assert(slot !== null, `stranded-${kind} case: needed a free slot`);
+    strandedSlots.push(slot);
     const booking = ok(
       await customer.fetch('/api/bookings', {
         method: 'POST',
-        json: { salon_id: state.lalaId, service_id: service.id, date: addDays(state.today, 2), time },
+        json: { salon_id: state.lalaId, service_id: service.id, ...slot },
       }),
       `POST /api/bookings for the stranded-${kind} case`,
     );
@@ -1325,6 +1620,57 @@ async function groupReviews() {
     mineResponse,
   );
   assert('name' in mine[0].salon, 'reviews/mine: expected a nested salon block', mineResponse);
+
+  // The salon page draws its distribution bars against every review of the salon while the
+  // list below them is filtered, so the scale (all_total, average, breakdown) must not move
+  // when a star is pressed — only meta.total and the rows do.
+  const salonId = target.salon.id;
+  const allResponse = await customer.fetch(`/api/salons/${salonId}/reviews`);
+  const all = ok(allResponse, 'GET /api/salons/:id/reviews (unfiltered)');
+  const allMeta = allResponse.body.meta;
+  assert(typeof allMeta.all_total === 'number', 'salon reviews: expected meta.all_total', allResponse);
+  assert(allMeta.all_total === allMeta.total, 'salon reviews: unfiltered all_total must equal total', allResponse);
+  assert(
+    all.every((review) => 'service_name' in review),
+    'salon reviews: every row must carry service_name',
+    allResponse,
+  );
+
+  const fiveResponse = await customer.fetch(`/api/salons/${salonId}/reviews?rating=5`);
+  const five = ok(fiveResponse, 'GET /api/salons/:id/reviews?rating=5');
+  const fiveMeta = fiveResponse.body.meta;
+  assert(five.length > 0, 'salon reviews?rating=5: expected the review just created', fiveResponse);
+  assert(five.every((review) => review.rating === 5), 'salon reviews?rating=5: expected only 5s', fiveResponse);
+  assert(
+    fiveMeta.total === allMeta.breakdown['5'],
+    'salon reviews?rating=5: meta.total must equal breakdown["5"]',
+    fiveResponse,
+  );
+  assert(fiveMeta.all_total === allMeta.all_total, 'salon reviews?rating=5: all_total must not move', fiveResponse);
+  assert(fiveMeta.average === allMeta.average, 'salon reviews?rating=5: average must not move', fiveResponse);
+  assert(
+    JSON.stringify(fiveMeta.breakdown) === JSON.stringify(allMeta.breakdown),
+    'salon reviews?rating=5: breakdown must not move',
+    fiveResponse,
+  );
+
+  const lowestResponse = await customer.fetch(`/api/salons/${salonId}/reviews?sort=lowest`);
+  const lowest = ok(lowestResponse, 'GET /api/salons/:id/reviews?sort=lowest');
+  assert(
+    lowest.every((review, index) => index === 0 || lowest[index - 1].rating <= review.rating),
+    'salon reviews?sort=lowest: ratings must not decrease',
+    lowestResponse,
+  );
+
+  // A value the <select> never offers is ignored rather than obeyed or refused.
+  const bogusResponse = await customer.fetch(`/api/salons/${salonId}/reviews?rating=abc&sort=bogus`);
+  const bogus = ok(bogusResponse, 'GET /api/salons/:id/reviews?rating=abc&sort=bogus');
+  assert(bogus.length === all.length, 'salon reviews: rubbish parameters must be ignored', bogusResponse);
+  assert(
+    bogusResponse.body.meta.total === allMeta.total,
+    'salon reviews: rubbish parameters must not narrow meta.total',
+    bogusResponse,
+  );
 }
 
 /* ============================================================================

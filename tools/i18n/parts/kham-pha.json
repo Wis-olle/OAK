@@ -1,5 +1,4 @@
 {
-  "Khám phá - OAK Beauty": "Explore - OAK Beauty",
   "Chạm đến": "Reach for",
   "vẻ đẹp tự nhiên": "natural beauty",
   "Tìm kiếm salon và dịch vụ": "Search salons and services",
@@ -8,11 +7,14 @@
   "Khu vực": "Area",
   "Thời gian": "Time",
   "Thời gian bất kỳ": "Any time",
+  "Gần tôi": "Near me",
   "Hôm nay": "Today",
+  "Hôm nay · đang mở cửa": "Today · open now",
   "Ngày mai": "Tomorrow",
   "Đang mở cửa": "Open now",
   "Hỏi Trợ lý AI": "Ask the AI Assistant",
   "Gợi ý:": "Suggestions:",
+  "Gần đây:": "Recent:",
   "Người mẫu trong khung oval trên nền hồng phấn với cánh hoa hồng rơi": "Model in an oval frame on a blush pink background with falling rose petals",
   "Danh mục dịch vụ": "Service categories",
   "Nail": "Nails",
@@ -35,5 +37,6 @@
   "Salon mới tham gia": "Newly joined salons",
   "Chưa có salon mới.": "No new salons yet.",
   "Chưa có đánh giá": "No reviews yet",
-  "Đặt lịch nail, tóc, chăm sóc da, spa và nối mi tại các salon ở TP.HCM. Giá và thời lượng niêm yết công khai, đánh giá chỉ đến từ lịch hẹn đã hoàn tất.": "Book nails, hair, skincare, spa and eyelash appointments at salons in Ho Chi Minh City. Prices and durations are listed openly, and reviews come only from appointments that were completed."
+  "Đặt lịch nail, tóc, chăm sóc da, spa và nối mi tại các salon ở TP.HCM. Giá và thời lượng niêm yết công khai, đánh giá chỉ đến từ lịch hẹn đã hoàn tất.": "Book nails, hair, skincare, spa and eyelash appointments at salons in Ho Chi Minh City. Prices and durations are listed openly, and reviews come only from appointments that were completed.",
+  "OAK Beauty – Đặt lịch nail, tóc, spa, nối mi tại TP.HCM": "OAK Beauty – Book nails, hair, spa and lash appointments in Ho Chi Minh City"
 }

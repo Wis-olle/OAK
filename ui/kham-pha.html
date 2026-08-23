@@ -22,6 +22,8 @@
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
+<!-- '/' and kham-pha.html serve the same bytes; this names the one in sitemap.xml. -->
+<link href="https://oakbeauty.vn/" rel="canonical">
 <style>
         /* Hero search segments (this page only). @tailwindcss/forms dresses inputs and selects
            through [type=text] and element rules that the built stylesheet loads after this
@@ -216,15 +218,55 @@
             100% { opacity: 0; transform: scale(3.2); }
         }
     </style>
-<title>Khám phá - OAK Beauty</title>
+<title>OAK Beauty – Đặt lịch nail, tóc, spa, nối mi tại TP.HCM</title>
 <meta content="Đặt lịch nail, tóc, chăm sóc da, spa và nối mi tại các salon ở TP.HCM. Giá và thời lượng niêm yết công khai, đánh giá chỉ đến từ lịch hẹn đã hoàn tất." name="description">
-<meta content="Khám phá - OAK Beauty" property="og:title">
+<meta content="OAK Beauty – Đặt lịch nail, tóc, spa, nối mi tại TP.HCM" property="og:title">
 <meta content="Đặt lịch nail, tóc, chăm sóc da, spa và nối mi tại các salon ở TP.HCM. Giá và thời lượng niêm yết công khai, đánh giá chỉ đến từ lịch hẹn đã hoàn tất." property="og:description">
 <meta content="website" property="og:type">
 <!-- og:image has no host in front of it: this build knows no domain of its own. -->
 <meta content="assets/images/hero-banner.webp" property="og:image">
 
 
+<!-- Static structured data for the home page. Nothing here is queried, so it cannot fall
+     out of step with the database; the SearchAction names the same ?q= the results page reads. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://oakbeauty.vn/#organization",
+      "name": "OAK Beauty",
+      "url": "https://oakbeauty.vn/",
+      "email": "hello@oakbeauty.vn",
+      "telephone": "1900 6035",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Tầng 8, 72 Lê Thánh Tôn",
+        "addressLocality": "Phường Bến Nghé, Quận 1",
+        "addressRegion": "TP.HCM",
+        "addressCountry": "VN"
+      }
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://oakbeauty.vn/#website",
+      "url": "https://oakbeauty.vn/",
+      "name": "OAK Beauty",
+      "inLanguage": "vi-VN",
+      "publisher": { "@id": "https://oakbeauty.vn/#organization" },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://oakbeauty.vn/ket-qua-tim-kiem.html?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+  ]
+}
+</script>
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -255,7 +297,7 @@
 <form @submit.prevent="submit()" aria-label="Tìm kiếm salon và dịch vụ" class="oak-search-bar mb-3 flex flex-col p-2 bg-surface-container-lowest border border-outline-variant/50 rounded-3xl shadow-[0_6px_24px_rgba(23,24,24,0.10)] xl:flex-row xl:items-center xl:min-h-[64px] xl:rounded-[9999px]" role="search">
 <div class="flex items-center gap-2 px-3 min-h-[48px] xl:flex-1 xl:min-w-0">
 <span aria-hidden="true" class="material-symbols-outlined shrink-0 text-[20px] text-on-surface-variant" data-icon="search">search</span>
-<input aria-label="Tìm kiếm dịch vụ hoặc salon" class="oak-search-field min-w-0 font-body-md text-body-md text-primary placeholder:text-on-surface-variant/50" placeholder="Dịch vụ, salon…" type="text" x-model="q" x-ref="service">
+<input aria-label="Tìm kiếm dịch vụ hoặc salon" autocomplete="off" class="oak-search-field min-w-0 font-body-md text-body-md text-primary placeholder:text-on-surface-variant/50" enterkeyhint="search" placeholder="Dịch vụ, salon…" type="text" x-model="q">
 </div>
 <div class="h-px mx-3 shrink-0 bg-outline-variant/30 xl:mx-0 xl:h-8 xl:w-px"></div>
 <!-- Fixed width from xl: the options arrive from the network, so anything content-sized
@@ -264,6 +306,8 @@
 <span aria-hidden="true" class="material-symbols-outlined shrink-0 text-[20px] text-on-surface-variant" data-icon="location_on">location_on</span>
 <select aria-label="Khu vực" class="oak-search-field min-w-0 font-body-md text-body-md text-primary" x-model="district">
 <option value="">Tất cả khu vực</option>
+<!-- Not a district: the search asks the browser where you are and goes with coordinates. -->
+<option value="near">Gần tôi</option>
 <template :key="name" x-for="name in districts">
 <option :value="name" x-text="name"></option>
 </template>
@@ -275,6 +319,8 @@
 <select aria-label="Thời gian" class="oak-search-field min-w-0 font-body-md text-body-md text-primary" x-model="when">
 <option value="">Thời gian bất kỳ</option>
 <option value="today">Hôm nay</option>
+<!-- The walk-in combination, which the two options apart could not express. -->
+<option value="today_open">Hôm nay · đang mở cửa</option>
 <option value="tomorrow">Ngày mai</option>
 <option value="open_now">Đang mở cửa</option>
 </select>
@@ -283,10 +329,21 @@
 </form>
 <a :href="assistantUrl" class="font-label-md text-label-md text-primary hover:text-secondary underline underline-offset-4 transition-colors" href="tim-kiem-thong-minh.html">Hỏi Trợ lý AI</a>
 <!-- Search Suggestions -->
+<!-- Each chip is a link to the results it stands for, not a word to paste into the box:
+     "Spa & Massage" is a category no salon is named after, so as a keyword it landed on an
+     empty page. Whatever the two pickers hold rides along, so a chip narrows the search
+     being set up rather than starting a new one. -->
 <div class="flex flex-wrap gap-3 mt-8" x-cloak="" x-show="chips.length">
 <span class="font-caption text-caption text-on-surface-variant uppercase tracking-widest mr-2 py-2">Gợi ý:</span>
-<template :key="chip" x-for="chip in chips">
-<button @click="fill(chip)" class="bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary inline-flex items-center min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-all duration-300" type="button" x-text="chip"></button>
+<template :key="chip.key" x-for="chip in chips">
+<a :href="chipUrl(chip)" class="bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary inline-flex items-center min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-all duration-300" style="text-decoration:none" x-text="chip.label"></a>
+</template>
+</div>
+<!-- What was searched for last, from this browser only. -->
+<div class="flex flex-wrap gap-3 mt-4" x-cloak="" x-show="recent.length">
+<span class="font-caption text-caption text-on-surface-variant uppercase tracking-widest mr-2 py-2">Gần đây:</span>
+<template :key="keyword" x-for="keyword in recent">
+<a :href="'ket-qua-tim-kiem.html?q=' + encodeURIComponent(keyword)" class="bg-surface-container-low text-on-surface-variant hover:bg-tertiary hover:text-on-tertiary inline-flex items-center min-h-[44px] px-4 py-2 rounded-full font-label-md text-label-md transition-all duration-300" style="text-decoration:none" x-text="keyword"></a>
 </template>
 </div>
 </div>
@@ -541,8 +598,9 @@
                     Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
                 </p>
 </div>
-<!-- Links Columns -->
-<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
@@ -552,39 +610,67 @@
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
-</div>
-<!-- Social/Contact -->
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<div class="flex gap-4">
-<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
 </div>
 </div>
-</div>
-<!-- Copyright -->
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
 <span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
 <script>
     /* Inline scripts run before deferred ones, so these factories exist by the time Alpine boots. */
     function oakSearchBox() {
+        /* The area picker's one entry that is not an area. */
+        var NEAR = 'near';
+        /* Where the last few keywords are kept. One browser, one reader: never sent anywhere. */
+        var RECENT_KEY = 'oak_recent';
+        var RECENT_MAX = 5;
+        /* Close enough to walk, and the results page already understands all four keys. */
+        var NEAR_RADIUS_KM = 3;
+
+        /* Storage throws outright in a locked-down browser, so every touch of it is guarded
+           and a failure simply means this browser remembers nothing. */
+        function readRecent() {
+            try {
+                var saved = JSON.parse(localStorage.getItem(RECENT_KEY));
+                return Array.isArray(saved)
+                    ? saved.filter(function (item) { return typeof item === 'string'; }).slice(0, RECENT_MAX)
+                    : [];
+            } catch (error) {
+                return [];
+            }
+        }
+
         return {
             q: '',
             district: '',
             when: '',
             districts: [],
             chips: [],
+            recent: [],
 
             async init() {
+                this.recent = readRecent();
                 /* Started ahead of the chips rather than behind them: the two answers are
                    independent, so the requests travel at once. It carries its own fallback
                    list, so it never rejects. */
@@ -616,17 +702,42 @@
                     + String(day.getDate()).padStart(2, '0');
             },
 
-            submit() {
+            /* Everything the two pickers hold, which is also what a suggestion chip inherits. */
+            criteria() {
                 const params = new URLSearchParams();
-                const query = this.q.trim();
-                if (query) { params.set('q', query); }
-                if (this.district) { params.set('district', this.district); }
+                if (this.district && this.district !== NEAR) { params.set('district', this.district); }
                 if (this.when === 'open_now') {
+                    params.set('open_now', '1');
+                } else if (this.when === 'today_open') {
+                    /* The walk-in pair: a day and a door that is open, together. */
+                    params.set('date', this.isoDate(0));
                     params.set('open_now', '1');
                 } else if (this.when) {
                     params.set('date', this.isoDate(this.when === 'tomorrow' ? 1 : 0));
                 }
-                const search = params.toString();
+                return params;
+            },
+
+            /* A chip is one criterion of its own on top of those, in the key the search
+               filters by — the label is only what it reads as. */
+            chipUrl(chip) {
+                const params = this.criteria();
+                params.set(chip.type === 'category' ? 'category' : 'district', chip.key);
+                return 'ket-qua-tim-kiem.html?' + params;
+            },
+
+            submit() {
+                /* The keyword leads the address bar, as it did before the pickers had a
+                   builder of their own to share with the chips. */
+                const params = new URLSearchParams();
+                const query = this.q.trim();
+                if (query) {
+                    params.set('q', query);
+                    this.remember(query);
+                }
+                this.criteria().forEach(function (value, key) {
+                    params.set(key, value);
+                });
                 /* The top of the funnel: a search that was actually asked for. The keyword
                    itself is never sent — it is what somebody typed. Guarded, because a
                    cached page can meet an oak-api.js that has no track(), and measurement
@@ -634,13 +745,53 @@
                 if (typeof OAK.track === 'function') {
                     OAK.track('search_submit');
                 }
+                if (this.district === NEAR) {
+                    this.goNearby(params);
+                    return;
+                }
+                this.go(params);
+            },
+
+            /* "Gần tôi" is only a search once the browser has answered — and a refusal must
+               still search, from every area, rather than leave the press doing nothing. */
+            goNearby(params) {
+                if (!navigator.geolocation) {
+                    OAK.toast('Trình duyệt của bạn không hỗ trợ định vị.', 'error');
+                    this.go(params);
+                    return;
+                }
+                const self = this;
+                navigator.geolocation.getCurrentPosition(
+                    function (position) {
+                        params.set('lat', position.coords.latitude);
+                        params.set('lng', position.coords.longitude);
+                        params.set('radius_km', NEAR_RADIUS_KM);
+                        params.set('sort', 'distance');
+                        self.go(params);
+                    },
+                    function () {
+                        OAK.toast('Không lấy được vị trí của bạn.', 'error');
+                        self.go(params);
+                    },
+                );
+            },
+
+            go(params) {
+                const search = params.toString();
                 location.href = 'ket-qua-tim-kiem.html' + (search ? '?' + search : '');
             },
 
-            /* A suggestion is a starting point to edit, not a search of its own. */
-            fill(chip) {
-                this.q = chip;
-                this.$refs.service.focus();
+            /* Newest first, no duplicates, and the oldest falls off the end. */
+            remember(query) {
+                const list = [query].concat(this.recent.filter(function (item) {
+                    return item !== query;
+                })).slice(0, RECENT_MAX);
+                this.recent = list;
+                try {
+                    localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+                } catch (error) {
+                    /* nothing is remembered in this browser, which is not worth a message */
+                }
             },
         };
     }

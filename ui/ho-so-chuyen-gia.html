@@ -20,9 +20,9 @@
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
-<title>Hồ sơ chuyên gia - Minh Anh - OAK Beauty</title>
+<title>Hồ sơ chuyên gia - OAK Beauty</title>
 <meta content="Hồ sơ chuyên viên làm đẹp trên OAK Beauty: thế mạnh nghề nghiệp, số năm kinh nghiệm, dịch vụ nhận thực hiện, đánh giá của khách và lịch trống để đặt." name="description">
-<meta content="Hồ sơ chuyên gia - Minh Anh - OAK Beauty" property="og:title">
+<meta content="Hồ sơ chuyên gia - OAK Beauty" property="og:title">
 <meta content="Hồ sơ chuyên viên làm đẹp trên OAK Beauty: thế mạnh nghề nghiệp, số năm kinh nghiệm, dịch vụ nhận thực hiện, đánh giá của khách và lịch trống để đặt." property="og:description">
 <meta content="website" property="og:type">
 <!-- og:image has no host in front of it: this build knows no domain of its own. -->
@@ -35,8 +35,32 @@
 <header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
 <script src="assets/js/oak-header.js"></script>
 <main class="pt-24 pb-section-gap min-h-screen max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop" x-data="oakStaffProfile()">
+<!-- The whole page lived inside x-if="staff", so a slow load showed a header, a footer and
+     nothing between them. This is the shape the real hero lands in. -->
+<template x-if="loading &amp;&amp; !staff">
+<div aria-label="Đang tải hồ sơ chuyên gia" class="grid grid-cols-1 md:grid-cols-12 gap-gutter mt-12 items-center animate-pulse" role="status">
+<div aria-hidden="true" class="md:col-span-5 order-2 md:order-1 flex flex-col gap-6">
+<div class="h-8 w-1/2 rounded-full bg-surface-variant"></div>
+<div class="h-12 w-2/3 rounded-lg bg-surface-variant"></div>
+<div class="h-4 w-full rounded bg-surface-variant"></div>
+<div class="h-4 w-5/6 rounded bg-surface-variant"></div>
+<div class="h-12 w-32 rounded-full bg-surface-variant mt-4"></div>
+</div>
+<div aria-hidden="true" class="md:col-span-7 order-1 md:order-2 flex justify-center md:justify-end">
+<div class="w-full max-w-md aspect-square md:aspect-[3/4] rounded-lg bg-surface-variant"></div>
+</div>
+</div>
+</template>
 <template x-if="!loading &amp;&amp; !staff">
-<p class="mt-12 font-body-md text-body-md text-on-surface-variant">Không tìm thấy chuyên gia này.</p>
+<div class="mt-12">
+<!-- A failed request is not a missing specialist: only a 404 says the profile is not there,
+     and everything else is worth a second try rather than a dead end. -->
+<div class="flex flex-wrap items-center gap-4" x-show="loadError">
+<p class="font-body-md text-body-md text-error" x-text="loadError"></p>
+<button @click="init()" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" type="button">Thử lại</button>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loadError">Không tìm thấy chuyên gia này.</p>
+</div>
 </template>
 <template x-if="staff">
 <div>
@@ -47,7 +71,19 @@
 <span class="inline-block px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant font-caption text-caption rounded-full" x-text="staff.title"></span>
 <span class="inline-block px-3 py-1 bg-surface-variant text-on-surface-variant font-caption text-caption rounded-full" x-show="staff.years_experience" x-text="staff.years_experience + ' năm kinh nghiệm'"></span>
 </div>
+<div class="flex flex-wrap items-center gap-3">
 <h1 class="font-display-lg text-display-lg md:font-display-lg md:text-display-lg text-on-background" x-text="staff.name"></h1>
+<button @click="share()" aria-label="Chia sẻ" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-full border border-outline-variant/30 text-primary hover:bg-surface-container-low transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined">share</span>
+</button>
+</div>
+<!-- staff.salon arrived with the payload all along and only fed the booking link; a reader
+     could not tell where this person works. -->
+<p class="flex items-center gap-2 font-body-md text-body-md text-on-surface-variant">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">storefront</span>
+<span>Làm việc tại</span>
+<a :href="'salon-profile.html?salon=' + encodeURIComponent(staff.salon.slug)" class="text-primary hover:underline" x-text="staff.salon.name"></a>
+</p>
 <p class="font-body-lg text-body-lg text-on-surface-variant max-w-lg" x-text="staff.bio"></p>
 <div class="flex flex-wrap gap-3 mt-4">
 <template :key="tag" x-for="tag in specialties()">
@@ -60,7 +96,8 @@
 </div>
 </div>
 <div class="md:col-span-7 order-1 md:order-2 flex justify-center md:justify-end">
-<div class="relative w-full max-w-md aspect-[3/4] bg-surface-container-highest overflow-hidden rounded-lg">
+<!-- A 3/4 portrait pushed the name, the salon and the button off a phone's first screen. -->
+<div class="relative w-full max-w-md aspect-square md:aspect-[3/4] bg-surface-container-highest overflow-hidden rounded-lg">
 <img :alt="staff.name" :src="staff.image" class="w-full h-full object-cover grayscale-[20%] hover:grayscale-0 transition-all duration-700">
 </div>
 </div>
@@ -84,14 +121,14 @@
 </div>
 </section>
 <!-- Portfolio lightbox -->
-<div @click.self="lightbox = false" @keydown.arrow-left.window="lightbox &amp;&amp; stepLightbox(-1)" @keydown.arrow-right.window="lightbox &amp;&amp; stepLightbox(1)" @keydown.escape.window="lightbox = false" class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center gap-4 px-16 py-20" x-cloak="" x-show="lightbox">
+<div @click.self="lightbox = false" @keydown.arrow-left.window="lightbox &amp;&amp; stepLightbox(-1)" @keydown.arrow-right.window="lightbox &amp;&amp; stepLightbox(1)" @keydown.escape.window="lightbox = false" class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center gap-4 px-4 py-16 md:px-16 md:py-20" x-cloak="" x-show="lightbox">
 <button @click="lightbox = false" aria-label="Đóng" class="absolute top-6 right-6 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button">
 <span class="material-symbols-outlined">close</span>
 </button>
 <button @click="stepLightbox(-1)" aria-label="Ảnh trước" class="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="staff.portfolio.length &gt; 1">
 <span class="material-symbols-outlined">chevron_left</span>
 </button>
-<img loading="lazy" :alt="staff.name" :src="staff.portfolio[lightboxIndex]" class="max-h-[75vh] max-w-full object-contain rounded-lg">
+<img loading="lazy" :alt="staff.name" :src="staff.portfolio[lightboxIndex]" class="max-h-[80vh] max-w-full object-contain rounded-lg">
 <p class="font-body-md text-body-md text-white text-center" x-text="staff.name"></p>
 <p class="font-caption text-caption text-white/60" x-show="staff.portfolio.length &gt; 1" x-text="(lightboxIndex + 1) + ' / ' + staff.portfolio.length"></p>
 <button @click="stepLightbox(1)" aria-label="Ảnh sau" class="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors" type="button" x-show="staff.portfolio.length &gt; 1">
@@ -103,8 +140,29 @@
 <!-- Booking Calendar -->
 <div class="bg-surface-container-low p-8 rounded-xl border border-outline-variant/20 shadow-sm">
 <h3 class="font-headline-md text-headline-md mb-6 border-b border-outline-variant/30 pb-4">Lịch trống tuần này</h3>
+<!-- Without a service the grid is sized by this technician's longest one, so an hour picked
+     here can turn out not to fit the service chosen later in the wizard. Choosing it here
+     resizes the grid and carries the choice through. -->
+<div class="mb-6 flex flex-col gap-3" x-show="services.length">
+<p class="font-label-md text-label-md text-on-surface-variant">Chọn dịch vụ</p>
+<div class="flex flex-wrap gap-2">
+<template :key="option.id" x-for="option in services">
+<button :class="serviceId === option.id ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" @click="pickService(option.id)" class="min-h-[44px] px-4 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button" x-text="option.name"></button>
+</template>
+</div>
+</div>
+<p class="font-caption text-caption text-on-surface-variant mb-6" x-show="!serviceId &amp;&amp; time">Chọn dịch vụ ở bước sau để chốt giờ</p>
 <div class="flex flex-col gap-6">
-<template x-if="!workingDays().length">
+<div aria-hidden="true" class="flex flex-wrap gap-2" x-show="weekLoading">
+<template :key="row" x-for="row in 6">
+<div class="h-10 w-24 rounded-full bg-surface-container animate-pulse"></div>
+</template>
+</div>
+<div class="flex flex-wrap items-center gap-4" x-show="weekError">
+<p class="font-body-md text-body-md text-error" x-text="weekError"></p>
+<button :disabled="weekLoading" @click="loadWeek()" class="border border-outline-variant text-on-surface font-label-md text-label-md uppercase tracking-wider px-5 py-2 rounded-full disabled:opacity-60" type="button">Thử lại</button>
+</div>
+<template x-if="!weekLoading &amp;&amp; !weekError &amp;&amp; !workingDays().length">
 <p class="font-body-md text-body-md text-on-surface-variant">Chưa có lịch trống trong tuần này.</p>
 </template>
 <template :key="day.date" x-for="day in workingDays()">
@@ -147,6 +205,14 @@
 <button @click="loadMoreReviews()" class="self-start font-label-md text-label-md uppercase tracking-[0.05em] text-on-surface border-b border-on-surface pb-1 hover:text-primary hover:border-primary transition-colors" type="button" x-show="reviews.length &lt; reviewMeta.total" x-text="'Xem tất cả ' + reviewMeta.total + ' đánh giá'"></button>
 </div>
 </section>
+<!-- The two other pages of this path carry one; this page's only button sat above a
+     portfolio and a week grid, out of reach by the time either had been read. -->
+<div class="fixed bottom-0 inset-x-0 z-40 md:hidden flex items-center justify-between gap-4 border-t border-outline-variant/30 bg-surface-container-low px-margin-mobile py-3" data-oak-sticky-cta>
+<span class="font-caption text-caption text-on-surface-variant truncate" x-text="staff.salon.name"></span>
+<a :href="bookingUrl()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 px-6 min-h-[44px] ml-auto flex items-center justify-center" style="text-decoration:none">
+<span>Đặt lịch với</span> <span x-text="staff.name"></span>
+</a>
+</div>
 </div>
 </template>
 </main>
@@ -161,8 +227,9 @@
                     Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
                 </p>
 </div>
-<!-- Links Columns -->
-<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
@@ -172,28 +239,34 @@
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
-</div>
-<!-- Social/Contact -->
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<div class="flex gap-4">
-<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
 </div>
 </div>
-</div>
-<!-- Copyright -->
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
 <span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
+<div aria-hidden="true" class="h-20 md:hidden bg-tertiary"></div>
 <script>
     /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
 
@@ -208,6 +281,11 @@
             filled: "font-variation-settings: 'FILL' 1;",
             staff: null,
             week: [],
+            services: [],
+            serviceId: null,
+            weekLoading: false,
+            weekError: '',
+            weekToken: 0,
             reviews: [],
             reviewMeta: { total: 0, average: 0 },
             reviewPage: 1,
@@ -216,17 +294,24 @@
             lightbox: false,
             lightboxIndex: 0,
             loading: true,
+            loadError: '',
 
             async init() {
+                this.loading = true;
+                this.loadError = '';
                 try {
                     const id = await this.resolveId();
-                    const [profile, availability, reviews] = await Promise.all([
+                    const [profile, availability, reviews, services] = await Promise.all([
                         OAK.api('/api/staff/' + id),
                         OAK.api('/api/staff/' + id + '/availability?from=' + oakTodayISO() + '&days=7'),
                         OAK.api('/api/staff/' + id + '/reviews'),
+                        /* The service chips are an extra: a slow or failing read hides the
+                           row, it must never replace a profile that loaded with an error. */
+                        OAK.api('/api/staff/' + id + '/services').catch(() => []),
                     ]);
 
                     this.staff = profile;
+                    this.services = services;
                     /* The title is assembled around a name, so it can never be a dictionary
                        key of its own — only the wording in front of the name can be. */
                     const prefix = 'Hồ sơ chuyên gia';
@@ -240,7 +325,12 @@
                     this.reviews = reviews;
                     this.reviewMeta = { total: reviews.meta.total, average: reviews.meta.average };
                 } catch (error) {
-                    OAK.toast(error.message, 'error');
+                    /* A 404 is the only answer that means "no such specialist"; a cold server
+                       or a dropped connection used to read as one and offered no way back. */
+                    this.staff = null;
+                    this.loadError = error.code === 'NOT_FOUND'
+                        ? ''
+                        : 'Không tải được hồ sơ chuyên gia.';
                 } finally {
                     this.loading = false;
                 }
@@ -255,9 +345,72 @@
                 const [salon] = await OAK.api('/api/salons?flagship=1&limit=1');
                 const staff = salon ? await OAK.api('/api/salons/' + salon.id + '/staff') : [];
                 if (!staff.length) {
-                    throw new Error('Không tìm thấy chuyên gia này.');
+                    /* Same code the API answers a bad id with, so it lands on the same panel
+                       rather than on the "something went wrong, try again" one. */
+                    const error = new Error('Không tìm thấy chuyên gia này.');
+                    error.code = 'NOT_FOUND';
+                    throw error;
                 }
                 return staff[0].id;
+            },
+
+            /** Hands the page's own address to whatever the device shares with, and falls
+                back to the clipboard where navigator.share does not exist (every desktop). */
+            async share() {
+                const payload = { title: this.staff.name, text: this.staff.bio || this.staff.name, url: location.href };
+                if (navigator.share) {
+                    try {
+                        await navigator.share(payload);
+                    } catch (error) {
+                        /* Dismissing the sheet rejects too; that is not a failure to report. */
+                    }
+                    return;
+                }
+                try {
+                    await navigator.clipboard.writeText(location.href);
+                    OAK.toast('Đã sao chép liên kết.');
+                } catch (error) {
+                    OAK.toast('Không sao chép được liên kết.', 'error');
+                }
+            },
+
+            /** Choosing a service resizes the grid to that service's duration; choosing it
+                again widens it back out to this technician's longest one. */
+            pickService(id) {
+                this.serviceId = this.serviceId === id ? null : id;
+                this.date = '';
+                this.time = '';
+                this.loadWeek();
+            },
+
+            async loadWeek() {
+                this.weekLoading = true;
+                this.weekError = '';
+                // Two chip presses that settle out of order would leave the grid sized for one
+                // service while another chip is highlighted, and the hour picked from it would
+                // reach the wizard with the other service_id. Only the newest read may write.
+                const token = ++this.weekToken;
+                const path = '/api/staff/' + this.staff.id + '/availability?from=' + oakTodayISO()
+                    + '&days=7' + (this.serviceId ? '&service_id=' + this.serviceId : '');
+                try {
+                    const data = await OAK.api(path);
+                    if (token !== this.weekToken) {
+                        return;
+                    }
+                    this.week = data.week;
+                } catch (error) {
+                    if (token !== this.weekToken) {
+                        return;
+                    }
+                    // A week that failed to load is not a week without room in it, so the
+                    // grid says the read failed and offers it again.
+                    this.week = [];
+                    this.weekError = 'Không tải được lịch trống.';
+                } finally {
+                    if (token === this.weekToken) {
+                        this.weekLoading = false;
+                    }
+                }
             },
 
             /** "Vẽ móng nghệ thuật, Đắp gel" → one chip per skill. */
@@ -313,14 +466,26 @@
                 }
             },
 
-            /** dat-lich.html with this technician, plus the slot picked from the week grid. */
+            /**
+             * dat-lich.html with this technician, plus the slot picked from the week grid.
+             *
+             * The hour only travels with a service beside it. Without one the grid above was
+             * sized by this technician's longest service, so the wizard could drop the hour
+             * the moment a shorter service was chosen — silently, and after the reader had
+             * already picked it. The date still travels: it costs nothing to be wrong about.
+             */
             bookingUrl() {
                 const params = new URLSearchParams({
                     salon_id: this.staff.salon.id,
                     staff_id: this.staff.id,
                 });
-                if (this.time) {
+                if (this.serviceId) {
+                    params.set('service_id', this.serviceId);
+                }
+                if (this.date) {
                     params.set('date', this.date);
+                }
+                if (this.time && this.serviceId) {
                     params.set('time', this.time);
                 }
                 return 'dat-lich.html?' + params.toString();

@@ -318,3 +318,36 @@ test('the bookings list keeps its newest-first default and never binds the sort 
   assert.match(route, /const direction = req\.query\.order === 'asc' \? 'ASC' : 'DESC';/);
   assert.match(route, /ORDER BY b\.date \$\{direction\}, b\.time \$\{direction\}, b\.id \$\{direction\}/);
 });
+
+/* The frame is the block lifted from yeu-thich.html — one shape everywhere, so i18n and
+   Tailwind never see a second variant of it. */
+const EMPTY_FRAME = 'bg-surface-container-low rounded-lg py-16 px-6 text-center';
+
+test('every console list that can be empty offers the action that fills it', () => {
+  const exits = {
+    'quan-ly-dich-vu.html': [{ action: '@click="openServiceForm(null)"', label: 'Thêm dịch vụ' }],
+    'quan-ly-nhan-vien.html': [{ action: '@click="openStaff(null)"', label: 'Thêm nhân viên' }],
+    'quan-ly-lich-hen.html': [
+      { action: '@click="openCreate()"', label: 'Đặt lịch mới' },
+      { action: '@click="openCreate()"', label: 'Đặt lịch mới' },
+    ],
+    'tong-quan-doi-tac.html': [{ action: 'href="quan-ly-nhan-vien.html"', label: 'Thêm nhân viên' }],
+  };
+  for (const [page, blocks] of Object.entries(exits)) {
+    const html = readUi(page);
+    assert.equal(html.split('<!-- OAK-EMPTY -->').length - 1, blocks.length, page);
+    assert.equal(html.split(EMPTY_FRAME).length - 1, blocks.length, page);
+    for (const block of blocks) {
+      assert.ok(html.includes(block.action), page + ': ' + block.action);
+      assert.ok(html.includes('>' + block.label + '<'), page + ': ' + block.label);
+    }
+    // The way out is a real button or link, so a keyboard reaches it like every other control.
+    assert.doesNotMatch(html, /class="[^"]*bg-surface-container-low rounded-lg py-16[^"]*"[^>]*role="button"/, page);
+  }
+});
+
+test('an empty console list stays apart from a failed one', () => {
+  // A load that failed raises its own error block; the empty state must not stand in for it.
+  assert.match(readUi('quan-ly-dich-vu.html'), /x-show="!loading && !servicesError && services\.length === 0"/);
+  assert.match(readUi('quan-ly-dich-vu.html'), /x-show="servicesError"/);
+});

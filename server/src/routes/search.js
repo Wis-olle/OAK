@@ -69,7 +69,7 @@ async function servicesBySalon(ids) {
   }
   const rows = await db
     .prepare(
-      `SELECT salon_id, name, subcategory, category, price
+      `SELECT id, salon_id, name, subcategory, category, price
        FROM services
        WHERE salon_id IN (${ids.map(() => '?').join(',')})
          AND active = 1 AND category <> 'amenity'
@@ -124,6 +124,17 @@ function numberValue(value) {
 /** 350000 -> '350.000đ' */
 function formatVnd(amount) {
   return `${String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
+}
+
+/**
+ * "Nối mi từ 350.000đ" — the words that make a swapped `price_from` readable, on the card's
+ * meta line and on the map pin, where nothing else says which service the number belongs to.
+ * Null for a service whose category has no label to put in front (an amenity a keyword hit),
+ * because "từ 350.000đ" on its own is still true of that service.
+ */
+function priceFromLabel(service) {
+  const label = CATEGORY_LABELS[service.category];
+  return label ? `${label} từ ${formatVnd(service.price)}` : null;
 }
 
 function windowLabel(timeFrom) {
@@ -245,10 +256,17 @@ router.get('/salons', async (req, res, next) => {
       conditions.push('s.district = ?');
       params.push(district);
     }
+    // A budget belongs to what the customer asked for: "tóc dưới 300.000đ" must not be
+    // answered with a salon whose nails are cheap and whose hair is not. Only a category
+    // narrows it here — a bare keyword is matched in JS below, where this cannot reach.
     if (priceMax !== null) {
       conditions.push(`EXISTS (SELECT 1 FROM services sv
-        WHERE sv.salon_id = s.id AND sv.active = 1 AND sv.category <> 'amenity' AND sv.price <= ?)`);
+        WHERE sv.salon_id = s.id AND sv.active = 1 AND sv.category <> 'amenity' AND sv.price <= ?
+          ${category ? 'AND sv.category = ?' : ''})`);
       params.push(priceMax);
+      if (category) {
+        params.push(category);
+      }
     }
     // Against today's own opening hours: 'HH:MM' compares correctly as plain text, and
     // a salon that has not published its week is never open now — the same answer the
@@ -302,12 +320,37 @@ router.get('/salons', async (req, res, next) => {
       if (queryTokens.length > 0 && matchedTokens === 0) {
         continue;
       }
+      const matchedService = pickMatchedService(services, category, queryTokens);
+      // The budget the SQL applied to a bare keyword is "anything in this salon is cheap
+      // enough", which is not what the card goes on to quote: it quotes the service the
+      // keyword matched. Without this, "nail dưới 200.000đ" answers with a card reading
+      // "từ 450.000đ". The category branch is already narrowed inside the SQL EXISTS; this
+      // is the same rule for the branch that could not reach it.
+      if (
+        priceMax !== null &&
+        !category &&
+        queryTokens.length > 0 &&
+        matchedService &&
+        matchedService.price > priceMax
+      ) {
+        continue;
+      }
+      // The "from" price of a salon is the cheapest thing it sells, which is the wrong
+      // number to quote once the customer named what they came for: on a hair search the
+      // card has to say what the hair costs. Taken before the price sort below, so the
+      // ranking reads the same number the card does.
+      const quotesService = Boolean((category || q) && matchedService);
       candidates.push({
         ...card,
+        price_from: quotesService ? matchedService.price : card.price_from,
+        // A swapped number needs the words that make it true: a bare "từ 350.000đ" beside a
+        // salon states the salon's opening price, which this no longer is. Null whenever the
+        // salon's own floor is quoted, and the surfaces fall back to the bare wording.
+        price_from_label: quotesService ? priceFromLabel(matchedService) : null,
         distance_km: haversineKm(lat, lng, row.lat, row.lng),
         matched_tokens: matchedTokens,
         score: matchScore(card, services, queryTokens, category),
-        matched_service: pickMatchedService(services, category, queryTokens),
+        matched_service: matchedService,
       });
     }
 
@@ -353,6 +396,16 @@ router.get('/salons', async (req, res, next) => {
       const { score, matched_tokens: matched, matched_service: matchedService, ...card } = item;
       const result = {
         ...card,
+        // The service the search matched, so the card's booking link can open the wizard on
+        // it instead of dropping the customer back at "which service?".
+        matched_service: matchedService
+          ? {
+              id: matchedService.id,
+              name: matchedService.name,
+              price: matchedService.price,
+              category: matchedService.category,
+            }
+          : null,
         // Resolved above, where it did the filtering: every survivor of a dated search has a
         // free slot, and slotLabel is empty when no date was asked for.
         match_reason: buildMatchReason(card, item.distance_km, matchedService, slotLabel),
@@ -603,9 +656,20 @@ router.post('/assistant', (req, res, next) => {
 
 router.get('/suggestions', async (req, res, next) => {
   try {
+    // Each chip carries what it filters by, not just what it reads as: a chip labelled
+    // "Spa & Massage" matches no salon or service name, so as a keyword it lands on an
+    // empty page — as a category it lands on every spa.
     const chips = [
-      ...(await selectTopCategories.all()).map((row) => categoryLabel(row.category)),
-      ...(await selectTopDistricts.all()).map((row) => row.district),
+      ...(await selectTopCategories.all()).map((row) => ({
+        label: categoryLabel(row.category),
+        type: 'category',
+        key: row.category,
+      })),
+      ...(await selectTopDistricts.all()).map((row) => ({
+        label: row.district,
+        type: 'district',
+        key: row.district,
+      })),
     ];
     res.json({ success: true, data: { chips } });
   } catch (error) {

@@ -30,6 +30,7 @@
 </script>
 <script src="assets/js/oak-i18n.js"></script>
 <title>Quản lý Lịch hẹn - OAK Beauty</title>
+<meta content="noindex,nofollow" name="robots">
 
 
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
@@ -216,7 +217,12 @@
 </div>
 </template>
 </div>
-<p class="py-12 text-center font-body-md text-body-md text-on-surface-variant" x-show="!loading && bookings.length === 0">Không có lịch hẹn sắp tới nào.</p>
+<!-- OAK-EMPTY -->
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center" x-cloak="" x-show="!loading && bookings.length === 0">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="event_available">event_available</span>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Không có lịch hẹn sắp tới nào.</p>
+<button @click="openCreate()" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="button">Đặt lịch mới</button>
+</div>
 </div>
 <!-- Grid Calendar View -->
 <div class="flex-1 overflow-y-auto overflow-x-auto hide-scrollbar bg-surface-container-lowest p-gutter" x-show="!upcoming">
@@ -274,7 +280,12 @@
 </div>
 </template>
 </div>
-<p class="py-12 text-center font-body-md text-body-md text-on-surface-variant" x-show="!loading && placedBookings().length === 0">Không có lịch hẹn nào trong khoảng thời gian này.</p>
+<!-- OAK-EMPTY -->
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center" x-cloak="" x-show="!loading && placedBookings().length === 0">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="event_available">event_available</span>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Không có lịch hẹn nào trong khoảng thời gian này.</p>
+<button @click="openCreate()" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="button">Đặt lịch mới</button>
+</div>
 </div>
 </div>
 </div>

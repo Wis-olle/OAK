@@ -11,6 +11,7 @@ const page = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 const bookingsHtml = page('lich-hen-cua-toi.html');
 const notificationsHtml = page('thong-bao.html');
 const reviewsHtml = page('danh-gia-cua-toi.html');
+const favoritesHtml = page('yeu-thich.html');
 const confirmationHtml = page('xac-nhan-dat-lich.html');
 
 /* Each factory is inline in its page, so lift it out of its <script> and drive it here.
@@ -249,7 +250,7 @@ test('the empty list is a card with a way out of it, not a bare line', () => {
   assert.match(bookingsHtml, /data-icon="calendar_month">calendar_month<\/span>/);
   assert.match(bookingsHtml, /x-text="emptyMessage\(\)"/);
   assert.match(bookingsHtml, /href="kham-pha\.html">Khám phá salon<\/a>/);
-  assert.match(bookingsHtml, /x-show="loading">Đang tải lịch hẹn…/);
+  assert.match(bookingsHtml, /x-show="loading &amp;&amp; !bookings\.length"/);
 });
 
 // ------------------------------------------------------------------ thong-bao
@@ -477,6 +478,119 @@ test('the row button is never [disabled], so a read notification stays selectabl
   assert.match(notificationsHtml, /:class="item\.read \? 'cursor-default' : ''"/);
   assert.match(notificationsHtml, /:aria-label="'Xem chi tiết: ' \+ item\.title"/);
   assert.match(notificationsHtml, /@click\.prevent="open\(item\)"/);
+});
+
+test('a load that never answered is not an empty list, and says so with a way out', () => {
+  assert.match(bookingsHtml, /<template x-if="!loading &amp;&amp; error">/);
+  assert.match(bookingsHtml, /@click="show\(tab\)"[^>]*>Thử lại</);
+  assert.match(bookingsHtml, /x-if="!loading &amp;&amp; !error &amp;&amp; !bookings\.length"/);
+
+  assert.match(notificationsHtml, /<template x-if="!loading &amp;&amp; error">/);
+  assert.match(notificationsHtml, /@click="load\(\)"[^>]*>Thử lại</);
+  assert.match(notificationsHtml, /x-show="!loading &amp;&amp; !error &amp;&amp; !items\.length"/);
+
+  assert.match(favoritesHtml, /<template x-if="!loading &amp;&amp; error">/);
+  assert.match(favoritesHtml, /x-if="!loading &amp;&amp; !error &amp;&amp; !salons\.length"/);
+  assert.match(favoritesHtml, /x-if="!loading &amp;&amp; !error &amp;&amp; !services\.length"/);
+
+  // The reviews page already spends `error` on the composer's star warning, so the load
+  // carries its own name rather than overwriting a message about the form.
+  assert.match(reviewsHtml, /<template x-if="!loading &amp;&amp; loadError">/);
+  assert.match(reviewsHtml, /@click="reload\(\)"[^>]*>Thử lại</);
+  assert.match(reviewsHtml, /x-if="!loading &amp;&amp; !loadError &amp;&amp; !reviews\.length"/);
+});
+
+test('a refused notifications load is held on the page and retried from it', async () => {
+  let calls = 0;
+  const state = myNotifications(async () => {
+    calls += 1;
+    if (calls === 1) {
+      throw new Error('Không kết nối được máy chủ, vui lòng thử lại.');
+    }
+    return [{ id: 1, read: false }];
+  });
+
+  await state.init();
+  assert.equal(state.error, 'Không kết nối được máy chủ, vui lòng thử lại.');
+  assert.equal(state.loading, false);
+  // Not a toast: three seconds later there would be nothing left but an empty inbox.
+  assert.deepEqual(state.toasts, []);
+
+  await state.load();
+  assert.equal(state.error, '');
+  assert.equal(state.items.length, 1);
+});
+
+test('a refused reviews load never reads as a warning about the form', async () => {
+  const state = myReviews(async () => {
+    throw new Error('Không kết nối được máy chủ, vui lòng thử lại.');
+  });
+
+  await state.init();
+  assert.equal(state.loadError, 'Không kết nối được máy chủ, vui lòng thử lại.');
+  assert.equal(state.error, '');
+  assert.equal(state.loading, false);
+  assert.deepEqual(state.toasts, []);
+});
+
+test('the heading and the tab strip stand before the session answers', () => {
+  for (const name of ['ho-so-ca-nhan.html', 'cai-dat.html']) {
+    const html = page(name);
+    const gate = html.indexOf('<template x-if="user">');
+    assert.ok(gate !== -1, name + ': no session gate at all');
+    // Neither of them reads the session, so neither may wait on it.
+    assert.ok(html.indexOf('<h1') < gate, name + ': the heading waits on the session');
+    assert.ok(html.indexOf('data-oak-account-tabs') < gate, name + ': the strip waits on it');
+  }
+  // Notifications gated its whole <main>; only the rows do now.
+  assert.doesNotMatch(notificationsHtml, /<main[^>]*x-show="user"/);
+  assert.match(notificationsHtml, /<div class="flex flex-col gap-3" x-cloak="" x-show="user">/);
+  // Its empty state is an x-show div rather than a template, so without x-cloak it would
+  // paint "Chưa có thông báo nào" over a full inbox until Alpine boots.
+  assert.match(
+    notificationsHtml,
+    /<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center" x-cloak="" x-show="!loading &amp;&amp; !error &amp;&amp; !items\.length">/,
+  );
+});
+
+test('"Đặt lại" keeps the technician the appointment named, and "Đổi lịch" with it', () => {
+  const state = myBookings(async () => []);
+  const booking = bookingIn(48);
+
+  // A booking without one is unchanged: staff is LEFT JOINed on the server.
+  assert.equal(state.rebookUrl(booking), 'dat-lich.html?service_id=7&salon_id=4');
+
+  // The rebook marker is what lets the wizard say "Lần trước bạn làm với Mai": arriving with
+  // a staff_id from a profile link or a salon's team strip is not a return visit, so the
+  // note is silent there and only a genuine "Đặt lại" turns it on.
+  booking.staff = { id: 3, name: 'Mai' };
+  assert.equal(
+    state.rebookUrl(booking),
+    'dat-lich.html?service_id=7&salon_id=4&staff_id=3&rebook=1',
+  );
+  // A reschedule is a return visit with the same person, so it inherits the marker.
+  assert.equal(
+    state.rescheduleUrl(booking),
+    'dat-lich.html?service_id=7&salon_id=4&staff_id=3&rebook=1&reschedule=12',
+  );
+
+  // And the completed card names that technician, so the preselection is not a surprise.
+  assert.match(
+    bookingsHtml,
+    /x-show="booking\.staff &amp;&amp; booking\.status === 'completed'"><span>KTV:<\/span>/,
+  );
+  const dictionary = JSON.parse(
+    fs.readFileSync(path.join(root, 'tools', 'i18n', 'parts', 'lich-hen-cua-toi.json'), 'utf8'),
+  );
+  assert.ok(dictionary['KTV:']);
+});
+
+test('the empty cards carry the marker of the pattern they were lifted from', () => {
+  // yeu-thich.html is where that pattern started, so it is marked there too.
+  assert.equal(favoritesHtml.split('<!-- OAK-EMPTY -->').length - 1, 2);
+  assert.equal(bookingsHtml.split('<!-- OAK-EMPTY -->').length - 1, 1);
+  assert.equal(reviewsHtml.split('<!-- OAK-EMPTY -->').length - 1, 1);
+  assert.equal(notificationsHtml.split('<!-- OAK-EMPTY -->').length - 1, 1);
 });
 
 test('the account rail is static markup on every page, gated by nothing', () => {

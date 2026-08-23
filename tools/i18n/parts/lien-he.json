@@ -25,7 +25,6 @@
   "Khác": "Other",
   "Nội dung": "Message",
   "Mô tả ngắn gọn điều bạn cần hỗ trợ...": "Briefly describe what you need help with...",
-  "Bản demo không lưu nội dung trên máy chủ.": "This demo does not store your message on a server.",
   "Đặt nhầm giờ, cần đổi lịch hoặc không huỷ được lịch hẹn.": "Booked the wrong time, need to reschedule, or cannot cancel an appointment.",
   "Bạn là chủ salon và muốn đưa dịch vụ lên OAK Beauty.": "You own a salon and want to list your services on OAK Beauty.",
   "Trải nghiệm chưa tốt tại salon, hoặc lỗi trên nền tảng.": "A disappointing experience at a salon, or a bug on the platform.",
@@ -36,12 +35,12 @@
   "Đang mở ứng dụng email của bạn...": "Opening your email app...",
   "Vui lòng nhập họ và tên.": "Please enter your full name.",
   "Vui lòng nhập nội dung.": "Please enter your message.",
-  "Nếu ứng dụng email không mở, hãy sao chép nội dung bên dưới.": "If your email app does not open, copy the message below.",
   "Nội dung đã soạn": "Your draft message",
   "Gửi tới": "Send to",
   "Sao chép nội dung": "Copy message",
   "Đã sao chép nội dung.": "Message copied.",
   "Không sao chép được, vui lòng chọn và chép thủ công.": "Couldn't copy — please select the text and copy it manually.",
   "Nguyễn Thị An": "Nguyễn Thị An",
-  "Cần hỗ trợ đặt lịch, muốn đưa salon của bạn lên nền tảng hay có góp ý cho sản phẩm? Liên hệ đội ngũ OAK Beauty qua hotline, email hoặc biểu mẫu.": "Need help with a booking, want to list your salon with us, or have something to tell us? Reach the OAK Beauty team by hotline, email or the form here."
+  "Cần hỗ trợ đặt lịch, muốn đưa salon của bạn lên nền tảng hay có góp ý cho sản phẩm? Liên hệ đội ngũ OAK Beauty qua hotline, email hoặc biểu mẫu.": "Need help with a booking, want to list your salon with us, or have something to tell us? Reach the OAK Beauty team by hotline, email or the form here.",
+  "Nếu ứng dụng email không mở, hãy sao chép nội dung bên dưới hoặc gọi hotline 1900 6035.": "If your email app does not open, copy the message below or call the 1900 6035 hotline."
 }

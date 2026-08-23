@@ -71,6 +71,7 @@ search_off
 self_improvement
 send
 settings
+share
 spa
 star
 star_rate

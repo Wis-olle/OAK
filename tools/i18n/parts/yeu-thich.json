@@ -3,7 +3,6 @@
   "Yêu thích": "Favorites",
   "Những salon và dịch vụ bạn đã lưu lại để quay lại sau.": "The salons and services you saved to come back to.",
   "Dịch vụ": "Services",
-  "Đang tải danh sách yêu thích…": "Loading your favorites…",
   "Chưa có đánh giá": "No reviews yet",
   "Bỏ yêu thích salon": "Remove salon from favorites",
   "Bỏ yêu thích dịch vụ": "Remove service from favorites",
@@ -11,5 +10,7 @@
   "Khám phá salon": "Explore salons",
   "Chưa có dịch vụ yêu thích nào. Tìm dịch vụ phù hợp và lưu lại để đặt lịch nhanh hơn.": "No favorite services yet. Find the right service and save it to book faster.",
   "Tìm dịch vụ": "Find services",
-  "Đã bỏ khỏi danh sách yêu thích.": "Removed from your favorites."
+  "Đã bỏ khỏi danh sách yêu thích.": "Removed from your favorites.",
+  "Không tải được danh sách yêu thích.": "We couldn't load your favorites.",
+  "Thử lại": "Try again"
 }

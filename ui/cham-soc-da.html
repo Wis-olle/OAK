@@ -22,9 +22,9 @@
 <link href="assets/css/oak-fonts.css" rel="stylesheet">
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
-<title>Chăm sóc Da - OAK Beauty</title>
+<title>Đặt lịch Chăm sóc da tại TP.HCM – OAK Beauty</title>
 <meta content="Liệu trình phục hồi, tái tạo và nuôi dưỡng làn da được cá nhân hoá. Chọn salon chăm sóc da uy tín tại TP.HCM, xem bảng giá và đặt lịch trực tuyến." name="description">
-<meta content="Chăm sóc Da - OAK Beauty" property="og:title">
+<meta content="Đặt lịch Chăm sóc da tại TP.HCM – OAK Beauty" property="og:title">
 <meta content="Liệu trình phục hồi, tái tạo và nuôi dưỡng làn da được cá nhân hoá. Chọn salon chăm sóc da uy tín tại TP.HCM, xem bảng giá và đặt lịch trực tuyến." property="og:description">
 <meta content="website" property="og:type">
 <!-- og:image has no host in front of it: this build knows no domain of its own. -->
@@ -34,6 +34,18 @@
 
 <!-- Material Symbols -->
 <!-- Tailwind CSS -->
+<!-- BreadcrumbList: the same two steps the breadcrumb above shows, in the shape a search
+     engine can render under the result. Hard-coded because the trail never changes. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Khám phá", "item": "https://oakbeauty.vn/" },
+    { "@type": "ListItem", "position": 2, "name": "Chăm sóc da", "item": "https://oakbeauty.vn/cham-soc-da.html" }
+  ]
+}
+</script>
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -145,8 +157,13 @@
 <button @click="reload()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
 </div>
 </template>
+<!-- OAK-EMPTY -->
 <template x-if="!loading &amp;&amp; !loadError &amp;&amp; !services.length">
-<p class="py-8 font-body-md text-body-md text-on-surface-variant">Chưa có liệu trình nào.</p>
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="search_off">search_off</span>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Chưa có liệu trình nào.</p>
+<a :href="allSalonsUrl()" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200">Xem tất cả salon</a>
+</div>
 </template>
 </div>
 <div class="mt-12 text-center" x-cloak="" x-show="services.length &lt; total">
@@ -233,8 +250,9 @@
                     Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
                 </p>
 </div>
-<!-- Links Columns -->
-<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
@@ -244,32 +262,40 @@
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
-</div>
-<!-- Social/Contact -->
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<div class="flex gap-4">
-<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
 </div>
 </div>
-</div>
-<!-- Copyright -->
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
 <span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
 <script>
     /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
     function oakSkincarePage() {
-        const PAGE_SIZE = 3;
+        const CATEGORY = 'skincare';
+        const PAGE_SIZE = 6;
+        /* The four values the sort <select> offers; anything else arriving in the URL is dropped. */
+        const SORTS = ['popular', 'price_asc', 'price_desc', 'rating'];
 
         return {
             services: [],
@@ -288,9 +314,10 @@
             sideLoading: true,
 
             async init() {
+                this.readUrl();
                 try {
                     const [salons, posts, catalogue] = await Promise.all([
-                        OAK.api('/api/salons?category=skincare&sort=rating&limit=2'),
+                        OAK.api('/api/salons?category=skincare&sort=rating&limit=3'),
                         OAK.api('/api/posts?tag=da&limit=2'),
                         OAK.api('/api/services?category=skincare&limit=50'),
                     ]);
@@ -306,8 +333,40 @@
                 this.reload();
             },
 
+            /* The chip and the sort ride in the address bar, so a reload — or Back from a
+               service page — comes back to the list that was on screen. */
+            readUrl() {
+                const params = new URLSearchParams(location.search);
+                this.subcategory = params.get('subcategory') || '';
+                if (SORTS.includes(params.get('sort'))) {
+                    this.sort = params.get('sort');
+                }
+            },
+
+            /* replaceState, not pushState: narrowing the list is a refinement of this page,
+               not a place of its own to walk back through. */
+            syncUrl() {
+                const params = new URLSearchParams(location.search);
+                if (this.subcategory) {
+                    params.set('subcategory', this.subcategory);
+                } else {
+                    params.delete('subcategory');
+                }
+                if (this.sort === 'popular') {
+                    params.delete('sort');
+                } else {
+                    params.set('sort', this.sort);
+                }
+                const search = params.toString();
+                history.replaceState(null, '', search ? location.pathname + '?' + search : location.pathname);
+            },
+
+            allSalonsUrl() {
+                return 'ket-qua-tim-kiem.html?category=' + CATEGORY;
+            },
+
             pageUrl(page) {
-                return '/api/services?category=skincare&sort=' + this.sort +
+                return '/api/services?category=' + CATEGORY + '&sort=' + this.sort +
                     '&page=' + page + '&limit=' + PAGE_SIZE +
                     (this.subcategory ? '&subcategory=' + encodeURIComponent(this.subcategory) : '');
             },
@@ -317,6 +376,7 @@
             async reload() {
                 const token = ++this.loadToken;
                 this.page = 1;
+                this.syncUrl();
                 this.loading = true;
                 try {
                     const services = await OAK.api(this.pageUrl(this.page));

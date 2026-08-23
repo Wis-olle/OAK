@@ -25,6 +25,7 @@
 </script>
 <script src="assets/js/oak-i18n.js"></script>
 <title>Tổng quan - OAK Beauty</title>
+<meta content="noindex,nofollow" name="robots">
 <!-- Material Symbols -->
 <!-- Google Fonts -->
 
@@ -347,7 +348,12 @@
 <span class="font-caption text-caption text-on-surface-variant" x-text="staffNote(member)"></span>
 </div>
 </template>
-<p class="font-body-md text-body-md text-on-surface-variant" x-show="!loading && staffStatus.length === 0">Chưa có nhân viên nào.</p>
+<!-- OAK-EMPTY -->
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center" x-cloak="" x-show="!loading && staffStatus.length === 0">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="group">group</span>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Chưa có nhân viên nào.</p>
+<a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="quan-ly-nhan-vien.html">Thêm nhân viên</a>
+</div>
 </div>
 </section>
 </div>

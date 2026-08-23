@@ -34,6 +34,16 @@ const selectStaffReviews = db.prepare(`
   LIMIT ? OFFSET ?
 `);
 
+// What this one technician is booked for: the staff-profile week grid is sized by their
+// longest service until one of these is chosen, and then by that one.
+const selectStaffServices = db.prepare(`
+  SELECT sv.id, sv.name, sv.price, sv.price_is_from, sv.duration_min, sv.category
+  FROM services sv
+  JOIN staff_services ss ON ss.service_id = sv.id
+  WHERE ss.staff_id = ? AND sv.active = 1
+  ORDER BY sv.featured DESC, sv.category, sv.price
+`);
+
 // Computed over every review of this staff member, not just the page being served.
 const selectStaffReviewSummary = db.prepare(
   'SELECT COUNT(*) AS total, ROUND(AVG(rating), 1) AS average FROM reviews WHERE staff_id = ?',
@@ -92,6 +102,19 @@ router.get('/:id/availability', async (req, res, next) => {
         : await getServiceWeek(staffId, serviceId, from, days);
 
     res.json({ success: true, data: { from, week } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:id/services', async (req, res, next) => {
+  try {
+    const rows = await selectStaffServices.all(await staffIdOrThrow(req.params.id));
+    res.json({
+      success: true,
+      data: rows.map((row) => ({ ...row, price_is_from: Boolean(row.price_is_from) })),
+      meta: { total: rows.length },
+    });
   } catch (error) {
     next(error);
   }

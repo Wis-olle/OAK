@@ -23,6 +23,7 @@
 <link href="assets/css/oak-utils.css" rel="stylesheet">
 <link href="assets/images/favicon.png" rel="icon">
 <title>Đặt lịch - OAK Beauty</title>
+<meta content="noindex,nofollow" name="robots">
 
 
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
@@ -39,7 +40,19 @@
 <!-- Reschedule notice -->
 <div class="mb-8 max-w-3xl mx-auto flex items-start gap-3 bg-secondary-container text-on-secondary-container rounded-lg p-4" x-cloak="" x-show="reschedule">
 <span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="event">event</span>
+<div>
 <p class="font-body-md text-body-md">Bạn đang đổi lịch hẹn — lịch cũ sẽ được hủy sau khi bạn xác nhận lịch mới.</p>
+<!-- Which appointment, in its own nodes: the code, the day and hour and the salon are
+     all data, so English needs no rule for a sentence assembled at runtime. -->
+<p class="font-caption text-caption mt-1" x-cloak="" x-show="rescheduleOld">
+<span>Đang đổi lịch</span>
+<span x-text="rescheduleOld ? rescheduleOld.code : ''"></span>
+<span aria-hidden="true">·</span>
+<span x-text="oldWhenLabel()"></span>
+<span aria-hidden="true">·</span>
+<span x-text="rescheduleOld ? rescheduleOld.salon.name : ''"></span>
+</p>
+</div>
 </div>
 <!-- Stepper -->
 <div class="mb-12 max-w-3xl mx-auto" x-cloak="">
@@ -63,14 +76,14 @@
 <!-- Step 1: choose the salon — an aggregator starts with the place, not the service -->
 <div class="flex flex-col gap-12" x-cloak="" x-show="step === 1">
 <div class="space-y-6">
-<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Đặt lịch hẹn</h1>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary" data-step-heading="1" tabindex="-1">Đặt lịch hẹn</h1>
 <p class="font-body-lg text-body-lg text-on-surface-variant">Hãy chọn salon bạn muốn ghé thăm để bắt đầu đặt lịch.</p>
 </div>
 <!-- Salon picker -->
 <div class="space-y-8">
 <h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn salon</h2>
 <form @submit.prevent="searchSalons()" class="flex flex-col sm:flex-row gap-3">
-<input aria-label="Tìm salon theo tên" class="flex-grow border border-outline-variant bg-surface rounded-full px-6 py-3 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50" placeholder="Tìm salon theo tên..." type="text" x-model="salonQuery"/>
+<input aria-label="Tìm salon theo tên" class="flex-grow border border-outline-variant bg-surface rounded-full px-6 py-3 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50" autocomplete="off" enterkeyhint="search" placeholder="Tìm salon theo tên..." type="text" x-model="salonQuery"/>
 <button class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" type="submit">Tìm kiếm</button>
 </form>
 <p class="font-body-md text-body-md text-on-surface-variant" x-cloak="" x-show="!salonsLoading &amp;&amp; !salonsError &amp;&amp; !salons.length">Không tìm thấy salon nào.</p>
@@ -131,7 +144,7 @@
 <!-- Service picker -->
 <div class="space-y-8">
 <div class="border-b border-outline-variant/20 pb-4">
-<h2 class="font-headline-sm text-headline-sm text-primary">Chọn dịch vụ</h2>
+<h2 class="font-headline-sm text-headline-sm text-primary" data-step-heading="2" tabindex="-1">Chọn dịch vụ</h2>
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-cloak="" x-show="salon">Đặt lịch tại <span class="font-medium" x-text="salon ? salon.name : ''"></span></p>
 </div>
 <p class="font-body-md text-body-md text-on-surface-variant" x-show="salon &amp;&amp; !optionsLoading &amp;&amp; !optionsError &amp;&amp; !options.length">Chưa có dịch vụ nào để đặt lịch.</p>
@@ -151,18 +164,28 @@
 </div>
 </template>
 </div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4" :class="optionsLoading ? 'opacity-50' : ''">
-<template :key="option.id" x-for="option in options">
+<!-- Grouped by category and priced the way the salon's own menu prices it: an opening
+     price reads "Từ 350.000đ" here too, rather than as the figure that will be charged. -->
+<div class="flex flex-col gap-8" :class="optionsLoading ? 'opacity-50' : ''">
+<template :key="group.key" x-for="group in optionGroups()">
+<div>
+<h3 class="font-label-md text-label-md uppercase tracking-wider text-on-surface-variant mb-3" x-text="group.label"></h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<template :key="option.id" x-for="option in group.options">
 <button :class="service &amp;&amp; service.id === option.id ? 'border-primary' : 'border-outline-variant'" @click="chooseService(option)" class="flex items-start justify-between gap-4 text-left p-4 border rounded-lg hover:border-primary transition-colors" type="button">
 <span>
 <span class="block font-body-md text-body-md font-medium" x-text="option.name"></span>
+<span class="block font-caption text-caption text-on-surface-variant mt-1 line-clamp-2" x-cloak="" x-show="option.description" x-text="option.description"></span>
 <span class="block font-caption text-caption text-on-surface-variant mt-1" x-text="option.duration_min + ' phút'"></span>
 </span>
 <span class="flex items-center gap-2 shrink-0">
-<span class="font-label-md text-label-md text-primary" x-text="OAK.fmtPrice(option.price)"></span>
+<span class="font-label-md text-label-md text-primary" x-text="OAK.fmtPriceFrom(option.price, option.price_is_from)"></span>
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-primary" data-icon="check_circle" x-cloak="" x-show="service &amp;&amp; service.id === option.id">check_circle</span>
 </span>
 </button>
+</template>
+</div>
+</div>
 </template>
 </div>
 </div>
@@ -178,17 +201,45 @@
 <div class="flex flex-col gap-12" x-cloak="" x-show="step === 3">
 <!-- Staff picker -->
 <div class="space-y-8" x-cloak="" x-show="staffList.length">
-<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn kỹ thuật viên</h2>
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4" data-step-heading="3" tabindex="-1">Chọn kỹ thuật viên</h2>
+<!-- Cards, not bare names: who somebody is decides this step, and "Bất kỳ" now books a
+     real person, so it says what the system will do rather than leaving it blank. -->
 <div class="flex flex-wrap gap-3">
-<button :class="staffId ? 'border-outline-variant text-on-surface-variant' : 'border-primary text-primary'" @click="setStaff(null)" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button">Bất kỳ</button>
+<button :class="staffId ? 'border-outline-variant' : 'border-primary'" @click="setStaff(null)" class="flex items-center gap-3 min-h-[44px] px-4 py-2 border rounded-2xl text-left hover:border-primary transition-colors" type="button">
+<span aria-hidden="true" class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px] text-on-surface-variant" data-icon="group">group</span>
+</span>
+<span>
+<span :class="staffId ? 'text-on-surface-variant' : 'text-primary'" class="block font-label-md text-label-md">Bất kỳ</span>
+<span class="block font-caption text-caption text-on-surface-variant">Hệ thống sẽ xếp kỹ thuật viên rảnh</span>
+</span>
+</button>
 <template :key="member.id" x-for="member in staffList">
-<button :class="staffId === member.id ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" @click="setStaff(member.id)" class="px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button" x-text="member.name"></button>
+<button :class="staffId === member.id ? 'border-primary' : 'border-outline-variant'" @click="setStaff(member.id)" class="flex items-center gap-3 min-h-[44px] px-4 py-2 border rounded-2xl text-left hover:border-primary transition-colors" type="button">
+<span class="w-10 h-10 rounded-full overflow-hidden bg-surface-container flex items-center justify-center shrink-0">
+<template x-if="member.image">
+<img loading="lazy" :src="member.image" alt="" class="w-full h-full object-cover"/>
+</template>
+<template x-if="!member.image">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px] text-on-surface-variant" data-icon="person">person</span>
+</template>
+</span>
+<span>
+<span :class="staffId === member.id ? 'text-primary' : 'text-on-surface-variant'" class="block font-label-md text-label-md" x-text="member.name"></span>
+<span class="block font-caption text-caption text-on-surface-variant" x-text="staffMeta(member)"></span>
+</span>
+</button>
 </template>
 </div>
+<!-- Why this one is already selected: the visitor arrived from "Đặt lại" with them. -->
+<p class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="rebookStaffId &amp;&amp; staffId === rebookStaffId">
+<span>Lần trước bạn làm với</span>
+<span x-text="staffLabel()"></span>
+</p>
 </div>
 <!-- Date + slot picker -->
 <div class="space-y-8" x-cloak="" x-show="service">
-<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Chọn thời gian</h2>
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4" data-step-heading="3" tabindex="-1">Chọn thời gian</h2>
 <!-- The next seven days at a glance, each marked when it has nothing free. -->
 <div class="flex flex-wrap gap-2" x-cloak="" x-show="dayChips.length">
 <template :key="chip.date" x-for="chip in dayChips">
@@ -200,9 +251,18 @@
 </div>
 <div class="relative md:max-w-xs">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="booking-date">Ngày khác</label>
-<input :min="today" @change="loadSlots()" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors" id="booking-date" type="date" x-model="date"/>
+<input :min="today" @change="loadSlots(true)" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors" id="booking-date" type="date" x-model="date"/>
 </div>
-<p class="font-body-md text-body-md text-on-surface-variant" x-show="!slotsLoading &amp;&amp; !slotsError &amp;&amp; !slots.length">Ngày này chưa có khung giờ nào, vui lòng chọn ngày khác.</p>
+<div class="flex flex-col gap-4" x-show="!slotsLoading &amp;&amp; !slotsError &amp;&amp; !slots.length">
+<p class="font-body-md text-body-md text-on-surface-variant">Ngày này chưa có khung giờ nào, vui lòng chọn ngày khác.</p>
+<!-- The strip already knows which of the next seven days still has room, so the way out
+     of an empty grid is one tap rather than a hunt through the date field. -->
+<button @click="pickDate(nextFreeDay().date)" class="self-start flex flex-wrap items-center gap-2 min-h-[44px] px-5 py-2 border border-outline-variant rounded-full font-label-md text-label-md text-primary hover:border-primary transition-colors" type="button" x-cloak="" x-show="nextFreeDay()">
+<span>Ngày gần nhất còn chỗ</span>
+<span x-text="nextFreeDay() ? nextFreeDay().weekday : ''"></span>
+<span x-text="nextFreeDay() ? nextFreeDay().day : ''"></span>
+</button>
+</div>
 <div class="flex flex-wrap items-center gap-4" x-cloak="" x-show="slotsError">
 <p class="font-body-md text-body-md text-error" x-text="slotsError"></p>
 <button :disabled="slotsLoading" @click="loadSlots()" class="border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors disabled:opacity-60" type="button">Thử lại</button>
@@ -213,9 +273,18 @@
 <div class="h-10 w-24 rounded-full bg-surface-container animate-pulse"></div>
 </template>
 </div>
-<div class="flex flex-wrap gap-3" :class="slotsLoading ? 'opacity-50' : ''">
-<template :key="slot.time" x-for="slot in slots">
+<!-- Morning / afternoon / evening: twenty identical chips in one run is a wall, and the
+     part of the day is the first thing anyone picking an hour actually decides. -->
+<div class="flex flex-col gap-6" :class="slotsLoading ? 'opacity-50' : ''">
+<template :key="group.label" x-for="group in slotGroups()">
+<div>
+<h3 class="font-label-md text-label-md uppercase tracking-wider text-on-surface-variant mb-3" x-text="group.label"></h3>
+<div class="flex flex-wrap gap-3">
+<template :key="slot.time" x-for="slot in group.slots">
 <button :class="time === slot.time ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" :disabled="!slot.available" @click="pickTime(slot.time)" class="min-h-[44px] px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors disabled:opacity-40 disabled:line-through disabled:hover:border-outline-variant" type="button" x-text="slot.time"></button>
+</template>
+</div>
+</div>
 </template>
 </div>
 <!-- What picking an hour costs, said where the hour is picked rather than only in the
@@ -237,7 +306,7 @@
 <!-- Step 4: review and confirm -->
 <div class="flex flex-col gap-12" x-cloak="" x-show="step === 4">
 <div class="space-y-6">
-<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Xem lại thông tin</h2>
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary" data-step-heading="4" tabindex="-1">Xem lại thông tin</h2>
 <p class="font-body-lg text-body-lg text-on-surface-variant">Vui lòng kiểm tra lại thông tin và cung cấp chi tiết liên hệ của bạn để chúng tôi phục vụ tốt nhất.</p>
 </div>
 <!-- Booking Summary Card -->
@@ -280,18 +349,19 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-name">Họ và tên *</label>
-<input :aria-invalid="fieldErrors.name ? 'true' : null" :class="fieldErrors.name ? 'border-error' : 'border-outline-variant'" @input="fieldErrors.name = ''" aria-describedby="customer-name-error" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" id="customer-name" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
+<input :aria-invalid="fieldErrors.name ? 'true' : null" :class="fieldErrors.name ? 'border-error' : 'border-outline-variant'" @input="fieldErrors.name = ''" aria-describedby="customer-name-error" autocapitalize="words" autocomplete="name" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" enterkeyhint="next" id="customer-name" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
 <p class="font-body-md text-sm text-error mt-2" id="customer-name-error" x-cloak="" x-show="fieldErrors.name" x-text="fieldErrors.name"></p>
 </div>
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-phone">Số điện thoại *</label>
-<input :aria-invalid="fieldErrors.phone ? 'true' : null" :class="fieldErrors.phone ? 'border-error' : 'border-outline-variant'" @input="fieldErrors.phone = ''" aria-describedby="customer-phone-error" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" id="customer-phone" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
+<input :aria-invalid="fieldErrors.phone ? 'true' : null" :class="fieldErrors.phone ? 'border-error' : 'border-outline-variant'" @input="fieldErrors.phone = ''" aria-describedby="customer-phone-help customer-phone-error" autocomplete="tel" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" id="customer-phone" inputmode="tel" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
+<p class="font-caption text-caption text-on-surface-variant mt-2" id="customer-phone-help">Salon dùng số này để xác nhận lịch</p>
 <p class="font-body-md text-sm text-error mt-2" id="customer-phone-error" x-cloak="" x-show="fieldErrors.phone" x-text="fieldErrors.phone"></p>
 </div>
 </div>
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-note">Ghi chú đặc biệt (Không bắt buộc)</label>
-<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50 resize-none" id="customer-note" placeholder="Ví dụ: Da tay mỏng, cần làm nhẹ nhàng..." rows="3" x-model="form.note"></textarea>
+<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50 resize-none" id="customer-note" enterkeyhint="done" placeholder="Ví dụ: Da tay mỏng, cần làm nhẹ nhàng..." rows="3" x-model="form.note"></textarea>
 </div>
 </div>
 <!-- Payment: there is one way to pay and nothing to choose, so this states it rather than
@@ -302,6 +372,30 @@
 <span aria-hidden="true" class="material-symbols-outlined text-primary" data-icon="payments">payments</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.PAYMENT"></span>
 </div>
+</div>
+<!-- The last click of the funnel used to leave the page and come back. It happens here
+     instead: the name and phone above are what a new account is made from, so nothing
+     the visitor already typed is asked for twice (WCAG 3.3.7). The sidebar button stays
+     as the fallback for anyone who would rather use the full login page. -->
+<div class="space-y-6" x-cloak="" x-show="!loading &amp;&amp; !user">
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Đăng nhập để xác nhận</h2>
+<div class="flex flex-wrap gap-3">
+<button :class="authTab === 'login' ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" @click="authTab = 'login'" class="min-h-[44px] px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button">Đăng nhập</button>
+<button :class="authTab === 'register' ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" @click="authTab = 'register'" class="min-h-[44px] px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button">Tạo tài khoản nhanh</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="relative">
+<label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="auth-email">Email *</label>
+<input @input="authError = ''" autocomplete="email" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" enterkeyhint="next" id="auth-email" inputmode="email" placeholder="Nhập email của bạn" type="email" x-model="auth.email"/>
+</div>
+<div class="relative">
+<label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="auth-password">Mật khẩu *</label>
+<input :autocomplete="authTab === 'login' ? 'current-password' : 'new-password'" @input="authError = ''" class="w-full bg-transparent border-0 border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-outline/50" enterkeyhint="done" id="auth-password" placeholder="Nhập mật khẩu" type="password" x-model="auth.password"/>
+</div>
+</div>
+<p class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="authTab === 'register'">Chúng tôi dùng họ tên và số điện thoại bạn vừa nhập ở trên.</p>
+<p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="authError" x-text="authError"></p>
+<button :disabled="authBusy || busy" @click="authSubmit()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button" x-text="authBusy ? 'Đang xử lý…' : (authTab === 'login' ? 'Đăng nhập &amp; xác nhận' : 'Tạo tài khoản &amp; xác nhận')">Đăng nhập &amp; xác nhận</button>
 </div>
 <div class="flex flex-wrap items-center gap-4">
 <button @click="goTo(3)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
@@ -330,9 +424,11 @@
 </template>
 <div class="w-full h-[1px] bg-outline-variant/20 my-4"></div>
 <div class="flex justify-between items-end">
-<span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80">Tổng cộng</span>
+<span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80" x-show="!estimated()">Tổng cộng</span>
+<span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80" x-cloak="" x-show="estimated()">Tạm tính</span>
 <span class="font-headline-md text-headline-md font-bold text-on-tertiary" x-text="quote ? OAK.fmtPrice(quote.total) : '—'">—</span>
 </div>
+<p class="font-caption text-caption text-on-tertiary/60" x-cloak="" x-show="estimated()">Giá cuối salon chốt theo thực tế</p>
 </div>
 <div class="flex flex-col gap-3" x-cloak="" x-show="step === 4">
 <p class="font-body-md text-sm text-error-container" role="alert" x-cloak="" x-show="formError" x-text="formError"></p>
@@ -356,6 +452,21 @@
 <span class="font-caption text-caption text-on-tertiary/70 leading-relaxed">Salon xác nhận lịch, bạn được báo trong mục Thông báo</span>
 </div>
 <a class="inline-flex items-center gap-1 font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80 hover:text-on-tertiary transition-colors" href="dieu-khoan.html#huy-lich">Xem điều khoản</a>
+</div>
+<!-- OAK-HELP: the same block, in the same order, at the end of the wizard and under the
+     details on the confirmation page — WCAG 2.2 SC 3.2.6. The salon's own number only
+     when there is one to dial; OAK is always reachable. -->
+<div class="bg-on-tertiary/5 p-4 rounded space-y-2">
+<span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80">Cần hỗ trợ?</span>
+<a :href="'tel:' + (salon &amp;&amp; salon.phone ? salon.phone.replace(/\s/g, '') : '')" class="flex items-center gap-2 font-caption text-caption text-on-tertiary/80 hover:text-on-tertiary transition-colors" x-cloak="" x-show="salon &amp;&amp; salon.phone">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="call">call</span>
+<span>Gọi salon</span>
+<span x-text="salon ? salon.phone : ''"></span>
+</a>
+<a class="flex items-center gap-2 font-caption text-caption text-on-tertiary/80 hover:text-on-tertiary transition-colors" href="lien-he.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="mail">mail</span>
+<span>Liên hệ OAK</span>
+</a>
 </div>
 </div>
 </div>
@@ -390,8 +501,9 @@
                     Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
                 </p>
 </div>
-<!-- Links Columns -->
-<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
@@ -401,25 +513,30 @@
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
-</div>
-<!-- Social/Contact -->
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<div class="flex gap-4">
-<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
 </div>
 </div>
-</div>
-<!-- Copyright -->
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
 <span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -445,7 +562,24 @@
     const OAK_WEEKDAY_SHORT = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
     const OAK_DAY_STRIP_LEN = 7;
 
+    // The same table salon-profile.html groups its menu with, so a service sits under the
+    // same heading wherever the visitor meets it.
+    const OAK_CATEGORY_LABELS = {
+        nail: 'Nails',
+        hair: 'Tóc',
+        skincare: 'Chăm sóc da',
+        spa: 'Spa',
+        eyelash: 'Nối mi',
+        amenity: 'Tiện ích',
+    };
+
+    // Where one part of the day ends and the next begins, in hours.
+    const OAK_AFTERNOON_HOUR = 12;
+    const OAK_EVENING_HOUR = 17;
+
     const OAK_PROMO_LOGIN_MESSAGE = 'Vui lòng đăng nhập để áp dụng mã ưu đãi.';
+    // Said whenever an hour that WAS chosen stops being on offer, wherever that happens.
+    const OAK_TIME_GONE_MESSAGE = 'Khung giờ bạn chọn không còn trống, vui lòng chọn giờ khác.';
     // Where the contact fields wait out a login round trip; the url carries the selection.
     const OAK_BOOKING_FORM_KEY = 'oak-booking-form';
 
@@ -505,6 +639,17 @@
             // The appointment this booking replaces, when the visitor arrived from "Đổi lịch".
             // It rides in the url, so it survives the login round trip like the selection does.
             reschedule: null,
+            // ...and that appointment itself, once fetched, so the banner can name it.
+            rescheduleOld: null,
+            // The technician the url arrived with, remembered past setStaff(): it is the
+            // only thing that can tell "chosen last time" from "chosen a moment ago".
+            rebookStaffId: null,
+
+            // Step 4's own sign-in, so a guest never leaves the wizard to make one.
+            authTab: 'login',
+            auth: { email: '', password: '' },
+            authError: '',
+            authBusy: false,
 
             async init() {
                 const serviceId = Number(OAK.qs('service_id')) || 0;
@@ -537,6 +682,13 @@
                 this.date = wantedDate >= this.today ? wantedDate : this.today;
                 this.time = wantedTime;
                 this.staffId = Number(OAK.qs('staff_id')) || null;
+                // Only "Đặt lại" claims the visitor has been with this person before. A
+                // specialist's profile and a salon's team strip send the same staff_id to
+                // somebody who has never booked, so the note waits for the marker.
+                this.rebookStaffId = OAK.qs('rebook') ? this.staffId : null;
+                // The banner is already up on the state alone; naming the old appointment
+                // is an extra, so nothing on this page waits for it.
+                this.loadRescheduleOld();
 
                 // Step 1 stays one stepper click away on every path, so its list always loads.
                 // Only a visitor who actually starts there waits for it.
@@ -568,7 +720,7 @@
                 // checked. Say so on the step it sends them back to, rather than dropping
                 // them there in front of a grid that looks like they never chose anything.
                 if (wantedTime && !this.time) {
-                    this.stepError = 'Khung giờ bạn chọn không còn trống, vui lòng chọn giờ khác.';
+                    this.stepError = OAK_TIME_GONE_MESSAGE;
                 }
 
                 /* The middle of the funnel: of the visits that searched, how many opened a
@@ -720,6 +872,42 @@
                 this.formError = '';
                 this.syncUrl();
                 this.$root.scrollIntoView({ behavior: 'smooth' });
+                // Scrolling says nothing to a screen reader. After the flush, so the step
+                // being moved to is on screen and can take focus at all; the ring is off
+                // for tabindex="-1" (assets/css/oak-utils.css), so nothing is drawn.
+                this.$nextTick(() => {
+                    // Step 3 marks two headings — the technician picker sits above the
+                    // clock — so focus goes to the first one actually on screen, and to
+                    // the last as a fallback when nothing reports its layout.
+                    const headings = [
+                        ...this.$root.querySelectorAll('[data-step-heading="' + n + '"]'),
+                    ];
+                    const heading =
+                        headings.find((el) => el.offsetParent !== null) ||
+                        headings[headings.length - 1];
+                    if (heading) {
+                        heading.focus();
+                    }
+                });
+            },
+
+            /** The appointment a ?reschedule visit is replacing, for the banner to name. */
+            async loadRescheduleOld() {
+                if (!this.reschedule) {
+                    return;
+                }
+                try {
+                    this.rescheduleOld = await OAK.api('/api/bookings/' + this.reschedule);
+                } catch (error) {
+                    // The banner still says a reschedule is under way, which is the part
+                    // that matters; only the detail line stays away.
+                }
+            },
+
+            /** 'dd/mm HH:MM' for the appointment being replaced. */
+            oldWhenLabel() {
+                const old = this.rescheduleOld;
+                return old ? old.date.slice(8) + '/' + old.date.slice(5, 7) + ' ' + old.time : '';
             },
 
             /** Leave the current step, naming whatever it is still missing. */
@@ -827,8 +1015,65 @@
                 this.stepError = '';
                 if (this.date !== value) {
                     this.date = value;
-                    this.loadSlots();
+                    // A different day has different hours: losing the one that was chosen
+                    // is the point of the tap, not something to be told about.
+                    this.loadSlots(true);
                 }
+            },
+
+            /** Whether the grid on offer still holds `time` as something that can be picked.
+                The one place that question is answered, so init() and loadSlots() cannot
+                come to different conclusions about the same grid. */
+            offersTime(time) {
+                return this.slots.some((slot) => slot.time === time && slot.available);
+            },
+
+            /** Step 3's hours, split by part of the day; empty groups are left out. */
+            slotGroups() {
+                const groups = [
+                    { label: 'Sáng', slots: [] },
+                    { label: 'Chiều', slots: [] },
+                    { label: 'Tối', slots: [] },
+                ];
+                for (const slot of this.slots) {
+                    const hour = Number(slot.time.slice(0, 2));
+                    const index = hour < OAK_AFTERNOON_HOUR ? 0 : (hour < OAK_EVENING_HOUR ? 1 : 2);
+                    groups[index].slots.push(slot);
+                }
+                return groups.filter((group) => group.slots.length);
+            },
+
+            /** The nearest day in the strip that still has room, other than the one on
+                screen — what to offer instead of an empty grid. */
+            nextFreeDay() {
+                return this.dayChips.find((chip) => !chip.full && chip.date !== this.date) || null;
+            },
+
+            /** Step 2's grid, grouped by category the way the salon's own menu is. */
+            optionGroups() {
+                const groups = [];
+                for (const option of this.options) {
+                    const key = option.category || 'other';
+                    let group = groups.find((entry) => entry.key === key);
+                    if (!group) {
+                        group = { key, label: OAK_CATEGORY_LABELS[key] || key, options: [] };
+                        groups.push(group);
+                    }
+                    group.options.push(option);
+                }
+                return groups;
+            },
+
+            /** A technician's second line: what they do and how they are rated. Both halves
+                are the salon's own data, so this needs no dictionary entry. */
+            staffMeta(member) {
+                const rating = member.rating ? Number(member.rating).toFixed(1) : '';
+                return [member.title, rating].filter(Boolean).join(' · ');
+            },
+
+            /** Whether the price on offer is an opening price rather than a final one. */
+            estimated() {
+                return !!(this.service && this.service.price_is_from);
             },
 
             pickTime(value) {
@@ -846,8 +1091,10 @@
             /** Step 3's grid. Changing the technician or the date leaves the previous request
                 in flight, and the two endpoints answer in different shapes, so a late reply
                 must not land: read as the other shape it would blank the grid entirely. */
-            async loadSlots() {
+            async loadSlots(dateChanged) {
                 const token = ++this.slotsToken;
+                // Remembered before the request, because the reply is what drops it.
+                const wanted = this.time;
                 this.slotsError = '';
                 if (!this.service || !this.date) {
                     this.slots = [];
@@ -889,8 +1136,16 @@
                         this.slotsLoading = false;
                     }
                 }
-                if (!this.slots.some((slot) => slot.time === this.time && slot.available)) {
+                if (!this.offersTime(this.time)) {
                     this.time = '';
+                    // Changing the service or the technician can take an hour away without
+                    // anything on screen moving. Saying nothing there is how a booking ends
+                    // up on a different hour than the one the visitor thought they picked.
+                    // A request that failed says nothing about the hour, and the retry
+                    // line is already there; two messages would contradict each other.
+                    if (wanted && !dateChanged && !this.slotsError) {
+                        this.stepError = OAK_TIME_GONE_MESSAGE;
+                    }
                 }
                 // Last, so the url is written once the dropped time is already gone from it.
                 this.syncUrl();
@@ -1041,7 +1296,7 @@
                 if (!this.form.name.trim()) {
                     errors.name = 'Vui lòng nhập họ tên.';
                 }
-                const phone = this.form.phone.trim();
+                const phone = this.normalizedPhone();
                 if (!phone) {
                     errors.phone = 'Vui lòng nhập số điện thoại.';
                 } else if (!/^[\d\s+.-]{8,15}$/.test(phone)) {
@@ -1057,6 +1312,63 @@
                     return false;
                 }
                 return true;
+            },
+
+            /** '090 123.4567' -> '0901234567'. A number is written however the writer likes;
+                what is stored is what the salon dials, and what dang-ky.html would accept. */
+            normalizedPhone() {
+                return this.form.phone.replace(/[\s.]/g, '').trim();
+            },
+
+            /**
+             * Sign in, or make an account, without leaving the wizard — then book.
+             *
+             * A guest who has already chosen a salon, a service and an hour should not have
+             * to go and come back for the last click. A new account is made from the name
+             * and phone already on this page, so nothing is asked for twice.
+             */
+            async authSubmit() {
+                this.authError = '';
+                const email = this.auth.email.trim();
+                if (!email || !this.auth.password) {
+                    this.authError = 'Vui lòng nhập email và mật khẩu.';
+                    return;
+                }
+                // The register call sends these, so they are checked before it is made.
+                if (this.authTab === 'register' && !this.checkContact()) {
+                    this.authError = 'Vui lòng kiểm tra lại thông tin liên hệ.';
+                    return;
+                }
+
+                this.authBusy = true;
+                try {
+                    const data = await OAK.api(
+                        this.authTab === 'login' ? '/api/auth/login' : '/api/auth/register',
+                        {
+                            method: 'POST',
+                            body: this.authTab === 'login'
+                                ? { email: email, password: this.auth.password }
+                                : {
+                                    name: this.form.name.trim(),
+                                    email: email,
+                                    phone: this.normalizedPhone() || null,
+                                    password: this.auth.password,
+                                },
+                        },
+                    );
+                    this.user = data.user;
+                    this.auth.password = '';
+                } catch (error) {
+                    this.authError = error.message;
+                    return;
+                } finally {
+                    this.authBusy = false;
+                }
+
+                // The quote endpoint was out of reach a moment ago, so the sidebar is
+                // holding a list price and any promo code was never checked.
+                await this.loadQuote();
+                await this.submit();
             },
 
             async submit() {
@@ -1101,7 +1413,7 @@
                             payment_method: 'at_salon',
                             promotion_code: this.promo.trim() || null,
                             customer_name: this.form.name.trim(),
-                            customer_phone: this.form.phone.trim(),
+                            customer_phone: this.normalizedPhone(),
                         },
                     });
                     /* Counted where it is true — the appointment exists. An attempt the

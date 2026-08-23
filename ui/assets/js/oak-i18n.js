@@ -29,7 +29,8 @@
 
   var STORAGE_KEY = 'oak_lang';
   var DICTIONARY = window.OAK_I18N_EN || {};
-  var PAGE = location.pathname.split('/').pop() || 'index.html';
+  /* The server serves the home page at '/', where the last segment is empty. */
+  var PAGE = location.pathname.split('/').pop() || 'kham-pha.html';
 
   /* A sandboxed iframe throws on both of these rather than returning null, and a language
      toggle is not worth taking the page down for: it just stops remembering the choice. */
@@ -188,6 +189,12 @@
 
     /* -- prices, always "350.000đ" out of OAK.fmtPrice() -------------------------------- */
     [/^Từ ([\d.]+đ)$/, 'From $1'],
+    // price_from_label out of GET /api/search/salons: the matched service's category in front
+    // of its price, so the number is not read as the salon's opening price. Its own node on a
+    // map pin; one piece of the card's meta line, where pieced() answers it instead.
+    [/^([^•]+) từ ([\d.]+đ)$/, function (all, label, price) {
+      return labelled(label) + ' from ' + price;
+    }],
     [/^Giảm ([\d.]+[%đ])$/, 'Save $1'],
 
     /* -- the hour window of a search, as one chip on ket-qua-tim-kiem.html. Both ends is a
@@ -201,12 +208,13 @@
     [/^([^•]+) • ([\d.]+km)$/, function (all, district, distance) {
       return labelled(district) + ' • ' + distance;
     }],
-    [/^([^•]+) • (từ [\d.]+đ)$/, function (all, district, price) {
+    [/^([^•]+) • ((?:[^•]+ )?từ [\d.]+đ)$/, function (all, district, price) {
       return labelled(district) + ' • ' + pieced(price);
     }],
-    [/^([^•]+) • ([\d.]+km) • (từ [\d.]+đ)$/, function (all, district, distance, price) {
-      return labelled(district) + ' • ' + distance + ' • ' + pieced(price);
-    }],
+    [/^([^•]+) • ([\d.]+km) • ((?:[^•]+ )?từ [\d.]+đ)$/,
+      function (all, district, distance, price) {
+        return labelled(district) + ' • ' + distance + ' • ' + pieced(price);
+      }],
 
     /* -- offers ------------------------------------------------------------------------ */
     [/^Hạn dùng đến (\d{2}\/\d{2}\/\d{4})$/, 'Valid until $1'],
@@ -339,9 +347,12 @@
       if (date) {
         return WEEKDAYS[date[1]] + ', ' + date[2];
       }
-      var price = text.match(/^(từ|dưới) ([\d.]+đ)$/);
+      // The optional head is price_from_label's category ("Nối mi từ 350.000đ"), a label of
+      // its own; without it the piece is the bare price the card used to carry.
+      var price = text.match(/^(?:([^•]+) )?(từ|dưới) ([\d.]+đ)$/);
       if (price) {
-        return (price[1] === 'từ' ? 'from ' : 'under ') + price[2];
+        return (price[1] ? labelled(price[1]) + ' ' : '') +
+          (price[2] === 'từ' ? 'from ' : 'under ') + price[3];
       }
       var discount = text.match(/^Giảm ([\d.]+[%đ])$/);
       return discount ? 'Save ' + discount[1] : labelled(text);

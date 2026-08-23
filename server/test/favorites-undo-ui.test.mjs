@@ -340,6 +340,49 @@ test('a refused undo leaves the list as the server has it, and says so', async (
   assert.equal(state.toasts[1].type, 'error');
 });
 
+test('a refused load is held on the page instead of reading as an empty list', async () => {
+  let calls = 0;
+  const state = favorites(async () => {
+    calls += 1;
+    if (calls === 1) {
+      throw new Error('Không kết nối được máy chủ, vui lòng thử lại.');
+    }
+    return { salons: [salon(1)], services: [] };
+  });
+
+  await state.init();
+  assert.equal(state.error, 'Không kết nối được máy chủ, vui lòng thử lại.');
+  assert.equal(state.loading, false);
+  // Not a toast: three seconds later there would be nothing left but "Bạn chưa lưu salon nào".
+  assert.deepEqual(state.toasts, []);
+
+  // The error card asks for the same load again.
+  await state.load();
+  assert.equal(state.error, '');
+  assert.equal(state.salons.length, 1);
+});
+
+test('the tab counters stay quiet until the reply is in', () => {
+  // '(0)' before the first reply is a claim about a list nobody has read yet.
+  assert.match(favoritesHtml, /x-text="loading \? '' : '\(' \+ salons\.length \+ '\)'"/);
+  assert.match(favoritesHtml, /x-text="loading \? '' : '\(' \+ services\.length \+ '\)'"/);
+});
+
+test('a saved card is one tap from the wizard, not two pages away', () => {
+  assert.match(favoritesHtml, /:href="'dat-lich\.html\?salon_id=' \+ salon\.id"/);
+  assert.match(
+    favoritesHtml,
+    /:href="'dat-lich\.html\?service_id=' \+ service\.id \+ '&amp;salon_id=' \+ service\.salon\.id"/,
+  );
+  // Eight saved salons would otherwise be eight links all named "Đặt lịch"; the card
+  // heading is what tells them apart, so each pill points at its own.
+  assert.match(favoritesHtml, /:aria-describedby="'fav-salon-' \+ salon\.id"/);
+  assert.match(favoritesHtml, /:id="'fav-salon-' \+ salon\.id"/);
+  assert.match(favoritesHtml, /:aria-describedby="'fav-service-' \+ service\.id"/);
+  assert.match(favoritesHtml, /:id="'fav-service-' \+ service\.id"/);
+  assert.equal(favoritesHtml.split('data-icon="event_available"').length - 1, 2);
+});
+
 test('a removal the server refuses is rolled back without offering an undo', async () => {
   const state = favorites(async () => {
     throw new Error('Không xóa được.');

@@ -73,17 +73,19 @@ const selectSalonStaff = db.prepare(`
   ORDER BY rating DESC, id
 `);
 
-const selectReviews = db.prepare(`
-  SELECT r.id, r.rating, r.comment, r.created_at,
-         u.name AS user_name, u.avatar AS user_avatar,
-         st.name AS staff_name
+const REVIEW_SOURCE = `
   FROM reviews r
   LEFT JOIN users u ON u.id = r.user_id
   LEFT JOIN staff st ON st.id = r.staff_id
-  WHERE r.salon_id = ?
-  ORDER BY r.created_at DESC, r.id DESC
-  LIMIT ? OFFSET ?
-`);
+  LEFT JOIN services sv ON sv.id = r.service_id
+`;
+
+// Sort keys are looked up in this table, never concatenated from the query string.
+const REVIEW_SORTS = {
+  newest: 'r.created_at DESC, r.id DESC',
+  lowest: 'r.rating ASC, r.created_at DESC, r.id DESC',
+};
+const DEFAULT_REVIEW_SORT = REVIEW_SORTS.newest;
 
 // Both computed over every review of the salon, not just the page being served.
 const selectReviewSummary = db.prepare(
@@ -256,6 +258,9 @@ router.get('/:id/reviews', async (req, res, next) => {
     const salonId = await salonIdOrThrow(req.params.id);
     const { page, limit, offset } = parsePagination(req.query, REVIEW_LIMIT);
 
+    // average and breakdown answer for every review of the salon; the rating filter below
+    // narrows the list and meta.total only, so the distribution bars keep their scale
+    // while one of them is being read.
     const summary = await selectReviewSummary.get(salonId);
     const counts = new Map(
       (await selectReviewBreakdown.all(salonId)).map((row) => [row.rating, row.count]),
@@ -264,7 +269,32 @@ router.get('/:id/reviews', async (req, res, next) => {
       RATING_VALUES.map((value) => [value, counts.get(value) ?? 0]),
     );
 
-    const rows = await selectReviews.all(salonId, limit, offset);
+    const conditions = ['r.salon_id = ?'];
+    const params = [salonId];
+
+    const rating = Number.parseInt(req.query.rating, 10);
+    if (RATING_VALUES.includes(rating)) {
+      conditions.push('r.rating = ?');
+      params.push(rating);
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const order = Object.hasOwn(REVIEW_SORTS, req.query.sort)
+      ? REVIEW_SORTS[req.query.sort]
+      : DEFAULT_REVIEW_SORT;
+
+    const { total } = await db
+      .prepare(`SELECT COUNT(*) AS total ${REVIEW_SOURCE} ${where}`)
+      .get(...params);
+    const rows = await db
+      .prepare(
+        `SELECT r.id, r.rating, r.comment, r.created_at,
+                u.name AS user_name, u.avatar AS user_avatar,
+                st.name AS staff_name, sv.name AS service_name
+         ${REVIEW_SOURCE} ${where}
+         ORDER BY ${order} LIMIT ? OFFSET ?`,
+      )
+      .all(...params, limit, offset);
 
     res.json({
       success: true,
@@ -275,11 +305,13 @@ router.get('/:id/reviews', async (req, res, next) => {
         created_at: row.created_at,
         user: { name: row.user_name, avatar: row.user_avatar },
         staff: row.staff_name ? { name: row.staff_name } : null,
+        service_name: row.service_name ?? null,
       })),
       meta: {
         page,
         limit,
-        total: summary.total,
+        total,
+        all_total: summary.total,
         average: summary.average ?? 0,
         breakdown,
       },

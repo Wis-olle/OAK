@@ -78,6 +78,12 @@ same string needs two readings in the *content* of one page, the dictionary cann
 apart and the markup has to. And a page's `<title>` is resolved without a node, so scoped
 entries do apply to it.
 
+**Two pages must not use scoped keys at all.** The scope comes from the last path segment, so
+it only matches when the page is served under its own file name. `kham-pha.html` is also served
+at `/`, where the segment is empty and the engine falls back to `index.html`; `404.html` is
+served under whatever path the visitor mistyped, so its scope is never the same twice. A scoped
+entry for either would simply never resolve. Use bare keys there.
+
 ## Checking what is left
 
 ```

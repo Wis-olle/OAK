@@ -94,7 +94,36 @@ app.use(
     setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
   }),
 );
+
+// The home page, served as itself rather than as a redirect to itself. ui/index.html used
+// to bounce '/' to kham-pha.html with a meta refresh AND a location.replace, which cost every
+// first-time visitor a second round trip and left the brand's most important URL as a stub
+// with no title, no description and nothing for a crawler to read. Registered before the
+// static handler, which would otherwise answer '/' with that stub. Every existing link to
+// kham-pha.html keeps working — the file is still served under its own name.
+app.get('/', (req, res) => {
+  res.sendFile(path.join(uiDir, 'kham-pha.html'));
+});
+
 app.use(express.static(uiDir));
+
+// Anything still unmatched is a page that does not exist. A browser asking for HTML gets the
+// branded 404 with a way back; everything else (an image, a fetch) gets a bare status, because
+// a page of markup in place of an asset only confuses the caller.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  // Preference, not acceptability: an image request sends 'image/avif,image/webp,*/*;q=0.8',
+  // whose '*/*' makes accepts('html') true even though HTML is the last thing it wants. Asking
+  // which of the two types it prefers ties on that header and falls to the first listed one,
+  // while a navigation ('text/html,...;q=0.9') still scores text/html highest and gets the page.
+  // A caller that omits the header entirely states no preference, so it gets the page too —
+  // the tie-break only makes sense against a header that actually ranked the types. Note that
+  // curl's default is '*/*', which ties and therefore gets the plain body.
+  if (req.headers.accept && req.accepts(['text/plain', 'text/html']) !== 'text/html') {
+    return res.status(404).type('txt').send('Not Found');
+  }
+  return res.status(404).sendFile(path.join(uiDir, '404.html'));
+});
 
 // Bad request bodies are client problems, not internal faults.
 const BODY_ERRORS = {

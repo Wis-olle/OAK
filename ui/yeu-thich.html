@@ -29,6 +29,7 @@
         .tab-button.active { border-bottom: 2px solid #171818; font-weight: 600; color: #171818; }
     </style>
 <title>Yêu thích - OAK Beauty</title>
+<meta content="noindex,nofollow" name="robots">
 <!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
 <link href="assets/css/oak-tailwind.css" rel="stylesheet">
 </head>
@@ -107,13 +108,33 @@ Cài đặt
 <!-- Tabs -->
 <div class="flex gap-8 border-b border-outline-variant/30">
 <button :class="tab === 'salons' ? 'active' : ''" @click="tab = 'salons'" class="tab-button font-label-md text-label-md uppercase tracking-wider" type="button">
-                    Salon <span x-text="'(' + salons.length + ')'"></span>
+                    Salon <span x-text="loading ? '' : '(' + salons.length + ')'"></span>
 </button>
 <button :class="tab === 'services' ? 'active' : ''" @click="tab = 'services'" class="tab-button font-label-md text-label-md uppercase tracking-wider" type="button">
-                    Dịch vụ <span x-text="'(' + services.length + ')'"></span>
+                    Dịch vụ <span x-text="loading ? '' : '(' + services.length + ')'"></span>
 </button>
 </div>
-<p class="font-body-md text-body-md text-on-surface-variant mt-8" x-cloak="" x-show="loading">Đang tải danh sách yêu thích…</p>
+<!-- Both tabs arrive in one reply, so one set of placeholders stands for whichever
+     tab the reader happens to be on. -->
+<div aria-hidden="true" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter mt-8" x-show="loading">
+<template :key="row" x-for="row in 3">
+<div>
+<div class="aspect-[3/2] w-full rounded-lg bg-surface-container animate-pulse mb-3"></div>
+<div class="h-5 w-2/3 rounded bg-surface-container animate-pulse mb-2"></div>
+<div class="h-4 w-1/2 rounded bg-surface-container animate-pulse"></div>
+</div>
+</template>
+</div>
+<!-- A reply that never came is not an empty list, and it has its own way forward. -->
+<template x-if="!loading &amp;&amp; error">
+<div class="flex flex-col items-start gap-3 mt-8 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
+<div class="flex items-center gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-surface">Không tải được danh sách yêu thích.</p>
+</div>
+<button @click="load()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+</div>
+</template>
 <!-- Salon tab -->
 <div class="mt-8" x-cloak="" x-show="tab === 'salons'">
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
@@ -125,7 +146,7 @@ Cài đặt
 </div>
 <div class="flex justify-between items-start gap-3">
 <div class="min-w-0">
-<h3 class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="salon.name"></h3>
+<h3 :id="'fav-salon-' + salon.id" class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="salon.name"></h3>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
 <span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
 <span x-text="salon.address"></span>
@@ -138,13 +159,16 @@ Cài đặt
 <span class="font-caption text-caption text-on-surface-variant shrink-0" x-show="!salon.review_count">Chưa có đánh giá</span>
 </div>
 </a>
+<a :aria-describedby="'fav-salon-' + salon.id" :href="'dat-lich.html?salon_id=' + salon.id" class="inline-flex items-center gap-1 min-h-[44px] mt-3 px-4 rounded-full border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wide hover:border-primary transition-colors" style="text-decoration:none">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="event_available">event_available</span>Đặt lịch</a>
 <button @click="remove('salons', salon)" aria-label="Bỏ yêu thích salon" class="absolute top-3 right-3 w-10 h-10 rounded-full bg-surface-container-lowest/90 text-secondary flex items-center justify-center shadow-sm hover:bg-surface-container-low transition-colors active:scale-95 duration-200" type="button">
 <span class="material-symbols-outlined text-[20px] fill" data-icon="favorite">favorite</span>
 </button>
 </article>
 </template>
 </div>
-<template x-if="!loading &amp;&amp; !salons.length">
+<!-- OAK-EMPTY -->
+<template x-if="!loading &amp;&amp; !error &amp;&amp; !salons.length">
 <div class="bg-surface-container-low rounded-lg py-16 px-6 text-center">
 <span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="favorite">favorite</span>
 <p class="font-body-md text-body-md text-on-surface-variant mb-6">Bạn chưa lưu salon nào. Khám phá và chạm vào trái tim để lưu lại nhé.</p>
@@ -161,7 +185,7 @@ Cài đặt
 <div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
 <img loading="lazy" :alt="service.name" :src="service.image" class="w-full h-full object-cover">
 </div>
-<h3 class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="service.name"></h3>
+<h3 :id="'fav-service-' + service.id" class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="service.name"></h3>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1 mb-3">
 <span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="store">store</span>
 <span x-text="service.salon.name + ' • ' + service.salon.district"></span>
@@ -171,13 +195,16 @@ Cài đặt
 <span class="font-caption text-caption text-on-surface-variant" x-text="service.duration_min + ' phút'"></span>
 </div>
 </a>
+<a :aria-describedby="'fav-service-' + service.id" :href="'dat-lich.html?service_id=' + service.id + '&amp;salon_id=' + service.salon.id" class="inline-flex items-center gap-1 min-h-[44px] mt-3 px-4 rounded-full border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wide hover:border-primary transition-colors" style="text-decoration:none">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="event_available">event_available</span>Đặt lịch</a>
 <button @click="remove('services', service)" aria-label="Bỏ yêu thích dịch vụ" class="absolute top-3 right-3 w-10 h-10 rounded-full bg-surface-container-lowest/90 text-secondary flex items-center justify-center shadow-sm hover:bg-surface-container-low transition-colors active:scale-95 duration-200" type="button">
 <span class="material-symbols-outlined text-[20px] fill" data-icon="favorite">favorite</span>
 </button>
 </article>
 </template>
 </div>
-<template x-if="!loading &amp;&amp; !services.length">
+<!-- OAK-EMPTY -->
+<template x-if="!loading &amp;&amp; !error &amp;&amp; !services.length">
 <div class="bg-surface-container-low rounded-lg py-16 px-6 text-center">
 <span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="spa">spa</span>
 <p class="font-body-md text-body-md text-on-surface-variant mb-6">Chưa có dịch vụ yêu thích nào. Tìm dịch vụ phù hợp và lưu lại để đặt lịch nhanh hơn.</p>
@@ -199,8 +226,9 @@ Cài đặt
                     Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
                 </p>
 </div>
-<!-- Links Columns -->
-<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
@@ -210,25 +238,30 @@ Cài đặt
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
-</div>
-<!-- Social/Contact -->
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<div class="flex gap-4">
-<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
 </div>
 </div>
-</div>
-<!-- Copyright -->
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
 <span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -240,9 +273,19 @@ Cài đặt
             salons: [],
             services: [],
             loading: true,
+            error: '',
 
             async init() {
                 await OAK.requireLogin();
+                await this.load();
+            },
+
+            /* A failure is held on the page rather than shown for three seconds and
+               dropped: an empty list and a list that never arrived read the same
+               otherwise, and only one of them has a "Thử lại". */
+            async load() {
+                this.loading = true;
+                this.error = '';
                 try {
                     const favorites = await OAK.api('/api/favorites');
                     this.salons = favorites.salons;
@@ -252,7 +295,7 @@ Cài đặt
                         this.tab = 'services';
                     }
                 } catch (error) {
-                    OAK.toast(error.message, 'error');
+                    this.error = error.message;
                 } finally {
                     this.loading = false;
                 }

@@ -48,7 +48,9 @@
 <!-- Main Content -->
 <!-- Below md the 120px foot of a page this tall is room the two columns cannot spare, so the
      clearance the floating list/map switch needs moves onto the result list itself. -->
-<main class="pt-24 flex-grow pb-section-gap max-md:pb-0 flex flex-col md:flex-row h-screen" x-data="oakSearchResults()">
+<!-- h-[100dvh], not h-screen: on iOS Safari 100vh runs under the toolbar, and the foot of a
+     column that is the only scroll surface below md would sit where nothing can reach it. -->
+<main class="pt-24 flex-grow pb-section-gap max-md:pb-0 flex flex-col md:flex-row h-[100dvh]" x-data="oakSearchResults()">
 <!-- Left Column: Search Results -->
 <!-- Below md this column is the one scroll surface in list view, so a header taller than the
      screen — which it is in landscape — never leaves the results unreachable. In map view it
@@ -60,31 +62,76 @@
 <form :class="mobileView === 'map' ? 'max-md:mb-3' : ''" @submit.prevent="applyQuery()" class="flex gap-2 mb-6">
 <div class="relative flex-grow">
 <span aria-hidden="true" class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant" data-icon="search">search</span>
-<input aria-label="Tìm dịch vụ hoặc salon" class="w-full pl-12 pr-4 py-3 rounded-full bg-surface-container-low border border-outline-variant/30 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary" placeholder="Dịch vụ, salon…" type="text" x-model="q">
+<input aria-label="Tìm dịch vụ hoặc salon" autocomplete="off" class="w-full pl-12 pr-4 py-3 rounded-full bg-surface-container-low border border-outline-variant/30 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary" enterkeyhint="search" placeholder="Dịch vụ, salon…" type="text" x-model="q" x-ref="keyword">
 </div>
 <button class="shrink-0 px-6 py-3 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors" type="submit">Tìm</button>
 </form>
-<h1 :class="mobileView === 'map' ? 'max-md:hidden' : ''" class="font-headline-sm text-headline-sm text-on-surface mb-2" x-text="headline"></h1>
+<!-- The count is the answer to the search, and it changes without the page moving: said
+     aloud, or it only exists for readers who can see it. Smaller below md, where every
+     line above the first card is a line of salon nobody can see yet. -->
+<h1 :class="mobileView === 'map' ? 'max-md:hidden' : ''" aria-atomic="true" aria-live="polite" class="font-headline-sm text-lg md:text-headline-sm text-on-surface mb-2" x-text="headline"></h1>
 <!-- Cloaked: until Alpine reads the query string this would claim every salon is in scope. -->
 <p :class="mobileView === 'map' ? 'max-md:hidden' : ''" class="font-body-md text-body-md text-on-surface-variant mb-6" x-cloak="" x-show="!chips.length">Tất cả salon trên OAK Beauty</p>
 <!-- One chip per criterion in force, each one removable — including the date, which had
      no way off the page before. Last thing in the header over a map, so it drops its
-     own gap there and leans on the padding around it. -->
-<div :class="mobileView === 'map' ? 'max-md:mb-0' : ''" class="flex flex-wrap gap-2 mb-6" x-show="chips.length">
+     own gap there and leans on the padding around it. One line that scrolls sideways
+     rather than a block that grows downwards: on a phone the criteria must not push the
+     first salon off the screen. -->
+<div :class="mobileView === 'map' ? 'max-md:mb-0' : ''" class="flex flex-nowrap overflow-x-auto gap-2 mb-6" x-show="chips.length">
 <template :key="chip.key" x-for="chip in chips">
-<span class="inline-flex items-center gap-1 pl-4 pr-1 py-1 rounded-full bg-tertiary text-on-tertiary font-label-md text-label-md">
-<span x-text="chip.label"></span>
+<span class="inline-flex shrink-0 items-center gap-1 pl-4 pr-1 py-1 rounded-full bg-tertiary text-on-tertiary font-label-md text-label-md">
+<span class="whitespace-nowrap" x-text="chip.label"></span>
 <button @click="removeCriterion(chip.key)" aria-label="Xóa tiêu chí" class="w-6 h-6 rounded-full flex items-center justify-center hover:bg-on-tertiary/20 transition-colors" type="button">
 <span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="close">close</span>
 </button>
 </span>
 </template>
+<!-- Only worth offering once there is more than one thing to undo, and the keyword stays:
+     it is the search itself, not something narrowing it. -->
+<button @click="clearAll()" class="shrink-0 whitespace-nowrap px-4 py-1 rounded-full border border-outline text-on-surface font-label-md text-label-md hover:border-primary hover:text-primary transition-colors" type="button" x-show="chips.length &gt; 1">Xóa tất cả</button>
 </div>
 <!-- Below md the filter row is what the map view spends on map height; the switch back to
      the list is one tap away and brings the whole row with it. -->
 <div :class="mobileView === 'map' ? 'max-md:hidden' : ''" class="flex flex-wrap gap-3">
+<!-- Below md eight pills wrap into three rows of chrome above the first salon, so they fold
+     behind one button that says how many are in force. The order stays out: it is the one
+     control that changes which salon is at the top of the list. `contents` keeps the folded
+     pills part of the row above md, where they never fold. -->
+<button :aria-expanded="filtersOpen" @click="filtersOpen = !filtersOpen" aria-controls="oak-filters" class="md:hidden px-4 py-2 font-label-md rounded-full bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant transition-colors flex items-center gap-2" type="button" x-text="filterButtonLabel"></button>
+<div :class="filtersOpen ? '' : 'max-md:hidden'" class="contents" id="oak-filters">
 <div class="relative">
-<button :class="filters.price_max ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'price' ? null : 'price'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :aria-expanded="openFilter === 'category'" :class="incoming.category ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'category' ? null : 'category'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+                        Dịch vụ <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+<div @click.outside="if (openFilter === 'category') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'category'">
+<template :key="option.value" x-for="option in categoryOptions">
+<button @click="setCriterion('category', option.value)" class="block w-full text-left px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button" x-text="option.label"></button>
+</template>
+</div>
+</div>
+<div class="relative">
+<button :aria-expanded="openFilter === 'district'" :class="incoming.district ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'district' ? null : 'district'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+                        Khu vực <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+<div @click.outside="if (openFilter === 'district') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px] max-h-[240px] overflow-y-auto" x-cloak="" x-show="openFilter === 'district'">
+<button @click="setCriterion('district', '')" class="block w-full text-left px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button">Tất cả khu vực</button>
+<template :key="name" x-for="name in districts">
+<button @click="setCriterion('district', name)" class="block w-full text-left px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button" x-text="name"></button>
+</template>
+</div>
+</div>
+<div class="relative">
+<button :aria-expanded="openFilter === 'date'" :class="incoming.date ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'date' ? null : 'date'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+                        Thời gian <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+<div @click.outside="if (openFilter === 'date') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'date'">
+<template :key="option.label" x-for="option in dateOptions">
+<button @click="setDate(option.value)" class="block w-full text-left px-5 py-2.5 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors whitespace-nowrap" type="button" x-text="option.label"></button>
+</template>
+</div>
+</div>
+<div class="relative">
+<button :aria-expanded="openFilter === 'price'" :class="filters.price_max ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'price' ? null : 'price'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Giá <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'price') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'price'">
@@ -94,7 +141,7 @@
 </div>
 </div>
 <div class="relative">
-<button :class="filters.radius_km ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'distance' ? null : 'distance'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :aria-expanded="openFilter === 'distance'" :class="filters.radius_km ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'distance' ? null : 'distance'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Khoảng cách <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'distance') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'distance'">
@@ -104,7 +151,7 @@
 </div>
 </div>
 <div class="relative">
-<button :class="filters.rating_min ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'rating' ? null : 'rating'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :aria-expanded="openFilter === 'rating'" :class="filters.rating_min ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'rating' ? null : 'rating'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Đánh giá <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'rating') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'rating'">
@@ -114,7 +161,7 @@
 </div>
 </div>
 <div class="relative">
-<button :class="hasLocation ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'location' ? null : 'location'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2 max-w-[240px]" type="button">
+<button :aria-expanded="openFilter === 'location'" :class="hasLocation ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'location' ? null : 'location'" aria-haspopup="dialog" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2 max-w-[240px]" type="button">
 <span class="truncate" x-text="locationChip"></span> <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'location') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg p-4 w-[300px]" x-cloak="" x-show="openFilter === 'location'">
@@ -140,8 +187,9 @@
 <button :class="filters.open_now ? 'bg-tertiary text-on-tertiary hover:bg-tertiary/90' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="toggleOpenNow()" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Đang mở cửa
                     </button>
+</div>
 <div class="relative">
-<button :class="filters.sort ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'sort' ? null : 'sort'" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
+<button :aria-expanded="openFilter === 'sort'" :class="filters.sort ? 'bg-tertiary text-on-tertiary' : 'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-variant'" @click="openFilter = openFilter === 'sort' ? null : 'sort'" aria-haspopup="listbox" class="px-4 py-2 font-label-md rounded-full transition-colors flex items-center gap-2" type="button">
                         Sắp xếp: <span x-text="sortLabel"></span> <span aria-hidden="true" class="material-symbols-outlined text-sm">expand_more</span>
 </button>
 <div @click.outside="if (openFilter === 'sort') openFilter = null" class="absolute left-0 top-full mt-2 z-30 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2 min-w-[200px]" x-cloak="" x-show="openFilter === 'sort'">
@@ -182,11 +230,27 @@
 <button @click="load()" class="px-6 py-2 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors" type="button">Thử lại</button>
 </div>
 </template>
+<!-- OAK-EMPTY: nothing matched, which is a state with ways out of it — every button here
+     drops exactly one thing and keeps the rest of the search. Not to be confused with the
+     error block above: that one means no answer ever arrived. -->
 <template x-if="!loading &amp;&amp; !loadError &amp;&amp; !salons.length">
-<p class="font-body-md text-body-md text-on-surface-variant">Không tìm thấy salon nào phù hợp. Bạn thử nới rộng bộ lọc nhé.</p>
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="search_off">search_off</span>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-text="emptyMessage"></p>
+<div class="flex flex-wrap justify-center gap-3">
+<button @click="tryNextDay()" class="px-6 py-2 rounded-full border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button" x-show="canTryNextDay">Thử ngày mai</button>
+<button @click="clearNarrowing()" class="px-6 py-2 rounded-full border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button" x-show="hasNarrowing">Bỏ lọc giá, đánh giá, bán kính</button>
+<button @click="removeCriterion('district')" class="px-6 py-2 rounded-full border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button" x-show="incoming.district">Mọi khu vực</button>
+<a :href="assistantUrl" class="px-6 py-2 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors" style="text-decoration:none">Hỏi Trợ lý AI</a>
+</div>
+</div>
 </template>
 <template :key="salon.id" x-for="salon in salons">
-<article :class="hovered === salon.id ? 'bg-surface-container-low border-outline-variant/20' : 'border-transparent'" @click="openSalon(salon)" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="flex flex-col sm:flex-row gap-6 p-4 rounded-xl hover:bg-surface-container-low transition-colors group cursor-pointer border hover:border-outline-variant/20">
+<!-- The whole card opens the salon, so it has to answer a keyboard the same way. It is
+     not marked role="link" for that: the card holds the heart and two links of its own,
+     and a link role may hold nothing focusable (axe nested-interactive). The card stays
+     an article that Enter opens, and "Xem chi tiết" inside it is the semantic link. -->
+<article :class="hovered === salon.id ? 'bg-surface-container-low border-outline-variant/20' : 'border-transparent'" @click="openSalon(salon)" @keydown.enter.self="openSalon(salon)" @mouseenter="hovered = salon.id" @mouseleave="hovered = null" class="flex flex-col sm:flex-row gap-6 p-4 rounded-xl hover:bg-surface-container-low transition-colors group cursor-pointer border hover:border-outline-variant/20" tabindex="0">
 <div class="w-full sm:w-48 sm:h-auto shrink-0 relative rounded-lg overflow-hidden">
 <template x-if="salon.image">
 <img loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-auto sm:h-full object-cover transition-transform duration-500 group-hover:scale-105">
@@ -202,6 +266,11 @@
 <div class="absolute top-2 left-2 bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs font-label-md text-primary flex items-center gap-1" x-show="salon.review_count &gt;= 10 &amp;&amp; salon.rating &gt;= 4.7">
 <span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-weight="fill">favorite</span> Được yêu thích
                         </div>
+<!-- Saving a salon from the results is the shortest path back to it; a guest is sent to
+     sign in and comes back here, to this very search. -->
+<button :aria-pressed="isFavorite(salon)" @click.stop="toggleFavorite(salon)" aria-label="Lưu salon yêu thích" class="absolute top-3 right-3 w-11 h-11 rounded-full bg-surface/90 backdrop-blur flex items-center justify-center text-secondary hover:bg-surface transition-colors" type="button">
+<span :data-weight="isFavorite(salon) ? 'fill' : ''" class="material-symbols-outlined text-[20px]" data-icon="favorite">favorite</span>
+</button>
 </div>
 <div class="flex-grow flex flex-col justify-between py-2">
 <div>
@@ -225,11 +294,24 @@
 </div>
 <div class="flex gap-3 mt-4">
 <a :href="salonUrl(salon)" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 border border-outline text-on-surface font-label-md uppercase tracking-wider rounded-full text-sm hover:border-primary hover:text-primary transition-colors">Xem chi tiết</button></a>
-<a :href="'dat-lich.html?salon_id=' + salon.id" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 bg-primary-container text-on-primary font-label-md uppercase tracking-wider rounded-full text-sm hover:bg-primary transition-colors">Đặt lịch ngay</button></a>
+<!-- Carries the service, the day and the hour the search was filtered on, so the wizard
+     opens where the customer already is instead of asking it all again. -->
+<a :href="bookingUrl(salon)" @click.stop="" style="display:contents;color:inherit;text-decoration:none"><button class="flex-1 py-2 px-4 bg-primary-container text-on-primary font-label-md uppercase tracking-wider rounded-full text-sm hover:bg-primary transition-colors">
+<template x-if="salon.matched_service">
+<span>Đặt <span x-text="salon.matched_service.name"></span></span>
+</template>
+<template x-if="!salon.matched_service">
+<span>Đặt lịch ngay</span>
+</template>
+</button></a>
 </div>
 </div>
 </article>
 </template>
+<!-- The heading promises N salons; without this the page only ever showed the first 12. -->
+<div class="mt-8 text-center" x-cloak="" x-show="salons.length &lt; total">
+<button :disabled="loading || loadingMore" @click="more()" class="border border-outline font-label-md text-label-md text-primary px-8 py-3 rounded-full hover:bg-surface-container-low transition-colors uppercase tracking-wider disabled:opacity-50" type="button" x-text="moreLabel"></button>
+</div>
 </div>
 </section>
 <!-- Right Column: Map -->
@@ -268,8 +350,9 @@
                     Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
                 </p>
 </div>
-<!-- Links Columns -->
-<div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
@@ -279,25 +362,30 @@
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
 </div>
-</div>
-<!-- Social/Contact -->
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<div class="flex gap-4">
-<a aria-label="Website" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="gioi-thieu.html"><span class="material-symbols-outlined" data-icon="language">language</span></a>
-<a aria-label="Email" class="w-11 h-11 flex items-center justify-center text-on-tertiary/70 hover:text-on-tertiary transition-colors" href="mailto:hello@oakbeauty.vn"><span class="material-symbols-outlined" data-icon="mail">mail</span></a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
 </div>
 </div>
-</div>
-<!-- Copyright -->
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
 <div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
 <span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
 <span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
 </div>
 </footer>
@@ -313,6 +401,23 @@
             ['eyelash', 'Nối mi'],
             ['amenity', 'Tiện ích'],
         ]);
+        /* A pin that says what the salon does is a pin a thumb can tell from its neighbour;
+           the fallback is the same flower every pin used to be. */
+        var CATEGORY_ICONS = new Map([
+            ['nail', 'brush'],
+            ['hair', 'content_cut'],
+            ['skincare', 'face'],
+            ['spa', 'spa'],
+            ['eyelash', 'visibility'],
+            /* A salon with no matched service is read by its own tags, which are words
+               rather than category keys — the words the seed and the console both use. */
+            ['tóc', 'content_cut'],
+            ['chăm sóc da', 'face'],
+            ['massage', 'spa'],
+            ['nối mi', 'visibility'],
+        ]);
+        /* Up to this many pins the labels stand open: past it they overlap into a wall. */
+        var PINNED_LABELS_MAX = 8;
         /* Where the map opens when no result carries coordinates: District 1, Ho Chi Minh City. */
         var MAP_FALLBACK = { center: [10.776, 106.700], zoom: 13 };
         /* Free OSM geocoder, so an address typed by hand can become coordinates. */
@@ -327,12 +432,28 @@
         var geoToken = 0;
         /* Same guard for the result requests: filter chips can outrun a slow reply. */
         var loadToken = 0;
+        /* Whether the labels of the current set stand open; read back by paintPin(). */
+        var labelsPinned = false;
 
-        /* One source for both the initial pin markup and its repaint on hover. */
+        /* Local parts, never toISOString(): that one reads the day in UTC, and an hour past
+           midnight in Vietnam it would name yesterday. Today itself comes from OAK.todayISO(),
+           which already does exactly this. */
+        function addDaysISO(iso, days) {
+            var day = new Date(iso + 'T00:00:00');
+            day.setDate(day.getDate() + days);
+            return day.getFullYear() + '-'
+                + String(day.getMonth() + 1).padStart(2, '0') + '-'
+                + String(day.getDate()).padStart(2, '0');
+        }
+
+        /* One source for both the initial pin markup and its repaint on hover. A label that
+           only appears on hover appears never on a touch screen, so a small set keeps its
+           labels open — a thumb reads the map without tapping every pin to find out. */
         function pinClasses(active) {
             return {
                 label: 'oak-pin-label absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-3 py-1 rounded-full font-label-md text-xs shadow-lg whitespace-nowrap transition-opacity '
-                    + (active ? 'bg-primary text-on-primary opacity-100' : 'bg-surface text-on-surface opacity-0'),
+                    + (active ? 'bg-primary text-on-primary opacity-100'
+                        : 'bg-surface text-on-surface ' + (labelsPinned ? 'opacity-100' : 'opacity-0')),
                 dot: 'oak-pin-dot w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 '
                     + (active ? 'bg-primary border-surface' : 'bg-surface border-primary'),
                 icon: 'oak-pin-icon material-symbols-outlined text-sm ' + (active ? 'text-on-primary' : 'text-primary'),
@@ -346,6 +467,13 @@
                 return from + '–' + to;
             }
             return from ? 'Sau ' + from : 'Trước ' + to;
+        }
+
+        /* What this salon was found for, if the search knows; otherwise what it calls itself. */
+        function pinIcon(salon) {
+            var category = (salon.matched_service && salon.matched_service.category)
+                || (salon.tags && salon.tags[0]) || '';
+            return CATEGORY_ICONS.get(String(category).toLowerCase()) || 'spa';
         }
 
         /* Pin markup is built as a string, so salon names from the API must be escaped first. */
@@ -384,6 +512,16 @@
             loadError: false,
             hovered: null,
             openFilter: null,
+            /* Which page of the results has been asked for; every new search starts at 1. */
+            page: 1,
+            /* Its own flag rather than `loading`: that one blanks the list for a skeleton,
+               and the next page is read under a list that stays where it is. */
+            loadingMore: false,
+            /* Below md the pill row is folded away until this says otherwise. */
+            filtersOpen: false,
+            /* The areas the district pill offers, and the salons this reader has saved. */
+            districts: [],
+            favorites: [],
             /* Below md only one column fits at a time: 'list' or 'map'. */
             mobileView: 'list',
             /* The query string this page was opened with, kept as a plain object: the criteria
@@ -417,6 +555,18 @@
                 { label: 'Từ 4.0 sao', value: 4 },
                 { label: 'Từ 4.5 sao', value: 4.5 },
             ],
+            /* The five bookable categories, in the labels the backend answers with. */
+            categoryOptions: [{ label: 'Tất cả dịch vụ', value: '' }].concat(
+                Array.from(CATEGORY_LABELS)
+                    .filter(function (pair) { return pair[0] !== 'amenity'; })
+                    .map(function (pair) { return { label: pair[1], value: pair[0] }; }),
+            ),
+            /* Days ahead, not dates: the page is open longer than a day is. */
+            dateOptions: [
+                { label: 'Thời gian bất kỳ', value: null },
+                { label: 'Hôm nay', value: 0 },
+                { label: 'Ngày mai', value: 1 },
+            ],
             /* The keys GET /api/search/salons sorts by; the empty one is its own default. */
             sortOptions: [
                 { label: 'Phù hợp nhất', value: '' },
@@ -447,8 +597,15 @@
                     OAK.toast('Cần vị trí của bạn để sắp xếp theo khoảng cách.', 'error');
                 }
                 this.load();
+                this.loadDistricts();
+                this.loadFavorites();
 
                 var self = this;
+                /* The header menu points here to be searched from anywhere, so the caret has
+                   to be in the box on arrival rather than one tap further on. */
+                if (this.incoming.focus === 'q') {
+                    this.$nextTick(function () { self.$refs.keyword.focus(); });
+                }
                 /* Hovering either a result card or a pin writes `hovered`; the pins read it back. */
                 this.$watch('hovered', function (current, previous) {
                     self.paintPin(previous, false);
@@ -496,9 +653,22 @@
                 this.hovered = null;
                 markers.forEach(function (marker) { map.removeLayer(marker); });
                 markers.clear();
+                labelsPinned = this.salons.filter(function (salon) {
+                    return salon.lat && salon.lng;
+                }).length <= PINNED_LABELS_MAX;
                 this.salons.forEach(function (salon) {
                     if (!salon.lat || !salon.lng) { return; }
                     var classes = pinClasses(false);
+                    /* Its own node, so the dictionary reads the price as the price it is;
+                       the name beside it is the salon's own and is never translated. */
+                    /* The label names the service the price belongs to when the search
+                       swapped it in; without one the price is the salon's own floor. */
+                    var priceText = salon.price_from_label
+                        ? salon.price_from_label
+                        : (salon.price_from ? 'Từ ' + OAK.fmtPrice(salon.price_from) : '');
+                    var price = priceText
+                        ? '<span> · </span><span>' + escapeHtml(priceText) + '</span>'
+                        : '';
                     var marker = L.marker([salon.lat, salon.lng], {
                         title: salon.name,
                         icon: L.divIcon({
@@ -506,9 +676,10 @@
                             iconSize: [32, 32],
                             iconAnchor: [16, 16],
                             html: '<div class="relative w-8 h-8">'
-                                + '<div class="' + classes.label + '">' + escapeHtml(salon.name) + '</div>'
+                                + '<div class="' + classes.label + '">'
+                                + '<span>' + escapeHtml(salon.name) + '</span>' + price + '</div>'
                                 + '<div class="' + classes.dot + '">'
-                                + '<span class="' + classes.icon + '">spa</span>'
+                                + '<span class="' + classes.icon + '">' + pinIcon(salon) + '</span>'
                                 + '</div></div>',
                         }),
                     }).addTo(map);
@@ -586,6 +757,50 @@
                     return 'Không tải được kết quả';
                 }
                 return 'Tìm thấy ' + this.total + ' salon';
+            },
+
+            /* What the folded pills are holding, so the button that hides them says so.
+               The keyword is not among them — it has its own box — and the hour window
+               rides along with the day it narrows. The location never becomes a chip; it
+               is held by the pill that folds away with the others, so it counts here. */
+            get filterButtonLabel() {
+                var hidden = { q: true, style: true, time: true };
+                var count = this.chips.filter(function (chip) {
+                    return !hidden[chip.key];
+                }).length;
+                return 'Bộ lọc (' + (count + (this.hasLocation ? 1 : 0)) + ')';
+            },
+
+            get moreLabel() {
+                return 'Tải thêm (' + (this.total - this.salons.length) + ')';
+            },
+
+            /* An empty page at 21:00 on a "today" search is not the same statement as an
+               empty page at large, and the way out of it is a different one. */
+            get emptyMessage() {
+                if (this.incoming.date === OAK.todayISO()) {
+                    return 'Hôm nay đã hết lịch phù hợp.';
+                }
+                return 'Không tìm thấy salon nào phù hợp. Bạn thử nới rộng bộ lọc nhé.';
+            },
+
+            /* Only on a "today" search, which is the only one the button tells the truth
+               about: on a search already set to tomorrow it would offer the day after. */
+            get canTryNextDay() {
+                return this.incoming.date === OAK.todayISO();
+            },
+
+            /* The three that narrow without naming what is wanted, and so are the three
+               worth dropping first when nothing came back. */
+            get hasNarrowing() {
+                return Boolean(this.filters.price_max || this.filters.rating_min || this.filters.radius_km);
+            },
+
+            /* The assistant takes the sentence over, keyword and all. */
+            get assistantUrl() {
+                return this.incoming.q
+                    ? 'tim-kiem-thong-minh.html?q=' + encodeURIComponent(this.incoming.q)
+                    : 'tim-kiem-thong-minh.html';
             },
 
             /* Coordinates can arrive from the URL, so they are only usable once they parse. */
@@ -727,6 +942,9 @@
                 } else {
                     params.delete('open_now');
                 }
+                /* An instruction to this page on arrival, not a criterion: the search has no
+                   use for it and the address bar keeps it only until something is pressed. */
+                params.delete('focus');
                 if (this.coords.lat && this.coords.lng) {
                     params.set('lat', this.coords.lat);
                     params.set('lng', this.coords.lng);
@@ -741,6 +959,9 @@
             async load() {
                 var token = ++loadToken;
                 this.loading = true;
+                /* Every load is the first page of its own search: the pages loaded on top
+                   of the last one belong to criteria that no longer apply. */
+                this.page = 1;
                 try {
                     var data = await OAK.api('/api/search/salons?' + this.query());
                     /* A slower earlier request must never overwrite a newer one. */
@@ -763,6 +984,92 @@
                         this.loading = false;
                         this.drawMarkers();
                     }
+                }
+            },
+
+            /* The next page under the ones already read. It takes the same token as a reload,
+               so a filter changed mid-flight cancels this rather than stacking page 2 of the
+               old search under page 1 of the new one. Ids are checked because a salon that
+               moved up the ranking between the two requests would otherwise arrive twice. */
+            async more() {
+                if (this.loading || this.loadingMore) {
+                    return;
+                }
+                var token = ++loadToken;
+                this.loadingMore = true;
+                try {
+                    var data = await OAK.api('/api/search/salons?' + this.query() + '&page=' + (this.page + 1));
+                    if (token !== loadToken) {
+                        return;
+                    }
+                    this.page += 1;
+                    this.total = data.meta.total;
+                    var seen = new Set(this.salons.map(function (salon) { return salon.id; }));
+                    var fresh = data.filter(function (salon) {
+                        return !seen.has(salon.id);
+                    });
+                    this.salons = this.salons.concat(fresh);
+                    /* A page that held only salons already on screen leaves the list short of
+                       the total, and the button would sit there fetching nothing for good.
+                       Take the count from what is actually shown so it retires instead. */
+                    if (data.length && !fresh.length) {
+                        this.total = this.salons.length;
+                    }
+                    this.drawMarkers();
+                } catch (error) {
+                    if (token !== loadToken) {
+                        return;
+                    }
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    /* Unconditionally: a reload that superseded this one never touches the
+                       flag, and the button would stay disabled for good. */
+                    this.loadingMore = false;
+                }
+            },
+
+            /* The areas the district pill offers. Its own fallback list, so it never rejects. */
+            async loadDistricts() {
+                this.districts = await OAK.districts();
+            },
+
+            /* One call for the whole list: the heart on each card reads it back. A guest has
+               no list, and a failure leaves the hearts empty rather than saying so — nothing
+               here was asked for by the reader. */
+            async loadFavorites() {
+                try {
+                    if (!(await OAK.me())) {
+                        return;
+                    }
+                    var data = await OAK.api('/api/favorites');
+                    this.favorites = data.salons.map(function (salon) { return salon.id; });
+                } catch (error) {
+                    this.favorites = [];
+                }
+            },
+
+            isFavorite(salon) {
+                return this.favorites.includes(salon.id);
+            },
+
+            /* A guest is sent to sign in carrying this very search, so the way back is the
+               page they were on rather than the top of the site. */
+            async toggleFavorite(salon) {
+                await OAK.requireLogin();
+                var next = !this.isFavorite(salon);
+                try {
+                    await OAK.api(
+                        next ? '/api/favorites' : '/api/favorites?salon_id=' + salon.id,
+                        next
+                            ? { method: 'POST', body: { salon_id: salon.id } }
+                            : { method: 'DELETE' },
+                    );
+                    this.favorites = next
+                        ? this.favorites.concat(salon.id)
+                        : this.favorites.filter(function (id) { return id !== salon.id; });
+                    OAK.toast(next ? 'Đã lưu vào yêu thích.' : 'Đã bỏ khỏi yêu thích.');
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
                 }
             },
 
@@ -799,7 +1106,55 @@
                 this.apply();
             },
 
-            removeCriterion(key) {
+            /* The criteria that used to be read-only: they arrived in the URL and the only
+               thing the page could do with one was drop it. Written here, then applied. */
+            setCriterion(key, value) {
+                this.openFilter = null;
+                this.incoming[key] = value;
+                this.apply();
+            },
+
+            /* Days ahead rather than a date, and the hour window goes when the day does —
+               it only ever narrowed a day. */
+            setDate(daysAhead) {
+                this.openFilter = null;
+                if (daysAhead === null) {
+                    this.clearCriterion('date');
+                } else {
+                    this.incoming.date = addDaysISO(OAK.todayISO(), daysAhead);
+                }
+                this.apply();
+            },
+
+            /* The same day one further on, which is the way out of an evening with no hours
+               left in it. */
+            tryNextDay() {
+                this.incoming.date = addDaysISO(this.incoming.date, 1);
+                this.apply();
+            },
+
+            /* Everything that narrows without saying what is wanted; the keyword, the
+               category and the area — what the customer actually asked for — stay. */
+            clearNarrowing() {
+                this.filters.price_max = '';
+                this.filters.rating_min = '';
+                this.filters.radius_km = '';
+                this.apply();
+            },
+
+            /* Every criterion but the keyword: that one is the search itself, and clearing
+               it would leave nothing to widen. */
+            clearAll() {
+                var self = this;
+                this.chips.forEach(function (chip) {
+                    if (chip.key !== 'q') {
+                        self.clearCriterion(chip.key);
+                    }
+                });
+                this.apply();
+            },
+
+            clearCriterion(key) {
                 if (key === 'open_now') {
                     this.filters.open_now = false;
                 } else if (key === 'time') {
@@ -819,6 +1174,10 @@
                 if (key === 'q') {
                     this.q = '';
                 }
+            },
+
+            removeCriterion(key) {
+                this.clearCriterion(key);
                 this.apply();
             },
 
@@ -958,6 +1317,24 @@
                 return 'salon-profile.html?salon=' + encodeURIComponent(salon.slug);
             },
 
+            /* The wizard reads all four and opens on the furthest step they reach: with the
+               matched service and an hour it opens on the hour, with the service on the
+               staff, and with neither on the salon. Everything the search already knows
+               travels with the press, so nothing is asked for twice. */
+            bookingUrl(salon) {
+                var params = new URLSearchParams({ salon_id: salon.id });
+                if (salon.matched_service) {
+                    params.set('service_id', salon.matched_service.id);
+                }
+                if (this.incoming.date) {
+                    params.set('date', this.incoming.date);
+                    if (this.incoming.time_from) {
+                        params.set('time', this.incoming.time_from);
+                    }
+                }
+                return 'dat-lich.html?' + params;
+            },
+
             /* Dragging to select text inside a card ends in a click, which must not navigate. */
             isSelecting() {
                 var selection = window.getSelection();
@@ -981,7 +1358,9 @@
                 if (salon.distance_km !== null && salon.distance_km !== undefined) {
                     parts.push(salon.distance_km + 'km');
                 }
-                if (salon.price_from) {
+                if (salon.price_from_label) {
+                    parts.push(salon.price_from_label);
+                } else if (salon.price_from) {
                     parts.push('từ ' + OAK.fmtPrice(salon.price_from));
                 }
                 return parts.filter(Boolean).join(' • ');

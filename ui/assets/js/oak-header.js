@@ -35,7 +35,8 @@
     return;
   }
 
-  var PAGE = location.pathname.split('/').pop() || 'index.html';
+  /* The server serves the home page at '/', where the last segment is empty. */
+  var PAGE = location.pathname.split('/').pop() || 'kham-pha.html';
 
   /*
    * The bar is the first thing every keyboard reader meets, and on a phone its menu holds
@@ -129,6 +130,9 @@
     entry('dat-lich.html', 'Đặt lịch') +
     /* One page finds salons — list and map are a switch inside it, not two entries here. */
     entry('ket-qua-tim-kiem.html', 'Tất cả salon') +
+    /* The only way to a search box from the twenty-odd pages that carry none of their own;
+       ?focus=q is what puts the caret in it on arrival. */
+    entry('ket-qua-tim-kiem.html?focus=q', 'Tìm salon, dịch vụ') +
     entry('uu-dai.html', 'Ưu đãi') +
     entry('tim-kiem-thong-minh.html', 'Trợ lý tìm kiếm AI') +
     area;
@@ -150,15 +154,17 @@
       entry('dang-ky.html', 'Đăng ký') +
     '</div>';
 
+  /* Same order as the rail and the mobile strip those six pages carry: two orders for one
+     set of pages is what makes a reader hunt for the entry they used yesterday. */
   var mine =
     '<div class="hidden" data-oak-auth="user">' +
-      entry('ho-so-ca-nhan.html', 'Hồ sơ cá nhân') +
       entry('lich-hen-cua-toi.html', 'Lịch hẹn của tôi') +
       entry('yeu-thich.html', 'Yêu thích') +
       entry('danh-gia-cua-toi.html', 'Đánh giá của tôi') +
       /* The mark oak-api.js adds belongs at the end of this row, not over its first word. */
       entry('thong-bao.html', 'Thông báo', null, null,
         ' aria-label="Thông báo" data-oak-dot="absolute right-4 top-1/2 -translate-y-1/2"') +
+      entry('ho-so-ca-nhan.html', 'Hồ sơ cá nhân') +
       entry('cai-dat.html', 'Cài đặt') +
     '</div>';
 
@@ -230,4 +236,20 @@
           'class="relative" x-data="{ menuOpen: false }">' + pill + panel + '</div>' +
       '</nav>' +
     '</div>';
+
+  /*
+   * The six account pages carry a strip of tabs that is wider than a phone, and the page a
+   * reader is on can be the fifth or sixth of them — off screen on arrival, so the strip
+   * says nothing about where they are. Only when it really does overflow: on a strip that
+   * fits, this would scroll a row that has nowhere to go. block:'nearest' keeps the page
+   * itself still — only the strip moves.
+   */
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-oak-account-tabs]').forEach(function (tabs) {
+      var current = tabs.querySelector('[aria-current="page"]');
+      if (current && tabs.scrollWidth > tabs.clientWidth) {
+        current.scrollIntoView({ inline: 'center', block: 'nearest' });
+      }
+    });
+  });
 })();

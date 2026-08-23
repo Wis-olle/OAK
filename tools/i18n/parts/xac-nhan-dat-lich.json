@@ -33,7 +33,6 @@
   "Chuyên viên": "Specialist",
   "Thêm vào lịch": "Add to calendar",
   "Xem chỉ dẫn đường": "Get directions",
-  "Liên hệ salon": "Contact the salon",
   "Quay về trang chủ": "Back to home",
   "Quản lý lịch hẹn": "Manage appointments",
   "Bảo mật thông tin": "Your data is protected",
@@ -43,5 +42,9 @@
   "Gọi hotline": "Call the hotline",
   "Gửi tin nhắn": "Send a message",
   "Lịch mới đã được đặt, nhưng lịch cũ chưa hủy được — vui lòng liên hệ salon hoặc kiểm tra Lịch hẹn của tôi.": "Your new appointment is booked, but the old one could not be cancelled — please contact the salon or check My appointments.",
-  "Xem lịch hẹn cũ": "View the old appointment"
+  "Xem lịch hẹn cũ": "View the old appointment",
+  "Tạm tính": "Estimate",
+  "Cần hỗ trợ?": "Need help?",
+  "Gọi salon": "Call the salon",
+  "Liên hệ OAK": "Contact OAK"
 }

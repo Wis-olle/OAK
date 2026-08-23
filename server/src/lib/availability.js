@@ -21,13 +21,17 @@ const DAY_END_MIN = 23 * 60 + 59;
 const selectService = db.prepare('SELECT id, salon_id, duration_min FROM services WHERE id = ?');
 
 // Candidate staff for a service on one weekday, already filtered to working days.
-const selectServiceShifts = db.prepare(`
+// The text is kept apart from the statement because pickAvailableStaff below runs the
+// same three queries on the caller's transaction rather than on the pool.
+const SERVICE_SHIFTS_SQL = `
   SELECT st.id, sch."start", sch."end"
   FROM staff st
   JOIN staff_services ss ON ss.staff_id = st.id
   JOIN staff_schedule sch ON sch.staff_id = st.id
   WHERE ss.service_id = ? AND st.active = 1 AND sch.weekday = ? AND sch.is_off = 0
-`);
+  ORDER BY st.id
+`;
+const selectServiceShifts = db.prepare(SERVICE_SHIFTS_SQL);
 
 // Joined to staff so one round trip yields both the shift and the salon whose opening
 // hours it has to fit inside; staffDaySlots is only ever handed a staff id.
@@ -40,9 +44,9 @@ const selectStaffShift = db.prepare(`
 
 // The salon's own opening hours for one weekday. Every shift is clamped to these: the
 // roster says who is rostered, the salon says whether its doors are open at all.
-const selectSalonHours = db.prepare(
-  'SELECT "start", "end", is_off FROM salon_hours WHERE salon_id = ? AND weekday = ?',
-);
+const SALON_HOURS_SQL =
+  'SELECT "start", "end", is_off FROM salon_hours WHERE salon_id = ? AND weekday = ?';
+const selectSalonHours = db.prepare(SALON_HOURS_SQL);
 
 const selectStaffMaxDuration = db.prepare(`
   SELECT MAX(sv.duration_min) AS duration_min
@@ -53,21 +57,22 @@ const selectStaffMaxDuration = db.prepare(`
 
 // Joined so one round trip yields both the start time and the length to block out.
 // Bookings with staff_id NULL never match, which is intended: they block nobody.
-const selectStaffBookings = db.prepare(`
+const STAFF_BOOKINGS_SQL = `
   SELECT b.time, sv.duration_min
   FROM bookings b
   JOIN services sv ON sv.id = b.service_id
   WHERE b.staff_id = ? AND b.date = ? AND b.status IN ('pending', 'confirmed')
-`);
+`;
+const selectStaffBookings = db.prepare(STAFF_BOOKINGS_SQL);
 
 const selectSalonServiceIds = db.prepare(
   "SELECT id FROM services WHERE salon_id = ? AND active = 1 AND category <> 'amenity'",
 );
 
-/** Busy [start, end) minute ranges for one staff member on one date. */
-async function busyRanges(staffId, date) {
+/** Busy [start, end) minute ranges from rows of {time, duration_min}. */
+function toRanges(bookings) {
   const ranges = [];
-  for (const booking of await selectStaffBookings.all(staffId, date)) {
+  for (const booking of bookings) {
     const start = toMinutes(booking.time);
     if (start === null) {
       continue;
@@ -75,6 +80,11 @@ async function busyRanges(staffId, date) {
     ranges.push([start, start + (booking.duration_min ?? FALLBACK_DURATION_MIN)]);
   }
   return ranges;
+}
+
+/** Busy [start, end) minute ranges for one staff member on one date. */
+async function busyRanges(staffId, date) {
+  return toRanges(await selectStaffBookings.all(staffId, date));
 }
 
 function isFree(ranges, start, duration) {
@@ -199,6 +209,55 @@ export async function getStaffSlots(staffId, serviceId, date) {
     return [];
   }
   return staffDaySlots(staffId, date, service.duration_min || FALLBACK_DURATION_MIN);
+}
+
+/**
+ * Which technician takes a booking that named none — "Bất kỳ" as a real reservation.
+ *
+ * Runs on `tx`, the caller's own transaction, so what it reads and what the INSERT
+ * writes cannot drift apart. Candidates are the staff assigned to the service and on
+ * shift that weekday, clamped to the salon's hours like every other read here. Among
+ * those free for the whole duration at `time`, the one with the most of the day still
+ * open wins, so repeat "Bất kỳ" bookings spread across the roster instead of piling
+ * onto whoever comes first. Null when nobody is free, which the caller answers as
+ * SLOT_TAKEN — the same answer a named technician gets.
+ *
+ * What the transaction does NOT give is isolation between two of them:
+ * idx_bookings_slot is UNIQUE(staff_id, date, time), so it rejects a second booking at the
+ * SAME start time and nothing else. Two READ COMMITTED transactions booking 10:00 and 10:30
+ * of the same 60-minute service can each read the roster before the other commits, pick the
+ * same technician and both insert — an overlap no index covers, and the named-technician
+ * path has the same hole because getStaffSlots is read outside the transaction. Closing it
+ * needs a SELECT … FOR UPDATE over the candidate's bookings in here, or an exclusion
+ * constraint over a tsrange; ticketed, not done.
+ */
+export async function pickAvailableStaff(tx, salonId, serviceId, date, time, durationMin) {
+  const duration = durationMin || FALLBACK_DURATION_MIN;
+  const weekday = weekdayOf(date);
+  const hours = await tx.get(SALON_HOURS_SQL, salonId, weekday);
+  let chosen = null;
+
+  for (const shift of await tx.all(SERVICE_SHIFTS_SQL, serviceId, weekday)) {
+    const open = clampToHours(shift, hours);
+    if (!open) {
+      continue;
+    }
+    const ranges = toRanges(await tx.all(STAFF_BOOKINGS_SQL, shift.id, date));
+    let free = 0;
+    let freeAtTime = false;
+    for (const minute of shiftStarts(open, duration)) {
+      if (!isFree(ranges, minute, duration)) {
+        continue;
+      }
+      free += 1;
+      freeAtTime = freeAtTime || fromMinutes(minute) === time;
+    }
+    if (freeAtTime && (chosen === null || free > chosen.free)) {
+      chosen = { id: shift.id, free };
+    }
+  }
+
+  return chosen === null ? null : chosen.id;
 }
 
 /** One entry per day from fromDate, including days the staff member does not work. */

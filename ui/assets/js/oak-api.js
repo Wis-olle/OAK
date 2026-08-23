@@ -22,9 +22,15 @@
 
   var WEEKDAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
 
+  /** The file name of the page being read. The server serves the home page at '/', where
+      the last path segment is empty — every caller here wants the page it stands for. */
+  function pageName() {
+    return location.pathname.replace(/^.*\//, '') || HOME_PAGE;
+  }
+
   /** The current page as a relative url, so it can ride in a ?next= parameter. */
   function currentUrl() {
-    return location.pathname.replace(/^.*\//, '') + location.search;
+    return pageName() + location.search;
   }
 
   function apiError(code, message) {
@@ -274,8 +280,13 @@
       );
     }
 
-    // A fresh login counts as a session too, for pages that sign in without reloading.
-    if (path === '/api/auth/login' && payload.data && payload.data.user) {
+    // A fresh login counts as a session too, for pages that sign in without reloading —
+    // and so does a registration, which issues the same cookie.
+    if (
+      (path === '/api/auth/login' || path === '/api/auth/register') &&
+      payload.data &&
+      payload.data.user
+    ) {
       sessionSeen = true;
     }
 
@@ -987,7 +998,7 @@
     try {
       var body = JSON.stringify({
         name: name,
-        page: location.pathname.replace(/^.*\//, ''),
+        page: pageName(),
         // Path only: a referring url's query string can carry someone's search terms.
         ref: String(document.referrer || '').split('?')[0].split('#')[0],
         meta: meta || undefined,

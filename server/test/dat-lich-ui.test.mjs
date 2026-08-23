@@ -52,6 +52,11 @@ function bookingForm(api, search = '') {
      track() by default — the browser served a page from cache that meets an oak-api.js
      from before measurement existed — which is the case every other test here runs in. */
   context.result.oak = context.OAK;
+  /* Alpine's two magics this component uses: goTo() scrolls the wizard into view and then
+     hands focus to the heading of the step it opened. A test that cares about either
+     replaces them. */
+  context.result.$root = { scrollIntoView: () => {}, querySelectorAll: () => [] };
+  context.result.$nextTick = (fn) => fn();
   return context.result;
 }
 
@@ -152,7 +157,6 @@ test('both empty-state messages are gated on a genuinely successful response', (
 
 test('every selection change writes the url, so a reload comes back to the same wizard', async () => {
   const state = bookingForm(async () => ({ slots: [{ time: '09:00', available: true }] }));
-  state.$root = { scrollIntoView: () => {} };
 
   state.chooseSalon({ id: 4, name: 'Lala Nail Studio' });
   assert.equal(state.urls.at(-1), 'dat-lich.html?salon_id=4');
@@ -331,7 +335,6 @@ test('reschedule survives a whole chain of interactions, each of which rewrites 
     async () => ({ slots: [{ time: '09:00', available: true }] }),
     '?reschedule=55',
   );
-  state.$root = { scrollIntoView: () => {} };
   // Set the way init() sets it; that init() reads it from the url is the test above.
   state.reschedule = 55;
 
@@ -457,7 +460,6 @@ test('a booking the server refused is not counted as a booking', async () => {
   }));
   const events = [];
   state.oak.track = (name) => events.push(name);
-  state.$root = { scrollIntoView: () => {} };
 
   await state.submit();
 
@@ -472,4 +474,319 @@ test('a browser whose oak-api.js has no track() still books', async () => {
 
   await assert.doesNotReject(() => state.submit());
   assert.equal(state.location.href, 'xac-nhan-dat-lich.html?id=91');
+});
+
+test('"Bất kỳ" says what it will do, and every technician is a card with a face', () => {
+  /* A booking that names nobody now reserves somebody, so the chip has to stop reading as
+     "no technician" — and the people it is chosen against need more than a name. */
+  assert.match(html, /Hệ thống sẽ xếp kỹ thuật viên rảnh/);
+  assert.match(html, /data-icon="group"/);
+  assert.match(html, /x-text="staffMeta\(member\)"/);
+  // The fallback for a technician with no photo, and the note that explains a pre-pick.
+  assert.match(html, /<template x-if="!member\.image">/);
+  assert.match(html, /x-show="rebookStaffId &amp;&amp; staffId === rebookStaffId"/);
+});
+
+test('a technician arriving in the url is remembered as a rebook only when marked', async () => {
+  const stub = async (path) => {
+    if (path.startsWith('/api/salons?')) {
+      return Object.assign([], { meta: { total: 0 } });
+    }
+    if (path === '/api/services/7') {
+      return { id: 7, name: 'Nail Gel Hàn Quốc', price: 350000, salon: { id: 4 } };
+    }
+    if (path === '/api/services/7/staff') {
+      return [{ id: 3, name: 'Minh Hằng', title: 'Chuyên viên Nail', rating: 4.8 }];
+    }
+    if (path.includes('availability')) {
+      return path.includes('days=') ? { week: [] } : { slots: [] };
+    }
+    return [];
+  };
+
+  /* A specialist's profile and a salon's team strip both link here with a staff_id, and
+     their visitor may never have booked at OAK. Pre-selecting them is right; telling them
+     they were here before is not, so the note waits for the marker "Đặt lại" adds. */
+  const fromProfile = bookingForm(stub, '?service_id=7&salon_id=4&staff_id=3');
+  await fromProfile.init();
+  assert.equal(fromProfile.staffId, 3);
+  assert.equal(fromProfile.rebookStaffId, null);
+  assert.equal(
+    fromProfile.staffMeta({ title: 'Chuyên viên Nail', rating: 4.8 }),
+    'Chuyên viên Nail · 4.8',
+  );
+
+  const state = bookingForm(stub, '?service_id=7&salon_id=4&staff_id=3&rebook=1');
+  await state.init();
+  assert.equal(state.staffId, 3);
+  assert.equal(state.rebookStaffId, 3);
+  // Picking somebody else drops the note without dropping the record of how they arrived.
+  state.setStaff(null);
+  assert.equal(state.rebookStaffId, 3);
+  assert.equal(state.staffId, null);
+});
+
+test('the hours are split by part of the day, and empty parts are left out', () => {
+  const state = bookingForm(async () => []);
+  state.slots = [
+    { time: '09:00', available: true },
+    { time: '11:30', available: false },
+    { time: '17:00', available: true },
+    { time: '19:30', available: true },
+  ];
+
+  // Array.from, because the component builds its arrays inside the vm and a strict
+  // deepEqual compares prototypes as well as contents.
+  const groups = Array.from(state.slotGroups());
+  assert.deepEqual(groups.map((group) => group.label), ['Sáng', 'Tối']);
+  assert.deepEqual(Array.from(groups[0].slots, (slot) => slot.time), ['09:00', '11:30']);
+  // 17:00 is the first evening hour, not the last afternoon one.
+  assert.deepEqual(Array.from(groups[1].slots, (slot) => slot.time), ['17:00', '19:30']);
+});
+
+test('a day with nothing left offers the nearest day that has something', () => {
+  const state = bookingForm(async () => []);
+  state.date = '2099-01-01';
+  state.dayChips = [
+    { date: '2099-01-01', weekday: 'Hôm nay', day: '01/01', full: true },
+    { date: '2099-01-02', weekday: 'Thứ 6', day: '02/01', full: true },
+    { date: '2099-01-03', weekday: 'Thứ 7', day: '03/01', full: false },
+  ];
+
+  assert.equal(state.nextFreeDay().date, '2099-01-03');
+  // The day on screen is never offered as the way off itself, full or not.
+  state.date = '2099-01-03';
+  assert.equal(state.nextFreeDay(), null);
+  assert.match(html, /Ngày gần nhất còn chỗ/);
+  assert.match(html, /@click="pickDate\(nextFreeDay\(\)\.date\)"/);
+});
+
+test('an hour dropped by a new service or technician is named; one dropped by a new day is not', async () => {
+  let free = true;
+  const state = bookingForm(async () => ({
+    slots: [{ time: '09:00', available: free }, { time: '10:00', available: true }],
+  }));
+  state.service = { id: 7, name: 'Nail Gel Hàn Quốc', price: 350000 };
+  state.date = '2099-01-01';
+  state.time = '09:00';
+
+  // The same hour, still on offer: nothing to say.
+  await state.loadSlots();
+  assert.equal(state.time, '09:00');
+  assert.equal(state.stepError, '');
+
+  // Gone, and not because the day changed — the grid looks the same, so it has to be said.
+  free = false;
+  await state.loadSlots();
+  assert.equal(state.time, '');
+  assert.equal(state.stepError, 'Khung giờ bạn chọn không còn trống, vui lòng chọn giờ khác.');
+
+  // A different day is expected to have different hours, so losing one is not news.
+  state.time = '09:00';
+  state.stepError = '';
+  await state.loadSlots(true);
+  assert.equal(state.time, '');
+  assert.equal(state.stepError, '');
+
+  // And a request that never arrived knows nothing about the hour: the retry line is the
+  // only true thing to say, so it is not joined by a claim that the hour went.
+  const offline = bookingForm(async () => {
+    throw new Error('offline');
+  });
+  offline.service = { id: 7, name: 'Nail Gel Hàn Quốc', price: 350000 };
+  offline.date = '2099-01-01';
+  offline.time = '09:00';
+  await offline.loadSlots();
+  assert.equal(offline.slotsError, 'Không tải được khung giờ trống.');
+  assert.equal(offline.time, '');
+  assert.equal(offline.stepError, '');
+});
+
+test('moving between steps hands focus to the heading of the step that opened', () => {
+  /* Step 3 marks two headings — the technician picker, then the clock below it — so the
+     one focus lands on is the first that is actually rendered, not the first in source
+     order and not always the last. `offsetParent` is how a hidden one says so. */
+  const focused = [];
+  const state = bookingForm(async () => []);
+  const heading = (name, shown) => ({
+    name,
+    offsetParent: shown ? {} : null,
+    focus: () => focused.push(name),
+  });
+  let rendered = [heading('staff', true), heading('time', true)];
+  state.$root = {
+    scrollIntoView: () => {},
+    querySelectorAll: (selector) =>
+      selector === '[data-step-heading="3"]' ? rendered : [],
+  };
+  state.salon = { id: 4 };
+  state.service = { id: 7 };
+
+  state.goTo(3);
+  assert.deepEqual(focused, ['staff']);
+
+  // A salon with no roster hides the picker, and the clock takes the focus instead.
+  rendered = [heading('staff', false), heading('time', true)];
+  state.goTo(2);
+  state.goTo(3);
+  assert.deepEqual(focused, ['staff', 'time']);
+
+  // Which only works if there is something to focus: one marked heading per step.
+  for (const step of [1, 2, 3, 4]) {
+    assert.match(html, new RegExp('data-step-heading="' + step + '" tabindex="-1"'));
+  }
+});
+
+test('the reschedule banner names the appointment being replaced, and survives not knowing', async () => {
+  const state = bookingForm(
+    async (path) => {
+      if (path.startsWith('/api/salons?')) {
+        return Object.assign([], { meta: { total: 0 } });
+      }
+      if (path === '/api/bookings/55') {
+        return {
+          code: 'OAK-ABC123',
+          date: '2099-08-23',
+          time: '14:30',
+          salon: { name: 'Lala Nail Studio' },
+        };
+      }
+      return [];
+    },
+    '?reschedule=55',
+  );
+
+  await state.init();
+
+  assert.equal(state.rescheduleOld.code, 'OAK-ABC123');
+  assert.equal(state.oldWhenLabel(), '23/08 14:30');
+  // Each half is its own node, so English needs no rule for a sentence built at runtime.
+  assert.match(html, /<span>Đang đổi lịch<\/span>/);
+  assert.match(html, /x-text="oldWhenLabel\(\)"/);
+
+  // A booking that cannot be read leaves the standing notice alone rather than erroring.
+  const blind = bookingForm(async () => {
+    throw new Error('Không tìm thấy lịch hẹn.');
+  }, '?reschedule=55');
+  blind.reschedule = 55;
+  await blind.loadRescheduleOld();
+  assert.equal(blind.rescheduleOld, null);
+});
+
+test('a guest signs up inside the wizard and lands on the confirmation, never on another page', async () => {
+  const calls = [];
+  const state = readyToSubmit(bookingForm(async (path) => {
+    calls.push(path);
+    if (path === '/api/auth/register') {
+      return { user: { id: 9, name: 'Ngọc Anh' } };
+    }
+    if (path.startsWith('/api/bookings/quote')) {
+      return { items: [], total: 350000 };
+    }
+    return { id: 91 };
+  }));
+  state.user = null;
+  state.authTab = 'register';
+  state.auth = { email: 'ngocanh@example.com', password: 'Oak@1234' };
+  // Written the way a person writes it; the account and the booking both get the digits.
+  state.form.phone = '090 123.4567';
+
+  await state.authSubmit();
+
+  assert.deepEqual(calls, [
+    '/api/auth/register',
+    '/api/bookings/quote?service_id=7',
+    '/api/bookings',
+  ]);
+  assert.equal(state.user.id, 9);
+  assert.equal(state.authError, '');
+  assert.equal(state.authBusy, false);
+  // The password is not left lying in the component once it has been spent.
+  assert.equal(state.auth.password, '');
+  assert.equal(state.location.href, 'xac-nhan-dat-lich.html?id=91');
+});
+
+test('a refused sign-in stays on the wizard with the reason, and books nothing', async () => {
+  const calls = [];
+  const state = readyToSubmit(bookingForm(async (path) => {
+    calls.push(path);
+    throw new Error('Email hoặc mật khẩu không đúng.');
+  }));
+  state.user = null;
+  state.auth = { email: 'ngocanh@example.com', password: 'wrong' };
+
+  await state.authSubmit();
+
+  assert.deepEqual(calls, ['/api/auth/login']);
+  assert.equal(state.authError, 'Email hoặc mật khẩu không đúng.');
+  assert.equal(state.user, null);
+  assert.equal(state.location.href, '');
+});
+
+test('the contact form asks for a phone the way a phone asks for one', () => {
+  assert.match(
+    html,
+    /autocapitalize="words" autocomplete="name"[^>]*enterkeyhint="next" id="customer-name"/,
+  );
+  assert.match(html, /autocomplete="tel"[^>]*id="customer-phone" inputmode="tel"/);
+  // And says why, next to the box, rather than leaving the reader to guess.
+  assert.match(html, /Salon dùng số này để xác nhận lịch/);
+  assert.match(html, /aria-describedby="customer-phone-help customer-phone-error"/);
+  assert.match(html, /enterkeyhint="done"[^>]*rows="3"/);
+});
+
+test('a number written with spaces and dots is accepted and sent as digits', async () => {
+  const bodies = [];
+  const state = readyToSubmit(bookingForm(async (path, options) => {
+    bodies.push(options && options.body);
+    return { id: 91 };
+  }));
+  state.form.phone = '090 123.4567';
+
+  await state.submit();
+
+  assert.equal(state.fieldErrors.phone, '');
+  assert.equal(bodies[0].customer_phone, '0901234567');
+});
+
+test('step 2 prices and groups a service the way the salon menu does', () => {
+  const state = bookingForm(async () => []);
+  state.options = [
+    { id: 1, name: 'Sơn Gel', category: 'nail' },
+    { id: 2, name: 'Uốn tóc', category: 'hair' },
+    { id: 3, name: 'Sơn Gel Cơ Bản', category: 'nail' },
+  ];
+
+  const groups = Array.from(state.optionGroups());
+  assert.deepEqual(groups.map((group) => group.label), ['Nails', 'Tóc']);
+  assert.deepEqual(Array.from(groups[0].options, (option) => option.id), [1, 3]);
+  // "Từ 350.000đ" rather than a figure that will not be charged, and the menu's own words.
+  assert.match(html, /x-text="OAK\.fmtPriceFrom\(option\.price, option\.price_is_from\)"/);
+  assert.match(html, /line-clamp-2"[^>]*x-text="option\.description"/);
+});
+
+test('an opening price turns the sidebar total into an estimate', () => {
+  const state = bookingForm(async () => []);
+  assert.equal(state.estimated(), false);
+  state.service = { id: 7, price: 350000, price_is_from: false };
+  assert.equal(state.estimated(), false);
+  state.service = { id: 7, price: 350000, price_is_from: true };
+  assert.equal(state.estimated(), true);
+
+  assert.match(html, /x-show="!estimated\(\)">Tổng cộng</);
+  assert.match(html, /x-show="estimated\(\)">Tạm tính</);
+  assert.match(html, /Giá cuối salon chốt theo thực tế/);
+});
+
+test('the help block is the same block, in the same order, as the confirmation page carries', () => {
+  const confirmation = fs.readFileSync(path.join(root, 'ui', 'xac-nhan-dat-lich.html'), 'utf8');
+  for (const source of [html, confirmation]) {
+    // WCAG 2.2 SC 3.2.6: the same help, in the same place, at every step of the process.
+    assert.match(source, /Cần hỗ trợ\?/);
+    assert.ok(source.indexOf('Gọi salon') < source.indexOf('Liên hệ OAK'));
+    assert.match(source, /href="lien-he\.html"/);
+  }
+  // The salon's number is dialled and shown, never announced into a toast nobody kept.
+  assert.doesNotMatch(confirmation, /Số điện thoại salon/);
+  assert.match(confirmation, /x-show="booking &amp;&amp; booking\.salon\.phone"/);
 });
