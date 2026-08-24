@@ -126,12 +126,9 @@ test('every public page says something without scripting, and says the same thin
   }
 });
 
-test('Beauty Map has an address of its own and a way in from every page', () => {
+test('Beauty Map has an address of its own, so a deep link can still reach it', () => {
   const home = readUi('kham-pha.html');
   assert.match(home, /<section[^>]*id="beauty-map"/, 'the section cannot be linked to');
-
-  const { markup } = header('blog.html');
-  assert.match(markup, /href="kham-pha\.html#beauty-map">Beauty Map</, 'no menu entry');
 });
 
 test('on a phone the bookable salons come before the two-screen picture', () => {

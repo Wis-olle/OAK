@@ -22,6 +22,11 @@ const headerJs = read('ui/assets/js/oak-header.js');
 const blogJs = read('ui/assets/js/oak-blog.js');
 const utilsCss = read('ui/assets/css/oak-utils.css');
 
+/* The tokens, read the way tools/tailwind/tailwind.build.config.js reads them. */
+const tokenContext = { tailwind: {} };
+vm.runInNewContext(read('ui/assets/js/oak-tailwind-config.js'), tokenContext);
+const COLORS = tokenContext.tailwind.config.theme.extend.colors;
+
 /** The source between two declarations, so the tests drive the shipped functions. */
 function between(source, start, end) {
   const from = source.indexOf(start);
@@ -141,11 +146,45 @@ test('both files that own a top bar put the regions in before page code runs', (
   // The customer bar, written at parse time…
   assert.match(headerJs, /OAK\.liveRegions\(\)/);
   // …and every page, including the partner console, which carries no such file.
-  assert.match(between(apiJs, 'async function initHeader()', 'initRegionPicker();'),
+  assert.match(between(apiJs, 'async function initHeader()', 'var user = await me();'),
     /liveRegions\(\);/);
 });
 
 /* ---------------------------------------------------------------- focus and motion ----- */
+
+test('the hero search kills the focus ring, so it has to paint a substitute', () => {
+  const hero = read('ui/kham-pha.html');
+
+  // The reset that takes the plugin's ring away. Whatever replaces it has to be found below,
+  // or the three segments of the bar are focusable with nothing to show for it.
+  assert.match(hero, /input\.oak-search-field:focus, select\.oak-search-field:focus \{\s*outline: none;/);
+
+  // The substitute: a tint on the segment holding the caret. Keyed off :focus and not
+  // :focus-visible on purpose — Chromium matches :focus-visible on a text field for a mouse
+  // press too, so the near-black outline this replaced was drawn on a plain click.
+  assert.doesNotMatch(hero, /oak-search-field:focus-visible/,
+    'the outline that a mouse press used to draw is back');
+  // Two rules, not one selector list: a list is all-or-nothing, so pairing the plain-field
+  // half with the :has() half would take the fallback down wherever :has() cannot be parsed.
+  assert.doesNotMatch(hero, /:has\(> \.oak-search-field:focus\),/,
+    'the :has() branch shares a selector list again, so the fallback dies with it');
+
+  // surface-container, the token, rather than a colour typed in by hand: light enough to
+  // read as a tint on the white pill and dark enough to be seen against it.
+  assert.equal(COLORS['surface-container'], '#ffebd3');
+  // Not between(): the same selector opens the reset block higher up, so the rule is pinned
+  // by its own body instead. [^}]* cannot cross into the next rule.
+  assert.match(hero,
+    /input\.oak-search-field:focus, select\.oak-search-field:focus \{[^}]*background-color: #ffebd3;/);
+
+  // The strip, not just the field, so the icon beside it is tinted as one segment.
+  assert.match(hero,
+    /\.oak-search-bar > div:has\(> \.oak-search-field:focus\) \{[^}]*background-color: #ffebd3;[^}]*border-radius: 9999px;/);
+
+  // And the bar as a whole still answers, which is what says "this search box has focus"
+  // when the tint alone says only which of the three segments holds the caret.
+  assert.match(hero, /\.oak-search-bar:focus-within \{ border-color: #171818; \}/);
+});
 
 test('the scroll port keeps clear of the bars pinned over it', () => {
   // 80px of fixed header plus a margin. On the root element: scroll-padding is not one of

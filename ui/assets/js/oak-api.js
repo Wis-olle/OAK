@@ -18,7 +18,6 @@
   var PROFILE_PAGE = 'ho-so-ca-nhan.html';
   var NOTIFICATIONS_PAGE = 'thong-bao.html';
   var HOME_PAGE = 'kham-pha.html';
-  var SEARCH_PAGE = 'ket-qua-tim-kiem.html';
 
   var WEEKDAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
 
@@ -896,35 +895,8 @@
     }
   }
 
-  function initLocationLabel(user) {
-    var button = document.querySelector('button[aria-label="Chọn khu vực"]');
-    if (!button || !user.district || !user.city) {
-      return;
-    }
-    // The icon spans carry the material-symbols class; the plain one is the label.
-    var label = button.querySelector('span:not(.material-symbols-outlined)');
-    if (label) {
-      label.textContent = user.district + ', ' + user.city;
-    }
-  }
-
-  // Mirrors server/src/lib/locations.js (and the selects in ho-so-ca-nhan.html): PATCH
-  // /api/users/me rejects a district that does not belong to the stored city, so a pick
-  // from another city is navigated to but never saved.
-  var CITY_DISTRICTS = {
-    'TP.HCM': ['Quận 1', 'Quận 2', 'Quận 3', 'Quận 4', 'Quận 5', 'Quận 6', 'Quận 7', 'Quận 8',
-      'Quận 9', 'Quận 10', 'Quận 11', 'Quận 12', 'Quận Bình Thạnh', 'Quận Bình Tân',
-      'Quận Gò Vấp', 'Quận Phú Nhuận', 'Quận Tân Bình', 'Quận Tân Phú', 'Thủ Đức',
-      'Huyện Bình Chánh', 'Huyện Cần Giờ', 'Huyện Củ Chi', 'Huyện Hóc Môn', 'Huyện Nhà Bè'],
-    'Hà Nội': ['Quận Ba Đình', 'Quận Hoàn Kiếm', 'Quận Tây Hồ', 'Quận Long Biên',
-      'Quận Cầu Giấy', 'Quận Đống Đa', 'Quận Hai Bà Trưng', 'Quận Hoàng Mai',
-      'Quận Thanh Xuân', 'Quận Hà Đông', 'Quận Nam Từ Liêm', 'Quận Bắc Từ Liêm'],
-    'Đà Nẵng': ['Quận Hải Châu', 'Quận Thanh Khê', 'Quận Sơn Trà', 'Quận Ngũ Hành Sơn',
-      'Quận Liên Chiểu', 'Quận Cẩm Lệ', 'Huyện Hòa Vang'],
-  };
-
-  // Only reached when /api/salons cannot answer: an empty dropdown would be one more
-  // control that does nothing, so the picker always opens with somewhere to go.
+  // Only reached when /api/salons cannot answer: an empty list of areas would be one more
+  // control that does nothing, so the hero area field always has somewhere to go.
   var FALLBACK_DISTRICTS = ['Quận 1', 'Quận 3', 'Quận 7', 'Quận 10', 'Quận Bình Thạnh',
     'Quận Phú Nhuận', 'Quận Tân Bình', 'Thủ Đức'];
 
@@ -941,9 +913,8 @@
     return a.localeCompare(b, 'vi');
   }
 
-  // Resolved at most once per page load. The header waits for the first press, so a dropdown
-  // nobody has asked for costs nothing; kham-pha.html needs the same names for its own area
-  // field and asks as it starts, which warms this memo for the header too.
+  // Resolved at most once per page load: kham-pha.html asks for these names as it starts,
+  // to fill the area field of its hero, and any second caller is handed that same answer.
   var districtsPromise = null;
 
   function loadDistricts() {
@@ -968,112 +939,6 @@
   }
 
   /**
-   * Go to the results page for a district — '' means every area. The page copies its whole
-   * query string into GET /api/search/salons, where `district` is an exact-match filter.
-   * A signed-in visitor also has the pick saved, so the header label and their profile
-   * agree from the next page on; that save is best-effort and never blocks the search.
-   */
-  async function chooseDistrict(district) {
-    var user = await me();
-    var districts = user && CITY_DISTRICTS[user.city];
-    if (user && district && (!districts || districts.indexOf(district) !== -1)) {
-      try {
-        await api('/api/users/me', { method: 'PATCH', body: { district: district } });
-      } catch (error) {
-        // Saving is a convenience; the search still has to happen.
-      }
-    }
-    location.href = district ? SEARCH_PAGE + '?district=' + encodeURIComponent(district) : SEARCH_PAGE;
-  }
-
-  // Same shape as the entries of the header menu it opens inside, one step further in, and
-  // on the same 44px floor they keep.
-  var MENU_ITEM_CLASS =
-    'flex items-center w-full text-left min-h-[44px] px-8 py-2 font-body-md text-body-md ' +
-    'text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors';
-
-  /** A real <button>, so the option is tab-reachable and Enter/Space activate it. */
-  function districtOption(label, district) {
-    var option = document.createElement('button');
-    option.type = 'button';
-    option.className = MENU_ITEM_CLASS;
-    // textContent, not innerHTML: district names come from the API.
-    option.textContent = label;
-    option.addEventListener('click', function () {
-      chooseDistrict(district);
-    });
-    return option;
-  }
-
-  function initRegionPicker() {
-    var button = document.querySelector('button[aria-label="Chọn khu vực"]');
-    if (!button) {
-      return;
-    }
-
-    // The button is one row of the header menu, so the wrapper only has to be a positioning
-    // context around it — no width or breakpoint of its own.
-    var wrapper = document.createElement('div');
-    wrapper.className = 'relative';
-    button.replaceWith(wrapper);
-    wrapper.appendChild(button);
-
-    // The areas open as a nested part of that menu rather than as a second card floating
-    // beside it: the menu clips whatever leaves its bounds, so a card would be cut off.
-    var panel = document.createElement('div');
-    panel.className =
-      'hidden bg-surface-container-low py-1 max-h-[40vh] overflow-y-auto overscroll-contain';
-    wrapper.appendChild(panel);
-
-    button.setAttribute('aria-haspopup', 'true');
-    button.setAttribute('aria-expanded', 'false');
-
-    function close() {
-      panel.classList.add('hidden');
-      button.setAttribute('aria-expanded', 'false');
-    }
-
-    function open() {
-      panel.classList.remove('hidden');
-      button.setAttribute('aria-expanded', 'true');
-      // Filled once, on the first open; the panel is already visible while it loads.
-      if (!panel.childElementCount) {
-        panel.appendChild(districtOption('Tất cả khu vực', ''));
-        loadDistricts().then(function (districts) {
-          districts.forEach(function (district) {
-            panel.appendChild(districtOption(district, district));
-          });
-        });
-      }
-    }
-
-    button.addEventListener('click', function () {
-      if (panel.classList.contains('hidden')) {
-        open();
-      } else {
-        close();
-      }
-    });
-
-    // In the capture phase: the header pill stops the press from bubbling (@click.stop), so a
-    // listener on the way back up never hears the press that shuts the menu around this list,
-    // and the list would be left open behind a closed menu.
-    document.addEventListener('click', function (event) {
-      if (!wrapper.contains(event.target)) {
-        close();
-      }
-    }, true);
-
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape' && !panel.classList.contains('hidden')) {
-        close();
-        // Focus may be on an option that just became display:none; hand it back.
-        button.focus();
-      }
-    });
-  }
-
-  /**
    * The customer menu ships both readings of itself — the entries for a visitor who has not
    * signed in, and the ones for a reader who has — and this keeps whichever applies. Called
    * only once a real user is known, so the markup as authored is already the guest reading.
@@ -1085,16 +950,14 @@
   }
 
   async function initHeader() {
-    // Before the /api/auth/me await: the picker is for guests too, and a toast raised
-    // during the first fetch must already have somewhere to be announced from.
+    // Before the /api/auth/me await: a toast raised during the first fetch must already
+    // have somewhere to be announced from.
     liveRegions();
-    initRegionPicker();
     var user = await me();
     if (!user) {
       return;
     }
     initAccountLink(user);
-    initLocationLabel(user);
     initAuthMenu();
     initNotificationBell();
   }

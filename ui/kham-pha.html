@@ -54,11 +54,29 @@
         input.oak-search-field:focus, select.oak-search-field:focus {
             outline: none; box-shadow: none;
         }
-        /* The reset above drops the plugin's ring, so put a visible one back — the same
-           kill-then-substitute the oak-utils.css fields do. Later in source order than the
-           :focus rule it has to beat, which ties with it on specificity. */
-        input.oak-search-field:focus-visible, select.oak-search-field:focus-visible {
-            outline: 2px solid #171818; outline-offset: -2px;
+        /* The reset above drops the plugin's ring, so put a substitute back — the same
+           kill-then-substitute the oak-utils.css fields do, but a tint on the segment rather
+           than a hard line around the field. Chromium matches :focus-visible on a text field
+           for a plain mouse press as much as for a tab, so the 2px near-black line this
+           replaces drew a harsh capsule the moment anyone clicked “Dịch vụ, salon…”. There
+           is only one state to design, then, and a filled segment is what reads well for
+           both — which is why this keys off :focus. The tint says which segment holds the
+           caret; the darker pill edge below says the bar as a whole has focus. */
+        input.oak-search-field:focus, select.oak-search-field:focus {
+            /* The warmest of the three tints that still reads as a tint on the white pill,
+               and a segment is a wide enough area to carry it. */
+            background-color: #ffebd3;
+        }
+        /* The strip is what takes the shape, so the icon is tinted along with its field —
+           the same colour, one level out. Written as a rule of its own rather than as a
+           second entry beside the one above, because a comma-separated selector is read as
+           one unit: a browser that cannot parse :has() would drop the plain-field half with
+           it and leave every focused segment unmarked. Split, that half stands on its own:
+           the tint lands on the field itself, short of the icon beside it but still saying
+           which of the three holds focus — which the caret cannot do for the two selects. */
+        .oak-search-bar > div:has(> .oak-search-field:focus) {
+            background-color: #ffebd3;
+            border-radius: 9999px;
         }
         /* The whole pill answers, which a mark inside a single field cannot do: the edge
            belongs to the bar, not to whichever segment happens to hold the caret. It is what

@@ -80,20 +80,11 @@ test('the account block of the menu is in the same order as the account pages th
   assert.deepEqual(hrefs(block), ACCOUNT_PAGES);
 });
 
-test('the menu offers a way to search from a page that has no search box', () => {
-  const { markup } = header('/dich-vu-nail.html');
-
-  assert.ok(markup.includes('href="ket-qua-tim-kiem.html?focus=q">Tìm salon, dịch vụ</a>'));
-  /* Not marked as where the reader is — it is an instruction, not a place. */
-  const search = markup.slice(markup.indexOf('ket-qua-tim-kiem.html?focus=q'));
-  assert.ok(!search.slice(0, search.indexOf('</a>')).includes('aria-current'));
-});
-
-test('the results page itself is still the entry that is marked, not the search one', () => {
-  const { markup } = header('/ket-qua-tim-kiem.html');
+test('exactly one entry is marked as the page the reader is on', () => {
+  const { markup } = header('/uu-dai.html');
   const marked = [...markup.matchAll(/href="([^"]+)"[^>]*aria-current="page"/g)].map((hit) => hit[1]);
 
-  assert.deepEqual(marked, ['ket-qua-tim-kiem.html']);
+  assert.deepEqual(marked, ['uu-dai.html']);
 });
 
 test('the account tab strip scrolls to the tab the reader is on, and only when it has to', () => {

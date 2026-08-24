@@ -722,7 +722,7 @@ test('a guest fetches no list of favourites at all', async () => {
   assert.deepEqual(Array.from(state.favorites), []);
 });
 
-/* The header menu points here to be searched from anywhere. */
+/* A deep link with no producer in the product: see the note on the handler it guards. */
 
 test('?focus=q puts the caret in the keyword box and never reaches the request', () => {
   const { state } = searchPage(async () => rows, '?focus=q&q=nail');

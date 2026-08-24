@@ -621,8 +621,10 @@
                 this.loadFavorites();
 
                 var self = this;
-                /* The header menu points here to be searched from anywhere, so the caret has
-                   to be in the box on arrival rather than one tap further on. */
+                /* Nothing in the product builds this URL any more — the header entry that
+                   did was taken out with the region picker. It stays as a deep link anyone
+                   may bookmark or hand out: arrive with ?focus=q and the caret is already in
+                   the box, rather than one tap further on. Not dead code; do not sweep it. */
                 if (this.incoming.focus === 'q') {
                     this.$nextTick(function () { self.$refs.keyword.focus(); });
                 }

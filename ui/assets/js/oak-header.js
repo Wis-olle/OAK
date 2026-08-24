@@ -20,7 +20,6 @@
  *   data-oak-dot                                where oak-api.js puts the mark on a row
  *   data-oak-auth="guest" | "user"              oak-api.js picks the pair that applies
  *   data-oak-lang                               oak-i18n.js writes its VI/EN pair in here
- * The area button is found by its Vietnamese aria-label instead — see initRegionPicker().
  *
  * NOTE: this file is one of the content globs in tools/tailwind/tailwind.build.config.js, and
  * that scanner reads comments as well as code. A word here that also names a utility ends up
@@ -147,38 +146,13 @@
       (mine ? ' aria-current="page"' : '') + '>' + label + '</a>';
   }
 
-  /*
-   * oak-api.js takes this over: it writes the saved district into the middle span, wraps the
-   * button so a list of areas can hang under it, and fills that list on the first press. It
-   * carries no Alpine of its own on purpose — oak-api.js moves it into that wrapper, and
-   * closing the menu is asked of each entry that leads somewhere, which this one does not.
-   */
-  var area =
-    '<button aria-label="Chọn khu vực" class="w-full ' + ITEM + ' gap-3" type="button">' +
-      '<span aria-hidden="true" class="material-symbols-outlined text-[20px]" ' +
-        'data-icon="location_on">location_on</span>' +
-      '<span>Chọn khu vực</span>' +
-      '<span aria-hidden="true" class="material-symbols-outlined text-[16px] ml-auto">' +
-        'expand_more</span>' +
-    '</button>';
-
   var everyone =
     entry('dat-lich.html', 'Đặt lịch') +
-    /* One page finds salons — list and map are a switch inside it, not two entries here. */
-    entry('ket-qua-tim-kiem.html', 'Tất cả salon') +
-    /* The only way to a search box from the twenty-odd pages that carry none of their own;
-       ?focus=q is what puts the caret in it on arrival. */
-    entry('ket-qua-tim-kiem.html?focus=q', 'Tìm salon, dịch vụ') +
     entry('uu-dai.html', 'Ưu đãi') +
     /* One name for the assistant, here and on the hero, the title and the H1 of its own
        page: it is a rule-based helper for finding a salon, and three names for it (two of
        them promising "AI") is what makes a reader expect something it is not. */
-    entry('tim-kiem-thong-minh.html', 'Trợ lý tìm salon') +
-    /* The one way in to the picture-led finder from the thirty-odd pages that are not the
-       home page. The hash is what puts the reader at the section rather than at the top of
-       it — isHere() compares whole hrefs, so this never claims to be where they already are. */
-    entry('kham-pha.html#beauty-map', 'Beauty Map') +
-    area;
+    entry('tim-kiem-thong-minh.html', 'Trợ lý tìm salon');
 
   var categories =
     '<p class="px-5 pt-3 pb-1 font-caption text-caption uppercase tracking-widest ' +
