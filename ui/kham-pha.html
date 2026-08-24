@@ -321,22 +321,31 @@
 <main class="pt-20 flex-grow pb-section-gap">
 <!-- Hero Banner -->
 <section class="relative w-full overflow-hidden bg-[#f6ece9] mb-section-gap">
-<!-- Copy: rides the empty left half of the artwork -->
-<div class="relative z-10 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex items-center py-12 md:py-16 md:min-h-[420px] lg:min-h-[660px] xl:min-h-[720px] 2xl:min-h-[760px]">
-<div class="w-full min-w-0 md:max-w-[48%] xl:max-w-[780px]" x-data="oakSearchBox()">
+<!-- Copy: rides the empty left half of the artwork.
+
+     Where the artwork's visible left rim lands is decided by this element's height: the
+     <img> below is sized by its own height, so the rim sits at about viewport - 0.744 x that
+     height. The copy's right edge, once past the 1280px wrapper, sits at viewport/2 + 204.
+     Held at the old 720/760px heights the two lines crossed — from 1280 to about 1540 the
+     search pill ran under the oval. So both scale with the viewport now, tuned together to
+     leave ~44px of air: the height here, the copy width on the child below. Each stops
+     growing by 1626px, so every wider layout (1920 among them) reads exactly as before. -->
+<div class="relative z-10 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex items-center py-12 md:py-16 md:min-h-[420px] lg:min-h-[660px] xl:min-h-[min(760px,_max(580px,_67.22vw_-_333px))]">
+<div class="w-full min-w-0 md:max-w-[48%] xl:max-w-[min(780px,_50vw_+_100px)]" x-data="oakSearchBox()">
 <h1 class="font-headline-lg-mobile text-headline-lg-mobile md:text-headline-lg lg:text-display-lg text-primary mb-8 leading-tight">
                         Chạm đến <br>vẻ đẹp tự nhiên
                     </h1>
 <!-- One search bar, three segments: what, where, when. Every segment is a fixed-height strip
      with its icon first, so the icons line up whichever way the segments run. They run down
      the card until xl, because up to that point the copy column is 430px at most and four
-     zones side by side would each be too narrow to read; from xl the column widens to 780px
-     and the same three strips sit on one line, divided by hairlines.
+     zones side by side would each be too narrow to read; from xl the column is 740px and
+     upwards and the same three strips sit on one line, divided by hairlines.
 
      The two pickers are given the width their longest label measures (Inter 16px: 111.9px for
      "Tất cả khu vực", 120.6px for "Thời gian bất kỳ") plus their icon, their own spacing and
      the 32px the arrow takes. What is left over goes to the service field, which is the one
-     that should be widest — 221 of the 762px inside the pill, against 212 and 204. -->
+     that should be widest — 221 of the 762px inside the pill at the 780px the column reaches
+     by 1360, and 169 at the 740px it holds at 1280, against 212 and 204. -->
 <form @submit.prevent="submit()" aria-label="Tìm kiếm salon và dịch vụ" class="oak-search-bar mb-3 flex flex-col p-2 bg-surface-container-lowest border border-outline-variant/50 rounded-3xl shadow-[0_6px_24px_rgba(23,24,24,0.10)] xl:flex-row xl:items-center xl:min-h-[64px] xl:rounded-full" role="search">
 <div class="flex items-center gap-2 px-3 min-h-[48px] xl:flex-1 xl:min-w-0">
 <span aria-hidden="true" class="material-symbols-outlined shrink-0 text-[20px] text-on-surface-variant" data-icon="search">search</span>
