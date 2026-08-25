@@ -707,7 +707,7 @@
 <div class="grid grid-cols-2 md:grid-cols-4 gap-gutter" x-show="salons.length">
 <template :key="salon.id" x-for="salon in salons">
 <a :href="salonUrl(salon)" class="group cursor-pointer block" style="color:inherit;text-decoration:none"><article>
-<div class="aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
+<div class="relative aspect-[3/2] w-full rounded-lg overflow-hidden img-hover-zoom mb-3 bg-surface-container">
 <template x-if="salon.image">
 <img decoding="async" width="600" height="400" loading="lazy" :alt="salon.name" :src="salon.image" class="w-full h-full object-cover">
 </template>
@@ -716,6 +716,7 @@
 <span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant/50" data-icon="spa">spa</span>
 </div>
 </template>
+<span class="absolute top-3 left-3 bg-tertiary-fixed text-on-tertiary-fixed-variant px-3 py-1 text-caption font-caption rounded-full" x-show="promoLabels[salon.slug]" x-text="promoLabels[salon.slug]"></span>
 </div>
 <h3 class="font-headline-sm text-[20px] text-primary mb-1 group-hover:text-secondary transition-colors" x-text="salon.name"></h3>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
@@ -1064,6 +1065,10 @@
     function oakNewSalons() {
         return {
             salons: [],
+            /* Keyed by slug, and a slug is whatever a salon called itself — so no
+               prototype of its own, or a salon named "Constructor" would carry a
+               badge nobody wrote. */
+            promoLabels: Object.create(null),
             loading: true,
             error: '',
 
@@ -1077,13 +1082,56 @@
                 this.loading = true;
                 this.error = '';
                 try {
-                    this.salons = await OAK.api('/api/salons?sort=newest&limit=8');
+                    /* The badges are an extra: a slow or failing offers read leaves the
+                       grid exactly as it stands today, never an error panel. */
+                    const [salons, promotions] = await Promise.all([
+                        OAK.api('/api/salons?sort=newest&limit=8'),
+                        OAK.api('/api/promotions').catch(() => []),
+                    ]);
+                    this.salons = salons;
+                    this.promoLabels = this.bestOffers(promotions);
                 } catch (error) {
                     this.salons = [];
+                    this.promoLabels = Object.create(null);
                     this.error = 'Không tải được salon mới. ' + error.message;
                 } finally {
                     this.loading = false;
                 }
+            },
+
+            /* The same wording uu-dai.html uses, so the English rules already read it. */
+            discountLabel(promotion) {
+                if (promotion.discount_percent) {
+                    return 'Giảm ' + promotion.discount_percent + '%';
+                }
+                if (promotion.discount_amount) {
+                    return 'Giảm ' + OAK.fmtPrice(promotion.discount_amount);
+                }
+                return '';
+            },
+
+            /* slug -> the one label its card carries. A platform-wide offer names no
+               salon and so belongs on no card; a percentage outranks an amount because
+               it reads without knowing the price, and a deeper percentage outranks a
+               shallower one. Two amounts are never weighed against each other — the
+               first the route hands back is the one that speaks. */
+            bestOffers(promotions) {
+                const best = Object.create(null);
+                promotions.forEach((promotion) => {
+                    const slug = promotion.salon ? promotion.salon.slug : '';
+                    if (!slug || !this.discountLabel(promotion)) {
+                        return;
+                    }
+                    const held = best[slug];
+                    if (!held || (promotion.discount_percent || 0) > (held.discount_percent || 0)) {
+                        best[slug] = promotion;
+                    }
+                });
+                const labels = Object.create(null);
+                Object.keys(best).forEach((slug) => {
+                    labels[slug] = this.discountLabel(best[slug]);
+                });
+                return labels;
             },
 
             salonUrl(salon) {
