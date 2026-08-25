@@ -87,6 +87,48 @@ test('exactly one entry is marked as the page the reader is on', () => {
   assert.deepEqual(marked, ['uu-dai.html']);
 });
 
+test('Blog is a menu entry rather than a bar entry, and an article still marks it', () => {
+  const { markup } = header('/blog-chi-tiet.html');
+
+  /* One of them, inside the panel: the bar gave its place up to the language. */
+  assert.deepEqual(hrefs(markup).filter((href) => href === 'blog.html'), ['blog.html']);
+  assert.ok(markup.indexOf('href="blog.html"') > markup.indexOf('id="oak-menu"'));
+  assert.match(markup, /href="blog\.html" aria-current="page"/);
+});
+
+test('the language is on the bar at every width, and says which one is in force', () => {
+  const { markup } = header('/kham-pha.html');
+
+  /* No md: gate on it — folded into the menu it would be hardest to reach on the phone
+     where a reader is most likely to want the other language. */
+  const trigger = markup.slice(markup.indexOf('aria-controls="oak-lang-menu"'));
+  assert.ok(!trigger.slice(0, trigger.indexOf('>')).includes('md:'));
+  /* The slot oak-i18n.js writes its two named options into, marked for that shape. */
+  assert.match(markup, /id="oak-lang-menu" data-oak-lang="menu"/);
+  /* Read with no storage to read from at all, the way a sandboxed frame leaves it. The
+     name says the language too: an aria-label is announced instead of the "VI", not
+     alongside it, so a bare "Ngôn ngữ" would leave the answer unsaid. */
+  assert.match(markup, /aria-label="Ngôn ngữ: Tiếng Việt"/);
+  assert.match(markup, /data-icon="language">language<\/span>VI<\/button>/);
+
+  const asked = header('/kham-pha.html', { globals: { localStorage: { getItem: () => 'en' } } });
+  assert.match(asked.markup, /aria-label="Ngôn ngữ: English"/);
+  assert.match(asked.markup, /data-icon="language">language<\/span>EN<\/button>/);
+});
+
+test('opening either dropdown of the bar shuts the other', () => {
+  const { markup } = header('/kham-pha.html');
+
+  /* One scope over the pair. Each trigger stops its own click, and a stopped click never
+     reaches the other's @click.outside, so nothing but these two assignments closes what
+     the reader is not looking at — and both panels standing open puts the menu over the
+     language options, where a tap on "English" lands on the link behind it. */
+  assert.match(markup, /<nav [^>]*x-data="\{ langOpen: false, menuOpen: false \}"/);
+  assert.equal(markup.match(/x-data=/g).length, 1);
+  assert.match(markup, /@click\.stop="langOpen = !langOpen; menuOpen = false"/);
+  assert.match(markup, /@click\.stop="menuOpen = !menuOpen; langOpen = false"/);
+});
+
 test('the account tab strip scrolls to the tab the reader is on, and only when it has to', () => {
   /* Read a field at a time: the options object is built in the header's own realm. */
   const scrolled = [];

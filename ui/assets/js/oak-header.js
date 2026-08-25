@@ -19,7 +19,10 @@
  *   data-oak-unread                             oak-api.js reveals the unread mark
  *   data-oak-dot                                where oak-api.js puts the mark on a row
  *   data-oak-auth="guest" | "user"              oak-api.js picks the pair that applies
- *   data-oak-lang                               oak-i18n.js writes its VI/EN pair in here
+ *   data-oak-lang="menu"                        the language dropdown on the bar: oak-i18n.js
+ *                                               writes its two named options in here, and the
+ *                                               "menu" value is what asks for that shape
+ *                                               rather than the VI/EN pair it writes elsewhere
  *
  * NOTE: this file is one of the content globs in tools/tailwind/tailwind.build.config.js, and
  * that scanner reads comments as well as code. A word here that also names a utility ends up
@@ -152,7 +155,8 @@
     /* One name for the assistant, here and on the hero, the title and the H1 of its own
        page: it is a rule-based helper for finding a salon, and three names for it (two of
        them promising "AI") is what makes a reader expect something it is not. */
-    entry('tim-kiem-thong-minh.html', 'Trợ lý tìm salon');
+    entry('tim-kiem-thong-minh.html', 'Trợ lý tìm salon') +
+    entry('blog.html', 'Blog');
 
   var categories =
     '<p class="px-5 pt-3 pb-1 font-caption text-caption uppercase tracking-widest ' +
@@ -203,18 +207,16 @@
       'x-transition:leave="transition ease-in duration-150" ' +
       'x-transition:leave-start="opacity-100 translate-y-0" ' +
       'x-transition:leave-end="opacity-0 -translate-y-2">' +
-      /* The two bar entries repeat in here for the widths that cannot show them up there. */
+      /* The salon entry repeats in here for the widths that cannot show it up there. */
       '<div class="md:hidden">' +
-        entry('blog.html', 'Blog') +
         entry('dang-nhap-doi-tac.html', 'Dành cho salon') +
         RULE +
       '</div>' +
-      guest + mine + RULE + everyone + RULE + categories + signOut + RULE +
-      '<div class="flex items-center min-h-[44px] px-5 py-2" data-oak-lang></div>' +
+      guest + mine + RULE + everyone + RULE + categories + signOut +
     '</div>';
 
   var pill =
-    '<button :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen" ' +
+    '<button :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen; langOpen = false" ' +
       'aria-controls="oak-menu" aria-expanded="false" aria-haspopup="true" aria-label="Menu" ' +
       'class="relative flex items-center gap-2 h-11 pl-3 pr-2 rounded-full bg-surface ' +
       'border border-outline-variant/60 text-on-surface-variant hover:text-primary ' +
@@ -235,14 +237,80 @@
         'bg-error ring-2 ring-surface" data-oak-unread></span>' +
     '</button>';
 
+  /*
+   * The language, on the bar itself at every width rather than at the foot of the menu: a
+   * reader who wants the other one is most often on a phone, where the menu is where it
+   * would be hardest to find. The button says which language is in force; the two named
+   * options are written into the panel by oak-i18n.js, which owns the switch.
+   */
+  function langCode() {
+    /* The same question oak-i18n.js asks of storage, behind the same guard: a sandboxed
+       frame throws here rather than answering, and the bar is not worth taking down. */
+    try {
+      return localStorage.getItem('oak_lang') === 'en' ? 'EN' : 'VI';
+    } catch (error) {
+      return 'VI';
+    }
+  }
+
+  var LANG_TRIGGER =
+    'flex items-center gap-1 h-11 px-2 font-body-md text-body-md text-on-surface-variant ' +
+    'hover:text-primary transition-colors active:scale-95 duration-200';
+
+  /* A control carrying an aria-label is announced by that label alone and never by what it
+     holds — the same rule oak-api.js keeps for the unread mark, at initNotificationBell. A
+     bare "Ngôn ngữ" would therefore hide the "VI" beside it, and a reader who cannot see
+     the two letters would have to open the panel to learn which language is in force. Whole
+     attribute per entry, leading space and all, so that tools/i18n reads each name as the
+     dictionary key it is rather than as the half of one that concatenation would leave. */
+  var LANG_LABEL = {
+    VI: ' aria-label="Ngôn ngữ: Tiếng Việt"',
+    EN: ' aria-label="Ngôn ngữ: English"',
+  };
+  var langNow = langCode();
+
+  var langPill =
+    '<button :aria-expanded="langOpen" @click.stop="langOpen = !langOpen; menuOpen = false" ' +
+      'aria-controls="oak-lang-menu" aria-expanded="false" aria-haspopup="true"' +
+      LANG_LABEL[langNow] + ' class="' + LANG_TRIGGER + '" ' +
+      'type="button" x-ref="langPill">' +
+      '<span aria-hidden="true" class="material-symbols-outlined text-[20px]" ' +
+        'data-icon="language">language</span>' +
+      langNow +
+    '</button>';
+
+  /* A press anywhere in the panel shuts it: the option already in force has no listener of
+     its own, and picking the other one reloads — either way the panel's work is done. */
+  var langPanel =
+    '<div @click="langOpen = false" class="absolute right-0 top-full mt-2 z-50 min-w-[200px] ' +
+      'bg-surface rounded-2xl border border-outline-variant/30 shadow-lg py-2" ' +
+      'id="oak-lang-menu" data-oak-lang="menu" x-cloak="" x-show="langOpen" ' +
+      'x-transition:enter="transition ease-out duration-200" ' +
+      'x-transition:enter-start="opacity-0 -translate-y-2" ' +
+      'x-transition:enter-end="opacity-100 translate-y-0" ' +
+      'x-transition:leave="transition ease-in duration-150" ' +
+      'x-transition:leave-start="opacity-100 translate-y-0" ' +
+      'x-transition:leave-end="opacity-0 -translate-y-2"></div>';
+
   shell.innerHTML =
     '<div class="flex justify-between items-center gap-4 h-20 px-margin-mobile ' +
       'md:px-margin-desktop max-w-container-max mx-auto">' +
       '<a class="font-headline-md text-headline-md font-bold text-primary ' +
         'hover:opacity-80 transition-opacity shrink-0" href="kham-pha.html">OAK Beauty</a>' +
-      '<nav aria-label="Điều hướng chính" class="flex items-center gap-2 md:gap-6">' +
-        topEntry('blog.html', 'Blog') +
+      /* One x-data over both dropdowns of the bar, because each has to shut the other by
+         name. A trigger stops the click that opens it, or the same click would carry on to
+         the document and shut what it just opened; but a stopped click never reaches the
+         other dropdown's @click.outside either, so without the two lines below both panels
+         stand open at once and the menu, later here and at the same z-50, is drawn over the
+         languages — a reader aiming at "English" lands on a link behind it instead. */
+      '<nav aria-label="Điều hướng chính" class="flex items-center gap-2 md:gap-6" ' +
+        'x-data="{ langOpen: false, menuOpen: false }">' +
         topEntry('dang-nhap-doi-tac.html', 'Dành cho salon') +
+        /* Its own Escape, guarded on its own flag the way the menu's is. */
+        '<div @click.outside="langOpen = false" ' +
+          '@keydown.escape.window.capture="if (langOpen) ' +
+          '{ langOpen = false; $refs.langPill.focus() }" ' +
+          'class="relative">' + langPill + langPanel + '</div>' +
         /* Escape is read on the way down, before the area list gets the same press on the way
            back up: while that list is open the press belongs to it alone, and the menu around
            it stays. The list is the one thing inside the menu that reports being open. */
@@ -250,7 +318,7 @@
           '@keydown.escape.window.capture="if (menuOpen && ' +
           '!$el.querySelector(\'#oak-menu button[aria-expanded=true]\')) ' +
           '{ menuOpen = false; $refs.pill.focus() }" ' +
-          'class="relative" x-data="{ menuOpen: false }">' + pill + panel + '</div>' +
+          'class="relative">' + pill + panel + '</div>' +
       '</nav>' +
     '</div>';
 

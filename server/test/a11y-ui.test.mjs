@@ -445,7 +445,7 @@ result = oakBlogFeed();`, context);
 }
 
 test('the composer stashes on an event it can still reach with a draft on screen', () => {
-  // The VI/EN pair is injected into the top bar (data-oak-lang), and an open composer makes
+  // The language control is injected into the top bar (data-oak-lang), and an open composer makes
   // that bar inert, so 'oak:lang-change' is exactly the event a reader with something
   // half-written cannot fire from this page. 'pagehide' is the one every other way out of
   // the page shares — a refresh, Back, the address bar, and the reload behind the switch

@@ -550,7 +550,7 @@
   }
 
   /*
-   * Two skins for one control. Inside a header it borrows the header's own type scale from
+   * Three skins for one control. Inside a header it borrows the header's own type scale from
    * oak-tailwind.css; the fallback pill is styled inline so that it still reads on a page
    * with no top bar, which may be hand-written and may load no CSS of ours at all.
    */
@@ -574,6 +574,19 @@
     divider: 'opacity:.35;',
   };
 
+  /* The third skin: inside the customer bar the pair now lives in a dropdown of its own, so
+     each language is offered by its own name, on a row that reads like the entries of the
+     menu beside it (the ITEM classes of assets/js/oak-header.js). */
+  var MENU_OPTION =
+    'flex items-center w-full min-h-[44px] px-5 py-2 font-body-md text-body-md ' +
+    'hover:text-primary hover:bg-surface-container-low transition-colors ';
+  var MENU_SKIN = {
+    names: true,
+    group: 'flex flex-col',
+    current: MENU_OPTION + 'font-bold text-primary',
+    other: MENU_OPTION + 'text-on-surface-variant',
+  };
+
   function skin(element, style, value) {
     if (style.inline) {
       element.style.cssText = value;
@@ -582,7 +595,7 @@
     }
   }
 
-  /** "VI" and "EN" carry no diacritics, so the engine never translates its own toggle. */
+  /** The label is either a code or a language's own name, and neither is ever translated. */
   function langButton(code, label, style) {
     var button = document.createElement('button');
     button.type = 'button';
@@ -597,33 +610,45 @@
     return button;
   }
 
+  /* A skin that asks for names gets a language written the way its own speakers write it —
+     "Tiếng Việt" stays "Tiếng Việt" on the English site — and no divider, because the two
+     options are one above the other rather than side by side. */
   function langToggle(style) {
     var group = document.createElement('div');
-    group.setAttribute('role', 'group');
-    group.setAttribute('aria-label', 'Ngôn ngữ');
+    /* Named only where the pair of codes stands on its own and nothing around it says what
+       the two are. In the dropdown the button that opens it carries that name already, and
+       a second copy under it would only be read out twice. */
+    if (!style.names) {
+      group.setAttribute('role', 'group');
+      group.setAttribute('aria-label', 'Ngôn ngữ');
+    }
     skin(group, style, style.group);
 
-    var divider = document.createElement('span');
-    divider.setAttribute('aria-hidden', 'true');
-    divider.textContent = '|';
-    skin(divider, style, style.divider);
-
-    group.appendChild(langButton('vi', 'VI', style));
-    group.appendChild(divider);
-    group.appendChild(langButton('en', 'EN', style));
+    group.appendChild(langButton('vi', style.names ? 'Tiếng Việt' : 'VI', style));
+    if (!style.names) {
+      var divider = document.createElement('span');
+      divider.setAttribute('aria-hidden', 'true');
+      divider.textContent = '|';
+      skin(divider, style, style.divider);
+      group.appendChild(divider);
+    }
+    group.appendChild(langButton('en', style.names ? 'English' : 'EN', style));
     return group;
   }
 
   /**
-   * Three homes, tried in order. The customer top bar keeps an empty slot for the pair at the
-   * foot of its menu (see assets/js/oak-header.js), which is where a reader on any width can
-   * reach it. The partner console has no such slot: there the pair goes ahead of the account
-   * link that ends its own bar. A page with no top bar of either kind gets the pill instead.
+   * Three homes, tried in order. The customer top bar keeps an empty slot inside the language
+   * dropdown it carries at every width (see assets/js/oak-header.js), and marks it "menu" to
+   * ask for the two named options rather than the pair of codes. The partner console has no
+   * such slot: there the pair goes ahead of the account link that ends its own bar. A page
+   * with no top bar of either kind gets the pill instead.
    */
   function initToggle() {
     var slot = document.querySelector('header [data-oak-lang]');
     if (slot) {
-      slot.appendChild(langToggle(HEADER_SKIN));
+      slot.appendChild(langToggle(slot.getAttribute('data-oak-lang') === 'menu'
+        ? MENU_SKIN
+        : HEADER_SKIN));
       return;
     }
     var account = document.querySelector('header a[aria-label="Tài khoản"]');
@@ -638,7 +663,7 @@
     var code = next === 'en' ? 'en' : 'vi';
     /* Whether the English option is worth the 72KB dictionary it costs. Only which
        language was picked — a choice, not a person. Every VI/EN control on the site ends
-       here (the header pair, the partner-console pair, the standalone pill and the
+       here (the header dropdown, the partner-console pair, the standalone pill and the
        settings page), so this is the one place it has to be counted. Guarded like every
        other call site: a cached page can meet an oak-api.js that has no track(). The
        reload below ends the page, and a beacon survives that. */
