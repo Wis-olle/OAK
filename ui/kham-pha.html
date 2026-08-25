@@ -346,10 +346,26 @@
      the 32px the arrow takes. What is left over goes to the service field, which is the one
      that should be widest — 221 of the 762px inside the pill at the 780px the column reaches
      by 1360, and 169 at the 740px it holds at 1280, against 212 and 204. -->
-<form @submit.prevent="submit()" aria-label="Tìm kiếm salon và dịch vụ" class="oak-search-bar mb-3 flex flex-col p-2 bg-surface-container-lowest border border-outline-variant/50 rounded-3xl shadow-[0_6px_24px_rgba(23,24,24,0.10)] xl:flex-row xl:items-center xl:min-h-[64px] xl:rounded-full" role="search">
+<!-- The bar and the panel that drops from it share this box, so the panel can be pinned to
+     the bottom edge of the bar and so one @click.outside covers both: a press anywhere on
+     the bar — the field itself included — must leave the panel where it is, and only a
+     press past the whole box puts it away. A press on a row lands as a normal link and the
+     page leaves.
+
+     Escape sends the caret back to the field before it puts the panel away, never after:
+     focus() runs then and there and the field answers a reach by opening the panel, so
+     closing first only reopens it. The caret is often in the field already, where focus()
+     does nothing and nothing reopens — so the field opens on a press as well, or a single
+     Escape would end the panel for as long as the caret stayed where it was.
+
+     Leaving the box by keyboard puts the panel away too, or the stops that follow the bar
+     would take their turn underneath it, unseen. A press reports no element being reached
+     and is left to @click.outside. -->
+<div @click.outside="panelOpen = false" @focusout="if ($event.relatedTarget && !$el.contains($event.relatedTarget)) panelOpen = false" @keydown.escape="if (panelShown) { $refs.field.focus(); panelOpen = false }" class="relative mb-3">
+<form @submit.prevent="submit()" aria-label="Tìm kiếm salon và dịch vụ" class="oak-search-bar flex flex-col p-2 bg-surface-container-lowest border border-outline-variant/50 rounded-3xl shadow-[0_6px_24px_rgba(23,24,24,0.10)] xl:flex-row xl:items-center xl:min-h-[64px] xl:rounded-full" role="search">
 <div class="flex items-center gap-2 px-3 min-h-[48px] xl:flex-1 xl:min-w-0">
 <span aria-hidden="true" class="material-symbols-outlined shrink-0 text-[20px] text-on-surface-variant" data-icon="search">search</span>
-<input aria-label="Tìm kiếm dịch vụ hoặc salon" autocomplete="off" class="oak-search-field min-w-0 font-body-md text-body-md text-primary placeholder:text-on-surface-variant/70" enterkeyhint="search" placeholder="Dịch vụ, salon…" type="text" x-model="q">
+<input @click="panelOpen = true" @focus="panelOpen = true" aria-controls="oak-search-categories" aria-label="Tìm kiếm dịch vụ hoặc salon" autocomplete="off" class="oak-search-field min-w-0 font-body-md text-body-md text-primary placeholder:text-on-surface-variant/70" enterkeyhint="search" placeholder="Dịch vụ, salon…" type="text" x-model="q" x-ref="field">
 </div>
 <div class="h-px mx-3 shrink-0 bg-outline-variant/30 xl:mx-0 xl:h-8 xl:w-px"></div>
 <!-- Fixed width from xl: the options arrive from the network, so anything content-sized
@@ -379,6 +395,28 @@
 </div>
 <button class="mt-2 min-h-[48px] px-6 flex items-center justify-center rounded-full bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-colors xl:mt-0 xl:ml-2 xl:shrink-0" type="submit">Tìm kiếm</button>
 </form>
+<!-- Reaching the field is a question — "what can I even look for here?" — and this answers it
+     before a word is typed: the kinds of work the salons here do, one per line, each of them
+     the same link the chips below carry, so whatever the two pickers hold rides along.
+     The icon is the one the results map pins that kind with, so a category reads the same
+     wherever it is met. With no answer from the suggestions endpoint there is nothing to
+     propose and reaching the field does nothing at all.
+
+     The field names the panel it governs and stops there. aria-expanded would be the rest
+     of the sentence, but it is a combobox's word and a text field is not one: screen
+     readers drop it where it does not belong, so it would announce nothing while claiming
+     a pattern these rows — plain links to results, not choices that fill the field — do
+     not follow. -->
+<div aria-labelledby="oak-search-categories-title" class="absolute left-0 right-0 top-full z-20 mt-2 py-2 bg-surface rounded-2xl border border-outline-variant/30 shadow-lg xl:right-auto xl:w-[360px]" id="oak-search-categories" role="group" x-cloak="" x-show="panelShown">
+<p class="px-5 py-2 font-caption text-caption text-on-surface-variant uppercase tracking-widest" id="oak-search-categories-title">Loại dịch vụ</p>
+<template :key="chip.key" x-for="chip in categoryChips">
+<a :href="chipUrl(chip)" class="flex items-center gap-3 min-h-[44px] px-5 py-2 font-body-md text-body-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors" style="text-decoration:none">
+<span aria-hidden="true" class="material-symbols-outlined shrink-0 text-[20px]" x-text="chipIcon(chip)"></span>
+<span x-text="chip.label"></span>
+</a>
+</template>
+</div>
+</div>
 <a :href="assistantUrl" class="font-label-md text-label-md text-primary hover:text-secondary underline underline-offset-4 transition-colors" href="tim-kiem-thong-minh.html">Hỏi Trợ lý tìm salon</a>
 <!-- Search Suggestions -->
 <!-- Each chip is a link to the results it stands for, not a word to paste into the box:
@@ -755,6 +793,16 @@
         var RECENT_MAX = 5;
         /* Close enough to walk, and the results page already understands all four keys. */
         var NEAR_RADIUS_KM = 3;
+        /* The pairs ket-qua-tim-kiem.html pins its map with, kept in step by hand: one
+           category, one icon, wherever it is met. An uncatalogued key gets the same flower
+           it gets there. */
+        var CATEGORY_ICONS = new Map([
+            ['nail', 'brush'],
+            ['hair', 'content_cut'],
+            ['skincare', 'face'],
+            ['spa', 'spa'],
+            ['eyelash', 'visibility'],
+        ]);
 
         /* Storage throws outright in a locked-down browser, so every touch of it is guarded
            and a failure simply means this browser remembers nothing. */
@@ -776,6 +824,8 @@
             districts: [],
             chips: [],
             recent: [],
+            /* Whether the field has been reached; what is actually on screen is below. */
+            panelOpen: false,
 
             async init() {
                 this.recent = readRecent();
@@ -789,6 +839,23 @@
                     this.chips = [];
                 }
                 this.districts = await districts;
+            },
+
+            /* The chips row carries areas as well as kinds of work; the panel proposes only
+               what is done, so the area picker beside it is the one thing that says where. */
+            get categoryChips() {
+                return this.chips.filter(function (chip) { return chip.type === 'category'; });
+            },
+
+            /* Open with nothing to propose is nothing to draw: an empty card under the bar
+               answers a question nobody asked. Escape reads this rather than panelOpen, so
+               it only ever takes back what is on screen. */
+            get panelShown() {
+                return this.panelOpen && this.categoryChips.length > 0;
+            },
+
+            chipIcon(chip) {
+                return CATEGORY_ICONS.get(chip.key) || 'spa';
             },
 
             /* The assistant keeps whatever has been typed so far — the entry point the

@@ -969,6 +969,7 @@ window.OAK_I18N_EN = {
   "Gần tôi": "Near me",
   "Hôm nay · đang mở cửa": "Today · open now",
   "Ngày mai": "Tomorrow",
+  "Loại dịch vụ": "Service type",
   "Gợi ý:": "Suggestions:",
   "Gần đây:": "Recent:",
   "Người mẫu trong khung oval trên nền hồng phấn với cánh hoa hồng rơi": "Model in an oval frame on a blush pink background with falling rose petals",
