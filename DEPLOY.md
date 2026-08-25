@@ -177,3 +177,17 @@ Các trang gọi `OAK.track(name, meta)` (`ui/assets/js/oak-api.js`) → `POST /
 Không cần cấu hình gì khi deploy — bảng `events` được tạo bằng `CREATE TABLE IF NOT EXISTS` lúc boot như mọi bảng khác.
 
 Đọc số hằng tuần bằng `tools/sql/weekly.sql`: mở **Supabase → SQL Editor** (hoặc `psql "$DATABASE_URL"`), dán từng truy vấn trong 5 truy vấn — tuần này so tuần trước, lượt truy cập theo ngày, phễu tìm kiếm → wizard → đặt lịch, blog CTA có dẫn tới đặt lịch không, và lượt truy cập đến từ đâu. File chỉ đọc, không ghi gì.
+
+---
+
+## 10. Tra cứu địa chỉ qua proxy (`GET /api/geo/search`)
+
+Route này tồn tại vì mạng Việt Nam không vào được `openstreetmap.org`, nên máy chủ hỏi giúp người đọc. Điều kiện duy nhất: host deploy phải ra ngoài được tới `nominatim.openstreetmap.org`.
+
+Mọi lượt tra cứu đi ra từ **một** IP egress của host, qua **một** hàng đợi nối tiếp cách nhau `1.1s` — trần chung cho cả site là khoảng **54 lượt/phút**, bất kể có bao nhiêu người đang tìm cùng lúc. Mỗi IP người dùng được **10 lượt/phút** (bộ đếm in-memory theo cửa sổ cố định).
+
+Cache in-memory giữ 200 câu trả lời trong 10 phút. Cả cache lẫn bộ đếm đều nằm trong bộ nhớ một tiến trình nên **mất sạch mỗi lần deploy hoặc restart** — đúng như thiết kế, không phải lỗi.
+
+Không cần cấu hình gì khi deploy.
+
+Nếu Nominatim chặn IP egress của host, cách xử lý là liên hệ Nominatim hoặc chuyển sang nhà cung cấp geocoding khác — không phải sửa code.

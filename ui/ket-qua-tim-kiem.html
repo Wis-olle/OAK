@@ -440,8 +440,10 @@
         var PINNED_LABELS_MAX = 8;
         /* Where the map opens when no result carries coordinates: District 1, Ho Chi Minh City. */
         var MAP_FALLBACK = { center: [10.776, 106.700], zoom: 13 };
-        /* Free OSM geocoder, so an address typed by hand can become coordinates. */
-        var NOMINATIM = 'https://nominatim.openstreetmap.org/search?';
+        /* The OSM geocoder, so an address typed by hand can become coordinates. Asked
+           through our own backend: nominatim.openstreetmap.org answers a Vietnamese network
+           with a reset connection, and the host this site runs on is not on one. */
+        var NOMINATIM = '/api/geo/search?';
         /* Where a tap has no hover to preview a pin with, so the pin answers with a bubble. */
         var TOUCH = window.matchMedia('(hover: none)');
         /* Leaflet objects must stay out of the Alpine state, or its proxies break the map. */
@@ -660,9 +662,16 @@
 
             initMap() {
                 map = L.map(this.$refs.map).setView(MAP_FALLBACK.center, MAP_FALLBACK.zoom);
-                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                /* Tiles from CARTO, not from tile.openstreetmap.org: a Vietnamese network
+                   answers that host with a reset connection, so the readers this page is for
+                   saw an empty frame with pins on it. The @2x copy is not asked for: Leaflet
+                   stays at detectRetina false, so it would draw the same tile layout for
+                   roughly two and a half times the bytes — the wrong trade on a Vietnamese
+                   mobile network. */
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+                    subdomains: 'abcd',
                     maxZoom: 19,
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
                 }).addTo(map);
                 this.drawMarkers();
             },
@@ -1301,6 +1310,15 @@
                         limit: 5,
                         q: query,
                     }));
+                    /* 429 is our own proxy refusing, not Nominatim: asking again now only
+                       spends the next minute too, so the answer is to wait it out. */
+                    if (response.status === 429) {
+                        if (token !== geoToken) {
+                            return;
+                        }
+                        this.geoStatus = 'Tra cứu địa chỉ đang bận, bạn chờ một phút rồi thử lại nhé.';
+                        return;
+                    }
                     if (!response.ok) {
                         throw new Error('Nominatim ' + response.status);
                     }

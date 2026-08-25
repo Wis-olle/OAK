@@ -658,9 +658,12 @@
        booking calendar grid falls back to. */
     var DEFAULT_HOURS = { start: '09:00', end: '21:00' };
 
-    /* Free OSM geocoder, same one the search page uses. */
-    var NOMINATIM = 'https://nominatim.openstreetmap.org/search?';
-    /* Nominatim allows one request a second, so a retry has to wait its turn. */
+    /* The OSM geocoder, same one the search page uses, and asked the same way: through our
+       own backend, because nominatim.openstreetmap.org answers a Vietnamese network with a
+       reset connection. */
+    var NOMINATIM = '/api/geo/search?';
+    /* The ladder paces its own rungs, so they do not pile behind each other in our
+       backend's queue. The gap Nominatim itself asks for is the backend's to keep. */
     var NOMINATIM_GAP_MS = 1100;
     /* Nominatim files an administrative area under the boundary category, or as a coarse
        "place" type. A street, a building or a shop is none of those. */
@@ -1119,9 +1122,15 @@
                     return;
                 }
                 map = L.map(this.$refs.map).setView(MAP_FALLBACK.center, MAP_FALLBACK.zoom);
-                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                /* Tiles from CARTO, not from tile.openstreetmap.org: a Vietnamese network
+                   answers that host with a reset connection, and a salon owner cannot drop a
+                   pin on streets they cannot see. The @2x copy is not asked for: Leaflet stays
+                   at detectRetina false, so it would draw the same tile layout for roughly two and a
+                   half times the bytes — the wrong trade on a Vietnamese mobile network. */
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+                    subdomains: 'abcd',
                     maxZoom: 19,
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
                 }).addTo(map);
                 var self = this;
                 map.on('click', function (event) {
@@ -1168,7 +1177,11 @@
                     q: query,
                 }));
                 if (!response.ok) {
-                    throw new Error('Nominatim ' + response.status);
+                    /* 429 is our own proxy refusing, not Nominatim; the ladder's catch tells
+                       the owner to wait rather than to try again now. */
+                    throw Object.assign(new Error('Nominatim ' + response.status), {
+                        busy: response.status === 429,
+                    });
                 }
                 var places = await response.json();
                 /* A 200 can still carry an error object rather than the expected list. */
@@ -1325,7 +1338,9 @@
                     if (token !== geoToken) {
                         return;
                     }
-                    this.geoStatus = 'Không tra cứu được địa chỉ, bạn thử lại nhé.';
+                    this.geoStatus = error.busy
+                        ? 'Tra cứu địa chỉ đang bận, bạn chờ một phút rồi thử lại nhé.'
+                        : 'Không tra cứu được địa chỉ, bạn thử lại nhé.';
                 } finally {
                     if (token === geoToken) {
                         this.geoPending = '';

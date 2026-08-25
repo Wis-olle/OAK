@@ -304,6 +304,7 @@ window.OAK_I18N_EN = {
   "Nhập địa chỉ ở trên trước đã.": "Enter an address above first.",
   "Không tìm thấy địa chỉ này. Bạn bấm thẳng lên bản đồ để đặt ghim nhé.": "This address was not found. Click directly on the map to drop a pin.",
   "Không tra cứu được địa chỉ, bạn thử lại nhé.": "Could not look up the address, please try again.",
+  "Tra cứu địa chỉ đang bận, bạn chờ một phút rồi thử lại nhé.": "Address lookup is busy, please wait a minute and try again.",
   "Giờ mở cửa": "Opening hours",
   "Đặt giờ riêng cho từng ngày, đánh dấu “Nghỉ” cho ngày salon đóng cửa.": "Set separate hours for each day, and tick “Off” for days the salon is closed.",
   "Nghỉ": "Off",

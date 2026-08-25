@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js';
 import bookingRoutes from './routes/bookings.js';
 import eventRoutes from './routes/events.js';
 import favoriteRoutes from './routes/favorites.js';
+import geoRoutes from './routes/geo.js';
 import notificationRoutes from './routes/notifications.js';
 import partnerRoutes from './routes/partner.js';
 import postRoutes from './routes/posts.js';
@@ -99,6 +100,7 @@ app.use('/api/posts', postRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/partner', partnerRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/geo', geoRoutes);
 
 // Unknown API routes get a JSON 404. Other paths fall through to the static handler.
 app.use('/api', (req, res) => {

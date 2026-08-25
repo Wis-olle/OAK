@@ -796,9 +796,15 @@
                 const point = [Number(this.salon.lat), Number(this.salon.lng)];
                 /* Wheel zoom off, or scrolling past the map traps the page. */
                 const map = L.map(element, { scrollWheelZoom: false }).setView(point, 16);
-                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                /* Tiles from CARTO, not from tile.openstreetmap.org: a Vietnamese network
+                   answers that host with a reset connection, and a map of nothing under a
+                   marker is worse than no map. The @2x copy is not asked for: Leaflet stays at
+                   detectRetina false, so it would draw the same tile layout for roughly two and a
+                   half times the bytes — the wrong trade on a Vietnamese mobile network. */
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+                    subdomains: 'abcd',
                     maxZoom: 19,
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
                 }).addTo(map);
                 L.marker(point, {
                     title: this.salon.name,
