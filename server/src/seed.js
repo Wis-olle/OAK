@@ -28,6 +28,17 @@
  */
 
 import bcrypt from 'bcryptjs';
+import { todayISO } from './lib/time.js';
+import {
+  WELCOME_DESCRIPTION,
+  WELCOME_IMAGE,
+  WELCOME_NOTICE_BODY,
+  WELCOME_NOTICE_TITLE,
+  WELCOME_PERCENT,
+  WELCOME_TITLE,
+  welcomeCode,
+  welcomeWindow,
+} from './lib/welcome-promotion.js';
 
 const DEMO_PASSWORD = 'Oak@1234';
 const IMG = (file) => `assets/images/${file}`;
@@ -968,8 +979,10 @@ const NOTIFICATIONS = [
   },
   {
     user: 'khach@oak.vn',
-    title: 'Ưu đãi 20% cho thành viên mới',
-    body: 'Nhập mã OAKNEW20 khi đặt lịch để được giảm 20% cho buổi hẹn đầu tiên, áp dụng đến 30/09/2026.',
+    // The one entry here that is not written out: db.js rewrites this notice on databases
+    // seeded before the policy, and both have to end up saying the same sentence.
+    title: WELCOME_NOTICE_TITLE,
+    body: WELCOME_NOTICE_BODY,
     type: 'promotion',
     read: 0,
     booking: null,
@@ -1000,101 +1013,13 @@ const FAVORITES = [
   { user: 'khach@oak.vn', salon: 'the-muse-beauty-bar', created_at: '2026-06-29T12:10:00.000Z' },
 ];
 
-const PROMOTIONS = [
-  {
-    salon: null,
-    code: 'OAKNEW20',
-    type: 'discount',
-    title: 'Chào mừng thành viên mới - Giảm 20%',
-    description: 'Giảm 20% cho buổi hẹn đầu tiên tại bất kỳ salon nào thuộc hệ thống OAK Beauty.',
-    discount_percent: 20,
-    discount_amount: null,
-    image: IMG('img-064bab706d.jpg'),
-    starts_at: '2026-08-01',
-    ends_at: '2026-09-30',
-  },
-  {
-    salon: null,
-    code: 'OAKSUMMER',
-    type: 'discount',
-    title: 'Ưu đãi hè rực rỡ',
-    description: 'Giảm 15% toàn bộ dịch vụ spa và chăm sóc da trong mùa hè này.',
-    discount_percent: 15,
-    discount_amount: null,
-    image: IMG('img-3e0a9ec5ac.jpg'),
-    starts_at: '2026-07-15',
-    ends_at: '2026-09-15',
-  },
-  {
-    salon: 'lala-nail-studio',
-    code: 'LALAGEL100',
-    type: 'discount',
-    title: 'Giảm 100.000đ cho dịch vụ sơn gel',
-    description: 'Áp dụng cho tất cả dịch vụ sơn gel tại Lala Nail Studio, từ thứ Hai đến thứ Năm.',
-    discount_percent: null,
-    discount_amount: 100000,
-    image: IMG('img-93e56c2a14.jpg'),
-    starts_at: '2026-08-01',
-    ends_at: '2026-09-30',
-  },
-  {
-    salon: 'the-muse-beauty-bar',
-    code: 'MUSESPA25',
-    type: 'discount',
-    title: 'Trị liệu spa giảm 25%',
-    description: 'Ưu đãi 25% cho gói trị liệu OAK Signature khi đặt lịch trước 3 ngày.',
-    discount_percent: 25,
-    discount_amount: null,
-    image: IMG('img-83c65fdb78.jpg'),
-    starts_at: '2026-08-05',
-    ends_at: '2026-10-05',
-  },
-  {
-    salon: 'the-hair-studio',
-    code: 'HAIR200K',
-    type: 'discount',
-    title: 'Phục hồi tóc - Giảm ngay 200.000đ',
-    description: 'Giảm 200.000đ cho liệu trình phục hồi Keratin và nhuộm màu thời trang.',
-    discount_percent: null,
-    discount_amount: 200000,
-    image: IMG('img-c5600bb11b.jpg'),
-    starts_at: '2026-08-01',
-    ends_at: '2026-08-31',
-  },
-  // A combo points at the one combo service that IS the bundle (resolved to its id inside
-  // seed()), not at the parts: that service is what the customer books, at the sale price.
-  // A combo is therefore never applied as a code — see requireUsablePromotion.
-  {
-    salon: 'lala-nail-studio',
-    code: 'LALACOMBO480',
-    type: 'combo',
-    title: 'Combo Sơn gel + Chăm sóc chân',
-    description: 'Trọn gói sơn gel cơ bản và chăm sóc chân chuyên sâu trong cùng một buổi hẹn.',
-    discount_percent: null,
-    discount_amount: null,
-    original_price: 600000,
-    sale_price: 480000,
-    service_names: ['Combo Sơn Gel + Chăm Sóc Chân'],
-    image: IMG('img-8f601b429a.jpg'),
-    starts_at: '2026-08-01',
-    ends_at: '2026-10-31',
-  },
-  {
-    salon: 'lala-nail-studio',
-    code: 'LALACOMBO720',
-    type: 'combo',
-    title: 'Combo Đắp gel + Nail art',
-    description: 'Đắp gel nối móng kèm thiết kế nail art cầu kỳ, tiết kiệm 180.000đ.',
-    discount_percent: null,
-    discount_amount: null,
-    original_price: 900000,
-    sale_price: 720000,
-    service_names: ['Combo Đắp Gel + Nail Art'],
-    image: IMG('img-c92fbe9a51.jpg'),
-    starts_at: '2026-08-01',
-    ends_at: '2026-10-31',
-  },
-];
+/*
+ * Promotions are not listed here any more. There is exactly one offer on OAK — the
+ * welcome code a salon joins with (lib/welcome-promotion.js) — so every seeded salon
+ * gets its own, generated from SALONS in seed() below rather than written out per salon.
+ * The seeded cohort is the demo's newly-joined salons: their window opens on the day
+ * the database is seeded.
+ */
 
 const POSTS = [
   {
@@ -1430,24 +1355,28 @@ export async function seed(db) {
       );
     }
 
-    for (const promotion of PROMOTIONS) {
+    // One offer per salon and nothing else: the same welcome code registration writes for
+    // a salon signing up today. service_ids stays NULL — it is on everything they do.
+    const welcome = welcomeWindow(todayISO());
+    for (const salon of SALONS) {
+      const salonId = salonIds.get(salon.slug);
       await tx.run(
         INSERT_PROMOTION,
-        promotion.salon === null ? null : salonIds.get(promotion.salon),
-        promotion.code,
-        promotion.type,
-        promotion.title,
-        promotion.description,
-        promotion.discount_percent,
-        promotion.discount_amount,
-        promotion.original_price ?? null,
-        promotion.sale_price ?? null,
-        promotion.service_names
-          ? JSON.stringify(promotion.service_names.map((name) => serviceIds.get(name)))
-          : null,
-        promotion.image,
-        promotion.starts_at,
-        promotion.ends_at,
+        salonId,
+        welcomeCode(salonId),
+        'discount',
+        WELCOME_TITLE,
+        WELCOME_DESCRIPTION,
+        WELCOME_PERCENT,
+        // discount_amount, original_price, sale_price: a percentage says it all...
+        null,
+        null,
+        null,
+        // ...and service_ids stays empty, because the offer is on the whole menu.
+        null,
+        WELCOME_IMAGE,
+        welcome.starts_at,
+        welcome.ends_at,
       );
     }
 

@@ -22,6 +22,7 @@ import {
   weekdayOf,
 } from '../lib/time.js';
 import { isSafeMediaUrl } from '../lib/urls.js';
+import { WELCOME_CODE_PREFIX } from '../lib/welcome-promotion.js';
 import { httpError, requireAuth, requirePartner } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -2015,11 +2016,30 @@ function requireServiceIdList(value, label) {
   );
 }
 
+/**
+ * A code of the salon's own choosing, minus the one shape it may not choose: the welcome
+ * offer every salon joins with is keyed on `MOI20-<salon id>`, and promotions.code is
+ * UNIQUE, so a console-made code in that family would be one a future registration cannot
+ * write — the salon that took it would break somebody else's sign-up. Refused whatever the
+ * case it is typed in, since a lower-case twin would read as the reserved one to a person.
+ */
+function requirePromotionCode(value) {
+  const code = optionalText(value, 'Mã ưu đãi');
+  if (code !== null && code.toUpperCase().startsWith(WELCOME_CODE_PREFIX)) {
+    throw httpError(
+      400,
+      'VALIDATION_ERROR',
+      `Mã ưu đãi không được bắt đầu bằng "${WELCOME_CODE_PREFIX}" — tiền tố này dành riêng cho ưu đãi chào mừng salon mới.`,
+    );
+  }
+  return code;
+}
+
 const PROMOTION_COLUMNS = {
   title: (value) => requireText(value, 'tên ưu đãi'),
   type: (value) => requireOneOf(value, PROMOTION_TYPES, 'Loại ưu đãi không hợp lệ.'),
   description: (value) => optionalText(value, 'Mô tả'),
-  code: (value) => optionalText(value, 'Mã ưu đãi'),
+  code: (value) => requirePromotionCode(value),
   discount_percent: (value) => optionalCount(value, 'Phần trăm giảm giá'),
   discount_amount: (value) => optionalCount(value, 'Số tiền giảm'),
   original_price: (value) => optionalCount(value, 'Giá gốc'),

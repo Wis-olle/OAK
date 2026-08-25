@@ -15,6 +15,17 @@ import {
 } from '../lib/phone.js';
 import { slugify } from '../lib/text.js';
 import { todayISO } from '../lib/time.js';
+// The one offer OAK runs, spelled once for the seed, this route and the db.js backfill.
+// Imported under a name of its own: createAccount already has a `welcomeCode` of its
+// own — the code a new CUSTOMER is greeted with — and the two are different things.
+import {
+  WELCOME_DESCRIPTION,
+  WELCOME_IMAGE,
+  WELCOME_PERCENT,
+  WELCOME_TITLE,
+  welcomeCode as salonWelcomeCode,
+  welcomeWindow,
+} from '../lib/welcome-promotion.js';
 import {
   COOKIE_NAME,
   COOKIE_OPTIONS,
@@ -108,6 +119,15 @@ const INSERT_USER =
 // turns it on from the console once the profile has an address, hours, a service and a photo.
 const INSERT_SALON =
   'INSERT INTO salons (owner_id, name, slug, city, verified, created_at) VALUES (?, ?, ?, ?, 1, ?)';
+// The welcome offer the salon joins with, written in the same transaction as the salon:
+// there is no state in which a salon exists without it. service_ids stays NULL — the
+// offer is on everything the salon does, and requireUsablePromotion reads the salon
+// scope, not a service list.
+const INSERT_WELCOME_PROMOTION = `
+  INSERT INTO promotions
+    (salon_id, code, type, title, description, discount_percent, image, starts_at, ends_at, active)
+  VALUES (?, ?, 'discount', ?, ?, ?, ?, ?, ?, 1)
+`;
 // The welcome offer a brand-new customer is greeted with: whichever platform-wide code is
 // closest to running out, so the one being wound down is the one that gets handed out.
 // A salon's own code is not offered — it would send a first-time visitor to one salon.
@@ -265,13 +285,32 @@ async function createAccount(req, res, next, forcedRole) {
 
         if (accountRole === 'partner') {
           const partnerSalonName = salonName || `${name} Salon`;
+          const salonId = Number(
+            (
+              await tx.run(
+                INSERT_SALON,
+                userId,
+                partnerSalonName,
+                await uniqueSalonSlug(tx, partnerSalonName),
+                'TP.HCM',
+                createdAt,
+              )
+            ).lastInsertRowid,
+          );
+          // Joining IS the offer: the salon's own 20% code is live from the day it signs
+          // up. Inside the transaction, so a code that could not be written takes the
+          // salon and the account down with it rather than leaving a salon without one.
+          const { starts_at: startsAt, ends_at: endsAt } = welcomeWindow(todayISO());
           await tx.run(
-            INSERT_SALON,
-            userId,
-            partnerSalonName,
-            await uniqueSalonSlug(tx, partnerSalonName),
-            'TP.HCM',
-            createdAt,
+            INSERT_WELCOME_PROMOTION,
+            salonId,
+            salonWelcomeCode(salonId),
+            WELCOME_TITLE,
+            WELCOME_DESCRIPTION,
+            WELCOME_PERCENT,
+            WELCOME_IMAGE,
+            startsAt,
+            endsAt,
           );
         }
       });

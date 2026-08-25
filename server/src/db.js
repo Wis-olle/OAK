@@ -1,4 +1,16 @@
 import pg from 'pg';
+import { todayISO } from './lib/time.js';
+import {
+  WELCOME_BACKFILL_CUTOFF,
+  WELCOME_CODE_PREFIX,
+  WELCOME_DESCRIPTION,
+  WELCOME_IMAGE,
+  WELCOME_NOTICE_BODY,
+  WELCOME_NOTICE_TITLE,
+  WELCOME_PERCENT,
+  WELCOME_TITLE,
+  welcomeWindow,
+} from './lib/welcome-promotion.js';
 import { seed } from './seed.js';
 
 const { Pool, types } = pg;
@@ -634,3 +646,96 @@ await pool.query(`
     AND NOT EXISTS (SELECT 1 FROM salon_hours h WHERE h.salon_id = s.id)
   ON CONFLICT (salon_id, weekday) DO NOTHING
 `);
+
+/* Brings the offers on the platform down to the one policy OAK actually runs: a salon
+   joins and gets its own 20% welcome code (lib/welcome-promotion.js). Three sweeps, all
+   after the seed so a fresh database is right on its first boot rather than its second.
+
+   First the invented ones the demo used to ship — a platform-wide member code, a summer
+   campaign, three salon discounts and two Lala combos — go. Keyed on the code AND the
+   title seed.js wrote, both exact: a code alone is something a salon could pick for an
+   offer of its own one day, and a row matching both is one of these rows and nothing
+   else. Deletes nothing on a database that never held them, nothing on every boot after
+   the first, and nothing a salon wrote itself. No table references promotions(id), so
+   the rows go without leaving anything dangling. */
+const RETIRED_SEED_OFFERS = [
+  ['OAKNEW20', 'Chào mừng thành viên mới - Giảm 20%'],
+  ['OAKSUMMER', 'Ưu đãi hè rực rỡ'],
+  ['LALAGEL100', 'Giảm 100.000đ cho dịch vụ sơn gel'],
+  ['MUSESPA25', 'Trị liệu spa giảm 25%'],
+  ['HAIR200K', 'Phục hồi tóc - Giảm ngay 200.000đ'],
+  ['LALACOMBO480', 'Combo Sơn gel + Chăm sóc chân'],
+  ['LALACOMBO720', 'Combo Đắp gel + Nail art'],
+];
+await pool.query(
+  `DELETE FROM promotions p
+   USING unnest($1::text[], $2::text[]) AS retired(code, title)
+   WHERE p.code = retired.code AND p.title = retired.title`,
+  [RETIRED_SEED_OFFERS.map(([code]) => code), RETIRED_SEED_OFFERS.map(([, title]) => title)],
+);
+
+/* And the bell notice that came with the retired platform-wide code, rewritten to what
+   the policy actually is now. Keyed on the exact sentence the old seed wrote, so it hits
+   that notification and no other, and says nothing on a database that never had it —
+   the same shape as the erased-name sweep above, and a no-op from the second boot. */
+const RETIRED_WELCOME_NOTICE =
+  'Nhập mã OAKNEW20 khi đặt lịch để được giảm 20% cho buổi hẹn đầu tiên, áp dụng đến 30/09/2026.';
+await pool.query('UPDATE notifications SET title = $1, body = $2 WHERE body = $3', [
+  WELCOME_NOTICE_TITLE,
+  WELCOME_NOTICE_BODY,
+  RETIRED_WELCOME_NOTICE,
+]);
+
+/* And the same code in the greeting every customer who signed up got: "Chào mừng Lan!
+   Nhập mã OAKNEW20 …". Those bodies carry a name, so they are rewritten rather than
+   replaced — the half before the "!" is kept and the dead instruction gives way to the
+   sentence auth.js already writes when there is no code to name. Keyed on the code still
+   being in the body, which is exactly what this removes: no-op from the second boot, and
+   on a database whose greetings never named one. The seeded notice is handled above, and
+   a body with no "!" is left alone rather than grown: split_part would return it whole,
+   the appended sentence would not remove the code, and the row would gain a copy of the
+   sentence on every boot — this sweep may only touch what its rewrite actually cleans. */
+await pool.query(
+  `UPDATE notifications
+   SET body = split_part(body, '!', 1) || ' — đặt lịch đầu tiên của bạn tại OAK.'
+   WHERE body LIKE '%OAKNEW20%' AND position('!' in body) > 0`,
+);
+
+/* Then the offer the salons that predate the policy are owed — and only those. This is a
+   migration for the existing cohort, not a standing rule: every salon created from the
+   policy onwards gets its offer inside the registration transaction, so there is nothing
+   here left to catch, and a salon that deleted its offer from the console keeps it
+   deleted instead of finding it back after the next deploy. Hence the cutoff, compared
+   against created_at as text — see WELCOME_BACKFILL_CUTOFF for why that comparison says
+   what it looks like it says. A salon with no created_at at all predates everything, so
+   it counts as old.
+
+   Keyed on the code, which is derived from the salon id, so "has this salon got one?" is
+   a lookup rather than a guess and running this twice inserts once. The window opens
+   today rather than at created_at: these are the demo's newly-joined salons, and dating
+   their offer from a sign-up months back would expire it before anyone saw it. NOT EXISTS
+   plus ON CONFLICT, like the hours sweep above: two instances booting at the same moment
+   both pass the check before either one inserts. Every parameter carries its cast: fed
+   through a SELECT they are inferred rather than read off the target column, and
+   discount_percent arriving as text would fail the insert. */
+const welcomeWindowNow = welcomeWindow(todayISO());
+await pool.query(
+  `INSERT INTO promotions
+     (salon_id, code, type, title, description, discount_percent, image, starts_at, ends_at, active)
+   SELECT s.id, $1::text || s.id::text, 'discount', $2::text, $3::text, $4::int, $5::text,
+          $6::text, $7::text, 1
+   FROM salons s
+   WHERE (s.created_at IS NULL OR s.created_at < $8::text)
+     AND NOT EXISTS (SELECT 1 FROM promotions p WHERE p.code = $1::text || s.id::text)
+   ON CONFLICT (code) DO NOTHING`,
+  [
+    WELCOME_CODE_PREFIX,
+    WELCOME_TITLE,
+    WELCOME_DESCRIPTION,
+    WELCOME_PERCENT,
+    WELCOME_IMAGE,
+    welcomeWindowNow.starts_at,
+    welcomeWindowNow.ends_at,
+    WELCOME_BACKFILL_CUTOFF,
+  ],
+);

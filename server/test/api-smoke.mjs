@@ -23,6 +23,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+// The one offer OAK runs, so the suite spells the code the same way the server does.
+import { WELCOME_PERCENT, welcomeCode } from '../src/lib/welcome-promotion.js';
 
 const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TEST_PORT = 3199;
@@ -1088,13 +1090,15 @@ async function groupBookings() {
   assert(quote.items.length > 0, 'quote: expected line items', quoteResponse);
   assert(quote.total === service.price, 'quote: total must equal the service price', quoteResponse);
 
+  // The salon's own welcome code — the only offer on the platform — spent at that salon.
+  const welcome = welcomeCode(state.lalaId);
   const promoResponse = await customer.fetch(
-    `/api/bookings/quote?service_id=${service.id}&promotion_code=OAKNEW20`,
+    `/api/bookings/quote?service_id=${service.id}&promotion_code=${welcome}`,
   );
-  const promoQuote = ok(promoResponse, 'GET /api/bookings/quote?promotion_code=OAKNEW20');
+  const promoQuote = ok(promoResponse, `GET /api/bookings/quote?promotion_code=${welcome}`);
   const discountLine = promoQuote.items.find((item) => item.amount < 0);
   assert(discountLine !== undefined, 'quote with promo: expected a negative discount line', promoResponse);
-  const expectedDiscount = Math.floor((service.price * 20) / 100);
+  const expectedDiscount = Math.floor((service.price * WELCOME_PERCENT) / 100);
   assert(discountLine.amount === -expectedDiscount, 'quote with promo: discount must be 20% of the price', promoResponse);
   assert(promoQuote.total === service.price - expectedDiscount, 'quote with promo: total must be base - 20%', promoResponse);
 
@@ -1890,77 +1894,24 @@ async function groupPromotions() {
     'promotions: only offers active today may be listed',
     response,
   );
+  // One offer runs on OAK: the 20% code a salon joins with. Nothing platform-wide, and
+  // nothing a salon did not get simply by signing up.
   assert(
-    promotions.some((item) => item.salon === null),
-    'promotions: expected a platform-wide offer',
+    promotions.every(
+      (item) => item.salon?.slug !== undefined && item.discount_percent === WELCOME_PERCENT,
+    ),
+    'promotions: every listed offer must be a salon welcome offer',
     response,
   );
 
-  const combo = promotions.find((item) => item.type === 'combo');
-  assert(combo !== undefined, 'promotions: expected a combo offer', response);
-  assert(combo.service_names.length > 0, 'promotions: a combo must resolve its service names', response);
-  assert(combo.salon?.slug !== undefined, 'promotions: a salon offer must carry its salon block', response);
-
-  // A combo is a service, not a code. It points at the one service that IS the bundle, so
-  // uu-dai.html can deep-link the wizard at it, and that service is already priced at the
-  // sale price — which is what makes the advertised price the price actually charged.
+  // The code is derived from the salon id, which is what lets registration, the seed and
+  // the boot-time backfill all write the same one exactly once.
+  const lala = promotions.find((item) => item.code === welcomeCode(state.lalaId));
+  assert(lala !== undefined, "promotions: the salon's welcome offer must be listed", response);
   assert(
-    combo.service_ids.length === 1,
-    'promotions: a combo must point at exactly one combo service',
+    lala.salon.slug === 'lala-nail-studio',
+    'promotions: a salon offer must carry its salon block',
     response,
-  );
-  const comboServiceId = combo.service_ids[0];
-
-  const comboServiceResponse = await session('guest').fetch(`/api/services/${comboServiceId}`);
-  const comboService = ok(comboServiceResponse, 'GET /api/services/:id for the combo service');
-  assert(
-    comboService.name === combo.service_names[0],
-    'combo: the offer must name the service it books',
-    comboServiceResponse,
-  );
-  assert(
-    comboService.price === combo.sale_price,
-    'combo: the combo service must be priced at the sale price',
-    comboServiceResponse,
-  );
-
-  const customer = session('customer');
-  const comboQuoteResponse = await customer.fetch(
-    `/api/bookings/quote?service_id=${comboServiceId}`,
-  );
-  const comboQuote = ok(comboQuoteResponse, 'GET /api/bookings/quote for the combo service');
-  assert(
-    comboQuote.total === combo.sale_price,
-    'combo: booking the combo service must total the sale price',
-    comboQuoteResponse,
-  );
-
-  // And the code behind a combo is refused wherever somebody pastes it by hand, so nobody
-  // takes the bundle saving twice on top of a price that already carries it.
-  const pastedResponse = await customer.fetch(
-    `/api/bookings/quote?service_id=${comboServiceId}&promotion_code=${combo.code}`,
-  );
-  expectError(pastedResponse, 400, 'INVALID_PROMOTION', 'GET /api/bookings/quote with a combo code');
-  assert(
-    pastedResponse.body?.error?.message ===
-      'Combo được đặt như một dịch vụ, không dùng như mã giảm giá.',
-    'combo: the refusal must say a combo is booked as a service, not applied as a code',
-    pastedResponse,
-  );
-  expectError(
-    await customer.fetch('/api/bookings', {
-      method: 'POST',
-      json: {
-        salon_id: state.lalaId,
-        service_id: state.slot.service.id,
-        date: state.slot.date,
-        time: state.slot.time,
-        promotion_code: combo.code,
-      },
-    }),
-    400,
-    'INVALID_PROMOTION',
-    'POST /api/bookings with a combo code',
   );
 }
 
@@ -3721,6 +3672,19 @@ async function groupAuthz() {
 
   assert(ownSalon.published === 0, 'self-registration: a new salon starts unlisted');
 
+  // The welcome offer is created in the same transaction as the salon, so it has to be
+  // just as invisible while the salon is a draft: GET /api/promotions gates on the salon
+  // being published, or a sign-up would put a name of the applicant's choosing on
+  // uu-dai.html the moment the account existed.
+  const draftOffers = await session('guest').fetch('/api/promotions');
+  assert(
+    !ok(draftOffers, 'GET /api/promotions (with a draft salon around)').some(
+      (item) => item.code === welcomeCode(ownSalon.id) || item.salon?.name === salonName,
+    ),
+    "GET /api/promotions: a draft salon's welcome offer must not be listed",
+    draftOffers,
+  );
+
   for (const [route, label] of [
     ['/api/salons?limit=50', 'GET /api/salons'],
     ['/api/salons?sort=newest&limit=50', 'GET /api/salons?sort=newest'],
@@ -3817,6 +3781,19 @@ async function groupAuthz() {
     'a published salon must appear in GET /api/search/salons',
     publicSearch,
   );
+  // And the offer the salon joined with comes into view with it — 20% off, under the
+  // salon's own code. The gate above is a gate, not a blanket hide.
+  const liveOffers = await session('guest').fetch('/api/promotions');
+  const ownOffer = ok(liveOffers, 'GET /api/promotions (once the salon is live)').find(
+    (item) => item.code === welcomeCode(ownSalon.id),
+  );
+  assert(ownOffer !== undefined, "a published salon's welcome offer must be listed", liveOffers);
+  assert(
+    ownOffer.discount_percent === WELCOME_PERCENT && ownOffer.salon?.name === salonName,
+    'the welcome offer must carry its salon and its 20%',
+    liveOffers,
+  );
+
   // The public menu carries the flag the console set, so the profile can print "từ ...".
   const publicMenu = await session('guest').fetch(`/api/salons/${ownSalon.id}/services`);
   assert(
@@ -4226,7 +4203,15 @@ async function groupBookingLifecycle() {
 
   /* -- days off --------------------------------------------------------------- */
 
-  const offDate = addDays(state.today, 5);
+  /* Five days out — unless that lands on a Sunday, which offers nothing to close: every
+     seeded technician is expanded over weekdays 1-6 only (seed.js), so getServiceSlots
+     finds no shift at all on a weekday 0 and returns an empty list for every service.
+     The round-the-clock week this group opens with cannot help, because that patches
+     salon_hours, not staff_schedule. Same dodge as group 5 makes for the same reason.
+     The replacement is +6 rather than +7: the week shapes below are read from today, so
+     the day being closed has to be one of their seven. */
+  const wantedOff = addDays(state.today, 5);
+  const offDate = weekdayOf(wantedOff) === 0 ? addDays(state.today, 6) : wantedOff;
   const openBefore = ok(
     await guest.fetch(`/api/services/${manualSlot.service.id}/availability?date=${offDate}`),
     'GET /api/services/:id/availability before the salon closes that day',

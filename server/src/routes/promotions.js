@@ -8,6 +8,12 @@ const router = express.Router();
 
 // starts_at/ends_at are 'YYYY-MM-DD', so a plain string comparison is a date comparison.
 // Platform-wide offers (salon_id IS NULL) are listed first.
+//
+// A salon's offer is listed only once the salon itself is: salons.published defaults to 0
+// and a partner sign-up creates the salon — and now its welcome offer — before anyone has
+// seen either, so without this gate an unlisted draft would advertise its name here the
+// moment the account was made. The same gate covers an offer a salon writes in the console
+// while its profile is still unpublished.
 const selectActivePromotions = db.prepare(`
   SELECT p.id, p.code, p.type, p.title, p.description, p.discount_percent, p.discount_amount,
          p.original_price, p.sale_price, p.service_ids, p.image, p.starts_at, p.ends_at,
@@ -15,6 +21,7 @@ const selectActivePromotions = db.prepare(`
   FROM promotions p
   LEFT JOIN salons s ON s.id = p.salon_id
   WHERE p.active = 1 AND p.starts_at <= ? AND p.ends_at >= ?
+    AND (p.salon_id IS NULL OR s.published = 1)
   ORDER BY (p.salon_id IS NULL) DESC, p.id
 `);
 
