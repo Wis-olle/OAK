@@ -20,11 +20,14 @@ const STRINGS = [
   'Nhập từ web có sẵn',
   'Link trang của bạn',
   'Tôi là chủ trang này và đồng ý cho OAK đọc trang để điền sẵn hồ sơ salon.',
+  'Ghi đè dữ liệu đã có bằng thông tin từ trang (kể cả ảnh)',
+  'Tên salon, ảnh, giờ mở cửa và thông tin liên hệ hiện tại sẽ bị thay thế; điểm ghim bản đồ có thể bị gỡ nếu OAK không định vị được địa chỉ mới. Dịch vụ bạn tự thêm vẫn được giữ.',
   'Nhập tự động',
   'Đang đọc trang của bạn…',
   'Đã nhập từ trang KiotViet của bạn',
   'Đã điền sẵn được một phần từ trang của bạn',
   'Đã lưu link mạng xã hội của bạn — điền các mục còn lại giúp OAK nhé',
+  'Đã cập nhật hồ sơ theo dữ liệu từ trang của bạn',
   'mục thông tin salon đã điền',
   'dịch vụ',
   'ảnh',
@@ -46,7 +49,23 @@ test('the import card opens the settings page and posts to the import endpoint',
   assert.match(page, /x-data="salonImport\(\)"/);
   // First card on the page: the owner is meant to try this before filling anything by hand.
   assert.ok(page.indexOf('id="nhap-tu-web"') < page.indexOf('id="hien-thi"'));
-  assert.match(page, /OAK\.api\('\/api\/partner\/import', \{\s*method: 'POST',\s*body: \{ url: this\.url\.trim\(\), consent: true \},/);
+  assert.match(page, /const body = \{ url: this\.url\.trim\(\), consent: true \};/);
+  assert.match(page, /OAK\.api\('\/api\/partner\/import', \{ method: 'POST', body \}\)/);
+});
+
+test('the overwrite box is a second tick, off unless the owner asks for it', () => {
+  // Default off in the component, so a partner who ticks only consent gets the import that
+  // fills blanks — and the field is on the request only when the box is ticked.
+  assert.match(page, /overwrite: false,/);
+  assert.match(page, /<input class="mt-1" type="checkbox" x-model="overwrite"\/>/);
+  assert.match(page, /if \(overwrite\) \{\s*body\.overwrite = true;\s*\}/);
+  // And the box says what the mode actually replaces — the name and the pin included, both
+  // of which it can take away.
+  assert.ok(page.includes('Tên salon, ảnh, giờ mở cửa'));
+  assert.ok(page.includes('điểm ghim bản đồ có thể bị gỡ'));
+  // The "kept as you had it" line follows the answer rather than the box: an overwrite still
+  // reports a skip whenever it refused a half-stated location or a pin it could not place.
+  assert.match(page, /x-show="result\.skipped\.length"/);
 });
 
 test('nothing is sent until the owner has ticked consent and pasted a link', () => {

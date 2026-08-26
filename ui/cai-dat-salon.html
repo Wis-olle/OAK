@@ -187,6 +187,15 @@
 <input class="mt-1" type="checkbox" x-model="consent"/>
 <span class="font-caption text-caption">Tôi là chủ trang này và đồng ý cho OAK đọc trang để điền sẵn hồ sơ salon.</span>
 </label>
+<!-- Off unless the owner says otherwise: the request without it fills blanks only, and the
+     line under the box is what tells them which of the two they are about to send. -->
+<label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer mb-6">
+<input class="mt-1" type="checkbox" x-model="overwrite"/>
+<span class="flex flex-col gap-1">
+<span class="font-caption text-caption">Ghi đè dữ liệu đã có bằng thông tin từ trang (kể cả ảnh)</span>
+<span class="font-caption text-caption text-error">Tên salon, ảnh, giờ mở cửa và thông tin liên hệ hiện tại sẽ bị thay thế; điểm ghim bản đồ có thể bị gỡ nếu OAK không định vị được địa chỉ mới. Dịch vụ bạn tự thêm vẫn được giữ.</span>
+</span>
+</label>
 <button :disabled="busy || !consent || !url.trim()" @click="runImport()" class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">auto_awesome</span>
 <span x-text="busy ? 'Đang đọc trang của bạn…' : 'Nhập tự động'">Nhập tự động</span>
@@ -197,9 +206,12 @@
 <div class="mt-6 rounded-xl border border-surface-variant bg-surface-container-low p-4" role="status">
 <p class="flex items-center gap-2 font-label-md text-label-md text-primary uppercase tracking-widest mb-4">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-success">check_circle</span>
+<span x-show="!overwritten">
 <span x-show="result.mode === 'kiotviet'">Đã nhập từ trang KiotViet của bạn</span>
 <span x-show="result.mode === 'generic'">Đã điền sẵn được một phần từ trang của bạn</span>
 <span x-show="result.mode === 'social'">Đã lưu link mạng xã hội của bạn — điền các mục còn lại giúp OAK nhé</span>
+</span>
+<span x-show="overwritten">Đã cập nhật hồ sơ theo dữ liệu từ trang của bạn</span>
 </p>
 <ul class="space-y-2 font-body-md text-body-md text-on-surface-variant mb-4">
 <li x-show="result.filled.length"><span x-text="result.filled.length"></span> mục thông tin salon đã điền</li>
@@ -1685,9 +1697,14 @@
         return {
             url: '',
             consent: false,
+            overwrite: false,
             busy: false,
             error: '',
             result: null,
+            /* What the request that came back was sent with, not what the box says now: the
+               owner is free to untick it while the page is being read, and the answer would
+               then be described by the wrong half of the card. */
+            overwritten: false,
 
             warned(code) {
                 return (this.result.warnings || []).indexOf(code) !== -1;
@@ -1697,14 +1714,20 @@
                 if (this.busy || !this.consent || !this.url.trim()) {
                     return;
                 }
+                const overwrite = this.overwrite;
                 this.busy = true;
                 this.error = '';
                 this.result = null;
+                this.overwritten = false;
                 try {
-                    this.result = await OAK.api('/api/partner/import', {
-                        method: 'POST',
-                        body: { url: this.url.trim(), consent: true },
-                    });
+                    const body = { url: this.url.trim(), consent: true };
+                    if (overwrite) {
+                        body.overwrite = true;
+                    }
+                    this.result = await OAK.api('/api/partner/import', { method: 'POST', body });
+                    /* A social link is stored, never a profile rewritten — that outcome keeps
+                       its own line whichever way the box was ticked. */
+                    this.overwritten = overwrite && this.result.mode !== 'social';
                 } catch (error) {
                     /* The route names its own reason for every refusal it makes — a link that
                        is not one, a page it could not open, an allowance spent — in Vietnamese

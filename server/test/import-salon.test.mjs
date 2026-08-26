@@ -240,6 +240,8 @@ test('a service list becomes menu rows: VND integers, minutes, a category each',
   );
   assert.deepEqual(rows.map((row) => row.category), ['nail', 'nail', 'hair', 'eyelash']);
   assert.ok(rows.every((row) => row.guessed === false));
+  // Every one of these minutes is the menu's own, which is what lets an overwrite write them.
+  assert.ok(rows.every((row) => row.duration_stated === true));
 });
 
 test('a name nothing matches takes the category its siblings mostly had, and says so', () => {
@@ -272,6 +274,8 @@ test('a number too big for the int4 column falls back rather than sinking the im
   assert.equal(row.name, 'Sơn gel');
   assert.equal(row.price, 0);
   assert.equal(row.duration_min, 60);
+  // And the row says the hour is the stand-in, so an overwrite does not carry it anywhere.
+  assert.equal(row.duration_stated, false);
 
   // The ceiling itself is still a number the column holds.
   const [edge] = mapServices({ Status: 1, Data: [{ Name: 'Sơn gel', BasePrice: 2147483647 }] });
@@ -900,8 +904,10 @@ function fakeDb(salon, { serviceNames = [], hourRows = 0, photoRows = 0, failWri
     throw new Error(`unexpected get: ${sql}`);
   };
   const all = async (sql) => {
-    if (/SELECT name FROM services/.test(sql)) {
-      return serviceNames.map((name) => ({ name }));
+    if (/FROM services/.test(sql)) {
+      // Ids the route only ever gets from here, so a repricing UPDATE can be traced to the
+      // row it was meant for.
+      return serviceNames.map((name, index) => ({ id: 100 + index, name }));
     }
     throw new Error(`unexpected all: ${sql}`);
   };
@@ -1031,13 +1037,13 @@ const page = (url, markup) => ({
 });
 
 /** The KiotViet salon at the top of this file, answered over a stubbed network. */
-function kiotvietNetwork({ geocodeWorks = false } = {}) {
+function kiotvietNetwork({ geocodeWorks = false, services = SERVICES } = {}) {
   return mock.fn(async (url) => {
     if (url.endsWith('/tenant')) {
       return json(url, TENANT);
     }
     if (url.includes('/services?BranchId=4700')) {
-      return json(url, SERVICES);
+      return json(url, services);
     }
     if (url.startsWith('https://nominatim.')) {
       if (!geocodeWorks) {
@@ -1466,6 +1472,13 @@ test('the url and the consent tick are both required, and each says which is mis
     assert.equal(refused.error.status, 400);
     assert.equal(refused.error.code, 'CONSENT_REQUIRED');
   }
+
+  // And asking for the more sweeping of the two imports is not a way around the tick either.
+  const overwriting = await call(handler, {
+    url: 'https://booksalon.kiotviet.vn/4abf76ad',
+    overwrite: true,
+  });
+  assert.equal(overwriting.error.code, 'CONSENT_REQUIRED');
 });
 
 test('a partner gets three imports in the window, and does not spend another partner’s', async () => {
@@ -1592,6 +1605,305 @@ test('a pin is only dropped under an address this import actually wrote', async 
     ['lat', 'lng'],
   );
   assert.equal(writes.some((write) => /lat = /.test(write.sql)), false);
+});
+
+/* ── the same import, with the overwrite box ticked ──────────────────────── */
+
+/* A salon whose owner has been through the settings form: every column answered, a week set,
+   two photos, a pin, and a menu of their own. Everything the blanks-first import above is
+   built to leave alone, which is the whole of what `overwrite` is asked to replace. */
+const FILLED_IN_SALON = Object.freeze({
+  ...REGISTERED_SALON,
+  name: 'Coco Nail (tên cũ)',
+  description: 'Mô tả tôi tự viết.',
+  address: '43 Nguyễn Chí Thanh (tầng 2)',
+  district: 'Quận 3',
+  city: 'TP.HCM',
+  phone: '0900000000',
+  image: '/uploads/mine.jpg',
+  lat: 10.7769,
+  lng: 106.7009,
+});
+
+test('an overwrite writes the page over every column the page has an answer for', async () => {
+  const { db, writes } = fakeDb(
+    { ...FILLED_IN_SALON },
+    { serviceNames: ['CHÀ  GÓT   CHÂN'], hourRows: 7, photoRows: 2 },
+  );
+  const network = kiotvietNetwork({ geocodeWorks: true });
+  const handler = lift({ db, safeFetch: network });
+
+  const { body, error } = await call(handler, {
+    url: 'https://booksalon.kiotviet.vn/4abf76ad',
+    consent: true,
+    overwrite: true,
+  });
+
+  assert.equal(error, undefined);
+  // The name joins the writable set here and nowhere else. `description` is absent because
+  // the tenant states none — what the page is silent about is never emptied.
+  assert.deepEqual(body.data.filled, [
+    'name', 'address', 'phone', 'district', 'city', 'image', 'lat', 'lng',
+  ]);
+  assert.deepEqual(body.data.skipped, []);
+
+  const profile = writes.find((write) => /^UPDATE salons SET name/.test(write.sql));
+  assert.equal(profile.params[0], 'CoCo Nail(코코네일) & Shampoo & Make-Up');
+  assert.equal(profile.params[body.data.filled.indexOf('address')], '43 Nguyễn Chí Thanh');
+  assert.equal(profile.params[body.data.filled.indexOf('district')], 'Quận Hải Châu');
+  assert.equal(profile.params[body.data.filled.indexOf('city')], 'Đà Nẵng');
+  assert.equal(profile.params[body.data.filled.indexOf('phone')], '0338211881');
+  // Consenting to an overwrite is not consenting to be listed, and never was.
+  assert.doesNotMatch(profile.sql, /description|published|verified|slug/);
+
+  // The week and the gallery are thrown away and written again from the source. The salon
+  // had both; the pictures are fetched for real this time, rather than narrowed away.
+  const at = (pattern) => writes.findIndex((write) => pattern.test(write.sql));
+  assert.equal(body.data.hours_set, true);
+  assert.ok(at(/^DELETE FROM salon_hours/) !== -1);
+  assert.ok(at(/^DELETE FROM salon_hours/) < at(/^INSERT INTO salon_hours/));
+  assert.equal(writes.filter((write) => /^INSERT INTO salon_hours/.test(write.sql)).length, 7);
+  assert.equal(body.data.photos_added, 1);
+  assert.ok(at(/^DELETE FROM salon_photos/) !== -1);
+  assert.ok(at(/^DELETE FROM salon_photos/) < at(/^INSERT INTO salon_photos/));
+  assert.ok(
+    network.mock.calls.some((fetched) => fetched.arguments[0].startsWith('https://cdn-booking.')),
+  );
+
+  // The pin follows the address it describes.
+  assert.equal(body.data.geocoded, true);
+
+  /* And the menu, which is the one thing an overwrite may not take away: every booking the
+     salon has ever taken points at a service id. The service the page also lists is repriced
+     in place — the category the partner filed it under is not the page's to correct — and
+     nothing is deleted. */
+  assert.equal(body.data.services_added, 3);
+  const repriced = writes.filter((write) => /^UPDATE services/.test(write.sql));
+  assert.deepEqual(repriced.map((write) => write.params), [[90000, 30, 100]]);
+  assert.doesNotMatch(repriced[0].sql, /category|description|image/);
+  assert.equal(writes.some((write) => /^DELETE FROM services/.test(write.sql)), false);
+});
+
+test('an overwrite empties nothing the page had nothing to say about', async () => {
+  // A page with a name on it and not one other thing. The address, the phone, the description
+  // and the week the partner typed are theirs still: this is a replacement, not a wipe.
+  const { db, writes } = fakeDb({ ...FILLED_IN_SALON }, { hourRows: 7, photoRows: 2 });
+  const handler = lift({
+    db,
+    safeFetch: websiteNetwork('<meta property="og:title" content="Coco Nail Đà Nẵng">'),
+  });
+
+  const { body } = await call(handler, {
+    url: 'https://coconail.vn/',
+    consent: true,
+    overwrite: true,
+  });
+
+  assert.deepEqual(body.data.filled, ['name']);
+  const profile = writes.find((write) => /^UPDATE salons SET/.test(write.sql));
+  assert.equal(profile.sql, 'UPDATE salons SET name = ? WHERE id = ?');
+  assert.equal(body.data.hours_set, false);
+  assert.equal(body.data.photos_added, 0);
+  assert.equal(writes.some((write) => /^DELETE FROM/.test(write.sql)), false);
+});
+
+test('an overwrite whose page holds one picture keeps the gallery it cannot rebuild', async () => {
+  /* The single picture a page offers becomes the cover, and once the cover column has taken
+     it there is nothing left for the gallery. Emptying the salon's own photos to put nothing
+     in their place is the outcome the delete is guarded against, so the guard has to be read
+     off what is about to be inserted rather than off what came down the wire. */
+  const { db, writes } = fakeDb({ ...FILLED_IN_SALON }, { photoRows: 3 });
+  const handler = lift({
+    db,
+    safeFetch: websiteNetwork(
+      '<meta property="og:title" content="Coco Nail">' +
+        '<meta property="og:image" content="/img/cover.jpg">',
+    ),
+  });
+
+  const { body } = await call(handler, {
+    url: 'https://coconail.vn/',
+    consent: true,
+    overwrite: true,
+  });
+
+  assert.deepEqual(body.data.filled, ['name', 'image']);
+  assert.equal(body.data.photos_added, 0);
+  assert.equal(writes.some((write) => /^DELETE FROM salon_photos/.test(write.sql)), false);
+  assert.equal(writes.some((write) => /^INSERT INTO salon_photos/.test(write.sql)), false);
+});
+
+test('an overwrite refuses half a location: the district and the city still move together', async () => {
+  /* A page marked up with addressLocality and no addressRegion states a city and no district.
+     Writing that city on its own would leave the 'Quận 3' the partner typed standing under Đà
+     Nẵng — a district from one city under the name of another, and the city is what search
+     filters on. The same mismatch the blanks-first guard exists to prevent, from the other
+     side, so an overwrite leaves both halves alone and says so. */
+  const halfLocated = `<script type="application/ld+json">${JSON.stringify({
+    '@type': 'BeautySalon',
+    name: 'Coco Nail',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: '43 Nguyễn Chí Thanh',
+      addressLocality: 'Đà Nẵng',
+    },
+  })}</script>`;
+  const { db, writes } = fakeDb({ ...FILLED_IN_SALON });
+  const handler = lift({ db, safeFetch: websiteNetwork(halfLocated) });
+
+  const { body } = await call(handler, {
+    url: 'https://coconail.vn/',
+    consent: true,
+    overwrite: true,
+  });
+
+  assert.deepEqual(body.data.filled, ['name', 'address']);
+  assert.deepEqual(body.data.skipped, ['city']);
+  const profile = writes.find((write) => /^UPDATE salons SET/.test(write.sql));
+  assert.doesNotMatch(profile.sql, /district|city/);
+});
+
+test('an overwrite that cannot place its new address takes the old pin down with it', async () => {
+  /* The salon has moved street and the gazetteer cannot find the new one — a Vietnamese
+     network cannot reach it at all. The pin that is there describes where the salon used to
+     be, and leaving it under the new address is a map that lies about where to walk. */
+  const { db, writes } = fakeDb({ ...FILLED_IN_SALON });
+  const handler = lift({ db, safeFetch: kiotvietNetwork() });
+
+  const { body } = await call(handler, {
+    url: 'https://booksalon.kiotviet.vn/4abf76ad',
+    consent: true,
+    overwrite: true,
+  });
+
+  assert.equal(body.data.geocoded, false);
+  assert.ok(body.data.warnings.includes('geocode_failed'));
+  // Cleared, not filled: nothing was gained, so nothing is counted.
+  assert.equal(body.data.filled.includes('lat'), false);
+  const profile = writes.find((write) => /^UPDATE salons SET/.test(write.sql));
+  assert.match(profile.sql, /lat = \?, lng = \? WHERE id = \?$/);
+  assert.deepEqual(profile.params.slice(-3), [null, null, 12]);
+});
+
+test('an overwrite that writes the same address again leaves the pin standing', async () => {
+  /* The mirror of the test above, and the one that runs far more often: the partner imports
+     the same page a second time. An overwrite writes the address whatever the row holds, so
+     'we wrote an address' is not 'the salon moved' — and the pin below is one the partner
+     dropped by hand on the settings map, on the very street the page states. Nothing
+     contradicts it, so nothing may take it down, gazetteer unreachable or not. */
+  const { db, writes } = fakeDb({ ...FILLED_IN_SALON, address: '43 Nguyễn Chí Thanh' });
+  const handler = lift({ db, safeFetch: kiotvietNetwork() });
+
+  const { body } = await call(handler, {
+    url: 'https://booksalon.kiotviet.vn/4abf76ad',
+    consent: true,
+    overwrite: true,
+  });
+
+  assert.equal(body.data.geocoded, false);
+  const profile = writes.find((write) => /^UPDATE salons SET/.test(write.sql));
+  assert.doesNotMatch(profile.sql, /lat|lng/);
+});
+
+test('an overwrite moves a social link the page has changed since the last import', async () => {
+  const { db, writes } = fakeDb({ ...REGISTERED_SALON });
+  const handler = lift({ db, safeFetch: webStoreNetwork(WEB_STORE_HTML) });
+
+  const { body } = await call(handler, {
+    url: 'https://43coconail.web-store.online/',
+    consent: true,
+    overwrite: true,
+  });
+
+  // Not DO NOTHING: a salon that has moved its Facebook page is exactly the salon ticking
+  // this box, and the link already stored is the stale one.
+  const link = writes.find((write) => write.sql.startsWith('INSERT INTO salon_social_links'));
+  assert.match(link.sql, /DO UPDATE SET url = excluded\.url RETURNING platform/);
+  assert.equal(body.data.social_links_added, 1);
+});
+
+test('anything short of the boolean itself leaves the import filling blanks only', async () => {
+  for (const overwrite of [undefined, false, 'true', 1]) {
+    const { db, writes } = fakeDb(
+      { ...FILLED_IN_SALON },
+      { serviceNames: ['Chà gót chân'], hourRows: 7, photoRows: 2 },
+    );
+    const handler = lift({ db, safeFetch: kiotvietNetwork() });
+
+    const { body } = await call(handler, {
+      url: 'https://booksalon.kiotviet.vn/4abf76ad',
+      consent: true,
+      overwrite,
+    });
+
+    assert.deepEqual(body.data.filled, [], String(overwrite));
+    assert.deepEqual(body.data.skipped, ['address', 'phone', 'district', 'city', 'image']);
+    assert.equal(body.data.hours_set, false);
+    assert.equal(body.data.services_added, 3);
+    assert.equal(
+      writes.some((write) => /^DELETE FROM|^UPDATE services/.test(write.sql)),
+      false,
+      String(overwrite),
+    );
+  }
+});
+
+test('an overwrite reprices from a price the page states, never from the stand-in', async () => {
+  /* The same page as ever, with the price taken off the one service it lists — schema.org
+     asks for a name and nothing else. A row still has to reach the services table with a
+     number in each column, so lib/import-extract.js writes 0 đ and the hour that stands in
+     for a duration nobody gave. Those two are the shape of "the page did not say", and
+     writing them over figures the partner typed would be this import inventing a fact rather
+     than carrying one across — the salon's menu would read 0 đ in public. */
+  const unpriced = GENERIC_HTML.replace(', "price": "150000"', '');
+  const { db, writes } = fakeDb({ ...FILLED_IN_SALON }, { serviceNames: ['Sơn gel'] });
+  const handler = lift({ db, safeFetch: websiteNetwork(unpriced) });
+
+  const { body } = await call(handler, {
+    url: 'https://coconail.vn/',
+    consent: true,
+    overwrite: true,
+  });
+
+  assert.equal(body.data.services_added, 0);
+  assert.deepEqual(
+    writes.filter((write) => /^UPDATE services/.test(write.sql)),
+    [],
+  );
+
+  /* And the halves are guarded one by one, because a page states them one by one. The page
+     below does price the service — and, JSON-LD having no field for a length at all, says
+     nothing whatever about how long it takes. The price crosses; the minutes stay the
+     salon's, lib/availability.js laying its slots end to end by that number. */
+  const priced = fakeDb({ ...FILLED_IN_SALON }, { serviceNames: ['Sơn gel'] });
+  const stated = lift({ db: priced.db, safeFetch: websiteNetwork(GENERIC_HTML) });
+
+  await call(stated, { url: 'https://coconail.vn/', consent: true, overwrite: true });
+
+  const repriced = priced.writes.filter((write) => /^UPDATE services/.test(write.sql));
+  assert.match(repriced[0].sql, /duration_min = COALESCE\(\?, duration_min\)/);
+  assert.deepEqual(repriced.map((write) => write.params), [[150000, null, 100]]);
+});
+
+test('an overwrite carries a length the page states across a price it never gave', async () => {
+  /* The other way round, and the half nobody thinks of: a KiotViet menu row that names the
+     minutes and leaves BasePrice out. The minutes are the source's own and lib/availability.js
+     books by them, so they cross; the 0 đ that stands in for the price it never gave is not an
+     answer, and the figure the partner typed stays where it is. */
+  const timedOnly = { Status: 1, Data: [{ Id: 186673, Name: 'Chà gót chân', Duration: 30 }] };
+  const { db, writes } = fakeDb({ ...FILLED_IN_SALON }, { serviceNames: ['Chà gót chân'] });
+  const handler = lift({ db, safeFetch: kiotvietNetwork({ services: timedOnly }) });
+
+  const { body } = await call(handler, {
+    url: 'https://booksalon.kiotviet.vn/4abf76ad',
+    consent: true,
+    overwrite: true,
+  });
+
+  assert.equal(body.data.services_added, 0);
+  const repriced = writes.filter((write) => /^UPDATE services/.test(write.sql));
+  assert.match(repriced[0].sql, /price = COALESCE\(\?, price\)/);
+  assert.deepEqual(repriced.map((write) => write.params), [[null, 30, 100]]);
 });
 
 test('a salon’s own site fronting a KiotViet store is read as KiotViet', async () => {

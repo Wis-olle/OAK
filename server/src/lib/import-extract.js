@@ -237,12 +237,18 @@ export function mapServices(payload, classify = classifyServiceCategory) {
     if (!name) {
       return [];
     }
+    const duration = count(item?.Duration);
     return [
       {
         name,
         // BasePrice arrives as a float (370000.0000) and the column counts whole đồng.
         price: count(item?.BasePrice) ?? 0,
-        duration_min: count(item?.Duration) ?? DEFAULT_DURATION_MIN,
+        duration_min: duration ?? DEFAULT_DURATION_MIN,
+        // Whether the minutes above are the source's own or the stand-in. A row being
+        // inserted takes either; an import that overwrites may only write a length the
+        // source actually stated over one the salon set, and the number alone cannot say
+        // which it is — sixty minutes is a real answer as often as it is the fallback.
+        duration_stated: duration !== null,
         category: classify(name),
         guessed: false,
       },

@@ -22,12 +22,18 @@
  *    machine-readable anyway. The link is saved as the salon's social link and the partner
  *    is told to fill the rest in by hand. That is a success, not a failure.
  *
- * What this route will not do: overwrite. Every column it writes is one the salon left
- * empty, hours are written only into a week that has none, and a service whose name the
- * salon already has is skipped. An import can add to a profile; it can never take something
- * the partner typed and replace it with something a website said. Nor does it publish:
- * salons.published is untouched, so the console's own checklist still decides when the
- * salon goes live.
+ * What an import does with what it read is the partner's own choice, ticked on the card
+ * before the request. Left alone, it fills blanks and nothing else: every column it writes
+ * is one the salon left empty, hours go only into a week that has none, and a service whose
+ * name the salon already has is skipped. Ticked, `overwrite` says the page is the record and
+ * the profile is the draft — what the source states is written over what is there, which is
+ * what a partner who has half-typed a profile and then remembered their old site is asking
+ * for. What the source is silent about is still left exactly as it stands in either reading:
+ * a page that lists no phone number does not erase one.
+ *
+ * Two things hold whichever box is ticked. A service the partner has is never deleted — every
+ * booking ever taken points at a service id — and salons.published is untouched, so the
+ * console's own checklist still decides when the salon goes live.
  *
  * Every outbound request goes through lib/safe-fetch.js — see the note at the top of that
  * file for what a route that fetches a caller-supplied host has to defend against.
@@ -375,10 +381,22 @@ async function rehostImages(urls) {
  * Writing
  * ========================================================================= */
 
-// The columns an import may fill. name and slug are absent on purpose — the partner chose
-// those at sign-up — and so are verified, featured and published.
+// The columns an import may fill. slug is absent from both lists — it is in every link to
+// the salon, including the ones already handed out — and so are verified, featured and
+// published. name joins the writable set under `overwrite` alone: a name is the one thing
+// registration always asks for, so a blanks-first import has nothing to say about it, and
+// replacing it takes an explicit "the page is the record".
 const IMPORTABLE_COLUMNS = ['description', 'address', 'phone'];
+const OVERWRITABLE_COLUMNS = ['name', ...IMPORTABLE_COLUMNS];
 
+const DELETE_SALON_HOURS = 'DELETE FROM salon_hours WHERE salon_id = ?';
+const DELETE_SALON_PHOTOS = 'DELETE FROM salon_photos WHERE salon_id = ?';
+// COALESCE on both halves, so a page that priced a service but never said how long it takes
+// reprices the row and leaves its minutes alone — and one that states a length without a price
+// writes the length onto a price that stays the salon's. See the note beside the call for why
+// the two halves of a menu row have to be guarded one by one.
+const UPDATE_SERVICE_PRICE =
+  'UPDATE services SET price = COALESCE(?, price), duration_min = COALESCE(?, duration_min) WHERE id = ?';
 const INSERT_SALON_HOURS =
   'INSERT INTO salon_hours (salon_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)';
 const UPDATE_SALON_SUMMARY = 'UPDATE salons SET open_time = ?, close_time = ? WHERE id = ?';
@@ -394,6 +412,14 @@ const INSERT_SALON_PHOTO = 'INSERT INTO salon_photos (salon_id, image, caption, 
 const INSERT_SOCIAL_LINK = `
   INSERT INTO salon_social_links (salon_id, platform, url) VALUES (?, ?, ?)
   ON CONFLICT (salon_id, platform) DO NOTHING RETURNING platform
+`;
+// The same insert under `overwrite`, where a link already stored is the stale one: a salon
+// that moved its page is exactly the salon reaching for this. DO UPDATE returns its row
+// whether or not the address changed, so the count is "links this import wrote" rather than
+// "links this import altered" — near enough for a line that says how much came across.
+const UPSERT_SOCIAL_LINK = `
+  INSERT INTO salon_social_links (salon_id, platform, url) VALUES (?, ?, ?)
+  ON CONFLICT (salon_id, platform) DO UPDATE SET url = excluded.url RETURNING platform
 `;
 const INSERT_SALON_IMPORT = `
   INSERT INTO salon_imports (salon_id, url, mode, consent_at, imported_at, summary)
@@ -413,8 +439,13 @@ function hoursSummary(hours) {
  * The salon row is read again inside it rather than trusted from before the fetches: those
  * took seconds, and the partner may have been typing into the settings form throughout. What
  * is empty at this moment is what gets filled.
+ *
+ * `overwrite` turns every "only where it is empty" below into "wherever the source has an
+ * answer". `skipped` keeps its one meaning through both — the source offered this and we
+ * left it alone — which is why an overwrite mostly reports none: the only things it refuses
+ * are what it could not fetch, and a pin whose address it never wrote.
  */
-async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
+async function writeImport(tx, salon, source, { images, geo, url, consentAt, overwrite }) {
   const current = await tx.get('SELECT * FROM salons WHERE id = ?', salon.id);
   const filled = [];
   const skipped = [];
@@ -427,11 +458,13 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
     filled.push(column);
   };
 
-  for (const column of IMPORTABLE_COLUMNS) {
+  // A column the source says nothing about is left alone in either mode: "replace what the
+  // page states" is not "empty what the page omits".
+  for (const column of overwrite ? OVERWRITABLE_COLUMNS : IMPORTABLE_COLUMNS) {
     if (isEmpty(source[column])) {
       continue;
     }
-    if (isEmpty(current[column])) {
+    if (overwrite || isEmpty(current[column])) {
       write(column, source[column]);
     } else {
       skipped.push(column);
@@ -451,10 +484,23 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
   // "Hà Nội" and never reached the district list has still told us where their salon is, and
   // an import that read a different city may not correct them. Both halves go to `skipped`
   // then, the same "never take anything away" rule as everywhere else here.
+  //
+  // Under `overwrite` the partner has said in so many words that the page knows better, and
+  // the pair still moves together — which is a rule about the source as much as about the row.
+  // A page marked up with addressLocality and no addressRegion states a city and no district,
+  // and writing that city on its own leaves the district the partner typed standing under a
+  // city from somewhere else: the same mismatch this guard exists to prevent, arrived at from
+  // the other side. So an overwrite writes the pair where the source states both halves of it;
+  // where the source has only one, the rule above stands and that half goes in only if there
+  // is demonstrably nothing of the partner's for it to contradict. The missing half is never
+  // cleared to make room — a page silent about a district does not erase one, here as
+  // everywhere else in this route.
   const cityIsRegistrationGuess =
     isEmpty(current.city) || String(current.city).trim() === REGISTRATION_CITY;
+  const locationUntouched = isEmpty(current.district) && cityIsRegistrationGuess;
+  const sourceStatesBoth = !isEmpty(source.district) && !isEmpty(source.city);
   if (!isEmpty(source.district) || !isEmpty(source.city)) {
-    if (isEmpty(current.district) && cityIsRegistrationGuess) {
+    if ((overwrite && sourceStatesBoth) || locationUntouched) {
       if (!isEmpty(source.district)) {
         write('district', source.district);
       }
@@ -475,12 +521,20 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
   // only into a gallery that is empty, for the reason the hours rule below exists. A partner
   // who imports twice would otherwise get the same pictures twice, and a gallery is the one
   // place duplicates are laborious to undo: one delete per photo, by hand.
+  //
+  // Under `overwrite` the gallery is thrown away and rebuilt from the page instead — but only
+  // where there is something to rebuild it from. The test is what will actually be inserted,
+  // not what was re-hosted and not what the page listed: a gallery emptied and then not
+  // refilled is the one outcome nobody asked for, and it arrives two ways — six downloads that
+  // all timed out, and a source holding exactly one picture, which the cover column takes and
+  // leaves nothing behind it. So `rest` is what decides, and it is read after the cover branch
+  // below, which is what settles whether the one picture is a cover or a gallery row.
   const existingPhotos = await tx.get(
     'SELECT COUNT(*) AS count FROM salon_photos WHERE salon_id = ?',
     salon.id,
   );
   const [cover, ...rest] = images;
-  if (cover && isEmpty(current.image)) {
+  if (cover && (overwrite || isEmpty(current.image))) {
     write('image', cover);
   } else if (!isEmpty(current.image) && source.images.length > 0) {
     // Reported off what the source held rather than off what was downloaded: the cover is
@@ -492,7 +546,8 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
       rest.unshift(cover);
     }
   }
-  const gallery = existingPhotos.count === 0 ? rest : [];
+  const replacePhotos = overwrite && rest.length > 0;
+  const gallery = replacePhotos || existingPhotos.count === 0 ? rest : [];
 
   // A coordinate is a pair: half of one would pin the salon on a meridian somewhere, so both
   // columns move together or neither does — the same rule PATCH /api/partner/salon enforces.
@@ -501,11 +556,28 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
   // is the one it describes: either this import just wrote it, or the row has none for the
   // pin to contradict. A salon that kept its own address — the district/city rule above, or
   // an address the partner typed — keeps its own map, and is told so in `skipped`.
-  const geocoded =
-    Boolean(geo) && isEmpty(current.address) && current.lat === null && current.lng === null;
+  //
+  // Which is also why an overwrite that moves the address and cannot geocode it takes the pin
+  // away: the salon has just moved street, and a pin still standing on the old one is a map
+  // that lies about where to walk. The partner is told by 'geocode_failed' and drops it again
+  // from the settings map. Cleared rather than filled, so `filled` is not credited for it.
+  //
+  // Moved, though, not merely written again. An overwrite writes the address whatever the row
+  // already holds, so the same page imported twice writes the same street a second time — and
+  // a pin taken down over that is a partner's own hand-dropped marker destroyed by an import
+  // that changed nothing. Nothing contradicts a pin but an address that is genuinely different.
+  const addressWritten = filled.includes('address');
+  const addressChanged =
+    addressWritten && String(current.address ?? '').trim() !== String(source.address).trim();
+  const geocoded = overwrite
+    ? Boolean(geo) && addressWritten
+    : Boolean(geo) && isEmpty(current.address) && current.lat === null && current.lng === null;
   if (geocoded) {
     write('lat', geo.lat);
     write('lng', geo.lng);
+  } else if (overwrite && addressChanged && (current.lat !== null || current.lng !== null)) {
+    assignments.push('lat = ?', 'lng = ?');
+    values.push(null, null);
   } else if (geo) {
     skipped.push('lat', 'lng');
   }
@@ -515,13 +587,18 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
   }
 
   // All seven days or none: a week half from an import and half from the console would be a
-  // schedule nobody wrote. Only a salon that has never set its hours is touched at all.
+  // schedule nobody wrote. Only a salon that has never set its hours is touched at all —
+  // unless `overwrite`, where the old week is deleted and the source's written in whole. A
+  // source with no hours at all still changes nothing: there is no week to put in its place.
   const existingHours = await tx.get(
     'SELECT COUNT(*) AS count FROM salon_hours WHERE salon_id = ?',
     salon.id,
   );
-  const hoursSet = existingHours.count === 0 && source.hours.length > 0;
+  const hoursSet = source.hours.length > 0 && (overwrite || existingHours.count === 0);
   if (hoursSet) {
+    if (existingHours.count > 0) {
+      await tx.run(DELETE_SALON_HOURS, salon.id);
+    }
     // Every weekday gets a row, including the ones the source never named. A missing row is
     // not "unknown" to lib/availability.js — it is "no restriction", so a page that lists
     // Monday to Friday would leave the salon bookable around the clock at the weekend. A day
@@ -545,11 +622,17 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
 
   // Compared on the folded name: an imported "SƠN GEL HÀN QUỐC" is the service the salon
   // already typed as "Sơn Gel Hàn Quốc", and importing it again would give them two menus.
-  const existingNames = new Set(
-    (await tx.all('SELECT name FROM services WHERE salon_id = ?', salon.id)).map((row) =>
-      normalizeServiceName(row.name),
-    ),
-  );
+  // Under `overwrite` that row is repriced instead of passed over — but never, in either
+  // mode and whatever the page says, deleted: every booking the salon has ever taken points
+  // at a service id, and a menu tidied to match a website would take the salon's own history
+  // with it. A service the partner added that the page has never heard of simply stays.
+  const existingServices = new Map();
+  for (const row of await tx.all('SELECT id, name FROM services WHERE salon_id = ?', salon.id)) {
+    const key = normalizeServiceName(row.name);
+    if (key !== '' && !existingServices.has(key)) {
+      existingServices.set(key, row.id);
+    }
+  }
   const nextService = await tx.get(
     'SELECT COALESCE(MAX(sort_order), 0) + 1 AS position FROM services WHERE salon_id = ?',
     salon.id,
@@ -559,10 +642,39 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
   let categoryGuessed = false;
   for (const service of source.services.slice(0, MAX_IMPORTED_SERVICES)) {
     const key = normalizeServiceName(service.name);
-    if (key === '' || existingNames.has(key)) {
+    if (key === '') {
       continue;
     }
-    existingNames.add(key);
+    const existingId = existingServices.get(key);
+    if (existingId !== undefined) {
+      // The price and the length are what a menu is read for; the category, the description
+      // and the picture on that row are the partner's own work sitting on top of it, and are
+      // left where they are. A row this same import wrote a moment ago — the page listing one
+      // service twice — is already the source's own and has nothing to be repriced from.
+      //
+      // And only from what the page actually states, each half on its own. A source that
+      // lists its services by name alone still has to reach the services table with a number
+      // in both columns, so mapServices stands 0 đ and an hour in for the ones it was never
+      // told — the shape of "the page did not say", and the one thing an overwrite must not
+      // write over figures the partner typed. The stand-ins are a fine start for a row being
+      // inserted; they are not answers to replace one with. The two are guarded separately
+      // because a page states them separately: JSON-LD asks for a price and has no field for
+      // a length at all, so a menu read that way carries the stand-in duration on every row.
+      // lib/availability.js lays its slots end to end by that number, and an hour written
+      // over a ninety-minute service is that service double-booked from the next morning.
+      // So either half stated is reason enough to visit the row, and each column is written
+      // only where the page stated that column — the other is COALESCEd back to what it was.
+      if (overwrite && existingId !== null && (service.price > 0 || service.duration_stated)) {
+        await tx.run(
+          UPDATE_SERVICE_PRICE,
+          service.price > 0 ? service.price : null,
+          service.duration_stated ? service.duration_min : null,
+          existingId,
+        );
+      }
+      continue;
+    }
+    existingServices.set(key, null);
     await tx.run(
       INSERT_SERVICE,
       salon.id,
@@ -577,6 +689,12 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
     categoryGuessed = categoryGuessed || service.guessed;
   }
 
+  // The rows go; the files they name stay on the store with nothing pointing at them, exactly
+  // as they do when a partner deletes a photo from the console. Sweeping them is a job for
+  // whatever eventually sweeps those, not for an import.
+  if (replacePhotos) {
+    await tx.run(DELETE_SALON_PHOTOS, salon.id);
+  }
   const nextPhoto = await tx.get(
     'SELECT COALESCE(MAX(sort), 0) + 1 AS position FROM salon_photos WHERE salon_id = ?',
     salon.id,
@@ -589,8 +707,14 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
 
   let socialLinksAdded = 0;
   for (const link of source.socialLinks) {
-    socialLinksAdded += (await tx.run(INSERT_SOCIAL_LINK, salon.id, link.platform, link.url))
-      .changes;
+    socialLinksAdded += (
+      await tx.run(
+        overwrite ? UPSERT_SOCIAL_LINK : INSERT_SOCIAL_LINK,
+        salon.id,
+        link.platform,
+        link.url,
+      )
+    ).changes;
   }
 
   return {
@@ -632,7 +756,7 @@ async function recordImport(tx, salon, mode, url, consentAt, summary) {
  * redirect. A link that fails it is worth saying so about: silently storing nothing would
  * look exactly like an import that worked.
  */
-async function importSocialLink(salon, link, rawUrl, consentAt) {
+async function importSocialLink(salon, link, rawUrl, consentAt, overwrite) {
   let url;
   try {
     url = validateSocialProfile(rawUrl, link.platform);
@@ -656,10 +780,11 @@ async function importSocialLink(salon, link, rawUrl, consentAt) {
   };
 
   await db.withTransaction(async (tx) => {
-    summary.social_links_added = (
-      await tx.run(INSERT_SOCIAL_LINK, salon.id, link.platform, url)
-    ).changes;
-    await recordImport(tx, salon, 'social', url, consentAt, summary);
+    // The one thing `overwrite` can mean here: a salon that has moved its page and is pasting
+    // the new address over the old one.
+    const insert = overwrite ? UPSERT_SOCIAL_LINK : INSERT_SOCIAL_LINK;
+    summary.social_links_added = (await tx.run(insert, salon.id, link.platform, url)).changes;
+    await recordImport(tx, salon, 'social', url, consentAt, { ...summary, overwrite });
   });
 
   return summary;
@@ -687,6 +812,10 @@ router.post('/', async (req, res, next) => {
         'Vui lòng xác nhận bạn là chủ sở hữu (hoặc được uỷ quyền) của trang này.',
       );
     }
+    // The second tick on the card, and the only thing that lets this route write over
+    // anything. Anything short of the boolean itself is the absent box: a form that forgot to
+    // send the field, or a caller sending the string, must not overwrite a salon's profile.
+    const overwrite = body.overwrite === true;
     if (rateLimited(req.user.id)) {
       throw httpError(429, 'RATE_LIMITED', BUSY_MESSAGE);
     }
@@ -694,7 +823,10 @@ router.post('/', async (req, res, next) => {
     const consentAt = new Date().toISOString();
 
     if (link.kind === 'social') {
-      res.json({ success: true, data: await importSocialLink(salon, link, rawUrl, consentAt) });
+      res.json({
+        success: true,
+        data: await importSocialLink(salon, link, rawUrl, consentAt, overwrite),
+      });
       return;
     }
 
@@ -722,7 +854,11 @@ router.post('/', async (req, res, next) => {
     let geo = source.geo;
     let geocodeFailed = false;
     let geocodeApproximate = false;
-    if (!geo && !isEmpty(source.address) && isEmpty(salon.address) && salon.lat === null) {
+    if (
+      !geo &&
+      !isEmpty(source.address) &&
+      (overwrite || (isEmpty(salon.address) && salon.lat === null))
+    ) {
       // The whole address, then the area it stands in — see geocodeQueries for why the
       // second one so often lands where the first cannot. A pin found that way is on a
       // district rather than on a door, so the answer says so and the partner drags it.
@@ -743,11 +879,15 @@ router.post('/', async (req, res, next) => {
     // most a cover out of this import, and one that has both needs no bytes at all. The
     // transaction re-reads the counts and decides for real — this only settles what is worth
     // fetching, and every skip here is a picture we do not pull across somebody's bandwidth.
-    const existingPhotos = await selectPhotoCount.get(salon.id);
-    const wanted =
-      existingPhotos.count === 0
-        ? source.images
-        : source.images.slice(0, isEmpty(salon.image) ? 1 : 0);
+    // An overwrite wants the whole set whatever the salon holds, so it narrows nothing.
+    let wanted = source.images;
+    if (!overwrite) {
+      const existingPhotos = await selectPhotoCount.get(salon.id);
+      wanted =
+        existingPhotos.count === 0
+          ? source.images
+          : source.images.slice(0, isEmpty(salon.image) ? 1 : 0);
+    }
     const { stored, partial, capped } = await rehostImages(wanted);
 
     const written = await db.withTransaction(async (tx) => {
@@ -756,6 +896,7 @@ router.post('/', async (req, res, next) => {
         geo,
         url: link.url,
         consentAt,
+        overwrite,
       });
 
       const warnings = [
@@ -794,7 +935,10 @@ router.post('/', async (req, res, next) => {
         warnings.push('nothing_found');
       }
 
-      await recordImport(tx, salon, source.mode, link.url, consentAt, summary);
+      // The stored record carries one field the answer does not: which reading the partner
+      // consented to. An import that replaced a profile is the one anybody looking back at
+      // this table will want to tell from an import that only filled its blanks.
+      await recordImport(tx, salon, source.mode, link.url, consentAt, { ...summary, overwrite });
       return summary;
     });
 
