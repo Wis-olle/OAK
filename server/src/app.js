@@ -10,6 +10,7 @@ import bookingRoutes from './routes/bookings.js';
 import eventRoutes from './routes/events.js';
 import favoriteRoutes from './routes/favorites.js';
 import geoRoutes from './routes/geo.js';
+import importSalonRoutes from './routes/import-salon.js';
 import notificationRoutes from './routes/notifications.js';
 import partnerRoutes from './routes/partner.js';
 import postRoutes from './routes/posts.js';
@@ -98,6 +99,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/promotions', promotionRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/users', userRoutes);
+// Mounted BEFORE the partner console: partnerRoutes has no /import of its own, and a
+// specific mount ahead of the general one keeps it that way whatever is added there later.
+app.use('/api/partner/import', importSalonRoutes);
 app.use('/api/partner', partnerRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/geo', geoRoutes);

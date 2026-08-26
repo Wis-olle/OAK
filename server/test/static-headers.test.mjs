@@ -143,10 +143,11 @@ test('a page is revalidated on every visit, and the home page with it', () => {
 });
 
 test('an uploaded photo is frozen, because its name is a UUID nothing reuses', () => {
-  /* The one thing that makes a year safe there: routes/uploads.js builds every stored name out
-     of randomUUID(), so no name is ever reused for different bytes. Read off the route rather
-     than restated, because the day that changes is the day this header becomes wrong. */
-  const route = source('src', 'routes', 'uploads.js');
+  /* The one thing that makes a year safe there: lib/store-image.js builds every stored name out
+     of randomUUID(), so no name is ever reused for different bytes. Read off the code rather
+     than restated, because the day that changes is the day this header becomes wrong. Both
+     writers of image bytes — POST /api/uploads and POST /api/partner/import — go through it. */
+  const route = source('src', 'lib', 'store-image.js');
   assert.ok(
     route.includes('const storedName = `${randomUUID()}${extension}`;'),
     'an uploaded file no longer gets a name nothing else can have — /uploads must stop freezing it',

@@ -191,3 +191,33 @@ Cache in-memory giữ 200 câu trả lời trong 10 phút. Cả cache lẫn bộ
 Không cần cấu hình gì khi deploy.
 
 Nếu Nominatim chặn IP egress của host, cách xử lý là liên hệ Nominatim hoặc chuyển sang nhà cung cấp geocoding khác — không phải sửa code.
+
+---
+
+## 11. Nhập liệu tự động từ link salon (`POST /api/partner/import`)
+
+Đối tác dán link trang salon của mình, server đọc và điền vào hồ sơ những cột còn trống. Đây là route **duy nhất** trong app gọi ra ngoài tới một host do người dùng nhập — mọi request đi qua `server/src/lib/safe-fetch.js`.
+
+Ngoại lệ của quy tắc "chỉ điền cột trống": **quận và tỉnh/thành đi liền một cặp**. Lúc đăng ký, `auth.js` ghi sẵn `city = 'TP.HCM'` và bỏ trống `district`, nên nếu xét từng cột riêng thì salon ở Đà Nẵng sẽ nhận quận Hải Châu nằm dưới thành phố TP.HCM. Vì vậy: `district` còn trống thì ghi cả hai (vị trí trên hồ sơ vẫn là giá trị mặc định lúc đăng ký), `district` đã có thì giữ nguyên cả hai (đối tác đã tự chọn vị trí).
+
+Server sẽ mở kết nối ra ngoài tới:
+
+- `api-booksalon.kiotviet.vn` — đọc `/tenant` và `/services` (không cần token, chỉ header `x-retailer-code`).
+- **Trang web bất kỳ** mà đối tác dán vào (kể cả `*.web-store.online`), để đọc JSON-LD/OpenGraph.
+- Host chứa ảnh của trang đó, để **tải ảnh về lưu ở kho của mình** (Supabase Storage hoặc `server/uploads`) — không bao giờ hotlink.
+- `nominatim.openstreetmap.org` — **một** lượt geocode cho mỗi lần nhập. Mạng Việt Nam không vào được host này (xem mục 10), nên bước này hỏng là chuyện bình thường ở local: hồ sơ chỉ thiếu toạ độ, không phải lỗi.
+
+Giới hạn cố định trong code, không cấu hình bằng env:
+
+| Giới hạn | Giá trị |
+|---|---|
+| Số lần nhập | 3 lần / 10 phút / tài khoản đối tác (bộ đếm in-memory, mất khi restart) |
+| Timeout mỗi request | 10s |
+| Redirect | tối đa 3 hop, mỗi hop kiểm tra lại host |
+| Kích thước HTML | 2MB |
+| Ảnh | tối đa 6 ảnh, mỗi ảnh ≤ 5MB, chỉ `jpeg/png/webp` |
+| Dịch vụ | tối đa 200 dòng mỗi lần nhập |
+
+Chặn SSRF: chỉ `http`/`https`, cổng mặc định, không kèm user/password; hostname được resolve trước và **từ chối nếu bất kỳ địa chỉ nào là nội bộ** (0/8, 10/8, 100.64/10 CGNAT, 127/8, 169.254/16, 172.16/12, 192.0.0/24, 192.168/16, 198.18/15, 224/4 trở lên — multicast/reserved/broadcast, `::1`, `::`, `fc00::/7`, `fe80::/10`, v4-mapped). Link Facebook/Instagram/TikTok/Zalo/YouTube **không bao giờ được fetch** — chỉ lưu thành social link.
+
+Nếu host deploy chặn egress, route này trả `502 UPSTREAM_ERROR` và đối tác nhập tay như trước — không có bước cấu hình nào cần làm khi deploy. Bảng `salon_imports` (lưu link + thời điểm đồng ý + tóm tắt kết quả) được tạo bằng `CREATE TABLE IF NOT EXISTS` lúc boot như mọi bảng khác.

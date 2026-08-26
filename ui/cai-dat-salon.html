@@ -169,6 +169,76 @@
 <form @submit.prevent="save()" class="grid grid-cols-1 lg:grid-cols-3 gap-12" id="salon-form" x-cloak x-show="!loading && !loadError">
 <!-- Left column: profile fields -->
 <div class="lg:col-span-2 space-y-12">
+<!-- Drafting the store from a link the salon already has, ahead of every other card: an
+     owner who pastes their old shopfront here finds the cards below already filled in.
+     Its own component and its own request — none of it belongs to the form's unsaved
+     -changes state, and it writes straight to the salon, so the fields below only show
+     the imported values after a reload. -->
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]" id="nhap-tu-web" x-data="salonImport()">
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Nhập từ web có sẵn</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Dán link trang web hoặc trang đặt lịch salon bạn đang dùng. Link KiotViet (web-store, booksalon) nhập được gần như mọi thứ; link Facebook hay Zalo được lưu vào mục Mạng xã hội, phần còn lại bạn điền tay.</p>
+<!-- Enter is caught here: this card sits inside the page's save form, and Enter in a bare
+     field would submit that form instead of asking for the import. -->
+<div class="relative mb-6">
+<input @keydown.enter.prevent="runImport()" class="input-minimal always-raised font-body-md text-body-md text-primary" id="salon-import-url" placeholder="https://ten-salon.web-store.online/" type="url" x-model="url"/>
+<label class="floating-label font-label-md uppercase tracking-widest" for="salon-import-url">Link trang của bạn</label>
+</div>
+<label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer mb-6">
+<input class="mt-1" type="checkbox" x-model="consent"/>
+<span class="font-caption text-caption">Tôi là chủ trang này và đồng ý cho OAK đọc trang để điền sẵn hồ sơ salon.</span>
+</label>
+<button :disabled="busy || !consent || !url.trim()" @click="runImport()" class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">auto_awesome</span>
+<span x-text="busy ? 'Đang đọc trang của bạn…' : 'Nhập tự động'">Nhập tự động</span>
+</button>
+<p class="font-caption text-caption text-error mt-6" role="alert" x-cloak x-show="error" x-text="error"></p>
+<!-- Built only once there is an answer: every line below reads the answer's own fields. -->
+<template x-if="result">
+<div class="mt-6 rounded-xl border border-surface-variant bg-surface-container-low p-4" role="status">
+<p class="flex items-center gap-2 font-label-md text-label-md text-primary uppercase tracking-widest mb-4">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px] text-success">check_circle</span>
+<span x-show="result.mode === 'kiotviet'">Đã nhập từ trang KiotViet của bạn</span>
+<span x-show="result.mode === 'generic'">Đã điền sẵn được một phần từ trang của bạn</span>
+<span x-show="result.mode === 'social'">Đã lưu link mạng xã hội của bạn — điền các mục còn lại giúp OAK nhé</span>
+</p>
+<ul class="space-y-2 font-body-md text-body-md text-on-surface-variant mb-4">
+<li x-show="result.filled.length"><span x-text="result.filled.length"></span> mục thông tin salon đã điền</li>
+<li x-show="result.services_added"><span x-text="result.services_added"></span> dịch vụ</li>
+<li x-show="result.photos_added"><span x-text="result.photos_added"></span> ảnh</li>
+<li x-show="result.social_links_added"><span x-text="result.social_links_added"></span> link mạng xã hội</li>
+<li x-show="result.hours_set">Giờ mở cửa</li>
+<li x-show="result.geocoded">Vị trí trên bản đồ</li>
+<li x-show="result.skipped.length"><span x-text="result.skipped.length"></span> mục bạn đã có sẵn được giữ nguyên</li>
+</ul>
+<p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('hours_single_window')">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
+<span>Giờ mở cửa được áp cùng một khung cho cả tuần — bạn kiểm tra lại nhé.</span>
+</p>
+<p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('category_guessed')">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
+<span>OAK đã tự xếp nhóm dịch vụ — kiểm tra lại giúp.</span>
+</p>
+<p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('geocode_failed')">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
+<span>Chưa định vị được bản đồ — bạn tìm địa chỉ ở mục Vị trí.</span>
+</p>
+<p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('multiple_branches')">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
+<span>Trang của bạn có nhiều chi nhánh — OAK lấy chi nhánh đầu tiên, bạn xem lại địa chỉ nhé.</span>
+</p>
+<p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('images_partial')">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
+<span>Một vài ảnh chưa tải về được — bạn thêm nốt ở mục Thư viện ảnh.</span>
+</p>
+<p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('nothing_found')">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
+<span>Trang này không cho OAK đọc nội dung — bạn điền các mục bên dưới bằng tay giúp nhé.</span>
+</p>
+<button @click="location.reload()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors mt-6" type="button">Tải lại để xem dữ liệu</button>
+</div>
+</template>
+</section>
+
 <!-- Going live. Saved the moment it is switched, on its own request: whether the salon
      is listed is not a draft anybody wants sitting in an unsaved form, and the conditions
      below are read from what is already stored, which is what the server checks too. -->
@@ -1596,6 +1666,45 @@
                     OAK.toast(saveError.message, 'error');
                 }
                 this.saving = false;
+            },
+        };
+    }
+
+    /* Drafting the store from the salon's existing shopfront. One request, and what it wrote
+       is on the salon rather than in the form above — hence the reload button rather than a
+       merge into fields the owner may already have been typing into. */
+    function salonImport() {
+        return {
+            url: '',
+            consent: false,
+            busy: false,
+            error: '',
+            result: null,
+
+            warned(code) {
+                return (this.result.warnings || []).indexOf(code) !== -1;
+            },
+
+            async runImport() {
+                if (this.busy || !this.consent || !this.url.trim()) {
+                    return;
+                }
+                this.busy = true;
+                this.error = '';
+                this.result = null;
+                try {
+                    this.result = await OAK.api('/api/partner/import', {
+                        method: 'POST',
+                        body: { url: this.url.trim(), consent: true },
+                    });
+                } catch (error) {
+                    /* The route names its own reason for every refusal it makes — a link that
+                       is not one, a page it could not open, an allowance spent — in Vietnamese
+                       a salon owner can act on. oak-api.js has already put a sentence there
+                       for the failures that never reached it. */
+                    this.error = error.message;
+                }
+                this.busy = false;
             },
         };
     }
