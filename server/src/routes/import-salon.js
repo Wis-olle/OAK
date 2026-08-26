@@ -40,6 +40,8 @@ import {
   geocodeQueries,
   mapServices,
   mapTenant,
+  mergeContactSocialLinks,
+  nextDataContact,
   normalizeServiceName,
   parseGenericHtml,
 } from '../lib/import-extract.js';
@@ -231,17 +233,27 @@ function readWebsite(html, pageUrl) {
  * its owner wrote about themselves, and dropping all of that on the floor is why the first
  * live import came back with one photo and no description.
  *
- * KiotViet wins every field it has an answer for. A name, a phone, an address, a district
- * and a week read out of the tenant are the salon's own records; the same things guessed
- * out of markup are a theme's best effort. So only the gaps are filled.
+ * KiotViet wins every field it has an answer for, save the one noted below. A name, a phone,
+ * a district and a week read out of the tenant are the salon's own records; the same things
+ * guessed out of markup are a theme's best effort. So only the gaps are filled.
  */
-function mergePage(source, page) {
+function mergePage(source, page, contact) {
   return {
     ...source,
     description: source.description ?? page.description,
+    // The address is the exception, and the page wins it. KiotViet keeps Branchs[].Address as
+    // free text, so it holds whatever the owner wanted a customer to read: the salon this was
+    // built against keeps a booking notice in Korean there, which is no address at all and
+    // which no gazetteer will ever find — the first rung of the geocode ladder could not
+    // resolve while that was the string being asked about. The web store's contact block is
+    // the field KiotViet structures, and the one the page's own map link is built from. Where
+    // the page offers none, the tenant's free text is still all there is.
+    address: contact.address ?? source.address,
+    // The branch's own number, where the tenant has one; the contact block fills the gap.
+    phone: source.phone ?? contact.phone,
     // The tenant answers with none at all. A link the salon already has is left where it is
     // by the insert's ON CONFLICT DO NOTHING, so there is nothing to reconcile here.
-    socialLinks: page.socialLinks,
+    socialLinks: mergeContactSocialLinks(page.socialLinks, contact),
     // Logo and banner first — the pictures the salon chose to be seen by — then the page's
     // own, in page order, with anything named twice carried once. rehostImages still stops
     // at MAX_IMPORTED_IMAGES, so a long gallery costs no more requests than a short one.
@@ -274,7 +286,11 @@ async function readSource(link) {
   if (!retailerCode) {
     return readWebsite(html, page.url);
   }
-  return mergePage(await readKiotViet(retailerCode), parseGenericHtml(html, page.url));
+  return mergePage(
+    await readKiotViet(retailerCode),
+    parseGenericHtml(html, page.url),
+    nextDataContact(html),
+  );
 }
 
 /* ============================================================================

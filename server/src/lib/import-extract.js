@@ -396,6 +396,30 @@ const SOCIAL_URL_HINT = new RegExp(
   'i',
 );
 
+/**
+ * Keep one page per platform: the first spelling seen, if it is a page at all.
+ *
+ * Written against a list rather than around one, because the candidates arrive from two
+ * readings of a page — its markup, and the contact block nextDataContact reads below — and
+ * "the first spelling seen" has to mean the same thing across both.
+ */
+function addSocialLink(links, candidate) {
+  const link = classifyUrl(candidate);
+  if (link?.kind !== 'social' || links.some((saved) => saved.platform === link.platform)) {
+    return;
+  }
+  try {
+    // The same validation the settings form applies, so an imported link is a link the
+    // partner could have typed: a profile page, not a post and not a share redirect.
+    links.push({
+      platform: link.platform,
+      url: validateSocialProfile(candidate, link.platform),
+    });
+  } catch {
+    // A link to a single post is not this salon's page; nothing to store.
+  }
+}
+
 /** The attributes of one tag, lowercased names to raw values. */
 function attributes(tag) {
   const found = {};
@@ -649,23 +673,6 @@ export function parseGenericHtml(html, baseUrl) {
 
   let telephone = text(business.telephone);
   const socialLinks = [];
-  /** Keep one page per platform: the first spelling seen, if it is a page at all. */
-  const addSocialLink = (candidate) => {
-    const link = classifyUrl(candidate);
-    if (link?.kind !== 'social' || socialLinks.some((saved) => saved.platform === link.platform)) {
-      return;
-    }
-    try {
-      // The same validation the settings form applies, so an imported link is a link the
-      // partner could have typed: a profile page, not a post and not a share redirect.
-      socialLinks.push({
-        platform: link.platform,
-        url: validateSocialProfile(candidate, link.platform),
-      });
-    } catch {
-      // A link to a single post is not this salon's page; nothing to store.
-    }
-  };
 
   for (const tag of source.matchAll(ANCHOR_TAG)) {
     const href = decode(attributes(tag[0]).href ?? '');
@@ -673,7 +680,7 @@ export function parseGenericHtml(html, baseUrl) {
       telephone = text(decodeURIComponent(href.slice(4)));
       continue;
     }
-    addSocialLink(href);
+    addSocialLink(socialLinks, href);
   }
   // Then the addresses the page printed instead of linking. A KiotViet web store writes its
   // contact block as text — the Facebook address sits in a paragraph with no href anywhere
@@ -681,7 +688,7 @@ export function parseGenericHtml(html, baseUrl) {
   // all. Read after the anchors, so a real link still speaks for its platform first.
   for (const found of prose(source).matchAll(BARE_URL)) {
     if (SOCIAL_URL_HINT.test(found[0])) {
-      addSocialLink(decode(found[0]).replace(SENTENCE_TAIL, ''));
+      addSocialLink(socialLinks, decode(found[0]).replace(SENTENCE_TAIL, ''));
     }
   }
 
@@ -710,4 +717,131 @@ export function parseGenericHtml(html, baseUrl) {
     socialLinks,
     geo: located ? { lat: latitude, lng: longitude } : null,
   };
+}
+
+/* ============================================================================
+ * The contact block a KiotViet web store keeps inside its page
+ * ========================================================================= */
+
+/* A web store is a Next.js page, and a Next.js page ships the props it was rendered from in
+   a <script id="__NEXT_DATA__" type="application/json"> blob. The store's contact block sits
+   in there — a phone, a Facebook page, a Zalo number, and the reason any of this is read at
+   all: an address that is an address. KiotViet's own Branchs[].Address is free text, and the
+   salon this was built against fills it with a booking notice in Korean, while the block
+   below is the field the page's own map link is built out of.
+
+   Found by shape rather than by path. props.pageProps.<something>.contact is where it sits
+   today, and a Next.js release or a theme rewrite moves it; an object holding an address with
+   a Facebook page or a Zalo number beside it is the same block wherever it has been moved to.
+   The blob holds the branch record as well, nearer its root, so the shape has to be narrow
+   enough to tell the two apart — see CONTACT_KEYS. */
+const NEXT_DATA_TAG =
+  /<script\b[^<>]{0,4096}(?<![\w:.-])id\s*=\s*["']__NEXT_DATA__["'][^<>]{0,4096}>/i;
+const SCRIPT_CLOSE = '</script>';
+// The whole page is already capped at 2MB by safe-fetch, so a blob longer than that is a
+// page nothing on it can be trusted to say. Cheaper to refuse than to hand to JSON.parse.
+const MAX_NEXT_DATA = 2 * 1024 * 1024;
+// A blob is props, and props are a whole page's worth of them: a store with a long menu
+// carries tens of thousands of nodes. Far enough in to pass the contact block on every shape
+// seen, and a ceiling all the same — the walk is on the event loop the whole site shares.
+const MAX_CONTACT_NODES = 20_000;
+/* What tells the contact block apart from everything else in the blob that holds an address.
+   A phone does not: the blob carries KiotViet's own branch records too, and a branch record
+   is an address and a phone side by side — the branch free text being the very string this
+   whole reading exists to get away from. On the store this was built against that record sits
+   nearer the root than the contact block does, so "an address with a phone beside it" finds
+   the Korean booking notice and nothing is gained. A Facebook page or a Zalo number is a
+   field only a contact card has. Where a store fills in neither, this reads nothing and the
+   tenant's free text stands, which is where it stood before. */
+const CONTACT_KEYS = ['facebook_url', 'zalo_url'];
+const NO_CONTACT = { address: null, phone: null, facebookUrl: null, zaloUrl: null };
+
+/** The first object in a parsed blob that is shaped like a contact block, or null. */
+function findContact(root) {
+  const queue = [root];
+  // Read with an index rather than shift(): a blob's arrays run to thousands of entries, and
+  // shifting one off the front of a queue that long is the whole queue moved each time.
+  for (let at = 0; at < queue.length && at < MAX_CONTACT_NODES; at += 1) {
+    const node = queue[at];
+    if (node === null || typeof node !== 'object') {
+      continue;
+    }
+    if (
+      !Array.isArray(node) &&
+      typeof node.address === 'string' &&
+      CONTACT_KEYS.some((key) => typeof node[key] === 'string')
+    ) {
+      return node;
+    }
+    for (const value of Object.values(node)) {
+      if (value !== null && typeof value === 'object') {
+        queue.push(value);
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * What a Next.js page says about how to reach the shop it renders.
+ *
+ * The first __NEXT_DATA__ block only, its closing tag found with indexOf rather than by a
+ * lazy quantifier — the same forward-only reading jsonLdNodes makes, and for the same reason:
+ * a page carrying a thousand opening tags and no closing one must not send a scan to the end
+ * of it a thousand times. A blob that is not JSON is a page that says nothing, not an error:
+ * everything here is optional, and the tenant is still holding an answer for every field.
+ */
+export function nextDataContact(html) {
+  const source = String(html ?? '');
+  const open = source.match(NEXT_DATA_TAG);
+  if (!open) {
+    return { ...NO_CONTACT };
+  }
+  const from = open.index + open[0].length;
+  const to = source.indexOf(SCRIPT_CLOSE, from);
+  if (to === -1 || to - from > MAX_NEXT_DATA) {
+    return { ...NO_CONTACT };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(source.slice(from, to));
+  } catch {
+    return { ...NO_CONTACT };
+  }
+  const contact = findContact(parsed);
+  if (!contact) {
+    return { ...NO_CONTACT };
+  }
+  return {
+    address: text(contact.address),
+    phone: text(contact.phone),
+    facebookUrl: text(contact.facebook_url, MAX_URL),
+    zaloUrl: text(contact.zalo_url, MAX_URL),
+  };
+}
+
+/**
+ * The Zalo field as a link, the owner having typed either.
+ *
+ * zalo_url holds a phone number about as often as it holds an address — the store's own
+ * button builds one out of the other — and zalo.me/<number> is the page Zalo opens a chat
+ * from. Anything else that is neither a number nor an http(s) address is left for
+ * validateSocialProfile to refuse, which is where every other candidate is refused too.
+ */
+function zaloLink(value) {
+  const raw = text(value, MAX_URL);
+  if (!raw || /^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+  const digits = raw.replace(/[\s.+-]/g, '');
+  return /^\d{8,15}$/.test(digits) ? `https://zalo.me/${digits}` : null;
+}
+
+/** The page's markup links, with the contact block's own filling whatever they left empty. */
+export function mergeContactSocialLinks(socialLinks, contact) {
+  const links = [...socialLinks];
+  addSocialLink(links, contact.facebookUrl);
+  addSocialLink(links, zaloLink(contact.zaloUrl));
+  return links;
 }

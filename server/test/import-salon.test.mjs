@@ -24,6 +24,8 @@ import {
   geocodeQueries,
   mapServices,
   mapTenant,
+  mergeContactSocialLinks,
+  nextDataContact,
   normalizeServiceName,
   parseGenericHtml,
 } from '../src/lib/import-extract.js';
@@ -568,6 +570,156 @@ test('broken JSON-LD is skipped rather than fatal', () => {
   assert.equal(parseGenericHtml(html, 'https://coconail.vn/').name, 'Coco Nail');
 });
 
+/* ── nextDataContact ─────────────────────────────────────────────────────── */
+
+/* The contact block 43coconail.web-store.online actually shipped on 2026-08-26, verbatim.
+   The address in it is the salon's real one; the address the tenant API answers for the same
+   salon is a booking notice in Korean, which is the whole reason this is read. */
+const NEXT_DATA_CONTACT = Object.freeze({
+  phone: '0338211881',
+  facebook_url: 'https://www.facebook.com/CoconailDN/',
+  zalo_url: '0338211881',
+  address: '16 Lý Thường Kiệt, Thạch Thang, Hải Châu, Đà Nẵng 550000, Vietnam',
+});
+const STORE_ADDRESS = NEXT_DATA_CONTACT.address;
+
+/* And the branch record the same blob carries two levels nearer its root, also verbatim. It
+   is KiotViet's own copy of the tenant row — the free-text address and the branch phone side
+   by side — which makes it the one thing in the blob that can be mistaken for a contact card
+   while holding the exact string the contact card is read to get away from. */
+const NEXT_DATA_BRANCH = Object.freeze({
+  _id: '75f4a27ec4c19da370a4d696d119e463',
+  platform: 'booking',
+  ref_id: '4700',
+  address:
+    '예약후 카톡(kmd0304) 메세지 부탁 드립니다.After booking, please send us a message on ' +
+    'Google Map, Facebook or Insta, Đà Nẵng - Quận Hải Châu',
+  name: 'CoCo Nail Dn',
+  phone: '0338211881',
+  state: 'actived',
+});
+
+/** The blob a Next.js page ships its props in, with `props` put wherever the caller says. */
+const nextData = (props) =>
+  `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+    props,
+    page: '/',
+    buildId: 'Xq2f9',
+  })}</script>`;
+
+const NO_CONTACT = { address: null, phone: null, facebookUrl: null, zaloUrl: null };
+
+test('a web store’s own contact block is read out of the blob its page ships', () => {
+  const html = `<!doctype html><html><body><div id="__next"></div>
+${nextData({ pageProps: { store: { theme: { color: 'pink' }, contact: NEXT_DATA_CONTACT } } })}
+</body></html>`;
+
+  assert.deepEqual(nextDataContact(html), {
+    address: STORE_ADDRESS,
+    phone: '0338211881',
+    facebookUrl: 'https://www.facebook.com/CoconailDN/',
+    zaloUrl: '0338211881',
+  });
+
+  // Found by its shape, not down a path: a Next.js release or a theme rewrite moves the block
+  // about inside pageProps, and an import that knew only one path would come back empty.
+  const moved = nextData({ pageProps: { data: { branches: [{ info: NEXT_DATA_CONTACT }] } } });
+  assert.equal(nextDataContact(moved).address, STORE_ADDRESS);
+});
+
+test('the branch record standing nearer the root than the contact block does not win', () => {
+  /* The live blob's own nesting, which is the case the whole reading turns on: the branch
+     record sits at initialState.branch.value and the contact block two levels further down,
+     so a walk that stops at the first address it can reach somebody by stops on the notice
+     in Korean and the import is no better off than before it read anything. A phone is not
+     what marks a contact block — a Facebook page or a Zalo number is. */
+  const html = nextData({
+    pageProps: {
+      initialState: {
+        branch: { value: NEXT_DATA_BRANCH },
+        layout: {
+          dataPageBuilderFooter: { contact: NEXT_DATA_CONTACT, branches: [NEXT_DATA_BRANCH] },
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(nextDataContact(html), {
+    address: STORE_ADDRESS,
+    phone: '0338211881',
+    facebookUrl: 'https://www.facebook.com/CoconailDN/',
+    zaloUrl: '0338211881',
+  });
+});
+
+test('a blob with no contact block in it, and no blob at all, read as nothing', () => {
+  const blobs = [
+    // No page, no blob, and a page whose blob never closes.
+    '<html><body><p>Xin chào</p></body></html>',
+    '',
+    `<script id="__NEXT_DATA__" type="application/json">{"props":{`,
+    // JSON a theme half-rendered. One broken blob is a page that says nothing, not a 502.
+    `<script id="__NEXT_DATA__" type="application/json">{ not json }</script>`,
+    // Props that carry no contact block at all.
+    nextData({ pageProps: { store: { title: 'CoCo Nail', services: [{ name: 'Sơn gel' }] } } }),
+    // An address with no way to reach anyone beside it is a shipping form or a locator row,
+    // not the shop's own block.
+    nextData({ pageProps: { order: { address: '16 Lý Thường Kiệt', total: 370000 } } }),
+    // Nor is an address with a phone: that pair is what a branch record is, and a store that
+    // states no Facebook page and no Zalo number states no contact block at all. The tenant's
+    // free text is then still the only address there is, which is where it stood before.
+    nextData({ pageProps: { initialState: { branch: { value: NEXT_DATA_BRANCH } } } }),
+  ];
+  for (const html of blobs) {
+    assert.deepEqual(nextDataContact(html), NO_CONTACT, html.slice(0, 60));
+  }
+});
+
+test('a blob built to make the __NEXT_DATA__ scan quadratic is still read in a moment', () => {
+  /* The same event loop and the same 2MB page cap parseGenericHtml is pinned against above,
+     one more scan over the raw markup: a page of nothing but opening tags, a blob that never
+     closes, a blob too long to be worth parsing, and props that are a hundred thousand
+     objects deep in a list — the walk is bounded rather than run to the end of them. */
+  const pages = [
+    '<script id'.repeat(300_000),
+    `<script id="__NEXT_DATA__" type="application/json">{`.repeat(50_000),
+    `<script id="__NEXT_DATA__" type="application/json">${'a'.repeat(3 * 1024 * 1024)}</script>`,
+    nextData({ pageProps: { rows: Array.from({ length: 100_000 }, (unused, i) => ({ i })) } }),
+  ];
+
+  for (const html of pages) {
+    const started = process.hrtime.bigint();
+    nextDataContact(html);
+    const ms = Number(process.hrtime.bigint() - started) / 1e6;
+    assert.ok(ms < 1000, `${ms.toFixed(0)}ms on a ${html.length} byte page`);
+  }
+});
+
+test('a Zalo number becomes the link that opens a chat; a Zalo address is left alone', () => {
+  const zalo = (value) =>
+    mergeContactSocialLinks([], { ...NO_CONTACT, zaloUrl: value })
+      .find((link) => link.platform === 'zalo')?.url ?? null;
+
+  // What the live store holds: the button on the page builds the link out of the number.
+  assert.equal(zalo('0338211881'), 'https://zalo.me/0338211881');
+  assert.equal(zalo('033 821 1881'), 'https://zalo.me/0338211881');
+  assert.equal(zalo('https://zalo.me/0338211881'), 'https://zalo.me/0338211881');
+  // Neither a number nor an address: nothing to store, and nothing that throws either.
+  assert.equal(zalo('Nhắn Zalo nhé'), null);
+  assert.equal(zalo(null), null);
+
+  // The markup's own links speak first, and one page per platform is still the rule.
+  const anchored = [{ platform: 'facebook', url: 'https://www.facebook.com/CocoNailDN' }];
+  assert.deepEqual(mergeContactSocialLinks(anchored, {
+    ...NO_CONTACT,
+    facebookUrl: NEXT_DATA_CONTACT.facebook_url,
+    zaloUrl: NEXT_DATA_CONTACT.zalo_url,
+  }), [
+    { platform: 'facebook', url: 'https://www.facebook.com/CocoNailDN' },
+    { platform: 'zalo', url: 'https://zalo.me/0338211881' },
+  ]);
+});
+
 /* ── safe-fetch ──────────────────────────────────────────────────────────── */
 
 test('every address that leads back inside the network is refused', () => {
@@ -812,6 +964,8 @@ function lift({
     geocodeQueries,
     mapServices,
     mapTenant,
+    mergeContactSocialLinks,
+    nextDataContact,
     normalizeServiceName,
     parseGenericHtml,
     UnsafeUrlError,
@@ -1093,6 +1247,104 @@ test('the page a KiotViet store is served on fills the gaps its API leaves', asy
 
   // The logo became the cover; the banner and both gallery pictures are the gallery.
   assert.equal(body.data.photos_added, 3);
+});
+
+/* The tenant this salon actually answers with: Branchs[].Address is free text, and its owner
+   keeps a booking notice in Korean in it. No gazetteer will ever find that string, and it is
+   what a public profile would print under the salon's name. */
+const TENANT_WITH_A_NOTICE = {
+  ...TENANT,
+  Data: {
+    ...TENANT.Data,
+    Branchs: [{ ...TENANT.Data.Branchs[0], Address: '예약후 카톡(kmd0304)', ViewAddressV2: '' }],
+  },
+};
+
+/** The web store above, serving its contact block the way the live one does. */
+function webStoreNetwork(markup, { tenant = TENANT, asked = [] } = {}) {
+  return mock.fn(async (url) => {
+    if (url === 'https://43coconail.web-store.online/') {
+      return page(url, markup);
+    }
+    if (url.endsWith('/tenant')) {
+      return json(url, tenant);
+    }
+    if (url.includes('/services?BranchId=4700')) {
+      return json(url, SERVICES);
+    }
+    if (url.startsWith('https://nominatim.')) {
+      asked.push(new URL(url).searchParams.get('q'));
+      return json(url, [{ lat: '16.0678', lon: '108.2208' }]);
+    }
+    return { url, status: 200, contentType: 'image/jpeg', buffer: Buffer.from('jpeg-bytes') };
+  });
+}
+
+test('the address the store’s own page states stands in for the notice the tenant keeps', async () => {
+  const asked = [];
+  const { db, writes } = fakeDb({ ...REGISTERED_SALON });
+  const handler = lift({
+    db,
+    safeFetch: webStoreNetwork(
+      WEB_STORE_HTML.replace(
+        '</body>',
+        `${nextData({
+          pageProps: {
+            // Nested the way the live blob nests it, branch record and all: the notice is
+            // in this page twice over, and the address still has to come out right.
+            initialState: {
+              branch: { value: NEXT_DATA_BRANCH },
+              layout: { dataPageBuilderFooter: { contact: NEXT_DATA_CONTACT } },
+            },
+          },
+        })}</body>`,
+      ),
+      { tenant: TENANT_WITH_A_NOTICE, asked },
+    ),
+  });
+
+  const { body } = await call(handler, {
+    url: 'https://43coconail.web-store.online/',
+    consent: true,
+  });
+
+  // `filled` names the columns in the order the UPDATE assigns them, so it reads the value.
+  const profile = writes.find((write) => /^UPDATE salons SET/.test(write.sql));
+  assert.equal(profile.params[body.data.filled.indexOf('address')], STORE_ADDRESS);
+  // Which is the whole point of reading it: the first rung of the geocode ladder is a
+  // question a gazetteer can answer now, so the salon arrives with a pin on its door.
+  assert.deepEqual(asked, [`${STORE_ADDRESS}, Quận Hải Châu, Đà Nẵng`]);
+  assert.equal(body.data.geocoded, true);
+  assert.equal(body.data.warnings.includes('geocode_approximate'), false);
+
+  // The district, the city and the phone are still the tenant's own records.
+  assert.deepEqual(body.data.filled, [
+    'description', 'address', 'phone', 'district', 'city', 'image', 'lat', 'lng',
+  ]);
+  assert.ok(profile.params.includes('Quận Hải Châu'));
+  assert.ok(profile.params.includes('0338211881'));
+
+  // The contact block's Zalo number is a link the settings form would have accepted; the
+  // Facebook page the markup links is still the one stored for that platform.
+  const links = writes.filter((write) => write.sql.startsWith('INSERT INTO salon_social_links'));
+  assert.deepEqual(links.map((write) => write.params), [
+    [12, 'facebook', 'https://www.facebook.com/CoconailDN'],
+    [12, 'zalo', 'https://zalo.me/0338211881'],
+  ]);
+  assert.equal(body.data.social_links_added, 2);
+});
+
+test('a store page that states no address of its own leaves the tenant’s standing', async () => {
+  const { db, writes } = fakeDb({ ...REGISTERED_SALON });
+  const handler = lift({ db, safeFetch: webStoreNetwork(WEB_STORE_HTML) });
+
+  const { body } = await call(handler, {
+    url: 'https://43coconail.web-store.online/',
+    consent: true,
+  });
+
+  const profile = writes.find((write) => /^UPDATE salons SET/.test(write.sql));
+  assert.equal(profile.params[body.data.filled.indexOf('address')], '43 Nguyễn Chí Thanh');
 });
 
 test('a gallery longer than the cap is trimmed, and trimming is not a failed download', async () => {
