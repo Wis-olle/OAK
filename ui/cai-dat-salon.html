@@ -208,7 +208,7 @@
 <li x-show="result.social_links_added"><span x-text="result.social_links_added"></span> link mạng xã hội</li>
 <li x-show="result.hours_set">Giờ mở cửa</li>
 <li x-show="result.geocoded">Vị trí trên bản đồ</li>
-<li x-show="result.skipped.length"><span x-text="result.skipped.length"></span> mục bạn đã có sẵn được giữ nguyên</li>
+<li x-show="result.skipped.length"><span x-text="result.skipped.length"></span> mục bạn đã điền từ trước được giữ nguyên</li>
 </ul>
 <p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('hours_single_window')">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
@@ -222,6 +222,10 @@
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
 <span>Chưa định vị được bản đồ — bạn tìm địa chỉ ở mục Vị trí.</span>
 </p>
+<p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('geocode_approximate')">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
+<span>Vị trí bản đồ mới định theo khu vực, bạn kéo lại điểm ghim cho đúng nhé.</span>
+</p>
 <p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('multiple_branches')">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
 <span>Trang của bạn có nhiều chi nhánh — OAK lấy chi nhánh đầu tiên, bạn xem lại địa chỉ nhé.</span>
@@ -229,6 +233,10 @@
 <p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('images_partial')">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
 <span>Một vài ảnh chưa tải về được — bạn thêm nốt ở mục Thư viện ảnh.</span>
+</p>
+<p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('images_capped')">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>
+<span>Trang của bạn có nhiều ảnh — OAK lấy 6 ảnh đầu tiên, bạn thêm ảnh khác ở mục Thư viện ảnh.</span>
 </p>
 <p class="flex items-start gap-2 font-caption text-caption text-on-surface-variant" x-show="warned('nothing_found')">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">info</span>

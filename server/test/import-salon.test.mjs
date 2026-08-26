@@ -21,6 +21,7 @@ import {
   classifyServiceCategory,
   classifyUrl,
   extractRetailerCode,
+  geocodeQueries,
   mapServices,
   mapTenant,
   normalizeServiceName,
@@ -144,6 +145,60 @@ test('the tenant becomes a salon draft, with the hours read in the offset they c
   // timezone this process happens to run in.
   assert.deepEqual(draft.hours, { start: '07:00', end: '18:30' });
   assert.deepEqual(draft.warnings, ['hours_single_window']);
+});
+
+test('a branch keeps its ward on the end of its address, and never says it twice', () => {
+  const addressOf = (branch) =>
+    mapTenant({
+      Status: 1,
+      Data: { ...TENANT.Data, Branchs: [{ ...TENANT.Data.Branchs[0], ...branch }] },
+    }).address;
+
+  // KiotViet holds the ward in a field of its own, so an address built only from Address is
+  // a street number and nothing narrower.
+  assert.equal(
+    addressOf({ WardName: 'Phường Thạch Thang' }),
+    '43 Nguyễn Chí Thanh, Phường Thạch Thang',
+  );
+  // An Address that already names the ward — plenty of salons type the whole thing — is left
+  // as it is rather than made to say it twice.
+  assert.equal(
+    addressOf({
+      Address: '43 Nguyễn Chí Thanh, Phường Thạch Thang',
+      WardName: 'Phường Thạch Thang',
+    }),
+    '43 Nguyễn Chí Thanh, Phường Thạch Thang',
+  );
+  // The Address is typed by hand and the WardName is picked off a list, so the two spell the
+  // same ward differently as a matter of course. Neither the capitals nor the 'P.' half the
+  // country writes makes it a second ward.
+  assert.equal(
+    addressOf({
+      Address: '43 Nguyễn Chí Thanh, phường Thạch Thang',
+      WardName: 'Phường Thạch Thang',
+    }),
+    '43 Nguyễn Chí Thanh, phường Thạch Thang',
+  );
+  assert.equal(
+    addressOf({ Address: '43 Nguyễn Chí Thanh, P. Thạch Thang', WardName: 'Phường Thạch Thang' }),
+    '43 Nguyễn Chí Thanh, P. Thạch Thang',
+  );
+  // A numbered ward keeps its prefix through that fold: stripped to '5' it would be found in
+  // the district, the house number and half the street names in the city.
+  assert.equal(
+    addressOf({ Address: '43 Nguyễn Chí Thanh, Quận 5', WardName: 'Phường 5' }),
+    '43 Nguyễn Chí Thanh, Quận 5, Phường 5',
+  );
+  // An empty ward is the common case, and the live salon this was built against is one.
+  assert.equal(addressOf({ WardName: '' }), '43 Nguyễn Chí Thanh');
+  assert.equal(addressOf({ WardName: '   ' }), '43 Nguyễn Chí Thanh');
+  assert.equal(addressOf({ WardName: undefined }), '43 Nguyễn Chí Thanh');
+  // ViewAddressV2 is KiotViet's own assembled address: ward, district and city are in it
+  // already, so nothing is appended to it.
+  assert.equal(
+    addressOf({ Address: '', WardName: 'Phường Thạch Thang' }),
+    '43 Nguyễn Chí Thanh, Quận Hải Châu, Đà Nẵng',
+  );
 });
 
 test('a tenant with two branches says so, and the draft is the first branch', () => {
@@ -273,6 +328,35 @@ test('service names land in the six categories the menu already uses', () => {
   assert.equal(classifyServiceCategory('Dịch vụ đặc biệt của tiệm'), null);
 });
 
+/* ── geocodeQueries ──────────────────────────────────────────────────────── */
+
+test('an address is asked for whole first, then as the area it stands in', () => {
+  assert.deepEqual(
+    geocodeQueries({
+      address: '43 Nguyễn Chí Thanh',
+      district: 'Quận Hải Châu',
+      city: 'Đà Nẵng',
+    }),
+    ['43 Nguyễn Chí Thanh, Quận Hải Châu, Đà Nẵng', 'Quận Hải Châu, Đà Nẵng'],
+  );
+  // Why the second one exists: KiotViet's Address is free text, and the live salon this was
+  // built against keeps a booking notice in Korean there. No gazetteer will ever find it;
+  // the district and the city are found every time.
+  assert.deepEqual(geocodeQueries({ address: '예약 안내', district: null, city: 'Đà Nẵng' }), [
+    '예약 안내, Đà Nẵng',
+    'Đà Nẵng',
+  ]);
+  // Nothing is asked twice: the two queries would be the same string, a second apart, for
+  // the same answer.
+  assert.deepEqual(geocodeQueries({ address: null, district: 'Quận 1', city: 'TP.HCM' }), [
+    'Quận 1, TP.HCM',
+  ]);
+  assert.deepEqual(geocodeQueries({ address: '43 Nguyễn Chí Thanh', district: null, city: null }), [
+    '43 Nguyễn Chí Thanh',
+  ]);
+  assert.deepEqual(geocodeQueries({ address: null, district: null, city: null }), []);
+});
+
 /* ── parseGenericHtml ────────────────────────────────────────────────────── */
 
 const GENERIC_HTML = `
@@ -342,6 +426,81 @@ test('a plain website gives up its name, address, phone, hours, links and pictur
   ]);
 });
 
+test('a page that prints its Facebook address instead of linking it is still read', () => {
+  /* What the live KiotViet web store actually ships: the contact block is a column of
+     paragraphs, the Facebook address among them as plain text with no href within a mile
+     of it. Reading anchors alone brought the first live import back with no social link. */
+  const draft = parseGenericHtml(
+    `<div><p>0338211881</p><p>https://www.facebook.com/CoconailDN/</p></div>`,
+    'https://43coconail.web-store.online/',
+  );
+  assert.deepEqual(draft.socialLinks, [
+    { platform: 'facebook', url: 'https://www.facebook.com/CoconailDN' },
+  ]);
+
+  /* An address in a sentence ends the way the sentence does. The full stop would otherwise
+     be stored as part of the path — a page nobody can open, on a public profile — and the
+     comma and the bracket would fail validation and lose the salon its page altogether. */
+  const punctuated = (line) =>
+    parseGenericHtml(`<p>${line}</p>`, 'https://43coconail.web-store.online/').socialLinks;
+  assert.deepEqual(punctuated('Theo dõi tiệm tại https://www.facebook.com/CoconailDN.'), [
+    { platform: 'facebook', url: 'https://www.facebook.com/CoconailDN' },
+  ]);
+  assert.deepEqual(punctuated('Facebook (https://www.facebook.com/CoconailDN/)'), [
+    { platform: 'facebook', url: 'https://www.facebook.com/CoconailDN' },
+  ]);
+  assert.deepEqual(punctuated('https://www.facebook.com/CoconailDN, hoặc gọi 0338211881'), [
+    { platform: 'facebook', url: 'https://www.facebook.com/CoconailDN' },
+  ]);
+  // The same sentence around the other three platforms — a trailing dot after a handle that
+  // already contains one is the case a segment check waves through.
+  assert.deepEqual(punctuated('Instagram: https://www.instagram.com/coconail.dn.'), [
+    { platform: 'instagram', url: 'https://www.instagram.com/coconail.dn' },
+  ]);
+  assert.deepEqual(punctuated('TikTok của tiệm: https://www.tiktok.com/@coconail!'), [
+    { platform: 'tiktok', url: 'https://www.tiktok.com/@coconail' },
+  ]);
+  assert.deepEqual(punctuated('Zalo https://zalo.me/0338211881.'), [
+    { platform: 'zalo', url: 'https://zalo.me/0338211881' },
+  ]);
+});
+
+test('an address printed in a script is a tracking tag, not the salon', () => {
+  /* facebook.com/tr is a Meta pixel and facebook.com/sharer.php is a share button; both
+     are one path segment, so nothing but where they were found tells them from a salon's
+     own page. An anchor still speaks for its platform ahead of anything in the prose. */
+  const pixel = `<script>fbq('init','https://www.facebook.com/tr?id=1');</script>
+    <style>.a{background:url(https://www.instagram.com/somebodyelse)}</style>`;
+  assert.deepEqual(parseGenericHtml(pixel, 'https://coconail.vn/').socialLinks, []);
+
+  const both = `${pixel}<a href="https://www.facebook.com/CocoNailDN">Facebook</a>
+    <p>https://www.facebook.com/mot-trang-khac</p>
+    <p>https://www.facebook.com/CocoNailDN/posts/12345</p>`;
+  assert.deepEqual(parseGenericHtml(both, 'https://coconail.vn/').socialLinks, [
+    { platform: 'facebook', url: 'https://www.facebook.com/CocoNailDN' },
+  ]);
+});
+
+test('the pixel Meta ships beside the script is not the salon either', () => {
+  /* The second half of Meta's own install snippet is markup, so no script filter touches
+     it — and sitting in <head> it is read before the footer prints the real address. The
+     prose scan sees text nodes only for exactly this: every src, href and content on the
+     page is read off the tag it belongs to, or not at all. */
+  const html = `<!doctype html><html><head>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1234567890&ev=PageView&noscript=1"/></noscript>
+<meta name="twitter:app:url" content="https://www.tiktok.com/@somebodyelse">
+</head><body>
+<iframe src="https://www.instagram.com/somebodyelse"></iframe>
+<footer><p>https://www.facebook.com/CoconailDN/</p></footer></body></html>`;
+
+  // Only the one the page printed. The other two are one-segment addresses on hosts this
+  // route does store — nothing but the tag they sit in tells them from a salon's own page.
+  assert.deepEqual(parseGenericHtml(html, 'https://43coconail.web-store.online/').socialLinks, [
+    { platform: 'facebook', url: 'https://www.facebook.com/CoconailDN' },
+  ]);
+});
+
 test('a page with nothing on it parses to a draft with nothing in it', () => {
   const draft = parseGenericHtml('<html><body><p>Xin chào</p></body></html>', 'https://coconail.vn/');
   assert.equal(draft.name, null);
@@ -379,7 +538,9 @@ test('a page built to make these scans quadratic is still read in a moment', () 
      site-wide outage a single import can trigger, so the shapes that used to cause one are
      pinned here: one enormous attribute-less tag (the ATTRIBUTE name run backtracking from
      every offset), a page of nothing but opening tags with no '>' anywhere, and a thousand
-     JSON-LD blocks that never close. */
+     JSON-LD blocks that never close. The last four are the prose scan's own shapes: a page
+     that is one unbroken address, ninety thousand addresses to look at and reject, sixty
+     thousand that all have to be parsed, and script tags that never close. */
   const pages = [
     `<img ${'a'.repeat(2 * 1024 * 1024)}>`,
     `<img src="${'a'.repeat(2 * 1024 * 1024)}`,
@@ -387,6 +548,10 @@ test('a page built to make these scans quadratic is still read in a moment', () 
     '<a href'.repeat(300_000),
     '<meta '.repeat(350_000),
     `<script type="application/ld+json">{`.repeat(50_000),
+    `<p>https://${'a'.repeat(2 * 1024 * 1024)}</p>`,
+    `<p>${'https://example.com/a '.repeat(90_000)}</p>`,
+    `<p>${'https://www.facebook.com/aaaaaa '.repeat(65_000)}</p>`,
+    '<script>'.repeat(250_000),
   ];
 
   for (const html of pages) {
@@ -532,13 +697,21 @@ test('a body over the cap is refused while it arrives, not once it has all arriv
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const routeJs = fs.readFileSync(path.join(root, 'src', 'routes', 'import-salon.js'), 'utf8');
 
+/* The city sign-up guesses, read out of the file that writes it rather than typed again
+   here: the whole point of routes/auth.js exporting it is that the two cannot drift, and a
+   copy in the test would be a third one that could. Read as text for the same reason
+   nothing else in this file imports the route — auth.js opens a database connection. */
+const REGISTRATION_CITY = fs
+  .readFileSync(path.join(root, 'src', 'routes', 'auth.js'), 'utf8')
+  .match(/export const REGISTRATION_CITY = '([^']*)'/)[1];
+
 const REGISTERED_SALON = Object.freeze({
   id: 12,
   owner_id: 7,
   name: 'CoCo Nail',
   slug: 'coco-nail',
-  // What POST /api/auth/partner/register leaves behind: a name, a slug, a default city.
-  city: 'TP.HCM',
+  // What POST /api/auth/partner/register leaves behind: a name, a slug, a guessed city.
+  city: REGISTRATION_CITY,
   description: null,
   address: null,
   district: null,
@@ -609,8 +782,16 @@ function fakeDb(salon, { serviceNames = [], hourRows = 0, photoRows = 0, failWri
  * The module body, wired to stubs. Both markers are code rather than comments, so rewording
  * a comment in the route cannot change what is under test. Each lift starts with an empty
  * per-partner allowance.
+ *
+ * `waits` collects every gap the route asks for and runs the callback at once, so a test can
+ * prove the second Nominatim lookup waited its second without sitting through one.
  */
-function lift({ db, safeFetch: fetcher, storeImage: store = async () => '/uploads/stored.jpg' }) {
+function lift({
+  db,
+  safeFetch: fetcher,
+  storeImage: store = async () => '/uploads/stored.jpg',
+  waits = [],
+}) {
   const from = routeJs.indexOf('const router = express.Router();');
   const to = routeJs.indexOf('export default router');
   assert.ok(from !== -1 && to > from, 'import-salon.js no longer has a router body to lift');
@@ -628,6 +809,7 @@ function lift({ db, safeFetch: fetcher, storeImage: store = async () => '/upload
     db,
     classifyUrl,
     extractRetailerCode,
+    geocodeQueries,
     mapServices,
     mapTenant,
     normalizeServiceName,
@@ -640,6 +822,11 @@ function lift({ db, safeFetch: fetcher, storeImage: store = async () => '/upload
     extensionForContentType: (type) =>
       ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' })[type] ?? null,
     storeImage: store,
+    REGISTRATION_CITY,
+    setTimeout: (run, ms) => {
+      waits.push(ms);
+      run();
+    },
     httpError: (status, code, message) =>
       Object.assign(new Error(message), { status, code, isAppError: true }),
     // The gate is real in app.js; here the handler is called with a session already on it.
@@ -814,6 +1001,174 @@ test('a location the partner set is left whole: neither half of it is rewritten'
     body.data.skipped.filter((column) => column === 'district' || column === 'city'),
     ['district', 'city'],
   );
+});
+
+test('a city the partner typed is not the city sign-up guessed, and is not written over', async () => {
+  const importFrom = async (salon) => {
+    const fake = fakeDb(salon);
+    const handler = lift({ db: fake.db, safeFetch: kiotvietNetwork() });
+    const { body } = await call(handler, {
+      url: 'https://booksalon.kiotviet.vn/4abf76ad',
+      consent: true,
+    });
+    return { data: body.data, writes: fake.writes };
+  };
+
+  // Sign-up's own string, still untouched: nobody has said where this salon is, so the pair
+  // is written — the Đà Nẵng fix, which is every salon outside Saigon.
+  const guessed = await importFrom({ ...REGISTERED_SALON, city: REGISTRATION_CITY });
+  assert.deepEqual(
+    guessed.data.filled.filter((column) => column === 'district' || column === 'city'),
+    ['district', 'city'],
+  );
+  const written = guessed.writes.find((write) => /district = \?/.test(write.sql));
+  assert.ok(written.params.includes('Quận Hải Châu') && written.params.includes('Đà Nẵng'));
+
+  // A city the partner typed themselves, with the district list never reached. They have
+  // still told us where their salon is, and an import that read another city may not correct
+  // them: neither half moves, and both are reported.
+  const typed = await importFrom({ ...REGISTERED_SALON, city: 'Hà Nội' });
+  assert.equal(typed.data.filled.includes('district'), false);
+  assert.equal(typed.data.filled.includes('city'), false);
+  assert.deepEqual(
+    typed.data.skipped.filter((column) => column === 'district' || column === 'city'),
+    ['district', 'city'],
+  );
+  assert.equal(
+    typed.writes.some((write) => write.params.includes('Đà Nẵng')),
+    false,
+  );
+});
+
+/* The page a KiotViet web store actually serves: the booking link the retailer code is read
+   out of, and — the point of this fixture — the three things the API answers with none of. */
+const WEB_STORE_HTML = `
+<!doctype html><html><head>
+<meta property="og:description" content="Tiệm nail Hàn Quốc trên đường Nguyễn Chí Thanh.">
+</head><body>
+<a class="btn" href="https://booksalon.kiotviet.vn/4abf76ad">Đặt lịch</a>
+<a href="https://www.facebook.com/CoconailDN">Facebook</a>
+<img src="https://cdn-kvweb.citigo.net/43coconail/gallery-1.jpg">
+<img src="https://cdn-kvweb.citigo.net/43coconail/gallery-2.jpg">
+</body></html>`;
+
+test('the page a KiotViet store is served on fills the gaps its API leaves', async () => {
+  // What the first live import came back with: one photo, no description, no social link —
+  // because the HTML was thrown away the moment the retailer code was found in it.
+  const { db, writes } = fakeDb({ ...REGISTERED_SALON });
+  const kiotviet = kiotvietNetwork();
+  const handler = lift({
+    db,
+    safeFetch: mock.fn(async (url, options) => {
+      if (url === 'https://43coconail.web-store.online/') {
+        return page(url, WEB_STORE_HTML);
+      }
+      if (url.startsWith('https://cdn-kvweb.citigo.net/')) {
+        return { url, status: 200, contentType: 'image/jpeg', buffer: Buffer.from('jpeg-bytes') };
+      }
+      return kiotviet(url, options);
+    }),
+  });
+
+  const { body, error } = await call(handler, {
+    url: 'https://43coconail.web-store.online/',
+    consent: true,
+  });
+
+  assert.equal(error, undefined);
+  // Still a KiotViet import: the tenant answered for the name, the address and the week, and
+  // the menu came from the API rather than from the markup.
+  assert.equal(body.data.mode, 'kiotviet');
+  assert.equal(body.data.services_added, 4);
+  assert.equal(body.data.hours_set, true);
+
+  // ...and the page answered for everything the API holds none of.
+  assert.ok(body.data.filled.includes('description'));
+  const profile = writes.find((write) => /^UPDATE salons SET description/.test(write.sql));
+  assert.equal(profile.params[0], 'Tiệm nail Hàn Quốc trên đường Nguyễn Chí Thanh.');
+
+  assert.equal(body.data.social_links_added, 1);
+  const link = writes.find((write) => write.sql.startsWith('INSERT INTO salon_social_links'));
+  assert.deepEqual(link.params, [12, 'facebook', 'https://www.facebook.com/CoconailDN']);
+
+  // The logo became the cover; the banner and both gallery pictures are the gallery.
+  assert.equal(body.data.photos_added, 3);
+});
+
+test('a gallery longer than the cap is trimmed, and trimming is not a failed download', async () => {
+  /* The live import of the web store above: the tenant's two pictures plus the page's own
+     gallery pass six, so six is what is stored. Every one of them arrived — telling the
+     partner some photos could not be fetched would send them looking for a fault that is
+     not there. */
+  const { db } = fakeDb({ ...REGISTERED_SALON });
+  const kiotviet = kiotvietNetwork();
+  const gallery = Array.from(
+    { length: 6 },
+    (unused, index) => `<img src="https://cdn-kvweb.citigo.net/43coconail/gallery-${index}.jpg">`,
+  ).join('');
+  const handler = lift({
+    db,
+    safeFetch: mock.fn(async (url, options) => {
+      if (url === 'https://43coconail.web-store.online/') {
+        return page(url, WEB_STORE_HTML.replace('</body>', `${gallery}</body>`));
+      }
+      if (url.startsWith('https://cdn-kvweb.citigo.net/')) {
+        return { url, status: 200, contentType: 'image/jpeg', buffer: Buffer.from('jpeg-bytes') };
+      }
+      return kiotviet(url, options);
+    }),
+  });
+
+  const { body } = await call(handler, {
+    url: 'https://43coconail.web-store.online/',
+    consent: true,
+  });
+
+  // Six stored: one became the cover, five the gallery.
+  assert.equal(body.data.photos_added, 5);
+  assert.ok(body.data.warnings.includes('images_capped'));
+  assert.equal(body.data.warnings.includes('images_partial'), false);
+});
+
+test('an address no gazetteer knows falls back to the area, a second later, and says so', async () => {
+  const waits = [];
+  const asked = [];
+  const { db } = fakeDb({ ...REGISTERED_SALON });
+  const handler = lift({
+    db,
+    waits,
+    safeFetch: mock.fn(async (url) => {
+      if (url.endsWith('/tenant')) {
+        return json(url, TENANT);
+      }
+      if (url.includes('/services?BranchId=4700')) {
+        return json(url, SERVICES);
+      }
+      if (url.startsWith('https://nominatim.')) {
+        const query = new URL(url).searchParams.get('q');
+        asked.push(query);
+        // The whole line finds nothing; the district and the city find themselves.
+        return json(url, query.includes('43 Nguyễn') ? [] : [{ lat: '16.0678', lon: '108.2208' }]);
+      }
+      return { url, status: 200, contentType: 'image/jpeg', buffer: Buffer.from('jpeg-bytes') };
+    }),
+  });
+
+  const { body } = await call(handler, {
+    url: 'https://booksalon.kiotviet.vn/4abf76ad',
+    consent: true,
+  });
+
+  assert.deepEqual(asked, [
+    '43 Nguyễn Chí Thanh, Quận Hải Châu, Đà Nẵng',
+    'Quận Hải Châu, Đà Nẵng',
+  ]);
+  // Nominatim allows one request a second per client, and this process is one client.
+  assert.deepEqual(waits, [1100]);
+  assert.equal(body.data.geocoded, true);
+  // A pin on a district is not a pin on a door, and the card says which one this is.
+  assert.ok(body.data.warnings.includes('geocode_approximate'));
+  assert.equal(body.data.warnings.includes('geocode_failed'), false);
 });
 
 test('a Facebook page is stored as a link, and nothing on facebook.com is ever fetched', async () => {

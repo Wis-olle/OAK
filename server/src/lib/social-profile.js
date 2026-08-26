@@ -34,8 +34,10 @@ function isProfilePath(parsed, platform) {
     if (parsed.pathname === '/profile.php') {
       return /^[\w.-]+$/.test(parsed.searchParams.get('id') ?? '');
     }
+    // 'tr' is the Meta pixel's endpoint, which a salon's page carries far more often than it
+    // carries the salon's own address.
     return segments.length === 1 && SIMPLE_SEGMENT.test(segments[0]) && ![
-      'home.php', 'l.php', 'login.php', 'share.php', 'sharer.php', 'watch', 'reel', 'reels',
+      'home.php', 'l.php', 'login.php', 'share.php', 'sharer.php', 'tr', 'watch', 'reel', 'reels',
     ].includes(segments[0].toLowerCase());
   }
   if (platform === 'instagram') {

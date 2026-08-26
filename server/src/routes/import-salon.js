@@ -11,7 +11,10 @@
  *
  *  - KiotViet. Most salon chains here book through booksalon.kiotviet.vn, whose API answers
  *    an unauthenticated request with the tenant and the menu. This is the reading that fills
- *    a profile properly — address, phone, hours, twenty services with prices.
+ *    a profile properly — address, phone, hours, twenty services with prices. Where the
+ *    store is a page of its own, that page is read as well and its answers fill the gaps
+ *    the API leaves: the gallery, the Facebook button and the owner's own description are
+ *    on the page and nowhere in the API.
  *  - An ordinary website. Best effort out of JSON-LD and OpenGraph: whatever a booking
  *    plugin or a theme happened to mark up.
  *  - A Facebook/Instagram/TikTok/Zalo/YouTube page. Nothing is fetched — those are login
@@ -34,6 +37,7 @@ import { db } from '../db.js';
 import {
   classifyUrl,
   extractRetailerCode,
+  geocodeQueries,
   mapServices,
   mapTenant,
   normalizeServiceName,
@@ -43,6 +47,7 @@ import { UnsafeUrlError, safeFetch } from '../lib/safe-fetch.js';
 import { SocialProfileError, validateSocialProfile } from '../lib/social-profile.js';
 import { MAX_IMAGE_BYTES, extensionForContentType, storeImage } from '../lib/store-image.js';
 import { httpError, requireAuth, requirePartner } from '../middleware/auth.js';
+import { REGISTRATION_CITY } from './auth.js';
 
 const router = express.Router();
 
@@ -52,9 +57,19 @@ router.use(requireAuth, requirePartner);
 
 const KIOTVIET_API = 'https://api-booksalon.kiotviet.vn';
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
+// Nominatim allows one request a second per client. This is the gap between the two lookups
+// one import makes — a second apart plus room for a clock that rounds the wrong way — and
+// nothing more: unlike routes/geo.js, which queues every reader on one process-wide chain,
+// two imports running at once still ask twice in the same instant. What holds the rate down
+// here is scarcity rather than a queue: three imports per account per ten minutes, at most
+// two lookups each. See the note on geocode() for why the two do not share a chain.
+const NOMINATIM_GAP_MS = 1100;
 const MAX_URL_LENGTH = 2048;
 // Six pictures is a cover and a gallery row — enough for the profile to look like something
-// on the first day, few enough that one import cannot spend a storage bucket.
+// on the first day, few enough that one import cannot spend a storage bucket. The number is
+// spoken aloud by the images_capped line on the card, so changing it here means changing the
+// string in ui/cai-dat-salon.html and its twin key in tools/i18n/parts/cai-dat-salon.json
+// ('Trang của bạn có nhiều ảnh — OAK lấy 6 ảnh đầu tiên…'), then rebuilding the dictionary.
 const MAX_IMPORTED_IMAGES = 6;
 // A menu longer than this is a wholesale price list, not a salon's services page. The cap is
 // on rows written in one transaction as much as on what a partner would want to scroll.
@@ -208,12 +223,42 @@ function readWebsite(html, pageUrl) {
 }
 
 /**
+ * The KiotViet reading, filled out with what the page it was found on also said.
+ *
+ * The API answers with a tenant and a menu and nothing else: no description, no social
+ * links, and two pictures — a logo and a banner. The web store page around it carries the
+ * gallery the salon actually uploaded, the Facebook button in its footer and the sentence
+ * its owner wrote about themselves, and dropping all of that on the floor is why the first
+ * live import came back with one photo and no description.
+ *
+ * KiotViet wins every field it has an answer for. A name, a phone, an address, a district
+ * and a week read out of the tenant are the salon's own records; the same things guessed
+ * out of markup are a theme's best effort. So only the gaps are filled.
+ */
+function mergePage(source, page) {
+  return {
+    ...source,
+    description: source.description ?? page.description,
+    // The tenant answers with none at all. A link the salon already has is left where it is
+    // by the insert's ON CONFLICT DO NOTHING, so there is nothing to reconcile here.
+    socialLinks: page.socialLinks,
+    // Logo and banner first — the pictures the salon chose to be seen by — then the page's
+    // own, in page order, with anything named twice carried once. rehostImages still stops
+    // at MAX_IMPORTED_IMAGES, so a long gallery costs no more requests than a short one.
+    images: [...new Set([...source.images, ...page.images])],
+  };
+}
+
+/**
  * The draft behind a pasted link.
  *
  * A generic page is read for a KiotViet booking button before it is read as prose: a salon
  * whose own domain fronts a KiotViet store has its whole menu one request away, and the
- * markup would have given up a phone number at best. The same HTML is used either way, so
- * looking costs nothing.
+ * markup would have given up a phone number at best. But it is read as prose either way —
+ * the HTML is already in hand, and what the API does not hold is on the page.
+ *
+ * A booking link pasted directly has no page around it to read, and is not fetched one:
+ * booksalon.kiotviet.vn renders its store from the same API this route is already asking.
  */
 async function readSource(link) {
   if (link.kind === 'kiotviet-booking') {
@@ -226,26 +271,31 @@ async function readSource(link) {
   });
   const html = page.buffer.toString('utf8');
   const retailerCode = extractRetailerCode(html);
-  return retailerCode ? readKiotViet(retailerCode) : readWebsite(html, page.url);
+  if (!retailerCode) {
+    return readWebsite(html, page.url);
+  }
+  return mergePage(await readKiotViet(retailerCode), parseGenericHtml(html, page.url));
 }
 
 /* ============================================================================
  * Coordinates and pictures
  * ========================================================================= */
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
  * One address lookup, straight to Nominatim rather than through routes/geo.js.
  *
  * That route's serialized 1.1s chain and its cache are module-private, and re-exporting them
- * would make a proxy built for two pages into shared infrastructure. One lookup per import,
- * behind a three-per-ten-minutes allowance, is well inside Nominatim's usage policy.
+ * would make a proxy built for two pages into shared infrastructure. At most two lookups per
+ * import, a second apart, behind a three-per-ten-minutes allowance, is well inside
+ * Nominatim's usage policy.
  *
  * Never fatal. A Vietnamese network answers the whole openstreetmap.org family with a reset
  * connection (see the note in routes/geo.js), so this fails on every local dev machine in
  * the country — the salon simply arrives without a pin, and the settings map can drop one.
  */
-async function geocode(parts) {
-  const query = parts.filter(Boolean).join(', ');
+async function geocode(query) {
   try {
     const answer = await safeFetch(
       `${NOMINATIM}?${new URLSearchParams({ format: 'json', countrycodes: 'vn', limit: '1', q: query })}`,
@@ -269,6 +319,11 @@ async function geocode(parts) {
  * under the same 5MB ceiling and the same four types — anything else is skipped rather than
  * stored, and the answer says so with 'images_partial'.
  *
+ * A gallery longer than the cap is not a failure and is not reported as one: 'capped' is its
+ * own answer, because a partner told "some photos could not be fetched" when every download
+ * succeeded goes looking for a fault that is not there. A merged KiotViet import — two API
+ * pictures plus the page's own — passes the cap routinely.
+ *
  * These files are written before the transaction opens, and a transaction that rolls back
  * leaves them behind with no row pointing at them. Accepted rather than cleaned up: the
  * alternative is holding a pool connection open across six downloads from hosts we do not
@@ -277,7 +332,7 @@ async function geocode(parts) {
  */
 async function rehostImages(urls) {
   const stored = [];
-  let partial = urls.length > MAX_IMPORTED_IMAGES;
+  let partial = false;
 
   for (const url of urls.slice(0, MAX_IMPORTED_IMAGES)) {
     try {
@@ -297,7 +352,7 @@ async function rehostImages(urls) {
     }
   }
 
-  return { stored, partial };
+  return { stored, partial, capped: urls.length > MAX_IMPORTED_IMAGES };
 }
 
 /* ============================================================================
@@ -368,20 +423,22 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt }) {
   }
 
   // district and city move together or not at all. Column by column they come apart: every
-  // salon is born in auth.js with a hardcoded city of 'TP.HCM' and no district, so city is
+  // salon is born in auth.js with a city of REGISTRATION_CITY and no district, so city is
   // never empty and district always is — an "only fill what is empty" rule applied to each
   // on its own imports "Quận Hải Châu" onto "TP.HCM" and leaves a district of Đà Nẵng
   // sitting under the wrong city. That is not an edge case, it is every salon outside
   // Saigon, and a wrong city is worse than no city: it is what search filters on.
   //
-  // The district is what tells the two apart. Sign-up writes a city and never a district,
-  // while a partner who has actually set their location in the settings form has set both.
-  // So an empty district means the city on the row is still the placeholder and the pair may
-  // be written; a district already there means the partner chose this location, and an
-  // import may not overwrite that — the same "never take anything away" rule as everywhere
-  // else here.
+  // So the pair is written only where there is demonstrably nothing of the partner's in it:
+  // no district at all, and a city that is either empty or still the exact string sign-up
+  // guessed. Anything else the row holds is an answer somebody gave — a partner who typed
+  // "Hà Nội" and never reached the district list has still told us where their salon is, and
+  // an import that read a different city may not correct them. Both halves go to `skipped`
+  // then, the same "never take anything away" rule as everywhere else here.
+  const cityIsRegistrationGuess =
+    isEmpty(current.city) || String(current.city).trim() === REGISTRATION_CITY;
   if (!isEmpty(source.district) || !isEmpty(source.city)) {
-    if (isEmpty(current.district)) {
+    if (isEmpty(current.district) && cityIsRegistrationGuess) {
       if (!isEmpty(source.district)) {
         write('district', source.district);
       }
@@ -648,8 +705,22 @@ router.post('/', async (req, res, next) => {
     // only into a salon with no pin of its own.
     let geo = source.geo;
     let geocodeFailed = false;
+    let geocodeApproximate = false;
     if (!geo && !isEmpty(source.address) && isEmpty(salon.address) && salon.lat === null) {
-      geo = await geocode([source.address, source.district, source.city]);
+      // The whole address, then the area it stands in — see geocodeQueries for why the
+      // second one so often lands where the first cannot. A pin found that way is on a
+      // district rather than on a door, so the answer says so and the partner drags it.
+      const queries = geocodeQueries(source);
+      for (const [step, query] of queries.entries()) {
+        if (step > 0) {
+          await sleep(NOMINATIM_GAP_MS);
+        }
+        geo = await geocode(query);
+        if (geo) {
+          geocodeApproximate = step > 0;
+          break;
+        }
+      }
       geocodeFailed = geo === null;
     }
     // Narrowed before the download, not after: a salon that already has a gallery needs at
@@ -661,7 +732,7 @@ router.post('/', async (req, res, next) => {
       existingPhotos.count === 0
         ? source.images
         : source.images.slice(0, isEmpty(salon.image) ? 1 : 0);
-    const { stored, partial } = await rehostImages(wanted);
+    const { stored, partial, capped } = await rehostImages(wanted);
 
     const written = await db.withTransaction(async (tx) => {
       const result = await writeImport(tx, salon, source, {
@@ -674,8 +745,14 @@ router.post('/', async (req, res, next) => {
       const warnings = [
         ...source.warnings,
         ...(result.categoryGuessed ? ['category_guessed'] : []),
+        // Only where a pin was actually written. The lookup happens before the transaction,
+        // and writeImport re-reads the row: a partner who types an address into the form
+        // while the page and the gazetteer are being read leaves geocoded false, and the
+        // card would otherwise ask them to drag a pin the map has not got.
+        ...(geocodeApproximate && result.geocoded ? ['geocode_approximate'] : []),
         ...(geocodeFailed ? ['geocode_failed'] : []),
         ...(partial ? ['images_partial'] : []),
+        ...(capped ? ['images_capped'] : []),
       ];
       const summary = {
         mode: source.mode,

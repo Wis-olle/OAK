@@ -202,12 +202,14 @@
   "dịch vụ": "services",
   "ảnh": "photos",
   "link mạng xã hội": "social links",
-  "mục bạn đã có sẵn được giữ nguyên": "details you already had were left as they are",
+  "mục bạn đã điền từ trước được giữ nguyên": "details you had filled in earlier were left as they were",
   "Giờ mở cửa được áp cùng một khung cho cả tuần — bạn kiểm tra lại nhé.": "The same time window was applied to every day of the week — please check it over.",
   "OAK đã tự xếp nhóm dịch vụ — kiểm tra lại giúp.": "OAK sorted the services into categories on its own — please check them.",
   "Chưa định vị được bản đồ — bạn tìm địa chỉ ở mục Vị trí.": "The map pin could not be placed — search for your address under Map location.",
+  "Vị trí bản đồ mới định theo khu vực, bạn kéo lại điểm ghim cho đúng nhé.": "The map pin is only placed on your area for now — please drag it onto the right spot.",
   "Trang của bạn có nhiều chi nhánh — OAK lấy chi nhánh đầu tiên, bạn xem lại địa chỉ nhé.": "Your page lists several branches — OAK took the first one, so please review the address.",
   "Một vài ảnh chưa tải về được — bạn thêm nốt ở mục Thư viện ảnh.": "Some photos could not be fetched — add the rest under Photo gallery.",
+  "Trang của bạn có nhiều ảnh — OAK lấy 6 ảnh đầu tiên, bạn thêm ảnh khác ở mục Thư viện ảnh.": "Your page has more photos than OAK takes — the first 6 were imported, so add any others under Photo gallery.",
   "Trang này không cho OAK đọc nội dung — bạn điền các mục bên dưới bằng tay giúp nhé.": "This page would not let OAK read its content — please fill in the sections below by hand.",
   "Tải lại để xem dữ liệu": "Reload to see the data"
 }

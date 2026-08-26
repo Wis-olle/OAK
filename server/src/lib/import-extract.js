@@ -136,6 +136,52 @@ function localTime(value) {
   return match ? `${match[1]}:${match[2]}` : null;
 }
 
+/**
+ * A branch's address, with its ward on the end where the address does not already say it.
+ *
+ * KiotViet keeps the ward in a field of its own, and keeps Address as free text: a street
+ * for one salon, a whole address for the next, a notice to customers for the third. So the
+ * two are joined rather than chosen between — a ward is a street's worth of precision to
+ * whoever reads the profile, and to whoever looks the address up. WardName arrives as an
+ * empty string more often than it arrives filled, which text() has already turned into null.
+ *
+ * ViewAddressV2 is the fallback and is left whole: it is the address KiotViet itself
+ * assembled, ward and district and city included, so there is nothing to add to it.
+ */
+function branchAddress(branch) {
+  const street = text(branch.Address);
+  if (!street) {
+    return text(branch.ViewAddressV2);
+  }
+  const ward = text(branch.WardName);
+  // Back through text(): two capped strings joined are twice the ceiling, and the reason for
+  // the ceiling — this is a stranger's field, served on every public read — has not changed.
+  return !ward || wardLine(street).includes(wardLine(ward))
+    ? street
+    : text(`${street}, ${ward}`);
+}
+
+/**
+ * An address folded to the form two typings of the same ward share.
+ *
+ * The salon types its Address by hand and picks its WardName off a list, so the two say the
+ * ward in different words as often as not: 'phường Thạch Thang' against 'Phường Thạch Thang',
+ * or the 'P.' every second address in the country is written with. A plain includes() calls
+ * those different wards and prints both on the profile — the doubled line then being what a
+ * public read shows and what the gazetteer is asked for.
+ *
+ * The prefix is expanded rather than dropped: half the wards in Hồ Chí Minh City are numbers,
+ * and a ward stripped to '5' is contained in every district and every house number on the
+ * line. Nothing else is guessed at — an address that abbreviates some other way is left to
+ * say the ward twice, which reads badly and breaks nothing.
+ */
+function wardLine(value) {
+  return normalize(value)
+    .replace(/\bp\s*\.\s*/g, 'phuong ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** The salon draft inside a GET /tenant answer: who they are, where, and when they open. */
 export function mapTenant(payload) {
   const data = payload?.Data ?? {};
@@ -159,7 +205,7 @@ export function mapTenant(payload) {
   return {
     name: text(data.ShopTitle),
     phone: text(branch.ContactNumber) ?? text(data.Hotline),
-    address: text(branch.Address) ?? text(branch.ViewAddressV2),
+    address: branchAddress(branch),
     district: text(branch.District),
     city: text(branch.Province),
     hours: start && end ? { start, end } : null,
@@ -282,6 +328,31 @@ export function normalizeServiceName(name) {
 }
 
 /* ============================================================================
+ * Where to look the imported address up
+ * ========================================================================= */
+
+/**
+ * The queries one import is worth asking a gazetteer, in the order to ask them.
+ *
+ * The whole line first — street, district, city — because a pin on the door is the point of
+ * having one. But the address an import carries is whatever the source keeps in that field,
+ * and KiotViet's is free text: the salon this was built against fills it with a booking
+ * notice in Korean, which no gazetteer on earth will find. The area on its own resolves
+ * where that does not, and a salon pinned on its district is a salon whose owner drags the
+ * pin a few streets — better than a profile with no map at all.
+ *
+ * Never the same string twice: an address that is only a district would otherwise be asked
+ * for twice, a second later, for the same answer.
+ */
+export function geocodeQueries({ address, district, city }) {
+  const full = [address, district, city].filter(Boolean).join(', ');
+  const area = [district, city].filter(Boolean).join(', ');
+  return [full, area].filter(
+    (query, index, queries) => query !== '' && queries.indexOf(query) === index,
+  );
+}
+
+/* ============================================================================
  * An ordinary website
  * ========================================================================= */
 
@@ -304,6 +375,26 @@ const META_TAG = /<meta\b[^<>]{0,4096}>/gi;
 const IMG_TAG = /<img\b[^<>]{0,4096}>/gi;
 const ANCHOR_TAG = /<a\b[^<>]{0,4096}>/gi;
 const ATTRIBUTE = /(?<![\w:.-])([a-zA-Z_:][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+// An address written out in running text. One greedy character class with nothing after it
+// to make the engine give any of it back, and capped at the longest URL anything here will
+// accept, so a page that is two million characters with no space in it is walked once.
+const BARE_URL = /https?:\/\/[^\s"'<>]{1,2048}/gi;
+// What a sentence puts after an address rather than in one. BARE_URL stops at whitespace and
+// at nothing else, so 'Theo dõi tiệm tại https://www.facebook.com/CoconailDN.' hands over the
+// full stop as part of the path — and validateSocialProfile's segment check accepts a trailing
+// dot, so that dead page would be stored and served. A comma or a closing bracket fails the
+// check instead and the salon simply loses its Facebook page. Both are the printing around a
+// URL, never the URL, so both come off before anything else looks at the match.
+const SENTENCE_TAIL = /[.,;:!?)\]}>"']+$/;
+// And a look before the parse, because prose is where the addresses are: a page may print
+// ninety thousand of them, and only the ones on a host SOCIAL_DOMAINS already names are
+// worth building a URL out of. Written off those same keys so there is one list, not two.
+const SOCIAL_URL_HINT = new RegExp(
+  `^https?://[^/]{0,255}(?:${Object.keys(SOCIAL_DOMAINS)
+    .map((domain) => domain.replace(/\./g, '\\.'))
+    .join('|')})(?:[/?#]|$)`,
+  'i',
+);
 
 /** The attributes of one tag, lowercased names to raw values. */
 function attributes(tag) {
@@ -326,6 +417,49 @@ function decode(value) {
     }
     return name.startsWith('#') ? String.fromCharCode(Number(name.slice(1))) : whole;
   });
+}
+
+/**
+ * The text the page prints: the bodies of its <script> and <style> blocks left out, and
+ * every tag along with them.
+ *
+ * What is read out of running text has to be text the page meant a reader to see. Inside
+ * <script> sits every analytics tag a theme ships, and a Meta pixel's facebook.com/tr is a
+ * one-segment Facebook address that would pass for a salon's own page and be stored as it.
+ * The same pixel ships a <noscript><img src="…/tr?…"> beside the script — markup no script
+ * filter touches — and being in <head> it would outrank the address the footer prints. So
+ * the tags go too: every attribute worth reading is read off the tag it belongs to, by the
+ * loops above, and nothing in one has any business being found again as prose.
+ *
+ * Opening tag by regex, closing tag by a second regex whose lastIndex only ever moves
+ * forwards — the same shape jsonLdNodes uses below, and for the same reason: a page with a
+ * thousand unclosed <script> tags must not send a lazy quantifier to the end of it a
+ * thousand times. Both regexes are built here rather than at module scope because exec()
+ * carries lastIndex on the object, and two imports read two pages at once.
+ */
+function prose(html) {
+  const open = /<(?:script|style)\b[^<>]{0,4096}>/gi;
+  const close = /<\/(?:script|style)\s*>/gi;
+  // A tag body excludes '<' for the reason META_TAG and its siblings above do, and it is the
+  // whole reason this is linear: the scan for a tag that never closes stops at the next '<'
+  // rather than running to the end of the page, so a page of nothing but '<a href' is walked
+  // once instead of once per '<'. The price is the same one tag those regexes pay.
+  const withoutTags = (parts) => parts.join(' ').replace(/<[^<>]*>/g, ' ');
+  const kept = [];
+  let from = 0;
+  let block;
+  while ((block = open.exec(html)) !== null) {
+    kept.push(html.slice(from, block.index));
+    close.lastIndex = open.lastIndex;
+    // Nothing closes it: a browser reads the rest of the page as script, and so do we.
+    if (close.exec(html) === null) {
+      return withoutTags(kept);
+    }
+    from = close.lastIndex;
+    open.lastIndex = from;
+  }
+  kept.push(html.slice(from));
+  return withoutTags(kept);
 }
 
 const LD_CLOSE = '</script>';
@@ -515,22 +649,39 @@ export function parseGenericHtml(html, baseUrl) {
 
   let telephone = text(business.telephone);
   const socialLinks = [];
+  /** Keep one page per platform: the first spelling seen, if it is a page at all. */
+  const addSocialLink = (candidate) => {
+    const link = classifyUrl(candidate);
+    if (link?.kind !== 'social' || socialLinks.some((saved) => saved.platform === link.platform)) {
+      return;
+    }
+    try {
+      // The same validation the settings form applies, so an imported link is a link the
+      // partner could have typed: a profile page, not a post and not a share redirect.
+      socialLinks.push({
+        platform: link.platform,
+        url: validateSocialProfile(candidate, link.platform),
+      });
+    } catch {
+      // A link to a single post is not this salon's page; nothing to store.
+    }
+  };
+
   for (const tag of source.matchAll(ANCHOR_TAG)) {
     const href = decode(attributes(tag[0]).href ?? '');
     if (!telephone && href.toLowerCase().startsWith('tel:')) {
       telephone = text(decodeURIComponent(href.slice(4)));
       continue;
     }
-    const link = classifyUrl(href);
-    if (link?.kind !== 'social' || socialLinks.some((saved) => saved.platform === link.platform)) {
-      continue;
-    }
-    try {
-      // The same validation the settings form applies, so an imported link is a link the
-      // partner could have typed: a profile page, not a post and not a share redirect.
-      socialLinks.push({ platform: link.platform, url: validateSocialProfile(href, link.platform) });
-    } catch {
-      // A link to a single post is not this salon's page; nothing to store.
+    addSocialLink(href);
+  }
+  // Then the addresses the page printed instead of linking. A KiotViet web store writes its
+  // contact block as text — the Facebook address sits in a paragraph with no href anywhere
+  // near it — which is why the first live import of one came back with no social link at
+  // all. Read after the anchors, so a real link still speaks for its platform first.
+  for (const found of prose(source).matchAll(BARE_URL)) {
+    if (SOCIAL_URL_HINT.test(found[0])) {
+      addSocialLink(decode(found[0]).replace(SENTENCE_TAIL, ''));
     }
   }
 

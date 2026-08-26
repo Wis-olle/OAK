@@ -252,6 +252,7 @@ function registerPartner() {
       'ROLES',
       'INSERT_USER',
       'INSERT_SALON',
+      'REGISTRATION_CITY',
       'INSERT_WELCOME_PROMOTION',
       'SELECT_WELCOME_PROMOTION',
       'SELECT_SALON_BY_SLUG',

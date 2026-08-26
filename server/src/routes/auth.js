@@ -119,6 +119,11 @@ const INSERT_USER =
 // turns it on from the console once the profile has an address, hours, a service and a photo.
 const INSERT_SALON =
   'INSERT INTO salons (owner_id, name, slug, city, verified, created_at) VALUES (?, ?, ?, ?, 1, ?)';
+// The city a salon is born with, because the form that creates it asks for a name and
+// nothing else. A guess, not an answer — and exported so that the one place which has to
+// tell a guess apart from a city the owner typed (routes/import-salon.js, deciding whether
+// it may write a location over this one) reads the same string rather than its own copy.
+export const REGISTRATION_CITY = 'TP.HCM';
 // The welcome offer the salon joins with, written in the same transaction as the salon:
 // there is no state in which a salon exists without it. service_ids stays NULL — the
 // offer is on everything the salon does, and requireUsablePromotion reads the salon
@@ -292,7 +297,7 @@ async function createAccount(req, res, next, forcedRole) {
                 userId,
                 partnerSalonName,
                 await uniqueSalonSlug(tx, partnerSalonName),
-                'TP.HCM',
+                REGISTRATION_CITY,
                 createdAt,
               )
             ).lastInsertRowid,

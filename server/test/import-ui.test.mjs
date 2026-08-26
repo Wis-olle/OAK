@@ -29,12 +29,14 @@ const STRINGS = [
   'dịch vụ',
   'ảnh',
   'link mạng xã hội',
-  'mục bạn đã có sẵn được giữ nguyên',
+  'mục bạn đã điền từ trước được giữ nguyên',
   'Giờ mở cửa được áp cùng một khung cho cả tuần — bạn kiểm tra lại nhé.',
   'OAK đã tự xếp nhóm dịch vụ — kiểm tra lại giúp.',
   'Chưa định vị được bản đồ — bạn tìm địa chỉ ở mục Vị trí.',
+  'Vị trí bản đồ mới định theo khu vực, bạn kéo lại điểm ghim cho đúng nhé.',
   'Trang của bạn có nhiều chi nhánh — OAK lấy chi nhánh đầu tiên, bạn xem lại địa chỉ nhé.',
   'Một vài ảnh chưa tải về được — bạn thêm nốt ở mục Thư viện ảnh.',
+  'Trang của bạn có nhiều ảnh — OAK lấy 6 ảnh đầu tiên, bạn thêm ảnh khác ở mục Thư viện ảnh.',
   'Trang này không cho OAK đọc nội dung — bạn điền các mục bên dưới bằng tay giúp nhé.',
   'Tải lại để xem dữ liệu',
 ];
@@ -62,8 +64,10 @@ test('each of the three outcomes says which one it was, and a social link is one
     'hours_single_window',
     'category_guessed',
     'geocode_failed',
+    'geocode_approximate',
     'multiple_branches',
     'images_partial',
+    'images_capped',
     'nothing_found',
   ]) {
     assert.match(page, new RegExp(`warned\\('${code}'\\)`));
