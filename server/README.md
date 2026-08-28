@@ -54,6 +54,7 @@ Every seeded account uses the password `Oak@1234`.
 | --------------- | -------- | ---------------------------------------------------- |
 | `khach@oak.vn`  | customer | Bookings, reviews, favourites, notifications          |
 | `doitac@oak.vn` | partner  | Owns the "Lala Nail Studio" salon                     |
+| `nhanvien@oak.vn` | staff  | Holds the "Lan Khuê" roster row at Lala Nail Studio   |
 
 Other seeded emails (same password) are listed at the top of `src/seed.js`.
 

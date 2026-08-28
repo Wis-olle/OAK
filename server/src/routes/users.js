@@ -131,6 +131,14 @@ const ANONYMISE_BOOKING_CONTACT = `
   UPDATE bookings SET customer_name = 'Người dùng đã xóa', customer_phone = NULL
   WHERE user_id = ?
 `;
+// And the roster rows the account stood behind. The row itself stays — it is the salon's
+// record of who worked the chair, and its bookings and reviews hang off it — but nobody
+// stands behind it any more, so the console shows it unclaimed and the owner can hand out
+// a fresh claim link. Leaving user_id set would point the roster, and every recovery mail
+// the owner triggers from it, at an address that can never be read again.
+// idx_staff_user_salon is partial (WHERE user_id IS NOT NULL AND active = 1), so clearing
+// the column simply takes the row out of the index.
+const RELEASE_STAFF_ROWS = 'UPDATE staff SET user_id = NULL, claimed_at = NULL WHERE user_id = ?';
 const ANONYMISE_USER = `
   UPDATE users
   SET name = 'Người dùng đã xóa',
@@ -192,6 +200,7 @@ router.delete('/me', requireAuth, async (req, res, next) => {
       // console falls back to them whenever the joined account column is null. Erasing
       // the profile without erasing these would leave the number on every card.
       await tx.run(ANONYMISE_BOOKING_CONTACT, req.user.id);
+      await tx.run(RELEASE_STAFF_ROWS, req.user.id);
       await tx.run(
         ANONYMISE_USER,
         `deleted+${req.user.id}@oak.invalid`,

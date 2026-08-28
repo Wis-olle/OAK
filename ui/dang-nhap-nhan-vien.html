@@ -111,7 +111,11 @@
 <p class="font-body-md text-body-md text-on-tertiary mb-2"><span>Bạn được mời nhận hồ sơ kỹ thuật viên của</span> <span x-text="invite.staff_name"></span> <span>tại</span> <span x-text="invite.salon_name"></span></p>
 <p class="font-caption text-caption text-on-tertiary/80"><span>Liên kết có hiệu lực đến</span> <span x-text="expiryLabel()"></span></p>
 </div>
-<p class="font-body-md text-body-md text-on-surface-variant">Bạn đang đăng nhập bằng một tài khoản OAK khác. Bạn có thể nhận hồ sơ bằng chính tài khoản đó.</p>
+<!-- Two nodes again, for the same reason: the wording is a dictionary key and the
+     address beside it is the reader's own. It has to read for a technician taking on a
+     second salon as well as for somebody claiming their first profile, so it names the
+     account and says what confirming does — never that this is "another" account. -->
+<p class="font-body-md text-body-md text-on-surface-variant"><span>Xác nhận để thêm hồ sơ này vào tài khoản bạn đang đăng nhập:</span> <span x-text="account"></span></p>
 <p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
 <button :disabled="busy" @click="claim()" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : 'Dùng tài khoản hiện tại'">Dùng tài khoản hiện tại</button>
 </div>
@@ -254,6 +258,9 @@
             mode: '',
             token: '',
             invite: { staff_name: '', salon_name: '', expires_at: '' },
+            /* The address of whoever is signed in, shown in the claim panel so the reader
+               can see which account is about to gain the profile. */
+            account: '',
             inviteError: '',
             error: '',
             busy: false,
@@ -278,14 +285,20 @@
                 }
 
                 const user = await OAK.me();
-                if (user && user.role === 'staff') {
-                    location.href = oakStaffNext('lich-cua-toi.html');
-                    return;
-                }
+                // The link comes first, ahead of the schedule a signed-in technician would
+                // otherwise be sent straight to: somebody works at two salons and the second
+                // one hands them a link exactly as the first did. Sending them to their
+                // calendar here would leave that second profile unclaimable from the site,
+                // though POST /api/staff-me/claim takes it perfectly well.
                 if (user && this.token) {
                     // Including a partner: the refusal is the server's to give, and it says
                     // more than a button we withheld would have.
+                    this.account = user.email;
                     this.mode = 'claim';
+                    return;
+                }
+                if (user && user.role === 'staff') {
+                    location.href = oakStaffNext('lich-cua-toi.html');
                     return;
                 }
                 // Before the wrong-account-type state, not after it: an owner who opens
@@ -333,9 +346,13 @@
                         location.href = 'tong-quan-doi-tac.html';
                         return;
                     }
+                    // Only a technician honours ?next=. That parameter was written by the
+                    // guard on lich-cua-toi.html, which bounces everybody who is not one —
+                    // so honouring it for a customer sends them back to the page that
+                    // bounced them, and they land here again signed in and none the wiser.
                     location.href = data.user.role === 'staff'
                         ? oakStaffNext('lich-cua-toi.html')
-                        : oakStaffNext('kham-pha.html');
+                        : 'kham-pha.html';
                 } catch (error) {
                     this.error = error.message;
                     this.busy = false;

@@ -4592,14 +4592,17 @@ async function groupStaffPersona() {
   const partnerB = session('partnerB');
   const stamp = Date.now();
 
-  /* The preview is throttled at ten per fifteen minutes per IP, and every group in this
-     file arrives from one IP. So every preview this group makes goes through here and is
-     counted, and whatever is left of the allowance is deliberately burnt at the very END
-     of the group. Nothing below that block may preview a link. */
-  let previewsSpent = 0;
+  /* The preview is throttled at ten MISSES per fifteen minutes per IP, and every group in
+     this file arrives from one IP. So every preview this group makes goes through here,
+     the dead ones are tallied, and whatever is left of the allowance is deliberately burnt
+     at the very END of the group. Nothing below that block may preview a link. */
+  let previewMisses = 0;
   const previewInvite = async (token) => {
-    previewsSpent += 1;
-    return new Session().fetch(`/api/auth/staff/invite/${token}`);
+    const response = await new Session().fetch(`/api/auth/staff/invite/${token}`);
+    if (response.status !== 200) {
+      previewMisses += 1;
+    }
+    return response;
   };
   /** The token out of the link the console hands the owner. */
   const tokenOf = (url) => url.split('invite=')[1];
@@ -5145,6 +5148,100 @@ async function groupStaffPersona() {
     bellAfterResponse,
   );
 
+  /* A second press inside the minute. Minting retires whatever reset is outstanding, so an
+     owner leaning on the button would keep killing the link their technician just asked
+     for; the cooldown swallows it instead. The owner is told the same thing either way —
+     from where they stand nothing differs, and there is nothing here for them to act on. */
+  const pressedAgain = ok(
+    await partner.fetch(`/api/partner/staff/${lanKhue.id}/invite`, { method: 'POST' }),
+    'POST invite on a claimed row again, inside the cooldown',
+  );
+  assert(
+    Object.keys(pressedAgain).join(',') === 'recovery' && pressedAgain.recovery === 'sent',
+    "recovery: a press inside the cooldown answers {recovery:'sent'} exactly as the first",
+    pressedAgain,
+  );
+  const bellTwiceResponse = await staffClient.fetch('/api/notifications');
+  const bellTwice = ok(bellTwiceResponse, 'GET /api/notifications after the second press');
+  assert(
+    bellTwice.length === bellAfter.length,
+    'the cooldown mints nothing, so the technician is not told a second time',
+    bellTwiceResponse,
+  );
+
+  /* -- an erased account hands its roster row back ---------------------------- */
+
+  /* Erasing an account unlinks it from every roster row it stood behind. The row stays —
+     it is the salon's record of its own chair, and the bookings and reviews hang off it —
+     but nobody is behind it any more. A row left pointing at an account whose address is
+     now deleted+id@oak.invalid would read as claimed forever, and the recovery button on
+     it would mail a link nobody can ever open. */
+  const erasingRow = ok(
+    await partner.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: { name: 'KTV Xóa Tài Khoản' },
+    }),
+    'POST /api/partner/staff (a row whose holder erases their account)',
+  );
+  const erasingInvite = ok(
+    await partner.fetch(`/api/partner/staff/${erasingRow.id}/invite`, { method: 'POST' }),
+    'POST invite for the account about to be erased',
+  );
+  const erasing = new Session();
+  ok(
+    await erasing.fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        token: tokenOf(erasingInvite.url),
+        name: 'KTV Xóa Tài Khoản',
+        email: `erasing${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/staff/register (the account about to be erased)',
+  );
+  const whileHeld = ok(
+    await partner.fetch('/api/partner/staff'),
+    'GET /api/partner/staff while the row is held',
+  );
+  assert(
+    whileHeld.find((member) => member.id === erasingRow.id).claimed === true,
+    'roster: the row reports claimed while somebody stands behind it',
+    whileHeld,
+  );
+
+  ok(
+    await erasing.fetch('/api/users/me', { method: 'DELETE', json: { password: 'Oak@1234' } }),
+    'DELETE /api/users/me (as a technician)',
+  );
+  const afterErasure = ok(
+    await partner.fetch('/api/partner/staff'),
+    'GET /api/partner/staff after the erasure',
+  );
+  const releasedRow = afterErasure.find((member) => member.id === erasingRow.id);
+  assert(
+    releasedRow.claimed === false,
+    'roster: an erased account gives its row back',
+    afterErasure,
+  );
+  assert(
+    releasedRow.invite_pending === false,
+    'roster: the released row carries no outstanding link of its own',
+    afterErasure,
+  );
+  // And the button on it mints a claim link again, not the recovery that a row with
+  // somebody behind it answers with.
+  const reinvite = ok(
+    await partner.fetch(`/api/partner/staff/${erasingRow.id}/invite`, { method: 'POST' }),
+    'POST invite on the released row',
+  );
+  assert(
+    typeof reinvite.url === 'string' && reinvite.url.includes('invite='),
+    'the released row can be handed to whoever takes the chair next',
+    reinvite,
+  );
+
   /* -- taking somebody off the roster ends their read of the calendar --------- */
 
   const departingRow = ok(
@@ -5273,14 +5370,22 @@ async function groupStaffPersona() {
 
   /* -- the preview allowance, spent deliberately and last --------------------- */
 
-  // Ten per fifteen minutes per IP, and seven of them are spent above: the rotated-out
-  // link, the current one, the revoked one, garbage, the parked row, and the first-claim
-  // link before and after it was redeemed. The loop burns whatever is left so the refusal
-  // lands on the eleventh wherever the count above ends up — the number in this sentence
-  // is a reader's aid, not the thing keeping the test honest.
+  // Ten MISSES per fifteen minutes per IP, and five of them are spent above: the
+  // rotated-out link, the revoked one, garbage, the parked row, and the first-claim link
+  // after it was redeemed. The two previews that resolved cost nothing. The loop burns
+  // whatever is left so the refusal lands on the eleventh miss wherever the count above
+  // ends up — the number in this sentence is a reader's aid, not the thing keeping the
+  // test honest.
   // NO PREVIEW MAY FOLLOW THIS BLOCK.
-  while (previewsSpent < 10) {
-    await previewInvite(`spend${previewsSpent}${stamp}`);
+  while (previewMisses < 10) {
+    await previewInvite(`spend${previewMisses}${stamp}`);
+  }
+  // The allowance is now spent to the last miss, and a live link still opens — ten times
+  // over. That is the whole reason only misses are counted: a salon team opening their own
+  // links one after another from the shop's wifi must not lock the next one out.
+  const liveToken = tokenOf(partnerInvite.url);
+  for (let opened = 1; opened <= 10; opened += 1) {
+    ok(await previewInvite(liveToken), `preview a live link with the allowance spent (${opened})`);
   }
   expectError(
     await previewInvite(`overflow${stamp}`),

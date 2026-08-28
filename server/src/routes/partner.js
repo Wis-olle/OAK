@@ -1849,6 +1849,23 @@ router.put('/staff/:id/services', async (req, res, next) => {
   }
 });
 
+/* When each roster row last had a recovery mailed for it. Same shape and same caveats as
+   the tallies in routes/auth.js: one process's memory, gone on deploy, swept on the way
+   past rather than on a timer so an idle process holds nothing. */
+const RECOVERY_COOLDOWN_MS = 60 * 1000;
+const recoverySentAt = new Map();
+
+/** True while the row's last recovery is less than a minute old. */
+function recoveryOnCooldown(staffId) {
+  const now = Date.now();
+  for (const [seen, sentAt] of recoverySentAt) {
+    if (now - sentAt >= RECOVERY_COOLDOWN_MS) {
+      recoverySentAt.delete(seen);
+    }
+  }
+  return recoverySentAt.has(staffId);
+}
+
 /*
  * The claim link: how a roster row stops being a description of somebody and becomes an
  * account they hold. The owner mints it here and hands it over in person or over Zalo —
@@ -1886,14 +1903,20 @@ router.post('/staff/:id/invite', async (req, res, next) => {
        ordinary forgot-password link, at their own email address, and what the owner gets
        back is the fact that it went out and nothing else — no token, no url, no expiry.
 
-       Nothing throttles this. The owner is authenticated and scoped to their own roster,
-       so there is no stranger to keep out; worth knowing anyway is that minting retires
-       whatever reset the account had outstanding, so an owner who spammed the button could
-       keep killing a reset the technician had asked for themselves.
+       One a minute per roster row, and not because there is a stranger to keep out — the
+       owner is authenticated and scoped to their own roster. Minting retires whatever
+       reset the account had outstanding, so an owner leaning on the button would keep
+       killing the link their technician had just asked for themselves. Inside the cooldown
+       the owner is told exactly what the first press told them: from where they stand the
+       mail went, and a second one on the way is not a fact they can act on.
 
        On a production deploy with no mail key configured this sends nothing at all.
        Configuring RESEND is a stated precondition of inviting real people. */
     if (staff.user_id != null) {
+      if (recoveryOnCooldown(staffId)) {
+        res.json({ success: true, data: { recovery: 'sent' } });
+        return;
+      }
       let resetToken;
       await db.withTransaction(async (tx) => {
         resetToken = await mintResetIn(tx, staff.user_id);
@@ -1908,6 +1931,7 @@ router.post('/staff/:id/invite', async (req, res, next) => {
       // After the commit, never inside it: a mail sent for a transaction that rolled back
       // would point at a token that does not exist.
       await deliverResetLink(req, staff.user_id, resetToken);
+      recoverySentAt.set(staffId, Date.now());
       res.json({ success: true, data: { recovery: 'sent' } });
       return;
     }

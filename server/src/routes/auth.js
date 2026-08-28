@@ -72,10 +72,12 @@ const LOGIN_MAX_ATTEMPTS = 10;
 const loginAttempts = new Map();
 // And ten for opening a claim link, keyed on the caller alone: the preview takes a token
 // and nothing else, so there is no address to key on beside it. This one is housekeeping,
-// not a defence — it stops a single bored client hammering the lookup and filling the log,
-// and nothing more. Guessing a token is what the 256 bits of it make hopeless, and it
-// would go through /staff/register or /staff-me/claim anyway, which take the same tokens
-// and count nothing. Its own tally, so reading a link never spends a sign-in.
+// not a defence — it refuses a single bored client that keeps arriving with tokens that
+// are not links, and nothing more. Guessing a token is what the 256 bits of it make
+// hopeless, and it would go through /staff/register or /staff-me/claim anyway, which take
+// the same tokens and count nothing. Its own tally, so reading a link never spends a
+// sign-in — and only a MISS is counted, because a whole salon team opens their links from
+// the shop's one address and ten of those is an ordinary morning, not abuse.
 const INVITE_PREVIEW_MAX_ATTEMPTS = 10;
 const invitePreviewAttempts = new Map();
 
@@ -396,20 +398,21 @@ router.post('/partner/register', (req, res, next) => createAccount(req, res, nex
 // profile at which salon is being taken over rather than showing a bare password box.
 router.get('/staff/invite/:token', async (req, res, next) => {
   try {
-    // Counted before the lookup, and every request counts whether the token was real or
-    // not — the cheapest thing to do with a call is refuse it, and an allowance that only
-    // counted misses would be one a valid token walks straight past.
-    if (rateLimited(invitePreviewAttempts, req.ip, INVITE_PREVIEW_MAX_ATTEMPTS)) {
-      console.warn(`staff invite: too many previews from ${req.ip}`);
-      throw httpError(
-        429,
-        'TOO_MANY_ATTEMPTS',
-        'Bạn đã mở liên kết quá nhiều lần. Vui lòng đợi 15 phút rồi thử lại.',
-      );
-    }
-
     const invite = await findLiveInvite(req.params.token);
     if (!invite) {
+      // Counted here and nowhere else. A token that resolves is somebody reading the
+      // invitation they were handed, and a salon whose team opens theirs one after another
+      // from the shop's wifi would otherwise lock its own last technician out. What the
+      // allowance is for is the other shape — a client hammering the lookup with tokens
+      // that are not links — and every one of those lands in this branch.
+      if (rateLimited(invitePreviewAttempts, req.ip, INVITE_PREVIEW_MAX_ATTEMPTS)) {
+        console.warn(`staff invite: too many previews from ${req.ip}`);
+        throw httpError(
+          429,
+          'TOO_MANY_ATTEMPTS',
+          'Bạn đã mở liên kết quá nhiều lần. Vui lòng đợi 15 phút rồi thử lại.',
+        );
+      }
       throw inviteNotFound();
     }
 

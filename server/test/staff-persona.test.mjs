@@ -20,6 +20,8 @@ const source = (...parts) => fs.readFileSync(path.join(root, 'src', ...parts), '
 const authSource = source('routes', 'auth.js');
 const partnerSource = source('routes', 'partner.js');
 const staffMeSource = source('routes', 'staff-me.js');
+const usersSource = source('routes', 'users.js');
+const loginHtml = fs.readFileSync(path.join(root, '..', 'ui', 'dang-nhap-nhan-vien.html'), 'utf8');
 const inviteSource = source('lib', 'staff-invite.js');
 const eventsLibSource = source('lib', 'events.js');
 const middlewareSource = source('middleware', 'auth.js');
@@ -133,6 +135,60 @@ test('the owner-triggered recovery mails the technician and tells the owner noth
   assert.doesNotMatch(partnerSource, /selectUserEmail|sendResetMail/);
   // One funnel event name per path, and this path creates no invite so it raises none.
   assert.doesNotMatch(claimed, /recordEvent/);
+});
+
+test("an owner leaning on the recovery button stops retiring their technician's reset", () => {
+  const invite = handler(
+    partnerSource,
+    "router.post('/staff/:id/invite'",
+    "router.delete('/staff/:id/invite'",
+  );
+  const claimed = invite.slice(invite.indexOf('if (staff.user_id != null)'), invite.indexOf('const token = randomBytes'));
+
+  // A minute per roster row. Minting retires whatever reset the account had outstanding,
+  // so without this a second press kills the link the technician asked for themselves.
+  assert.match(partnerSource, /const RECOVERY_COOLDOWN_MS = 60 \* 1000;/);
+  assert.match(
+    claimed,
+    /if \(recoveryOnCooldown\(staffId\)\) \{\s*res\.json\(\{ success: true, data: \{ recovery: 'sent' \} \}\);\s*return;/,
+  );
+  // Stamped after the mail has actually gone, so a mint that rolled back leaves the next
+  // press free rather than blocking it for a minute on nothing.
+  assert.ok(claimed.indexOf('await deliverResetLink(') < claimed.indexOf('recoverySentAt.set('));
+  // Swept on the way past, like the tallies in auth.js: an idle process holds nothing.
+  const cooldown = declaration(partnerSource, 'function recoveryOnCooldown(');
+  assert.match(cooldown, /now - sentAt >= RECOVERY_COOLDOWN_MS/);
+  assert.match(cooldown, /recoverySentAt\.delete\(seen\)/);
+});
+
+test('only a dead token spends the preview allowance', () => {
+  const preview = handler(
+    authSource,
+    "router.get('/staff/invite/:token'",
+    "router.post('/staff/register'",
+  );
+  // Counted after the lookup and inside the miss branch alone. A whole salon team opens
+  // their links from the shop's one address, and ten of those in a morning is ordinary
+  // traffic — counting them locked the last technician out of their own invitation.
+  assert.ok(preview.indexOf('await findLiveInvite') < preview.indexOf('rateLimited('));
+  const miss = preview.slice(preview.indexOf('if (!invite) {'));
+  assert.match(miss, /rateLimited\(invitePreviewAttempts, req\.ip, INVITE_PREVIEW_MAX_ATTEMPTS\)/);
+  assert.match(miss, /429,\s*'TOO_MANY_ATTEMPTS'/);
+  assert.equal((preview.match(/rateLimited\(/g) || []).length, 1);
+});
+
+test('erasing an account gives its roster rows back to the salon', () => {
+  assert.match(
+    usersSource,
+    /RELEASE_STAFF_ROWS =\s*'UPDATE staff SET user_id = NULL, claimed_at = NULL WHERE user_id = \?'/,
+  );
+  // In the same transaction as the anonymise, and before it: a row still pointing at an
+  // account whose address is now deleted+id@oak.invalid reads as claimed forever, and
+  // every recovery the owner triggers from it mails into nothing.
+  const erase = handler(usersSource, "router.delete('/me'", 'export default router');
+  const transaction = erase.slice(erase.indexOf('db.withTransaction'));
+  assert.match(transaction, /await tx\.run\(RELEASE_STAFF_ROWS, req\.user\.id\);/);
+  assert.ok(transaction.indexOf('RELEASE_STAFF_ROWS') < transaction.indexOf('ANONYMISE_USER'));
 });
 
 test('requireStaff is requirePartner with the other role', () => {
@@ -278,6 +334,97 @@ test('a customer is upgraded in place, keeping the row their history hangs off',
   // One live claimed row per person per salon, enforced by the index rather than by a
   // check that a second request could slip past.
   assert.match(claim, /error\.constraint === 'idx_staff_user_salon'/);
+});
+
+// ------------------------------------------------------ the page the link opens onto
+
+/* dang-nhap-nhan-vien.html keeps its factory inline in a <script>, so lift it out and
+   drive it here — the way test/auth-password-ui.test.mjs drives the other sign-in pages. */
+function staffLoginPage({ user = null, invite = null, loginAs = null, query = {} } = {}) {
+  const tail = loginHtml.slice(loginHtml.indexOf('function oakStaffNext('));
+  const script = tail.slice(0, tail.indexOf('</script>'));
+  const context = {
+    location: { href: '' },
+    OAK: {
+      me: async () => user,
+      api: async (endpoint) => {
+        if (endpoint.startsWith('/api/auth/staff/invite/')) {
+          if (!invite) {
+            throw new Error('Liên kết không hợp lệ hoặc đã hết hạn.');
+          }
+          return invite;
+        }
+        if (endpoint === '/api/auth/login') {
+          return { user: { role: loginAs } };
+        }
+        return assert.fail(`unexpected call: ${endpoint}`);
+      },
+      fmtDate: (value) => String(value),
+      qs: (name) => (name in query ? query[name] : null),
+    },
+  };
+  vm.runInNewContext(`${script}\nresult = oakStaffAuth();`, context);
+  context.result.location = context.location;
+  return context.result;
+}
+
+const liveInvite = {
+  staff_name: 'Phương Vy',
+  salon_name: 'Lala Nail Studio',
+  expires_at: '2026-09-05T00:00:00.000Z',
+};
+
+test('a technician holding a link from a second salon is offered the claim, not their calendar', async () => {
+  const state = staffLoginPage({
+    user: { role: 'staff', email: 'nhanvien@oak.vn' },
+    invite: liveInvite,
+    query: { invite: 'tok-second-salon' },
+  });
+
+  await state.init();
+
+  // Somebody who works at two salons is handed the second link exactly as they were the
+  // first, and POST /api/staff-me/claim takes it. Sending them to their calendar here —
+  // which is what being staff used to mean on this page — left that profile unclaimable
+  // from the site at all.
+  assert.equal(state.mode, 'claim');
+  assert.equal(state.location.href, '');
+  // And the panel names the account that is about to gain it, rather than calling the
+  // technician's own account "another OAK account".
+  assert.equal(state.account, 'nhanvien@oak.vn');
+  assert.match(loginHtml, /<span x-text="account"><\/span>/);
+  assert.doesNotMatch(loginHtml, /một tài khoản OAK khác/);
+});
+
+test('a technician arriving with no link is sent straight to their calendar', async () => {
+  const state = staffLoginPage({ user: { role: 'staff', email: 'nhanvien@oak.vn' } });
+
+  await state.init();
+
+  assert.equal(state.location.href, 'lich-cua-toi.html');
+  assert.equal(state.account, '');
+});
+
+test('only a technician is sent on by ?next=', async () => {
+  // lich-cua-toi.html bounces everybody who is not staff, and writes ?next= on its way. A
+  // customer who signs in here and is then handed that same target lands back on the page
+  // that bounced them — signed in, told nothing, and looking at this form again.
+  const bounced = { next: 'lich-cua-toi.html' };
+
+  const customer = staffLoginPage({ loginAs: 'customer', query: bounced });
+  await customer.init();
+  await customer.login();
+  assert.equal(customer.location.href, 'kham-pha.html');
+
+  const technician = staffLoginPage({ loginAs: 'staff', query: bounced });
+  await technician.init();
+  await technician.login();
+  assert.equal(technician.location.href, 'lich-cua-toi.html');
+
+  const owner = staffLoginPage({ loginAs: 'partner', query: bounced });
+  await owner.init();
+  await owner.login();
+  assert.equal(owner.location.href, 'tong-quan-doi-tac.html');
 });
 
 // ------------------------------------------------------------------ measurement

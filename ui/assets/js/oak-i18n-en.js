@@ -652,7 +652,7 @@ window.OAK_I18N_EN = {
   "Bạn được mời nhận hồ sơ kỹ thuật viên của": "You have been invited to take over the technician profile of",
   "Bạn được mời tạo hồ sơ cho": "You have been invited to create the profile for",
   "Liên kết có hiệu lực đến": "This link works until",
-  "Bạn đang đăng nhập bằng một tài khoản OAK khác. Bạn có thể nhận hồ sơ bằng chính tài khoản đó.": "You are signed in with another OAK account. You can take the profile over with that same account.",
+  "Xác nhận để thêm hồ sơ này vào tài khoản bạn đang đăng nhập:": "Confirm to add this profile to the account you are signed in with:",
   "Dùng tài khoản hiện tại": "Use my current account",
   "Hồ sơ kỹ thuật viên chỉ mở được bằng liên kết mời của salon bạn đang làm. Hãy hỏi chủ salon liên kết đó.": "A technician profile can only be opened with an invitation link from the salon you work at. Ask your salon owner for one.",
   "Tôi đồng ý mở hồ sơ kỹ thuật viên công khai trên OAK Beauty.": "I agree to open a public technician profile on OAK Beauty.",
