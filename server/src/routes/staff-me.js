@@ -9,7 +9,13 @@
 import express from 'express';
 import { db } from '../db.js';
 import { recordEvent } from '../lib/events.js';
+import { notifyUser } from '../lib/notify.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
+import {
+  END_STINT,
+  departureDateOrThrow,
+  sweepFutureBookings,
+} from '../lib/staff-departure.js';
 import {
   CLAIM_STAFF_ROW,
   SPEND_STAFF_INVITE,
@@ -17,7 +23,7 @@ import {
   inviteNotFound,
 } from '../lib/staff-invite.js';
 import { staffStats } from '../lib/staff-stats.js';
-import { addDaysISO, isISODate, todayISO } from '../lib/time.js';
+import { addDaysISO, formatDateVN, isISODate, todayISO } from '../lib/time.js';
 import { isSafeMediaUrl } from '../lib/urls.js';
 import { httpError, requireAuth, requireStaff } from '../middleware/auth.js';
 
@@ -110,6 +116,8 @@ router.post('/claim', async (req, res, next) => {
 const CLAIMED_STAFF_COLUMNS = `
   st.id, st.name, st.title, st.specialty, st.bio, st.image, st.portfolio,
   st.profile_hidden, st.active, st.claimed_at,
+  st.started_at, st.left_at, st.left_by, st.started_confirmed_at, st.left_confirmed_at,
+  st.tenure_disputed,
   s.id AS salon_id, s.name AS salon_name, s.slug AS salon_slug
 `;
 const CLAIMED_STAFF_FROM = `
@@ -149,6 +157,18 @@ async function claimedRowShape(row) {
     profile_hidden: row.profile_hidden,
     active: row.active,
     claimed_at: row.claimed_at,
+    /* The stint as a dated thing: the two dates the salon entered, and what this technician
+       has answered about them. Nested, and deliberately the RAW started_at rather than the
+       one in stats below — that one falls back to the first completed visit, which is a
+       reading of the calendar and not a date anybody can be asked to confirm. */
+    stint: {
+      started_at: row.started_at,
+      left_at: row.left_at,
+      left_by: row.left_by,
+      started_confirmed: Boolean(row.started_confirmed_at),
+      left_confirmed: Boolean(row.left_confirmed_at),
+      tenure_disputed: row.tenure_disputed ?? 0,
+    },
     stats: await staffStats(row.id),
   };
 }
@@ -267,6 +287,15 @@ const PROFILE_COLUMNS = {
   profile_hidden: (value) => requireFlag(value, 'Ẩn hồ sơ'),
 };
 
+/** A roster row id out of a request, in the one shape every endpoint in this file wants. */
+function requireStaffId(value) {
+  const staffId = Number(value);
+  if (!Number.isInteger(staffId) || staffId <= 0) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Mã kỹ thuật viên không hợp lệ.');
+  }
+  return staffId;
+}
+
 const NOT_YOURS =
   'Bạn chỉ có thể cập nhật giới thiệu, ảnh đại diện, ảnh tác phẩm và trạng thái ẩn hồ sơ. Tên, chức danh, chuyên môn và lịch làm việc do salon quản lý.';
 const PROFILE_NOT_FOUND = 'Không tìm thấy hồ sơ kỹ thuật viên này.';
@@ -275,10 +304,7 @@ router.patch('/profile', requireStaff, async (req, res, next) => {
   try {
     const body = req.body ?? {};
 
-    const staffId = Number(body.staff_id);
-    if (!Number.isInteger(staffId) || staffId <= 0) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Mã kỹ thuật viên không hợp lệ.');
-    }
+    const staffId = requireStaffId(body.staff_id);
     const row = await selectClaimedStaffRow.get(staffId, req.user.id);
     if (!row) {
       throw httpError(404, 'NOT_FOUND', PROFILE_NOT_FOUND);
@@ -323,6 +349,165 @@ router.patch('/profile', requireStaff, async (req, res, next) => {
     }
 
     res.json({ success: true, data: await claimedRowShape(updated) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ============================================================================
+ * Leaving, and answering for the dates on a stint
+ * ========================================================================= */
+
+/* The stint and the salon behind it, in one read, scoped by the account that holds the row.
+   owner_id is what a departure is announced to: an owner reads their bell as anybody else
+   does, so there is no partner-only channel to reach and none is invented. */
+const selectMyStint = db.prepare(`
+  SELECT st.id, st.name, st.active, st.started_at, st.left_at,
+         s.id AS salon_id, s.name AS salon_name, s.owner_id
+  FROM staff st
+  JOIN salons s ON s.id = st.salon_id
+  WHERE st.id = ? AND st.user_id = ?
+`);
+
+const STINT_ALREADY_ENDED = 'Bạn đã kết thúc làm việc tại salon này.';
+
+/*
+ * The technician's own half of a departure — the same act the console's
+ * POST /api/partner/staff/:id/departure performs, from the other side of it. Same
+ * transaction, same sweep, and left_by is the whole difference in the row it writes: a
+ * person leaving and a salon letting them go are not the same event, and a page that showed
+ * them as one would be describing something that did not happen.
+ */
+router.post('/leave', requireStaff, async (req, res, next) => {
+  try {
+    const body = req.body ?? {};
+    const staffId = requireStaffId(body.staff_id);
+    // A row somebody else holds answers exactly like one that does not exist, as everywhere
+    // else in this file: the caller is naming an id, and a 403 would confirm it is real.
+    const stint = await selectMyStint.get(staffId, req.user.id);
+    if (!stint) {
+      throw httpError(404, 'NOT_FOUND', PROFILE_NOT_FOUND);
+    }
+    if (stint.active !== 1) {
+      throw httpError(409, 'CONFLICT', STINT_ALREADY_ENDED);
+    }
+    const leftAt = departureDateOrThrow(body.left_at);
+
+    const salon = { id: stint.salon_id, name: stint.salon_name, owner_id: stint.owner_id };
+    const swept = await db.withTransaction(async (tx) => {
+      // Scoped by user_id in the UPDATE itself and guarded on the row still being open, so
+      // this and the owner's own button cannot both date the same stint.
+      const ended = await tx.run(
+        `${END_STINT} AND user_id = ?`, leftAt, 'staff', staffId, req.user.id,
+      );
+      if (ended.changes !== 1) {
+        throw httpError(409, 'CONFLICT', STINT_ALREADY_ENDED);
+      }
+      await notifyUser(
+        tx,
+        stint.owner_id,
+        'Kỹ thuật viên kết thúc hợp tác',
+        `${stint.name} đã báo kết thúc làm việc tại ${stint.salon_name} từ ngày ${formatDateVN(leftAt)}.`,
+        'general',
+      );
+      return sweepFutureBookings(tx, { staffId, salon, leftAt, actorUserId: req.user.id });
+    });
+
+    res.json({ success: true, data: { left_at: leftAt, ...swept } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* The two ends of a stint, and the column each of them is answered in. The date has to be
+   there to be answered for: a ✓ on a date nobody entered would say the technician confirmed
+   something, and a dispute over one would be an argument about nothing. */
+const TENURE_FIELDS = {
+  started: { date: 'started_at', confirmed: 'started_confirmed_at', label: 'ngày bắt đầu' },
+  left: { date: 'left_at', confirmed: 'left_confirmed_at', label: 'ngày kết thúc' },
+};
+
+/** Resolve {staffId, stint, field} for both attestation endpoints, or throw. */
+async function tenureTarget(req) {
+  const staffId = requireStaffId(req.params.staffId);
+  /* hasOwn rather than a truthiness test on the lookup: the column name goes into the SET
+     clause as an identifier, and 'constructor' or '__proto__' resolve to something truthy on
+     any plain object. Only the two keys written above may name a column. */
+  const requested = (req.body ?? {}).field;
+  if (!Object.hasOwn(TENURE_FIELDS, requested)) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Chỉ có thể xác nhận ngày bắt đầu hoặc ngày kết thúc.');
+  }
+  const field = TENURE_FIELDS[requested];
+  const stint = await selectMyStint.get(staffId, req.user.id);
+  if (!stint) {
+    throw httpError(404, 'NOT_FOUND', PROFILE_NOT_FOUND);
+  }
+  if (!stint[field.date]) {
+    throw httpError(409, 'CONFLICT', `Salon chưa nhập ${field.label} cho hồ sơ này.`);
+  }
+  return { staffId, stint, field };
+}
+
+/**
+ * The row as it stands after an attestation, or the same 404 PATCH /profile answers with when
+ * it re-reads: an account erased between the write and this read has released every roster row
+ * it held, and there would be nothing left to shape.
+ */
+async function stintAfterAnswer(staffId, userId) {
+  const row = await selectClaimedStaffRow.get(staffId, userId);
+  if (!row) {
+    throw httpError(404, 'NOT_FOUND', PROFILE_NOT_FOUND);
+  }
+  return claimedRowShape(row);
+}
+
+/*
+ * The technician's ✓ on a date the salon entered. Nothing is finalised and nothing expires:
+ * the badge on the public profile is simply "date + this stamp + no dispute"
+ * (tenureVerified in lib/staff-stats.js), so withdrawing the ✓ is disputing it below, and an
+ * unanswered date stays unanswered for as long as it takes.
+ */
+router.post('/tenure/:staffId/confirm', requireStaff, async (req, res, next) => {
+  try {
+    const { staffId, field } = await tenureTarget(req);
+    await db
+      .prepare(
+        `UPDATE staff SET "${field.confirmed}" = ?, tenure_disputed = 0
+         WHERE id = ? AND user_id = ?`,
+      )
+      .run(new Date().toISOString(), staffId, req.user.id);
+
+    res.json({ success: true, data: await stintAfterAnswer(staffId, req.user.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/*
+ * And the other answer: this date is wrong. One flag over the whole stint rather than one per
+ * date, because there is no arbitration behind it — the platform cannot know which of two
+ * parties is right about a day, so all a dispute does is take both ✓ off the page and put the
+ * question in front of the owner, who is the only person who can change the date.
+ */
+router.post('/tenure/:staffId/dispute', requireStaff, async (req, res, next) => {
+  try {
+    const { staffId, stint, field } = await tenureTarget(req);
+    await db.withTransaction(async (tx) => {
+      await tx.run(
+        'UPDATE staff SET tenure_disputed = 1 WHERE id = ? AND user_id = ?',
+        staffId,
+        req.user.id,
+      );
+      await notifyUser(
+        tx,
+        stint.owner_id,
+        'Kỹ thuật viên báo sai ngày',
+        `${stint.name} cho rằng ${field.label} (${formatDateVN(stint[field.date])}) trên hồ sơ tại ${stint.salon_name} chưa đúng.`,
+        'general',
+      );
+    });
+
+    res.json({ success: true, data: await stintAfterAnswer(staffId, req.user.id) });
   } catch (error) {
     next(error);
   }

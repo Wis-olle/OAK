@@ -34,6 +34,7 @@ const inviteSource = source('lib', 'staff-invite.js');
 const eventsLibSource = source('lib', 'events.js');
 const middlewareSource = source('middleware', 'auth.js');
 const staffSource = source('routes', 'staff.js');
+const departureSource = source('lib', 'staff-departure.js');
 const salonsSource = source('routes', 'salons.js');
 const servicesSource = source('routes', 'services.js');
 const bookingsSource = source('routes', 'bookings.js');
@@ -90,6 +91,7 @@ function calls(text, name) {
 const STAFF_READERS = [
   ['db.js', dbSource],
   ['lib/notify.js', notifySource],
+  ['lib/staff-departure.js', departureSource],
   ['routes/staff.js', staffSource],
   ['routes/staff-me.js', staffMeSource],
   ['routes/salons.js', salonsSource],
@@ -426,8 +428,9 @@ test('neither figure a profile rests on is left to a sweep that ran once', () =>
      mark the veterans and leave every later hire blank forever. */
   assert.doesNotMatch(dbSource, /column_name = 'started_at'/);
 
-  // The column is added like any other, in SCHEMA and unconditionally: nothing writes it
-  // yet, and where it is empty lib/staff-stats.js answers from the bookings instead.
+  // The column is added like any other, in SCHEMA and unconditionally. It is written from
+  // one place — the console, a date the salon typed — and where it is empty lib/staff-stats.js
+  // answers from the bookings instead.
   assert.match(dbSource, /^ALTER TABLE staff ADD COLUMN IF NOT EXISTS started_at TEXT;$/m);
   assert.equal((dbSource.match(/ADD COLUMN IF NOT EXISTS started_at/g) || []).length, 1);
   // And no sweep writes it, at boot or anywhere else — a start date is derived on every read
@@ -1199,16 +1202,19 @@ test("a 'staff' notification can only be written by notifyStaff", () => {
   }
 });
 
-test('the six things a technician is told about, each written once and in a transaction', () => {
+test('the eight things a technician is told about, each written once and in a transaction', () => {
   /* Every notice rides the transaction that made the change it announces, so a booking that
      rolled back cannot leave a technician looking at an appointment nobody has. The count per
-     file is the "exactly once per event" half: a second call anywhere is a second bell. Eight
-     call sites for six triggers, because the reassignment is two events in one save — one
-     technician loses the hour and another gains it. */
+     file is the "exactly once per event" half: a second call anywhere is a second bell. Ten
+     call sites for eight triggers, because the reassignment is two events in one save — one
+     technician loses the hour and another gains it. The two newest are the departure itself,
+     told to the technician whose stint the console just closed, and the hour a colleague
+     inherits from it. */
   const sites = [
     ['routes/bookings.js', bookingsSource, 2],
-    ['routes/partner.js', partnerSource, 5],
+    ['routes/partner.js', partnerSource, 6],
     ['routes/reviews.js', reviewsSource, 1],
+    ['lib/staff-departure.js', departureSource, 1],
   ];
   for (const [name, text, expected] of sites) {
     const found = calls(text, 'notifyStaff');
@@ -1715,4 +1721,316 @@ test('a review list that never arrived leaves the half the technician can edit s
   const before = page.asked.filter((endpoint) => endpoint === '/api/staff-me/profile').length;
   await page.loadReviews();
   assert.equal(page.asked.filter((endpoint) => endpoint === '/api/staff-me/profile').length, before);
+});
+
+// ------------------------------------------------- leaving, as a dated event with two sides
+
+test('the columns a departure writes are added like any other, and nothing sweeps them', () => {
+  const added = [
+    'left_at TEXT',
+    'left_by TEXT',
+    'started_confirmed_at TEXT',
+    'left_confirmed_at TEXT',
+    'tenure_disputed INTEGER DEFAULT 0',
+  ];
+  for (const column of added) {
+    const name = column.split(' ')[0];
+    assert.match(
+      dbSource,
+      new RegExp(`^ALTER TABLE staff ADD COLUMN IF NOT EXISTS ${column};$`, 'm'),
+      name,
+    );
+    assert.equal(
+      (dbSource.match(new RegExp(`ADD COLUMN IF NOT EXISTS ${name}\\b`, 'g')) || []).length,
+      1,
+      name,
+    );
+    /* No backfill, at boot or anywhere else. Every row already carrying active = 0 ended
+       before there was anywhere to write a date, and guessing one from the last booking would
+       put a day on somebody's public record that nobody agreed to. */
+    assert.doesNotMatch(dbSource, new RegExp(`SET ${name}`), name);
+  }
+  // Guarded and never dropped first, like bookings_source_allowed: nothing has ever written
+  // this column, so there is no earlier shape of the rule to replace.
+  const guard = dbSource.lastIndexOf('DO $$', dbSource.indexOf("conname = 'staff_left_by_allowed'"));
+  const check = dbSource.slice(guard, dbSource.indexOf('END $$;', guard));
+  assert.match(check, /IF NOT EXISTS \(/);
+  assert.match(check, /CHECK \(\s*left_by IS NULL OR left_by IN \('partner','staff'\)\s*\)/);
+  assert.doesNotMatch(check, /DROP CONSTRAINT/);
+});
+
+test('an open stint is active = 1 AND left_at NULL, and one statement writes both', () => {
+  /* The unique index that keeps one live claimed row per person per salon is predicated on
+     active = 1. That predicate only means "open stint" while every departure closes both
+     halves at once — a row with a leaving date still sitting active would block the re-hire
+     the date says has already happened. */
+  const stint = handler(departureSource, 'export const END_STINT', '`;')
+    .replace(/\s+/g, ' ')
+    .trim();
+  assert.equal(
+    stint,
+    'export const END_STINT = ` UPDATE staff SET left_at = ?, left_by = ?, active = 0, ' +
+      'left_confirmed_at = NULL, tenure_disputed = 0 ' +
+      'WHERE id = ? AND user_id IS NOT NULL AND active = 1',
+  );
+  /* Both callers append their own ownership clause to that one statement rather than writing
+     one of their own, and both are scoped in the UPDATE itself: there is no window between
+     proving the row is theirs and closing it. */
+  assert.match(
+    partnerSource,
+    /tx\.run\(\s*`\$\{END_STINT\} AND salon_id = \?`, leftAt, 'partner', staffId, salon\.id,/,
+  );
+  assert.match(
+    staffMeSource,
+    /tx\.run\(\s*`\$\{END_STINT\} AND user_id = \?`, leftAt, 'staff', staffId, req\.user\.id,/,
+  );
+  // And both check that they were the one that closed it: two presses of the button, or both
+  // sides at the same moment, and only one of them may date the stint.
+  for (const [name, text] of [
+    ['routes/partner.js', partnerSource],
+    ['routes/staff-me.js', staffMeSource],
+  ]) {
+    assert.match(text, /const ended = await tx\.run\(/, name);
+    assert.match(text, /if \(ended\.changes !== 1\) \{/, name);
+  }
+  // The index keeps its predicate, and the comment above it now states the pairing that makes
+  // it true instead of promising to refine it: CREATE INDEX IF NOT EXISTS would keep a stale
+  // predicate under the same name without a word.
+  const index = dbSource.slice(
+    dbSource.lastIndexOf(
+      '-- One live claimed row',
+      dbSource.indexOf('CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_user_salon'),
+    ),
+    dbSource.indexOf('WHERE user_id IS NOT NULL AND active = 1'),
+  );
+  assert.match(index, /left_at and active = 0 in ONE statement/);
+  assert.doesNotMatch(index, /A later phase refines/);
+});
+
+test('the ✓ on a date is three things, decided in one place', () => {
+  const statsSource = source('lib', 'staff-stats.js');
+  const { tenureVerified } = vm.runInNewContext(
+    `${declaration(statsSource, 'export function tenureVerified(').replace('export ', '')}
+     ({ tenureVerified });`,
+  );
+
+  const attested = {
+    started_at: '2024-01-05',
+    started_confirmed_at: '2024-02-01T00:00:00.000Z',
+    left_at: '2026-08-28',
+    left_confirmed_at: '2026-08-28T00:00:00.000Z',
+    tenure_disputed: 0,
+  };
+  // Read field by field rather than deep-compared: the object comes back from another realm,
+  // where its prototype is a different Object and deepStrictEqual says so.
+  const badge = (row) => `${tenureVerified(row).started}/${tenureVerified(row).left}`;
+  assert.equal(badge(attested), 'true/true');
+  // A date nobody entered, and a date nobody answered for, each carry nothing.
+  assert.equal(badge({ ...attested, left_at: null }), 'true/false');
+  assert.equal(badge({ ...attested, started_confirmed_at: null }), 'false/true');
+  // One dispute takes both ✓ off: there is no arbitration behind the flag, so a stint whose
+  // dates are contested is not one this platform can put a mark of its own on.
+  assert.equal(badge({ ...attested, tenure_disputed: 1 }), 'false/false');
+  assert.equal(badge({}), 'false/false');
+
+  /* Read against the RAW column, never the COALESCE the profile displays: a start date
+     derived from the first completed booking is a reading of the calendar, and there is
+     nothing in it for anybody to have confirmed. */
+  const start = handler(statsSource, 'const selectStaffStart', '`);');
+  assert.match(start, /\) AS effective_started_at,\s*\n\s*st\.started_at, st\.left_at/);
+  assert.match(statsSource, /tenure_verified: tenureVerified\(tenure\)/);
+  // One rule, one exporter, and every reader served from it rather than re-deriving it.
+  assert.equal((statsSource.match(/export function tenureVerified/g) || []).length, 1);
+  for (const [name, text] of [
+    ['routes/staff.js', staffSource],
+    ['routes/partner.js', partnerSource],
+  ]) {
+    assert.doesNotMatch(text, /started_confirmed_at\)? &&/, name);
+  }
+});
+
+test('a claimed row is ended, never deleted, and an unclaimed one deleted, never ended', () => {
+  const remove = handler(partnerSource, "router.delete('/staff/:id'", 'Time off — holidays');
+  // Refused before anything is written, and refused with the door it should have used.
+  assert.match(remove, /if \(staff\.user_id != null\) \{[\s\S]*?409,\s*'CONFLICT',/);
+  assert.match(remove, /kết thúc hợp tác kèm ngày nghỉ thay vì xóa khỏi danh sách/);
+  assert.ok(remove.indexOf('user_id != null') < remove.indexOf('DEACTIVATE_STAFF'));
+  // And the soft delete underneath it is untouched: no date, because there was no stint.
+  assert.match(remove, /await tx\.run\(DEACTIVATE_STAFF, staffId, salon\.id\);/);
+  assert.doesNotMatch(remove, /left_at|END_STINT/);
+
+  // The mirror of it: a chair nobody stands behind has no collaboration to end.
+  const departure = handler(
+    partnerSource,
+    "router.post('/staff/:id/departure'",
+    "router.delete('/staff/:id'",
+  );
+  assert.match(departure, /if \(staff\.user_id == null\) \{[\s\S]*?409,\s*'CONFLICT',/);
+  assert.match(departure, /Hãy xóa khỏi danh sách thay vì kết thúc hợp tác/);
+});
+
+test('a date the owner rewrites arrives unattested, whatever the old one had earned', () => {
+  assert.match(
+    partnerSource,
+    /const RESET_STARTED_ATTESTATION = 'started_confirmed_at = NULL, tenure_disputed = 0';/,
+  );
+  /* Appended to the SET clause of the same UPDATE rather than run beside it: a date that
+     landed while its ✓ stayed would be a profile claiming the technician confirmed a day she
+     has never seen, and a second statement is a second chance to not run. */
+  const patch = handler(
+    partnerSource,
+    "router.patch('/staff/:id'",
+    "router.post('/staff/:id/departure'",
+  );
+  assert.match(
+    patch,
+    /if \(Object\.hasOwn\(patch, 'started_at'\)\) \{\s*assignments\.push\(RESET_STARTED_ATTESTATION\);\s*\}/,
+  );
+  assert.ok(patch.indexOf('RESET_STARTED_ATTESTATION') < patch.indexOf('UPDATE staff SET'));
+  // The same rule at the other end, inside END_STINT: a new leaving date is unconfirmed too.
+  assert.match(
+    departureSource,
+    /SET left_at = \?, left_by = \?, active = 0, left_confirmed_at = NULL/,
+  );
+});
+
+test('the sweep is the booking wizard’s own machinery, run one appointment at a time', () => {
+  const sweep = declaration(departureSource, 'export async function sweepFutureBookings(');
+  /* Reused rather than reimplemented. The three rules a replacement has to satisfy — she
+     performs the service, she is on shift, she is free for the whole duration — are the rules
+     the customer's own calendar was built from, and a second implementation of them is a
+     second answer to "who could take this". */
+  assert.match(
+    sweep,
+    /await pickAvailableStaff\(\s*tx, salon\.id, booking\.service_id, booking\.date, booking\.time, booking\.duration_min,/,
+  );
+  assert.doesNotMatch(departureSource, /staff_services|staff_schedule/);
+  // Sequentially, on the caller's transaction: each move has to be visible to the next pick,
+  // or two appointments an hour apart both land on the one colleague free for one of them.
+  assert.doesNotMatch(sweep, /Promise\.all/);
+  assert.match(sweep, /for \(const booking of rows\) \{/);
+
+  // Only what is still to happen, and only after the day worked: an appointment ON the
+  // leaving date is one she is still there for, and a completed row is a record.
+  const future = handler(departureSource, 'const FUTURE_BOOKINGS_SQL', '`;');
+  assert.match(
+    future,
+    /WHERE b\.staff_id = \? AND b\.status IN \('pending','confirmed'\) AND b\.date > \?/,
+  );
+
+  /* An appointment nobody can take is left exactly where it is. Cancelling for the customer
+     is not this function's decision, and clearing the technician off it would drop it out of
+     every list the salon runs its day from — so it keeps holding the closed row's slot until
+     the owner acts, and the count is what tells them to. */
+  assert.match(sweep, /needsAttention \+= 1;\s*continue;/);
+  assert.match(sweep, /return \{ reassigned, needs_attention: needsAttention \};/);
+  // One notice for the whole sweep, outside the loop, and only when there is something in it.
+  assert.match(sweep, /if \(needsAttention > 0\) \{\s*await notifyUser\(/);
+  assert.equal((sweep.match(/lịch hẹn tương lai cần bạn xử lý/g) || []).length, 1);
+
+  /* The audit row for every one of these, pending included — unlike the console's own PATCH,
+     which leaves pending swaps out as corrections to a plan. A whole calendar changing hands
+     is not a correction. Both writers spell the row from one place. */
+  assert.match(
+    sweep,
+    /await tx\.run\(\s*INSERT_BOOKING_STAFF_CHANGE, booking\.id, staffId, replacement, actorUserId, changedAt,/,
+  );
+  assert.match(
+    partnerSource,
+    /import \{[\s\S]*?INSERT_BOOKING_STAFF_CHANGE,[\s\S]*?\} from '\.\.\/lib\/staff-departure\.js';/,
+  );
+  assert.equal((partnerSource.match(/INSERT INTO booking_staff_changes/g) || []).length, 0);
+});
+
+test('one sentence tells a customer their chair changed, however it changed', () => {
+  // The console's manual swap and a departure sweep are the same fact from where the customer
+  // sits, so partner.js serves the sweep's own builder rather than a second wording of it.
+  assert.match(
+    departureSource,
+    /export const restaffedNotice = \(salon, booking\) => \(\{\s*title: 'Lịch hẹn đổi kỹ thuật viên',/,
+  );
+  assert.match(partnerSource, /^ {2}restaffed: restaffedNotice,$/m);
+  assert.equal((partnerSource.match(/Lịch hẹn đổi kỹ thuật viên/g) || []).length, 0);
+});
+
+test('a departure tells the other side, and an owner hears it as an owner', () => {
+  /* There is no partner-only notification channel and none is invented here: an owner reads
+     their bell through the same endpoint everybody else does, which is how they are already
+     told about a new booking. 'general' rather than 'booking' because none of these rows is
+     about an appointment of the reader's own — ui/thong-bao.html routes by type, and an
+     unmapped type is a row with no arrow rather than a link into somebody else's list. */
+  const ownerNotices = [
+    ['the sweep’s leftovers', departureSource, 'Lịch hẹn cần bạn xử lý'],
+    ['the technician leaving', staffMeSource, 'Kỹ thuật viên kết thúc hợp tác'],
+    ['the disputed date', staffMeSource, 'Kỹ thuật viên báo sai ngày'],
+  ];
+  for (const [name, text, title] of ownerNotices) {
+    const call = calls(text, 'notifyUser').find((one) => one.includes(title));
+    assert.ok(call, `${name}: no owner notice found`);
+    assert.match(call, /^notifyUser\(\s*tx,/, name);
+    assert.match(call, /owner_id,/, name);
+    assert.match(call, /'general',\s*\)$/, name);
+  }
+  /* The other direction rides notifyStaff, which resolves the account off the roster row: a
+     departure keeps user_id, so the person whose stint just ended is still reachable on it. */
+  const departure = handler(
+    partnerSource,
+    "router.post('/staff/:id/departure'",
+    "router.delete('/staff/:id'",
+  );
+  assert.match(departure, /await notifyStaff\(\s*tx,\s*staffId,\s*'Hợp tác đã kết thúc',/);
+  // Inside the transaction that closed the stint, like every other notice in this codebase,
+  // and before the sweep that hands the calendar on.
+  assert.ok(departure.indexOf('db.withTransaction') < departure.indexOf('notifyStaff'));
+  assert.ok(departure.indexOf('notifyStaff') < departure.indexOf('sweepFutureBookings'));
+});
+
+test('a departure date may run a notice period ahead, and no further', () => {
+  const bound = declaration(departureSource, 'export function departureDateOrThrow(');
+  assert.match(departureSource, /export const DEPARTURE_MAX_LEAD_DAYS = 30;/);
+  assert.match(bound, /if \(!isISODate\(value\)\) \{/);
+  /* The past is wide open on purpose: a salon writing a departure down weeks after the fact
+     is the ordinary case, and refusing it only teaches owners to enter today's date, which
+     puts a wrong day on somebody's record forever. */
+  assert.doesNotMatch(bound, /value < /);
+  assert.match(bound, /if \(value > addDaysISO\(todayISO\(\), DEPARTURE_MAX_LEAD_DAYS\)\) \{/);
+  // One validator for both doors, so the two sides cannot disagree about which dates exist.
+  for (const [name, text] of [
+    ['routes/partner.js', partnerSource],
+    ['routes/staff-me.js', staffMeSource],
+  ]) {
+    assert.match(text, /const leftAt = departureDateOrThrow\(/, name);
+  }
+});
+
+test('the CV is every stint of one person, and the withdrawal reaches it', () => {
+  const history = handler(staffSource, "router.get('/:id/history'", "router.get('/:id',");
+  /* The only read in this file not gated on active = 1, and it has to be: a stint that ended
+     is what a career is made of, and a technician between salons has no open row anywhere. */
+  assert.match(
+    staffSource,
+    /const selectVisibleStaffRow = db\.prepare\(`[\s\S]*?WHERE st\.id = \? AND \$\{VISIBLE_PROFILE\}\s*`\);/,
+  );
+  assert.doesNotMatch(history, /active = 1/);
+  // Hidden is 404 in the same words the profile itself answers with, and a hidden stint is
+  // left out of everybody else's list rather than reappearing inside one.
+  assert.match(history, /'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này\.'/);
+  assert.match(staffSource, /WHERE st\.user_id = \? AND \$\{VISIBLE_PROFILE\}\s*ORDER BY st\.id DESC/);
+
+  /* A row nobody stands behind is a chair, not a person, so there is nothing tying it to any
+     other row — which is also what an erased account leaves behind, since the release clears
+     user_id off every row it held. */
+  assert.match(
+    history,
+    /const stints = row\.user_id === null \? \[row\] : await selectStaffStints\.all\(row\.user_id\);/,
+  );
+
+  // Both halves of "still here": no leaving date, and still on the roster.
+  const shape = declaration(staffSource, 'async function stintShape(');
+  assert.match(shape, /is_current: row\.left_at === null && row\.active === 1,/);
+  // Per stint, through the one block both the public profile and the technician's own page
+  // are served from, rather than a second count written for this endpoint.
+  assert.match(shape, /const stats = await staffStats\(row\.id\);/);
+  assert.match(shape, /tenure_verified: stats\.tenure_verified,/);
+  assert.doesNotMatch(shape, /COUNT\(|SELECT /);
 });

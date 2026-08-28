@@ -5466,9 +5466,26 @@ async function groupStaffPersona() {
   );
   assert(whileEmployed.length === 1, 'the departing technician reads their own day');
 
-  ok(
+  /* A row somebody stands behind is not deletable at all: ending the collaboration is an act
+     with a date on it, and the console is sent to the door that has one. */
+  expectError(
     await partner.fetch(`/api/partner/staff/${departingRow.id}`, { method: 'DELETE' }),
-    'DELETE /api/partner/staff/:id (end the stint)',
+    409,
+    'CONFLICT',
+    'DELETE /api/partner/staff/:id on a claimed row',
+  );
+  const departureResult = ok(
+    await partner.fetch(`/api/partner/staff/${departingRow.id}/departure`, {
+      method: 'POST',
+      json: { left_at: state.today },
+    }),
+    'POST /api/partner/staff/:id/departure (end the stint)',
+  );
+  assert(
+    typeof departureResult.reassigned === 'number' &&
+      typeof departureResult.needs_attention === 'number',
+    'a departure reports what became of the calendar it closed',
+    departureResult,
   );
 
   const afterDeparture = ok(
@@ -6540,15 +6557,16 @@ async function groupStaffPersona() {
 
       /* -- and where the start date comes from, in both directions --------------- */
 
-      /* Nothing writes staff.started_at yet — the owner-entered date is a later slice — so
-         every roster row on this database is answering from its bookings, seeded rows
-         included, and every start date read above was derived rather than stored. */
+      /* Nothing above this line enters a start date — the console's writer is exercised in
+         group 20, on salons of its own — so every roster row on this database is still
+         answering from its bookings, seeded rows included, and every start date read above
+         was derived rather than stored. */
       const stored = (
         await directClient.query(
           'SELECT COUNT(*)::int AS total FROM staff WHERE started_at IS NOT NULL',
         )
       ).rows[0].total;
-      assert(stored === 0, 'no code path may write a start date yet: it is derived on read');
+      assert(stored === 0, 'nothing in this group may enter a start date: these are derived');
 
       const seededStart = ok(
         await session('guest').fetch(`/api/staff/${minhAnh.id}`),
@@ -7471,6 +7489,725 @@ async function groupStaffPersona() {
 }
 
 /* ============================================================================
+ * 20 — leaving: a stint that ends on a dated event both sides answer for, the
+ *      calendar it leaves behind, and the profile that becomes a CV
+ * ========================================================================= */
+
+/* Staged on salons opened here rather than on the seeded ones, and for the reason the tier
+   block in group 19 gives: this group closes stints, hands whole calendars on and erases an
+   account at the end of it, and doing any of that to Lala's roster would rewrite what every
+   group above it asserted. Both salons run round the clock on every weekday, so which hour a
+   booking lands on is never the thing deciding an outcome. */
+async function groupStaffDeparture() {
+  const stamp = Date.now();
+  const guest = session('guest');
+
+  /** A partner account, its salon, and a week of round-the-clock opening hours. */
+  const openSalon = async (label, salonName, email) => {
+    const owner = new Session();
+    ok(
+      await owner.fetch('/api/auth/register', {
+        method: 'POST',
+        json: {
+          name: label,
+          email,
+          password: 'Oak@1234',
+          role: 'partner',
+          salon_name: salonName,
+          consent: true,
+        },
+      }),
+      `register the owner of ${salonName}`,
+    );
+    ok(
+      await owner.fetch('/api/partner/salon', {
+        method: 'PATCH',
+        json: { hours: weekClosedOn(-1) },
+      }),
+      `open ${salonName} every day`,
+    );
+    return { owner, salon: ok(await owner.fetch('/api/partner/salon'), `the salon ${salonName}`) };
+  };
+
+  /** A roster row on shift all week for one service. */
+  const hire = async (owner, name, serviceId, extra = {}) =>
+    ok(
+      await owner.fetch('/api/partner/staff', {
+        method: 'POST',
+        json: {
+          name,
+          schedule: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+            weekday, start: '00:00', end: '23:59', is_off: 0,
+          })),
+          service_ids: [serviceId],
+          ...extra,
+        },
+      }),
+      `POST /api/partner/staff (${name})`,
+    );
+
+  const inviteTo = async (owner, staffId, label) =>
+    ok(
+      await owner.fetch(`/api/partner/staff/${staffId}/invite`, { method: 'POST' }),
+      `invite for ${label}`,
+    ).url.split('invite=')[1];
+
+  /** Hand a roster row to somebody who holds no OAK account yet. */
+  const claimAsNewAccount = async (owner, staffId, name, email) => {
+    const token = await inviteTo(owner, staffId, name);
+    const client = new Session();
+    ok(
+      await client.fetch('/api/auth/staff/register', {
+        method: 'POST',
+        json: { token, name, email, password: 'Oak@1234', consent: true },
+      }),
+      `POST /api/auth/staff/register (${name})`,
+    );
+    return client;
+  };
+
+  const notificationsOf = async (client, label) =>
+    ok(await client.fetch('/api/notifications'), `GET /api/notifications (${label})`);
+
+  const leaverSalon = await openSalon('Chủ Salon Chia Tay', `Salon Chia Tay ${stamp}`, `leaveowner${stamp}@oak.invalid`);
+  const service = ok(
+    await leaverSalon.owner.fetch('/api/partner/services', {
+      method: 'POST',
+      json: { category: 'nail', name: 'Sơn gel chia tay', price: 250000, duration_min: 60 },
+    }),
+    'POST /api/partner/services (the service both technicians perform)',
+  );
+
+  const leaverRow = await hire(leaverSalon.owner, 'KTV Ra Đi', service.id);
+  /* The cover, with a start date typed at creation: the console can enter one on the way in,
+     and a row that could only be dated by a second save would be dated by nobody. */
+  const coverRow = await hire(leaverSalon.owner, 'KTV Ở Lại', service.id, {
+    started_at: addDays(state.today, -400),
+  });
+  assert(
+    coverRow.started_at === addDays(state.today, -400),
+    'POST /api/partner/staff must store the start date it was given',
+    coverRow,
+  );
+  assert(
+    coverRow.tenure_verified.started === false,
+    'a date the salon has just typed carries no ✓ until the technician answers for it',
+    coverRow,
+  );
+
+  const leaver = await claimAsNewAccount(
+    leaverSalon.owner, leaverRow.id, 'KTV Ra Đi', `leaver${stamp}@oak.invalid`,
+  );
+  const cover = await claimAsNewAccount(
+    leaverSalon.owner, coverRow.id, 'KTV Ở Lại', `cover${stamp}@oak.invalid`,
+  );
+
+  /* -- an owner-entered start date outranks the visits it was derived from ----- */
+
+  const yesterday = addDays(state.today, -1);
+  /** A seat typed at the counter onto the leaver's calendar. */
+  const walkIn = async (staffId, date, time, label, extra = {}) =>
+    ok(
+      await leaverSalon.owner.fetch('/api/partner/bookings', {
+        method: 'POST',
+        json: { service_id: service.id, staff_id: staffId, date, time, customer_name: 'Khách Ghé Qua', ...extra },
+      }),
+      `POST /api/partner/bookings (${label})`,
+    );
+
+  const oldVisit = await walkIn(leaverRow.id, state.today, '09:00', 'the visit the start date is derived from');
+  ok(
+    await leaverSalon.owner.fetch(`/api/partner/bookings/${oldVisit.id}`, {
+      method: 'PATCH',
+      json: { date: yesterday },
+    }),
+    'PATCH the derived-from visit into yesterday',
+  );
+  ok(
+    await leaverSalon.owner.fetch(`/api/partner/bookings/${oldVisit.id}`, {
+      method: 'PATCH',
+      json: { status: 'completed' },
+    }),
+    'PATCH the derived-from visit to completed',
+  );
+
+  const publicStats = async (staffId, label) =>
+    ok(await guest.fetch(`/api/staff/${staffId}`), `GET /api/staff/:id (${label})`).stats;
+
+  let leaverStats = await publicStats(leaverRow.id, 'before the salon entered a start date');
+  assert(
+    leaverStats.started_at === yesterday,
+    `with no date entered, the profile counts from the first completed visit (${yesterday})`,
+    leaverStats,
+  );
+  assert(
+    leaverStats.tenure_verified.started === false,
+    'a derived date is nobody’s statement, so it can never carry a ✓',
+    leaverStats,
+  );
+
+  const hiredOn = addDays(state.today, -800);
+  ok(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${leaverRow.id}`, {
+      method: 'PATCH',
+      json: { started_at: hiredOn },
+    }),
+    'PATCH /api/partner/staff/:id with the day the salon actually hired her',
+  );
+  leaverStats = await publicStats(leaverRow.id, 'with a start date the salon entered');
+  assert(
+    leaverStats.started_at === hiredOn,
+    `the date the salon entered outranks the earliest completed visit (${hiredOn})`,
+    leaverStats,
+  );
+
+  /* -- and the technician answers for it, or says it is wrong ----------------- */
+
+  expectError(
+    await leaver.fetch(`/api/staff-me/tenure/${leaverRow.id}/confirm`, {
+      method: 'POST',
+      json: { field: 'left' },
+    }),
+    409,
+    'CONFLICT',
+    'confirming a leaving date on a stint that has not ended',
+  );
+  // A stint has two dates and the field names a column, so only those two words may reach it.
+  for (const field of ['whenever', '__proto__', 'constructor']) {
+    expectError(
+      await leaver.fetch(`/api/staff-me/tenure/${leaverRow.id}/confirm`, {
+        method: 'POST',
+        json: { field },
+      }),
+      400,
+      'VALIDATION_ERROR',
+      `confirming "${field}", which is not one of the two dates`,
+    );
+  }
+  expectError(
+    await cover.fetch(`/api/staff-me/tenure/${leaverRow.id}/confirm`, {
+      method: 'POST',
+      json: { field: 'started' },
+    }),
+    404,
+    'NOT_FOUND',
+    'confirming a date on somebody else’s stint',
+  );
+
+  const confirmed = ok(
+    await leaver.fetch(`/api/staff-me/tenure/${leaverRow.id}/confirm`, {
+      method: 'POST',
+      json: { field: 'started' },
+    }),
+    'POST /api/staff-me/tenure/:staffId/confirm (the start date)',
+  );
+  assert(
+    confirmed.stint.started_confirmed === true && confirmed.stats.tenure_verified.started === true,
+    'a date that exists, is confirmed and is undisputed carries the ✓',
+    confirmed,
+  );
+  assert(
+    (await publicStats(leaverRow.id, 'after the start date was confirmed')).tenure_verified.started,
+    'and the public profile reads the same rule the technician just answered',
+  );
+
+  /* Re-dating is what the reset exists for: the ✓ was given to a day, not to the idea of one,
+     so the salon moving the day takes the ✓ with it. */
+  ok(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${leaverRow.id}`, {
+      method: 'PATCH',
+      json: { started_at: addDays(hiredOn, 3) },
+    }),
+    'PATCH the start date again, after it was confirmed',
+  );
+  const reDated = ok(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${leaverRow.id}`),
+    'GET /api/partner/staff/:id after the re-dating',
+  );
+  assert(
+    reDated.tenure_verified.started === false && reDated.tenure_disputed === 0,
+    'a new date arrives unconfirmed and undisputed, whatever the old one had earned',
+    reDated,
+  );
+
+  const ownerNoticesBefore = (await notificationsOf(leaverSalon.owner, 'the owner before the dispute')).length;
+  const disputed = ok(
+    await leaver.fetch(`/api/staff-me/tenure/${leaverRow.id}/dispute`, {
+      method: 'POST',
+      json: { field: 'started' },
+    }),
+    'POST /api/staff-me/tenure/:staffId/dispute',
+  );
+  assert(
+    disputed.stint.tenure_disputed === 1 && disputed.stats.tenure_verified.started === false,
+    'a disputed stint carries no ✓ on either date',
+    disputed,
+  );
+  const disputeNotices = await notificationsOf(leaverSalon.owner, 'the owner after the dispute');
+  assert(
+    disputeNotices.length === ownerNoticesBefore + 1 &&
+      /báo sai ngày/.test(disputeNotices[0].title ?? ''),
+    'the only person who can change the date is told it is disputed',
+    disputeNotices,
+  );
+
+  // And the owner re-dating clears the dispute as well: the argument was about the old value.
+  ok(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${leaverRow.id}`, {
+      method: 'PATCH',
+      json: { started_at: hiredOn },
+    }),
+    'PATCH the disputed start date to the one both sides mean',
+  );
+  const settled = ok(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${leaverRow.id}`),
+    'GET /api/partner/staff/:id after the disputed date was changed',
+  );
+  assert(settled.tenure_disputed === 0, 'a date that has changed is not the date under dispute', settled);
+  ok(
+    await leaver.fetch(`/api/staff-me/tenure/${leaverRow.id}/confirm`, {
+      method: 'POST',
+      json: { field: 'started' },
+    }),
+    'POST confirm on the settled start date',
+  );
+
+  /* -- the calendar a departure leaves behind --------------------------------- */
+
+  /* Three appointments and one leaving date, staged so the sweep has to tell them apart:
+     one the cover can take, one she cannot because her own hour is already booked at exactly
+     that time, and one that has already happened. */
+  const sweepDate = addDays(state.today, 4);
+  const handedOn = await walkIn(leaverRow.id, sweepDate, '10:00', 'the appointment somebody can take', {
+    customer_name: 'Khách Được Chuyển',
+    customer_phone: `0988${String(stamp).slice(-6)}`,
+  });
+  const stranded = await walkIn(leaverRow.id, sweepDate, '14:00', 'the appointment nobody is free for');
+  await walkIn(coverRow.id, sweepDate, '14:00', 'the hour that makes the cover unavailable');
+  /* On shift all week and free at that hour, and still not a candidate for it: she does not
+     perform this service. The sweep hands appointments to the people the booking wizard would
+     have offered in the first place, which is the same three rules — the skill, the shift and
+     the hour — asked by the same code. */
+  ok(
+    await leaverSalon.owner.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: {
+        name: 'KTV Khác Nghề',
+        schedule: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+          weekday, start: '00:00', end: '23:59', is_off: 0,
+        })),
+        service_ids: [],
+      },
+    }),
+    'POST /api/partner/staff (free at the hour, wrong trade)',
+  );
+  const alreadyDone = await walkIn(leaverRow.id, state.today, '11:00', 'the visit that has already happened');
+  ok(
+    await leaverSalon.owner.fetch(`/api/partner/bookings/${alreadyDone.id}`, {
+      method: 'PATCH',
+      json: { status: 'completed' },
+    }),
+    'PATCH the already-happened visit to completed',
+  );
+
+  /* The customer behind the number on the counter's booking. Registered after the walk-in so
+     the account is linked by the phone the way a real one is, and so that the only notices in
+     this bell are the ones the sweep writes. */
+  const strandedCustomer = new Session();
+  ok(
+    await strandedCustomer.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Khách Được Chuyển',
+        email: `moved${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        phone: `0988${String(stamp).slice(-6)}`,
+        consent: true,
+      },
+    }),
+    'register the customer whose appointment changes hands',
+  );
+
+  expectError(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${leaverRow.id}/departure`, {
+      method: 'POST',
+      json: { left_at: addDays(state.today, 31) },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'a departure dated further ahead than any notice period',
+  );
+  expectError(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${coverRow.id}/departure`, {
+      method: 'POST',
+      json: { left_at: 'sometime' },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'a departure with no date in it',
+  );
+
+  const coverNoticesBefore = (await notificationsOf(cover, 'the cover before the departure')).length;
+  const departure = ok(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${leaverRow.id}/departure`, {
+      method: 'POST',
+      json: { left_at: state.today },
+    }),
+    'POST /api/partner/staff/:id/departure',
+  );
+  assert(
+    departure.reassigned === 1 && departure.needs_attention === 1,
+    'one future appointment found a replacement and one did not',
+    departure,
+  );
+  expectError(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${leaverRow.id}/departure`, {
+      method: 'POST',
+      json: { left_at: state.today },
+    }),
+    409,
+    'CONFLICT',
+    'ending a stint that has already ended',
+  );
+
+  // The row itself: the date, the side that entered it, and the roster flag, all together.
+  const closed = ok(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${leaverRow.id}`),
+    'GET /api/partner/staff/:id after the departure',
+  );
+  assert(
+    closed.left_at === state.today && closed.left_by === 'partner' && closed.active === 0,
+    'a departure dates the stint, names the side that ended it and closes the row, together',
+    closed,
+  );
+
+  const bookingById = async (id, label) =>
+    ok(await leaverSalon.owner.fetch(`/api/partner/bookings/${id}`), `GET /api/partner/bookings/:id (${label})`);
+  assert(
+    (await bookingById(handedOn.id, 'the reassigned appointment')).staff?.id === coverRow.id,
+    'the appointment somebody was free for moved onto that somebody',
+  );
+  assert(
+    (await bookingById(stranded.id, 'the stranded appointment')).staff?.id === leaverRow.id,
+    'and the one nobody was free for is left exactly where it was, for the owner to deal with',
+  );
+  assert(
+    (await bookingById(alreadyDone.id, 'the completed visit')).staff?.id === leaverRow.id,
+    'a visit that already happened is a record, and a sweep does not rewrite records',
+  );
+
+  // The customer is told once, in the words the console's own swap uses.
+  const movedNotices = await notificationsOf(strandedCustomer, 'the customer whose chair changed');
+  assert(
+    movedNotices.filter(
+      (item) => item.booking_id === handedOn.id && /đổi kỹ thuật viên/.test(item.body ?? ''),
+    ).length === 1,
+    'the customer hears that their appointment changed hands, exactly once',
+    movedNotices,
+  );
+  // And so is the colleague who now has the hour.
+  const coverNotices = await notificationsOf(cover, 'the cover after the departure');
+  assert(
+    coverNotices.length === coverNoticesBefore + 1 &&
+      coverNotices[0].type === 'staff' &&
+      coverNotices[0].booking_id === handedOn.id,
+    'the arriving technician is told which appointment is now hers',
+    coverNotices,
+  );
+  // The owner learns how many are left for them, in one notice rather than one per booking.
+  const strandedNotice = (await notificationsOf(leaverSalon.owner, 'the owner after the departure'))[0];
+  assert(
+    /1 lịch hẹn tương lai cần bạn xử lý/.test(strandedNotice?.body ?? ''),
+    'the owner is told how many appointments the departure left them',
+    strandedNotice,
+  );
+
+  if (!EXTERNAL_URL) {
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      /* The audit row. booking_staff_changes is write-only over HTTP, so this is the only
+         side it can be read from — and it has to exist for every one of these, pending rows
+         included: a whole calendar changed hands, and "why is this on my name" has to have
+         an answer months later. */
+      const audit = (
+        await directClient.query(
+          'SELECT old_staff_id, new_staff_id, changed_by FROM booking_staff_changes WHERE booking_id = $1',
+          [handedOn.id],
+        )
+      ).rows;
+      assert(audit.length === 1, 'a reassignment writes exactly one audit row', audit);
+      assert(
+        audit[0].old_staff_id === leaverRow.id && audit[0].new_staff_id === coverRow.id,
+        'the audit row names both ends of the move',
+        audit,
+      );
+      const ownerAccount = ok(
+        await leaverSalon.owner.fetch('/api/auth/me'),
+        'GET /api/auth/me (the owner who ended the stint)',
+      ).user;
+      assert(
+        audit[0].changed_by === ownerAccount.id,
+        'and the acting party, which for a console departure is the owner',
+        audit,
+      );
+      // Nothing was written for the one nobody could take: it did not move.
+      const strandedAudit = (
+        await directClient.query(
+          'SELECT COUNT(*)::int AS total FROM booking_staff_changes WHERE booking_id = $1',
+          [stranded.id],
+        )
+      ).rows[0].total;
+      assert(strandedAudit === 0, 'an appointment that did not move has nothing to audit');
+
+      // The slot index survived the whole sweep: one live booking per technician per hour.
+      const clashes = (
+        await directClient.query(
+          `SELECT COUNT(*)::int AS total FROM (
+             SELECT staff_id, date, time FROM bookings
+             WHERE staff_id IS NOT NULL AND status IN ('pending','confirmed')
+             GROUP BY staff_id, date, time HAVING COUNT(*) > 1
+           ) clashing`,
+        )
+      ).rows[0].total;
+      assert(clashes === 0, 'no reassignment may put two live bookings in one technician’s hour');
+    } finally {
+      await directClient.end();
+    }
+  } else {
+    skip('the reassignment audit is write-only over HTTP');
+  }
+
+  /* -- the technician answers for the leaving date too ------------------------ */
+
+  const ownStints = ok(await leaver.fetch('/api/staff-me/profile'), 'GET /api/staff-me/profile after leaving');
+  const ownStint = ownStints.find((row) => row.staff_id === leaverRow.id);
+  assert(
+    ownStint.stint.left_at === state.today && ownStint.stint.left_by === 'partner',
+    'the technician reads the date her stint was closed on, and who closed it',
+    ownStints,
+  );
+  assert(
+    ownStint.stint.left_confirmed === false && ownStint.stats.tenure_verified.left === false,
+    'and it is unanswered until she answers it',
+    ownStints,
+  );
+  const leftConfirmed = ok(
+    await leaver.fetch(`/api/staff-me/tenure/${leaverRow.id}/confirm`, {
+      method: 'POST',
+      json: { field: 'left' },
+    }),
+    'POST confirm on the leaving date',
+  );
+  assert(
+    leftConfirmed.stats.tenure_verified.left === true &&
+      leftConfirmed.stats.tenure_verified.started === true,
+    'both ends of the stint are now attested, and neither answer disturbed the other',
+    leftConfirmed,
+  );
+
+  /* -- and a stint that ended can be opened again ----------------------------- */
+
+  /* The index that keeps one live claimed row per person per salon is predicated on
+     active = 1, which is only true to its name because a departure closes both halves at
+     once. Re-hiring the same person at the same salon is the case that proves it. */
+  const rehiredRow = await hire(leaverSalon.owner, 'KTV Ra Đi', service.id);
+  const rehireToken = await inviteTo(leaverSalon.owner, rehiredRow.id, 'the re-hire');
+  ok(
+    await leaver.fetch('/api/staff-me/claim', { method: 'POST', json: { token: rehireToken } }),
+    'POST /api/staff-me/claim (the same person, the same salon, a second stint)',
+  );
+
+  /* -- a second salon, and a stint the technician ends herself ---------------- */
+
+  const secondSalon = await openSalon('Chủ Salon Thứ Hai', `Salon Thứ Hai ${stamp}`, `secondowner${stamp}@oak.invalid`);
+  const secondService = ok(
+    await secondSalon.owner.fetch('/api/partner/services', {
+      method: 'POST',
+      json: { category: 'nail', name: 'Sơn gel salon hai', price: 200000, duration_min: 60 },
+    }),
+    'POST /api/partner/services (at the second salon)',
+  );
+  const secondRow = await hire(secondSalon.owner, 'KTV Ra Đi', secondService.id);
+  const secondToken = await inviteTo(secondSalon.owner, secondRow.id, 'the second salon');
+  ok(
+    await leaver.fetch('/api/staff-me/claim', { method: 'POST', json: { token: secondToken } }),
+    'POST /api/staff-me/claim (a technician who works at two salons)',
+  );
+
+  expectError(
+    await cover.fetch('/api/staff-me/leave', {
+      method: 'POST',
+      json: { staff_id: secondRow.id, left_at: state.today },
+    }),
+    404,
+    'NOT_FOUND',
+    'leaving a stint that is not yours',
+  );
+
+  const secondOwnerBefore = (await notificationsOf(secondSalon.owner, 'the second owner before the leave')).length;
+  const leftBySelf = ok(
+    await leaver.fetch('/api/staff-me/leave', {
+      method: 'POST',
+      json: { staff_id: secondRow.id, left_at: state.today },
+    }),
+    'POST /api/staff-me/leave',
+  );
+  assert(
+    leftBySelf.reassigned === 0 && leftBySelf.needs_attention === 0,
+    'a stint with an empty calendar leaves nothing behind it',
+    leftBySelf,
+  );
+  const secondOwnerNotices = await notificationsOf(secondSalon.owner, 'the second owner after the leave');
+  assert(
+    secondOwnerNotices.length === secondOwnerBefore + 1 &&
+      /kết thúc hợp tác/.test(secondOwnerNotices[0].title ?? ''),
+    'the salon hears it from the technician, on the same bell it hears everything else on',
+    secondOwnerNotices,
+  );
+  const selfClosed = ok(
+    await secondSalon.owner.fetch(`/api/partner/staff/${secondRow.id}`),
+    'GET /api/partner/staff/:id after the technician left',
+  );
+  assert(
+    selfClosed.left_by === 'staff' && selfClosed.left_at === state.today && selfClosed.active === 0,
+    'the row records which side ended it, and a technician ending it is not the salon doing so',
+    selfClosed,
+  );
+
+  /* -- the profile as a CV ---------------------------------------------------- */
+
+  const history = ok(
+    await guest.fetch(`/api/staff/${rehiredRow.id}/history`),
+    'GET /api/staff/:id/history',
+  );
+  assert(
+    history.map((stint) => stint.staff_id).join(',') ===
+      [secondRow.id, rehiredRow.id, leaverRow.id].join(','),
+    'every stint the person behind this row has held, newest first',
+    history,
+  );
+  const stintOf = (staffId) => history.find((stint) => stint.staff_id === staffId);
+  assert(
+    stintOf(rehiredRow.id).is_current === true && stintOf(leaverRow.id).is_current === false,
+    'the open stint is the one with no leaving date on a row still on the roster',
+    history,
+  );
+  assert(
+    stintOf(leaverRow.id).left_at === state.today &&
+      stintOf(leaverRow.id).left_by === 'partner' &&
+      stintOf(secondRow.id).left_by === 'staff',
+    'and each closed stint says when it ended and who ended it',
+    history,
+  );
+  assert(
+    stintOf(leaverRow.id).tenure_verified.started === true &&
+      stintOf(leaverRow.id).tenure_verified.left === true &&
+      stintOf(rehiredRow.id).tenure_verified.started === false,
+    'the ✓ is per stint and per date, and it is the server that decides it',
+    history,
+  );
+  // Per stint, not per person: the counted visit is behind the first stint and nowhere else.
+  assert(
+    stintOf(leaverRow.id).started_at === hiredOn && stintOf(rehiredRow.id).started_at === null,
+    'each stint carries its own start date, derived or entered',
+    history,
+  );
+  for (const stint of history) {
+    for (const key of ['verified_count', 'review_count', 'rating_avg']) {
+      assert(typeof stint[key] === 'number', `history: every stint needs ${key}`, stint);
+    }
+    assert(
+      stint.salon?.id !== undefined && stint.salon?.slug !== undefined,
+      'history: every stint names the salon it was worked at',
+      stint,
+    );
+  }
+  // Read through any stint of the same person, the CV is the same CV.
+  assert(
+    ok(await guest.fetch(`/api/staff/${leaverRow.id}/history`), 'GET history through a closed stint')
+      .length === history.length,
+    'a closed stint is a door into the same career, not a shorter one',
+  );
+
+  /* A row nobody stands behind describes a chair, not a person, so there is nothing to tie it
+     to any other row: its history is itself. */
+  const chairOnly = await hire(leaverSalon.owner, 'KTV Chưa Nhận Ghế', service.id);
+  const chairHistory = ok(
+    await guest.fetch(`/api/staff/${chairOnly.id}/history`),
+    'GET /api/staff/:id/history (a row nobody has claimed)',
+  );
+  assert(
+    chairHistory.length === 1 && chairHistory[0].staff_id === chairOnly.id,
+    'an unclaimed row is a CV of one stint',
+    chairHistory,
+  );
+  // And taking that chair off the roster is still a plain delete: nobody is leaving anything.
+  ok(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${chairOnly.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/staff/:id (a row nobody has claimed)',
+  );
+  const deletedChair = ok(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${chairOnly.id}`),
+    'GET /api/partner/staff/:id after the plain delete',
+  );
+  assert(
+    deletedChair.active === 0 && deletedChair.left_at === null,
+    'a soft delete takes the chair off the roster and dates nothing: there was no stint to end',
+    deletedChair,
+  );
+
+  // The withdrawal reaches the CV exactly as it reaches the page: claimed and hidden is 404.
+  ok(
+    await leaver.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: rehiredRow.id, profile_hidden: true },
+    }),
+    'PATCH /api/staff-me/profile (take the page down)',
+  );
+  expectError(
+    await guest.fetch(`/api/staff/${rehiredRow.id}/history`),
+    404,
+    'NOT_FOUND',
+    'GET /api/staff/:id/history on a page its holder took down',
+  );
+  const withoutHidden = ok(
+    await guest.fetch(`/api/staff/${leaverRow.id}/history`),
+    'GET history while one stint is hidden',
+  );
+  assert(
+    !withoutHidden.some((stint) => stint.staff_id === rehiredRow.id),
+    'a stint whose page is down does not reappear inside another one',
+    withoutHidden,
+  );
+  ok(
+    await leaver.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: rehiredRow.id, profile_hidden: false },
+    }),
+    'PATCH /api/staff-me/profile (put it back up)',
+  );
+
+  /* -- and an erased account leaves three chairs, not a career ---------------- */
+
+  ok(
+    await leaver.fetch('/api/users/me', { method: 'DELETE', json: { password: 'Oak@1234' } }),
+    'DELETE /api/users/me (the technician with three stints)',
+  );
+  for (const staffId of [rehiredRow.id, leaverRow.id, secondRow.id]) {
+    const alone = ok(
+      await guest.fetch(`/api/staff/${staffId}/history`),
+      `GET /api/staff/:id/history after the erasure (${staffId})`,
+    );
+    assert(
+      alone.length === 1 && alone[0].staff_id === staffId,
+      'with nobody behind them the rows are chairs again, each its own single stint',
+      alone,
+    );
+  }
+}
+
+/* ============================================================================
  * Runner
  * ========================================================================= */
 
@@ -7510,6 +8247,7 @@ async function main() {
   await group('17 booking lifecycle', groupBookingLifecycle);
   await group('18 account lifecycle', groupAccountLifecycle);
   await group('19 staff persona', groupStaffPersona);
+  await group('20 staff departure', groupStaffDeparture);
 }
 
 let child = null;

@@ -14,12 +14,19 @@ import {
   validateSocialProfile,
 } from '../lib/social-profile.js';
 import {
+  END_STINT,
+  INSERT_BOOKING_STAFF_CHANGE,
+  departureDateOrThrow,
+  restaffedNotice,
+  sweepFutureBookings,
+} from '../lib/staff-departure.js';
+import {
   INSERT_STAFF_INVITE,
   INVITE_TTL_MS,
   RETIRE_STAFF_INVITES,
   inviteUrl,
 } from '../lib/staff-invite.js';
-import { RECOMPUTE_STAFF_RATING } from '../lib/staff-stats.js';
+import { RECOMPUTE_STAFF_RATING, tenureVerified } from '../lib/staff-stats.js';
 import {
   addDaysISO,
   formatDateVN,
@@ -229,6 +236,15 @@ function requireDate(value, label) {
     throw httpError(400, 'VALIDATION_ERROR', `${label} phải theo định dạng YYYY-MM-DD.`);
   }
   return value;
+}
+
+/** Optional ISO date. null and '' clear the column; anything else must be a real date. */
+function optionalDate(value, label) {
+  const text = optionalText(value, label);
+  if (text !== null && !isISODate(text)) {
+    throw httpError(400, 'VALIDATION_ERROR', `${label} phải theo định dạng YYYY-MM-DD.`);
+  }
+  return text;
 }
 
 function requireTime(value, label) {
@@ -627,13 +643,11 @@ const selectOwnedStaff = db.prepare('SELECT * FROM staff WHERE id = ? AND salon_
 const selectClaimedStaffRow = db.prepare(
   'SELECT 1 FROM staff WHERE id = ? AND user_id IS NOT NULL',
 );
-// Both run inside the same transaction as the move they follow. A booking carries at most
-// one review (idx_reviews_booking_id), and only a completed booking can have one at all.
-const INSERT_BOOKING_STAFF_CHANGE = `
-  INSERT INTO booking_staff_changes
-    (booking_id, old_staff_id, new_staff_id, changed_by, created_at)
-  VALUES (?, ?, ?, ?, ?)
-`;
+// Runs inside the same transaction as the move it follows. A booking carries at most one
+// review (idx_reviews_booking_id), and only a completed booking can have one at all. The
+// audit row written beside it is INSERT_BOOKING_STAFF_CHANGE, imported from
+// lib/staff-departure.js: a departure hands whole calendars on, so the same row is written
+// from there too and one file holds its shape.
 const MOVE_BOOKING_REVIEW = 'UPDATE reviews SET staff_id = ? WHERE booking_id = ?';
 // Run inside the create transaction, alongside the notice the linked customer gets. source
 // 'partner' is a literal beside the other two: a seat typed at the counter is attested to by
@@ -701,12 +715,10 @@ const BOOKING_NOTIFICATIONS = {
   }),
   // Its own sentence, because "đã dời … sang {giờ}" naming the hour the customer already
   // had reads as a mistake. The console posts staff_id on every save, so this is the
-  // common case: a technician swapped, the appointment itself untouched.
-  restaffed: (salon, booking) => ({
-    title: 'Lịch hẹn đổi kỹ thuật viên',
-    body: `${salon.name} đã đổi kỹ thuật viên cho lịch hẹn ${booking.code} ngày ${formatDateVN(booking.date)} lúc ${booking.time}.`,
-    type: 'booking',
-  }),
+  // common case: a technician swapped, the appointment itself untouched. Written in
+  // lib/staff-departure.js because a departure sweep sends the same sentence, and the
+  // customer must not be told two different things about one kind of event.
+  restaffed: restaffedNotice,
   no_show: (salon, booking) => ({
     title: 'Lịch hẹn được ghi nhận vắng mặt',
     body: `${salon.name} ghi nhận bạn không đến lịch hẹn ${booking.code} ngày ${formatDateVN(booking.date)} lúc ${booking.time}. Nếu có nhầm lẫn, vui lòng liên hệ salon.`,
@@ -1769,13 +1781,17 @@ const selectActiveStaffRating = db.prepare(
 );
 // The staff writes all happen inside transactions, so these are kept as SQL text.
 const INSERT_STAFF =
-  'INSERT INTO staff (salon_id, name, title, specialty, image, active) VALUES (?, ?, ?, ?, ?, 1)';
+  'INSERT INTO staff (salon_id, name, title, specialty, image, started_at, active) VALUES (?, ?, ?, ?, ?, ?, 1)';
 const INSERT_STAFF_SCHEDULE =
   'INSERT INTO staff_schedule (staff_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)';
 const DELETE_STAFF_SCHEDULE = 'DELETE FROM staff_schedule WHERE staff_id = ?';
 const INSERT_STAFF_SERVICE = 'INSERT INTO staff_services (staff_id, service_id) VALUES (?, ?)';
 const DELETE_STAFF_SERVICES = 'DELETE FROM staff_services WHERE staff_id = ?';
 const DEACTIVATE_STAFF = 'UPDATE staff SET active = 0 WHERE id = ? AND salon_id = ?';
+/* Appended to the SET clause of any save that carries a new started_at. What the technician
+   confirmed was a date, not the idea of one, so the ✓ does not survive the salon replacing
+   it — and neither does a dispute, which was about the value that has just gone. */
+const RESET_STARTED_ATTESTATION = 'started_confirmed_at = NULL, tenure_disputed = 0';
 const retireStaffInvites = db.prepare(RETIRE_STAFF_INVITES);
 
 const STAFF_COLUMNS = {
@@ -1783,6 +1799,10 @@ const STAFF_COLUMNS = {
   title: (value) => optionalText(value, 'Chức danh'),
   specialty: (value) => optionalText(value, 'Chuyên môn'),
   image: (value) => optionalMediaUrl(value, 'Ảnh đại diện'),
+  /* The day this stint began, as the salon knows it and no query can. It outranks the
+     earliest completed booking wherever it is set (lib/staff-stats.js), which is why it is
+     the salon's to enter and the technician's to confirm rather than either one's alone. */
+  started_at: (value) => optionalDate(value, 'Ngày bắt đầu'),
   // Patchable so a soft-deleted technician (DELETE sets active = 0) can be restored.
   active: (value) => requireFlag(value, 'Trạng thái hoạt động'),
 };
@@ -1847,6 +1867,16 @@ async function staffDetail(staff) {
     years_experience: staff.years_experience,
     portfolio: parseJsonArray(staff.portfolio),
     active: staff.active,
+    /* The stint itself, so the console can read back the date it just entered and show what
+       the technician has answered about it. tenure_verified is the badge rule, computed
+       server-side in lib/staff-stats.js and never re-derived from these columns by a page: a
+       console and a public profile disagreeing about whether a date is attested to is exactly
+       the argument one rule in one place exists to prevent. */
+    started_at: staff.started_at ?? null,
+    left_at: staff.left_at ?? null,
+    left_by: staff.left_by ?? null,
+    tenure_disputed: staff.tenure_disputed ?? 0,
+    tenure_verified: tenureVerified(staff),
     schedule: await selectStaffSchedule.all(staff.id),
     service_ids: (await selectStaffServiceIds.all(staff.id)).map((row) => row.service_id),
   };
@@ -1960,6 +1990,9 @@ router.post('/staff', async (req, res, next) => {
     const title = STAFF_COLUMNS.title(body.title);
     const specialty = STAFF_COLUMNS.specialty(body.specialty);
     const image = STAFF_COLUMNS.image(body.image);
+    // Optional, and nothing is inferred when it is left out: a row with no date of its own
+    // answers from its first completed visit, which is a truer silence than today's date.
+    const startedAt = STAFF_COLUMNS.started_at(body.started_at);
     const schedule = body.schedule === undefined ? [] : parseSchedule(body.schedule);
     const serviceIds =
       body.service_ids === undefined
@@ -1969,7 +2002,8 @@ router.post('/staff', async (req, res, next) => {
     let staffId;
     await db.withTransaction(async (tx) => {
       staffId = Number(
-        (await tx.run(INSERT_STAFF, salon.id, name, title, specialty, image)).lastInsertRowid,
+        (await tx.run(INSERT_STAFF, salon.id, name, title, specialty, image, startedAt))
+          .lastInsertRowid,
       );
       for (const shift of schedule) {
         await tx.run(INSERT_STAFF_SCHEDULE, staffId, shift.weekday, shift.start, shift.end, shift.is_off);
@@ -2214,7 +2248,13 @@ router.patch('/staff/:id', async (req, res, next) => {
       }
     }
 
-    const { assignments, values } = await buildPatch(req.body ?? {}, STAFF_COLUMNS);
+    const { assignments, values, patch } = await buildPatch(req.body ?? {}, STAFF_COLUMNS);
+    /* A new start date arrives unattested, whatever the old one had earned. Appended to the
+       same statement rather than run beside it: a date that landed while its ✓ stayed would
+       be a profile claiming the technician confirmed a day she has never seen. */
+    if (Object.hasOwn(patch, 'started_at')) {
+      assignments.push(RESET_STARTED_ATTESTATION);
+    }
     await db
       .prepare(`UPDATE staff SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`)
       .run(...values, staffId, salon.id);
@@ -2228,11 +2268,94 @@ router.patch('/staff/:id', async (req, res, next) => {
   }
 });
 
+/*
+ * Ending a collaboration, from the salon's side.
+ *
+ * A row somebody stands behind cannot be deleted, only ended, and ending it is dated: the
+ * technician's public page reads their stints as a career, and one that merely stopped being
+ * active can say nothing but "trước đây". So this is a POST with a date in it rather than a
+ * DELETE — the console's own delete refuses a claimed row and points here.
+ *
+ * The whole of it is one transaction: the stint closes, the technician is told, and the
+ * appointments already sold on her calendar are handed on or counted. Half of that committing
+ * is a salon whose customers are booked with somebody who no longer works there.
+ */
+router.post('/staff/:id/departure', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const staffId = requireId(req.params.id, 'Mã kỹ thuật viên không hợp lệ.');
+    const staff = await ownedRow(
+      selectOwnedStaff,
+      staffId,
+      salon.id,
+      'Không tìm thấy kỹ thuật viên này.',
+    );
+    /* A chair nobody stands behind has no collaboration to end and nobody to confirm a date:
+       it is the salon's own description of a seat, and DELETE takes it off the roster. 409
+       rather than 404, in the mirror of what DELETE says about a claimed row — the owner can
+       see this row and is being told which door it goes through. */
+    if (staff.user_id == null) {
+      throw httpError(
+        409,
+        'CONFLICT',
+        'Hồ sơ này chưa có người nhận. Hãy xóa khỏi danh sách thay vì kết thúc hợp tác.',
+      );
+    }
+    if (staff.active !== 1) {
+      throw httpError(409, 'CONFLICT', 'Hợp tác với kỹ thuật viên này đã kết thúc.');
+    }
+    const leftAt = departureDateOrThrow((req.body ?? {}).left_at);
+
+    const swept = await db.withTransaction(async (tx) => {
+      // Guarded and re-read here rather than trusted from the row above: two presses of the
+      // button, or a technician ending it from her own page at the same moment, both get past
+      // that read and only one of them may date the stint.
+      const ended = await tx.run(
+        `${END_STINT} AND salon_id = ?`, leftAt, 'partner', staffId, salon.id,
+      );
+      if (ended.changes !== 1) {
+        throw httpError(409, 'CONFLICT', 'Hợp tác với kỹ thuật viên này đã kết thúc.');
+      }
+      /* The row keeps user_id, so notifyStaff still reaches her — a stint that ended is still
+         hers, and the date on it is the thing she is being asked to answer for. */
+      await notifyStaff(
+        tx,
+        staffId,
+        'Hợp tác đã kết thúc',
+        `${salon.name} ghi nhận ngày bạn kết thúc làm việc là ${formatDateVN(leftAt)}. Bạn có thể xác nhận hoặc báo sai ngày này trong hồ sơ của mình.`,
+      );
+      return sweepFutureBookings(tx, { staffId, salon, leftAt, actorUserId: req.user.id });
+    });
+
+    res.json({ success: true, data: { left_at: leftAt, ...swept } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.delete('/staff/:id', async (req, res, next) => {
   try {
     const salon = await ownedSalon(req);
     const staffId = requireId(req.params.id, 'Mã kỹ thuật viên không hợp lệ.');
-    await ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
+    const staff = await ownedRow(
+      selectOwnedStaff,
+      staffId,
+      salon.id,
+      'Không tìm thấy kỹ thuật viên này.',
+    );
+
+    /* A row somebody holds is not a line in a list any more. Ending the collaboration is an
+       act with a date on it and two sides to it — her page has to be able to say when she
+       worked here, and she has to be able to answer for the date — and none of that survives
+       being spelled as a deletion. The unclaimed case below is unchanged: that row is the
+       salon's own description of a chair, and taking it off the roster is all it ever was. */
+    if (staff.user_id != null) {
+      throw httpError(
+        409,
+        'CONFLICT',
+        'Kỹ thuật viên này có tài khoản riêng. Hãy kết thúc hợp tác kèm ngày nghỉ thay vì xóa khỏi danh sách.',
+      );
+    }
 
     // Soft delete: past bookings and reviews still point at this row. Whatever claim link
     // was waiting on it goes in the same transaction, because an inactive row can no

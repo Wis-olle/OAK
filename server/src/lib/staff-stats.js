@@ -96,19 +96,44 @@ export const RECOMPUTE_STAFF_RATING = `
 
 /* The date a profile counts from: the roster row's first completed visit, unless the salon
    owner has entered one, in which case that is the answer. The column wins wherever it is
-   set — it is the salon's own statement, confirmed by the technician — and it is empty on
-   every row today, so what a profile shows is derived every time it is read rather than
-   frozen at whatever a sweep once wrote. Completed only: a cancelled visit is not a day
-   anybody worked, and a booking still in the future is not a day anybody has worked yet. A
-   row with neither reads NULL, and the profile says nothing rather than naming a month it
-   cannot know. */
+   set — it is the salon's own statement, and the technician confirms it from their own page —
+   and where it is empty the figure is derived on every read rather than frozen at whatever a
+   sweep once wrote. Completed only: a cancelled visit is not a day anybody worked, and a
+   booking still in the future is not a day anybody has worked yet. A row with neither reads
+   NULL, and the profile says nothing rather than naming a month it cannot know.
+
+   The stint's own columns ride along, because tenureVerified below is asked about the same
+   row on the same read: a page showing a date and a page deciding whether that date is
+   attested to must not be able to disagree by a query. */
 const selectStaffStart = db.prepare(`
   SELECT COALESCE(
-    st.started_at,
-    (SELECT MIN(b.date) FROM bookings b WHERE b.staff_id = st.id AND b.status = 'completed')
-  ) AS started_at
+           st.started_at,
+           (SELECT MIN(b.date) FROM bookings b WHERE b.staff_id = st.id AND b.status = 'completed')
+         ) AS effective_started_at,
+         st.started_at, st.left_at, st.started_confirmed_at, st.left_confirmed_at,
+         st.tenure_disputed
   FROM staff st WHERE st.id = ?
 `);
+
+/**
+ * The ✓ a profile puts beside a date, decided here and nowhere else.
+ *
+ * Three things, all of them: the date exists, the person on the other side of it stamped
+ * their confirmation, and nobody is disputing the stint. A derived start date can never earn
+ * one — st.started_at is the raw column, not the COALESCE above — because what a technician
+ * confirmed is a date the salon entered, and the earliest completed booking is nobody's
+ * statement about anything.
+ *
+ * The dispute flag is one flag over both dates, and it clears both: somebody who says the
+ * dates on their stint are wrong is not making a claim this platform can partly believe.
+ */
+export function tenureVerified(row) {
+  const disputed = Number(row?.tenure_disputed ?? 0) === 1;
+  return {
+    started: Boolean(row?.started_at) && Boolean(row?.started_confirmed_at) && !disputed,
+    left: Boolean(row?.left_at) && Boolean(row?.left_confirmed_at) && !disputed,
+  };
+}
 
 /**
  * Whole calendar months from `startedAt` to `today`, floored — the figure a profile shows
@@ -131,7 +156,8 @@ export function monthsActive(startedAt, today) {
 export async function staffStats(staffId) {
   const tiers = await selectStaffTiers.get(staffId);
   const reviews = await selectStaffReviewStats.get(staffId);
-  const startedAt = (await selectStaffStart.get(staffId))?.started_at ?? null;
+  const tenure = await selectStaffStart.get(staffId);
+  const startedAt = tenure?.effective_started_at ?? null;
 
   return {
     verified_count: tiers.verified_count,
@@ -143,5 +169,8 @@ export async function staffStats(staffId) {
     rating_avg: reviews.rating_avg,
     started_at: startedAt,
     months_active: monthsActive(startedAt, todayISO()),
+    // Served from the same read the date came out of, so a page never has to ask a second
+    // endpoint whether the date it is showing is attested to.
+    tenure_verified: tenureVerified(tenure),
   };
 }

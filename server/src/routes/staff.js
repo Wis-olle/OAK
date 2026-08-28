@@ -196,6 +196,87 @@ router.get('/:id/reviews', async (req, res, next) => {
   }
 });
 
+/* The CV: every stint the person behind this row has held on OAK, newest first.
+ *
+ * Deliberately NOT gated on active = 1, and it is the only read in this file that is not: a
+ * stint that ended is exactly what a career is made of, and the row it is being asked about
+ * may itself be a closed one — a technician between salons has no open row anywhere, and
+ * answering 404 would delete her working life the day she left. The withdrawal is honoured
+ * as it is on the profile itself: claimed AND hidden is 404, in the same words, and a stint
+ * whose page is down is left out of the list rather than reappearing inside another one.
+ *
+ * By staff id in DESCENDING order, which is the order the stints were opened, newest first:
+ * a row is opened when somebody joins a salon, so the ids ARE the sequence. Sorting by
+ * started_at instead would sort by a column that is empty on most rows and puts a stint the
+ * salon back-dated above the one the technician is working today.
+ */
+const selectStaffStints = db.prepare(`
+  SELECT st.id, st.user_id, st.active, st.started_at, st.left_at, st.left_by,
+         st.started_confirmed_at, st.left_confirmed_at, st.tenure_disputed,
+         s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name
+  FROM staff st
+  JOIN salons s ON s.id = st.salon_id
+  WHERE st.user_id = ? AND ${VISIBLE_PROFILE}
+  ORDER BY st.id DESC
+`);
+const selectVisibleStaffRow = db.prepare(`
+  SELECT st.id, st.user_id, st.active, st.started_at, st.left_at, st.left_by,
+         st.started_confirmed_at, st.left_confirmed_at, st.tenure_disputed,
+         s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name
+  FROM staff st
+  JOIN salons s ON s.id = st.salon_id
+  WHERE st.id = ? AND ${VISIBLE_PROFILE}
+`);
+
+/** One stint, in the shape the CV renders: where, when, and what is behind it. */
+async function stintShape(row) {
+  const stats = await staffStats(row.id);
+  return {
+    staff_id: row.id,
+    salon: { id: row.salon_id, slug: row.salon_slug, name: row.salon_name },
+    started_at: stats.started_at,
+    left_at: row.left_at,
+    left_by: row.left_by,
+    started_confirmed: Boolean(row.started_confirmed_at),
+    left_confirmed: Boolean(row.left_confirmed_at),
+    tenure_disputed: row.tenure_disputed ?? 0,
+    // Open stints only, and both halves of it: a row is open while it carries no leaving date
+    // AND is still on the roster, which is the pairing idx_staff_user_salon rests on.
+    is_current: row.left_at === null && row.active === 1,
+    // The badge rule, decided in lib/staff-stats.js so this page and the console cannot come
+    // to different conclusions about the same two columns.
+    tenure_verified: stats.tenure_verified,
+    verified_count: stats.verified_count,
+    review_count: stats.review_count,
+    rating_avg: stats.rating_avg,
+  };
+}
+
+router.get('/:id/history', async (req, res, next) => {
+  try {
+    const row = /^\d+$/.test(req.params.id)
+      ? await selectVisibleStaffRow.get(Number(req.params.id))
+      : null;
+    if (!row) {
+      throw httpError(404, 'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này.');
+    }
+
+    /* A row nobody stands behind is a CV of one: it describes a chair at one salon, and there
+       is no person tying it to any other row. Same answer after an account is erased, which
+       clears user_id off every row it held (RELEASE_STAFF_ROWS in routes/users.js) — the
+       stints stop being one person's history, because there is no longer a person. */
+    const stints = row.user_id === null ? [row] : await selectStaffStints.all(row.user_id);
+
+    const data = [];
+    for (const stint of stints) {
+      data.push(await stintShape(stint));
+    }
+    res.json({ success: true, data, meta: { total: data.length } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const row = /^\d+$/.test(req.params.id)

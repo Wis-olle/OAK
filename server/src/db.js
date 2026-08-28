@@ -289,6 +289,48 @@ ALTER TABLE staff ADD COLUMN IF NOT EXISTS started_at TEXT;
 -- the predicate is always "claimed AND hidden" and never "hidden".
 ALTER TABLE staff ADD COLUMN IF NOT EXISTS profile_hidden INTEGER DEFAULT 0;
 
+-- The day a stint ended, and which side ended it. Leaving a salon is a business event with
+-- a date on it, not a switch: the public profile reads a person's stints as a career, and a
+-- stint that merely stopped being active can only be shown as "trước đây". left_by is kept
+-- because ending a collaboration is a different act depending on who did it, and a console
+-- and a technician's page each have to be able to say which happened.
+--
+-- Nullable, and no backfill: every row already carrying active = 0 ended before there was
+-- anywhere to write a date, and guessing one from the last booking would put a day on a
+-- profile that nobody agreed to. Those rows keep saying "trước đây", which is the truth.
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS left_at TEXT;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS left_by TEXT;
+
+-- The other side's answer to the two dates on the stint. The salon enters started_at and
+-- left_at; the technician stamps the matching *_confirmed_at, or raises tenure_disputed to
+-- say the date is wrong. A date carries its ✓ on the public profile only while it exists, is
+-- confirmed and is undisputed (tenureVerified in lib/staff-stats.js) — there is no
+-- arbitration and nothing finalises itself, because two parties disagreeing about a date is
+-- not something this platform can settle and pretending otherwise would put a ✓ on a guess.
+--
+-- Any owner rewrite of a date clears the stamp beside it and the flag: the confirmation was
+-- of the OLD value, and carrying it across would let a salon re-date a stint under a ✓ the
+-- technician gave to something else.
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS started_confirmed_at TEXT;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS left_confirmed_at TEXT;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS tenure_disputed INTEGER DEFAULT 0;
+
+-- Added only when absent, with no drop first: nothing has ever written this column, so there
+-- is no earlier shape of the rule to replace — unlike bookings_status_check above, which had
+-- to. NULL is inside the rule rather than outside it, the way bookings_source_allowed says
+-- the same thing about a booking's origin.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'staff_left_by_allowed' AND conrelid = 'staff'::regclass
+  ) THEN
+    ALTER TABLE staff ADD CONSTRAINT staff_left_by_allowed CHECK (
+      left_by IS NULL OR left_by IN ('partner','staff')
+    );
+  END IF;
+END $$;
+
 -- One live claimed row per person per salon; the same technician may still hold a row at
 -- every salon they work for. A row is one employment stint: taking someone off the roster
 -- is a soft delete (active = 0) that deliberately keeps user_id, so their past bookings and
@@ -297,8 +339,14 @@ ALTER TABLE staff ADD COLUMN IF NOT EXISTS profile_hidden INTEGER DEFAULT 0;
 -- on user_id alone would let a departed stint sit on (user_id, salon_id) forever and leave
 -- a returning technician unable to claim anything. Unclaimed rows are outside it because
 -- Postgres treats their NULLs as distinct anyway, so the clause only says out loud which
--- rows the rule is about. A later phase refines "open" from active = 1 to a left_at column,
--- which says the same thing in a shape that can also record when.
+-- rows the rule is about.
+--
+-- active = 1 IS the definition of an open stint, and left_at moves with it rather than
+-- replacing it: every departure sets left_at and active = 0 in ONE statement (END_STINT in
+-- lib/staff-departure.js), so the predicate here and the date on the row can never come
+-- apart. Refining the predicate to left_at IS NULL would say exactly the same thing and cost
+-- a drop-and-recreate to say it — CREATE INDEX IF NOT EXISTS keeps a stale predicate under
+-- the same name without a word — so the pairing is the invariant instead.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_user_salon ON staff(user_id, salon_id)
   WHERE user_id IS NOT NULL AND active = 1;
 
