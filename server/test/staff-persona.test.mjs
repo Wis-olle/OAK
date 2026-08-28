@@ -26,6 +26,8 @@ const ui = (name) => fs.readFileSync(path.join(root, '..', 'ui', name), 'utf8');
 const loginHtml = ui('dang-nhap-nhan-vien.html');
 const profileHtml = ui('ho-so-chuyen-gia.html');
 const scheduleHtml = ui('lich-cua-toi.html');
+const profileMeHtml = ui('ho-so-nhan-vien.html');
+const notificationsHtml = ui('thong-bao.html');
 const consoleHtml = ui('quan-ly-lich-hen.html');
 const apiJs = ui('assets/js/oak-api.js');
 const inviteSource = source('lib', 'staff-invite.js');
@@ -647,12 +649,25 @@ function specialistPage(stats) {
 }
 
 /** oakStaffSchedule() over the same kind of stand-in, answering /api/staff-me/profile. */
-function schedulePage(profiles) {
+function schedulePage(profiles, { unread = 0, profileError = null } = {}) {
   const tail = scheduleHtml.slice(scheduleHtml.indexOf('function oakStaffSchedule('));
+  const toasts = [];
   const context = {
     OAK: {
       requireStaff: async () => ({ name: 'KTV Số Liệu' }),
-      api: async (endpoint) => (endpoint === '/api/staff-me/profile' ? profiles : []),
+      toast: (message, type) => toasts.push([message, type]),
+      api: async (endpoint) => {
+        if (endpoint === '/api/staff-me/profile') {
+          if (profileError) {
+            throw new Error(profileError);
+          }
+          return profiles;
+        }
+        if (endpoint.startsWith('/api/notifications')) {
+          return { unread_count: unread };
+        }
+        return [];
+      },
       todayISO: () => '2026-08-28',
       fmtDate: (value) => value,
       fmtTime: (value) => value,
@@ -663,6 +678,7 @@ function schedulePage(profiles) {
     `${tail.slice(0, tail.indexOf('</script>'))}\nresult = oakStaffSchedule();`,
     context,
   );
+  context.result.toasts = toasts;
   return context.result;
 }
 
@@ -1227,4 +1243,419 @@ test('the unread badge already counts these, and gains nothing new', () => {
   );
   assert.doesNotMatch(notificationsSource, /meta: \{[^}]*unread/);
   assert.match(apiJs, /count_only=true/);
+});
+
+// ------------------------------------------- the page the technician owns their half from
+
+/**
+ * oakStaffMe() over a stand-in browser, with every write it sends recorded.
+ *
+ * `sent` is the whole point of the harness: PATCH /api/staff-me/profile refuses an
+ * unrecognised key with a 400, so what has to hold is not what the markup looks like but
+ * what the form actually posts — which is only visible by driving it.
+ */
+function profilePage({
+  profiles = [], reviews = [], unread = 0, patchError = null, reviewsFail = null,
+} = {}) {
+  const tail = profileMeHtml.slice(profileMeHtml.indexOf('const OAK_PORTFOLIO_MAX'));
+  const sent = [];
+  const asked = [];
+  const toasts = [];
+  const context = {
+    // The upload path reads the file before it posts it; nothing here cares what it read.
+    FileReader: class {
+      readAsDataURL(file) {
+        this.result = `data:image/webp;base64,${file.name}`;
+        this.onload();
+      }
+    },
+    OAK: {
+      requireStaff: async () => {
+        asked.push('requireStaff');
+        return { name: 'KTV Số Liệu' };
+      },
+      toast: (message, type) => toasts.push([message, type]),
+      fmtDate: (value) => value,
+      api: async (endpoint, options) => {
+        asked.push(endpoint);
+        if (endpoint.startsWith('/api/notifications')) {
+          return { unread_count: unread };
+        }
+        if (endpoint.startsWith('/api/staff-me/reviews')) {
+          if (reviewsFail) {
+            throw new Error(reviewsFail);
+          }
+          return reviews;
+        }
+        if (endpoint === '/api/uploads') {
+          return { url: UPLOADED };
+        }
+        if (endpoint === '/api/staff-me/profile') {
+          if (!options) {
+            return profiles;
+          }
+          sent.push(options.body);
+          if (patchError) {
+            throw new Error(patchError);
+          }
+          // The server answers with the whole row as it now stands, so the page can read
+          // back what it just wrote.
+          const row = profiles.find((entry) => entry.staff_id === options.body.staff_id);
+          return Object.assign({}, row, options.body);
+        }
+        return assert.fail(`unexpected call: ${endpoint}`);
+      },
+    },
+  };
+  vm.runInNewContext(
+    `${tail.slice(0, tail.indexOf('</script>'))}\nresult = oakStaffMe();`,
+    context,
+  );
+  return Object.assign(context.result, { sent, asked, toasts });
+}
+
+const UPLOADED = 'uploads/moi.webp';
+
+/** What a file picker hands a change handler, and what it hands back after the pick. */
+function pickFile(name) {
+  return { target: { files: [{ name, size: 1024 }], value: name } };
+}
+
+const CLAIMED_ROW = {
+  staff_id: 7,
+  salon: { id: 4, name: 'Lala', slug: 'lala' },
+  name: 'Phương Vy',
+  title: 'KTV chính',
+  specialty: 'Nail nghệ thuật',
+  bio: null,
+  image: null,
+  portfolio: ['uploads/cu.webp'],
+  profile_hidden: 0,
+  active: 1,
+};
+
+test('the profile page stands behind the same gate, and names the same way back in', () => {
+  // requireStaff, not requireLogin: a customer who guessed the URL would otherwise reach a
+  // form whose every request answers 403.
+  assert.match(profileMeHtml, /this\.user = await OAK\.requireStaff\(\);/);
+  // And the sign-out link names the technician's login, which is what requireStaff bounces
+  // to — the same pair lich-cua-toi.html carries.
+  for (const [name, html] of [['ho-so-nhan-vien.html', profileMeHtml], ['lich-cua-toi.html', scheduleHtml]]) {
+    assert.match(html, /data-oak-logout href="dang-nhap-nhan-vien\.html"/, name);
+  }
+  assert.match(apiJs, /var STAFF_LOGIN_PAGE = 'dang-nhap-nhan-vien\.html';/);
+});
+
+test('every write the profile form sends is staff_id plus the four columns it owns', async () => {
+  const page = profilePage({ profiles: [CLAIMED_ROW] });
+  await page.init();
+  assert.ok(page.asked.includes('requireStaff'), 'the page drew itself without asking who it is');
+
+  // Every control on the page, once each.
+  page.bio = 'Mười năm làm nail';
+  await page.saveBio();
+  page.hidden = true;
+  await page.saveHidden();
+  await page.uploadAvatar(pickFile('daidien.webp'));
+  await page.addPhoto(pickFile('tacpham.webp'));
+  await page.removePhoto('uploads/cu.webp');
+
+  /* Read off the bodies actually posted rather than off the markup: PATCH /profile answers
+     an unrecognised key with a 400 rather than dropping it, so what matters is what the form
+     posts and not what it looks like.
+
+     The whitelist is parsed out of the route rather than restated here — the same parse the
+     "writes exactly four columns" case above makes — so the page is measured against the
+     server's real map and not against a copy of it that can go stale. */
+  const OWNED = [...handler(staffMeSource, 'const PROFILE_COLUMNS = {', '};')
+    .matchAll(/^ {2}([a-z_]+): /gm)].map((hit) => hit[1]).sort();
+  assert.equal(OWNED.length, 4, 'PROFILE_COLUMNS has moved');
+  assert.equal(page.sent.length, 5);
+  const written = [];
+  for (const body of page.sent) {
+    assert.equal(body.staff_id, CLAIMED_ROW.staff_id);
+    const fields = Object.keys(body).filter((key) => key !== 'staff_id');
+    assert.ok(fields.length > 0, 'a PATCH with nothing but a staff_id is a 400');
+    for (const key of fields) {
+      assert.ok(OWNED.includes(key), `${key} is the salon's, not the technician's`);
+    }
+    written.push(...fields);
+  }
+  // …and all four are genuinely exercised, so the sweep above ran over a whole form.
+  assert.deepEqual([...new Set(written)].sort(), OWNED);
+
+  // The two picture writes send the list as it will be, because the column is one JSON array.
+  assert.deepEqual(page.sent[3].portfolio, ['uploads/cu.webp', UPLOADED]);
+  assert.deepEqual(page.sent[4].portfolio, [UPLOADED]);
+
+  /* The drive above is only ever as complete as the list of controls it knows to press, so
+     the page's own call sites are read beside it: a sixth writer, or one naming a column the
+     server does not hand over, fails here even though nothing above would think to press it.
+     Both sides of this come out of source — the call sites from the page, the whitelist from
+     the route — so neither can be quietly widened to fit the other. */
+  const sites = [...profileMeHtml.matchAll(/this\.patch\(\w+, \{\s*(\w+):/g)].map((hit) => hit[1]);
+  assert.equal(
+    sites.length,
+    (profileMeHtml.match(/this\.patch\(/g) || []).length,
+    'a patch() call site is written in a shape this scan cannot read',
+  );
+  assert.equal(sites.length, page.sent.length, 'a write on the page that the drive never presses');
+  for (const key of new Set(sites)) {
+    assert.ok(OWNED.includes(key), `the page writes ${key}, which PATCH /profile refuses`);
+  }
+});
+
+test('the withdrawal switch says all four things it does, and undoes itself on a refusal', async () => {
+  const consent = handler(profileMeHtml, '>Hiển thị công khai</h2>', '</section>');
+  // The promise Slice 1 made when the row was claimed, spelled out where it is thrown.
+  assert.match(consent, /trang hồ sơ công khai của bạn không còn mở được/);
+  assert.match(consent, /thẻ của bạn không còn hiện trên trang salon/);
+  assert.match(consent, /Lịch hẹn của bạn và trang quản lý của salon vẫn chạy bình thường/);
+  assert.match(consent, /Bạn tắt lại lúc nào cũng được/);
+  // The box IS the state, so putting the state back puts the box back with it.
+  assert.match(consent, /@change="saveHidden\(\)"[^>]*x-model="hidden"/);
+
+  const page = profilePage({ profiles: [CLAIMED_ROW], patchError: 'Không lưu được.' });
+  await page.init();
+  assert.equal(page.hidden, false);
+
+  page.hidden = true;
+  await page.saveHidden();
+
+  // Never a box claiming a state the server refused.
+  assert.equal(page.hidden, false);
+  assert.equal(page.hiddenError, 'Không lưu được.');
+});
+
+test('the gallery closes at the ceiling the server enforces, not at a number typed twice', async () => {
+  // Read out of the route rather than written here: two copies of "12" is exactly how the
+  // page comes to offer a thirteenth upload the save then throws away.
+  const cap = Number(staffMeSource.match(/const PORTFOLIO_MAX = (\d+);/)[1]);
+  assert.ok(cap > 0, 'PORTFOLIO_MAX has moved');
+
+  const full = Array.from({ length: cap }, (value, index) => `uploads/${index}.webp`);
+  const page = profilePage({ profiles: [{ ...CLAIMED_ROW, portfolio: full }] });
+  await page.init();
+  assert.equal(page.portfolioMax, cap);
+  assert.equal(page.atPortfolioCap(), true);
+
+  // One short of it and the control is open again.
+  const room = profilePage({ profiles: [{ ...CLAIMED_ROW, portfolio: full.slice(1) }] });
+  await room.init();
+  assert.equal(room.atPortfolioCap(), false);
+
+  // And that is what the add control is actually disabled on.
+  assert.match(profileMeHtml, /:disabled="portfolioBusy \|\| atPortfolioCap\(\)"/);
+});
+
+test('the rail badge appears on a count and nowhere else, on both staff pages', async () => {
+  for (const build of [profilePage, (options) => schedulePage([CLAIMED_ROW], options)]) {
+    /* Driven directly rather than read off the state after init(): the badge must not hold
+       the page's own reads up, so init() starts the count and does not await it — and a test
+       that asserts on it afterwards is asserting on microtask ordering. */
+    const quiet = build({ profiles: [CLAIMED_ROW], unread: 0 });
+    await quiet.init();
+    await quiet.loadUnread();
+    assert.equal(quiet.unread, 0);
+
+    const loud = build({ profiles: [CLAIMED_ROW], unread: 4 });
+    await loud.init();
+    await loud.loadUnread();
+    assert.equal(loud.unread, 4);
+  }
+
+  /* One count, the one the bell has always read: {unread_count} out of count_only=true.
+     A second number beside it is a number that can disagree with itself. */
+  for (const [name, html] of [['ho-so-nhan-vien.html', profileMeHtml], ['lich-cua-toi.html', scheduleHtml]]) {
+    assert.match(html, /OAK\.api\('\/api\/notifications\?count_only=true'\)\)\.unread_count/, name);
+    // The number is its own node beside an ordinary Vietnamese one, so the dictionary never
+    // has to hold a string with a count baked into it.
+    assert.match(
+      html,
+      /<span class="sr-only">Thông báo chưa đọc<\/span> <span x-text="unread"><\/span>/,
+      name,
+    );
+    assert.equal((html.match(/x-show="unread"/g) || []).length, 2, name);
+  }
+});
+
+test('the technician rail is one rail, in one order, in all four copies of it', () => {
+  /* No shared-component mechanism in this repo, so the rail is copied markup — four times
+     over two pages. The entries and their order are what must not drift; the marked entry
+     is the one thing each copy is allowed to differ on. */
+  const RAIL = [
+    ['lich-cua-toi.html', 'calendar_month'],
+    ['ho-so-nhan-vien.html', 'person'],
+    ['thong-bao.html', 'notifications'],
+    ['salonUrl(row)', 'storefront'],
+    ['dang-nhap-nhan-vien.html', 'logout'],
+  ];
+
+  let copies = 0;
+  for (const [page, html] of [['lich-cua-toi.html', scheduleHtml], ['ho-so-nhan-vien.html', profileMeHtml]]) {
+    for (const [hook, close] of [['data-oak-staff-nav=""', '</aside>'], ['data-oak-staff-tabs=""', '</nav>']]) {
+      const at = html.indexOf(hook);
+      assert.notEqual(at, -1, `${page}: no ${hook}`);
+      const block = html.slice(at, html.indexOf(close, at));
+      copies += 1;
+
+      assert.deepEqual(
+        [...block.matchAll(/:?href="([^"]*)"/g)].map((match) => match[1]),
+        RAIL.map((entry) => entry[0]),
+        `${page} ${hook}`,
+      );
+      assert.deepEqual(
+        [...block.matchAll(/data-icon="([^"]*)"/g)].map((match) => match[1]),
+        RAIL.map((entry) => entry[1]),
+        `${page} ${hook}`,
+      );
+      // Exactly one entry is marked, and it is the page the copy sits on.
+      assert.deepEqual(
+        [...block.matchAll(/<a aria-current="page"[^>]*href="([^"]*)"/g)].map((hit) => hit[1]),
+        [page],
+        `${page} ${hook}`,
+      );
+    }
+  }
+  assert.equal(copies, 4);
+
+  /* Its own hook, never the customer one: [data-oak-account-nav] and its strip are pinned
+     byte-identical across the six account pages, and this is a different set of entries. */
+  for (const html of [scheduleHtml, profileMeHtml]) {
+    assert.doesNotMatch(html, /<(aside|nav)[^>]*data-oak-account-(nav|tabs)/);
+  }
+});
+
+test("a technician's notice opens the page a technician can act on", () => {
+  /* lib/notify.js writes its own type precisely so the bell can route it somewhere other
+     than the customer's appointment list, and asks for this entry in so many words. */
+  assert.match(notifySource, /const STAFF_NOTIFICATION_TYPE = 'staff';/);
+  const links = handler(notificationsHtml, 'var OAK_NOTIFICATION_LINKS = {', '};');
+  assert.match(links, /^ {8}staff: 'lich-cua-toi\.html',$/m);
+
+  /* And NOT into the booking types: those resolve through booking_id onto
+     xac-nhan-dat-lich.html, which is the customer's own confirmation page. */
+  const bookingTypes = handler(notificationsHtml, 'var OAK_NOTIFICATION_BOOKING_TYPES', ';');
+  assert.doesNotMatch(bookingTypes, /staff/);
+});
+
+test('the rows the rail is drawn from surface their own failure rather than vanishing', async () => {
+  /* The bookings list has an error block of its own and still renders, so a profile read
+     that failed is a toast rather than a page-wide error state — but it is never silence:
+     the rail, the salon chips and the numbers card all come out of these rows. */
+  const page = schedulePage([], { profileError: 'Không kết nối được máy chủ.' });
+  await page.init();
+
+  assert.equal(page.profiles.length, 0);
+  assert.deepEqual(page.toasts, [['Không kết nối được máy chủ.', 'error']]);
+  assert.equal(page.error, '', 'the bookings error block was taken over by the profile read');
+});
+
+test('each roster row is read and written on its own, reviews included', async () => {
+  const second = { ...CLAIMED_ROW, staff_id: 9, salon: { id: 5, name: 'Mộc', slug: 'moc' }, bio: 'Chuyên mi' };
+  const page = profilePage({
+    profiles: [{ ...CLAIMED_ROW, bio: 'Chuyên nail' }, second],
+    reviews: [
+      { id: 1, staff_id: 7, rating: 5, comment: 'Rất khéo', created_at: '2026-08-01', salon: { id: 4, name: 'Lala' } },
+      { id: 2, staff_id: 9, rating: 4, comment: '', created_at: '2026-08-02', salon: { id: 5, name: 'Mộc' } },
+    ],
+  });
+  await page.init();
+
+  // The first claimed row opens, and everything on the page is about that one row.
+  assert.equal(page.selected, 7);
+  assert.equal(page.bio, 'Chuyên nail');
+  assert.deepEqual(page.reviewRows().map((review) => review.id), [1]);
+
+  // One list arrives for every row they hold, so switching is a filter rather than a fetch.
+  const before = page.asked.length;
+  page.select(9);
+  assert.equal(page.bio, 'Chuyên mi');
+  assert.deepEqual(page.reviewRows().map((review) => review.id), [2]);
+  assert.equal(page.asked.length, before);
+
+  // And the write that follows names the row now on screen.
+  page.bio = 'Chuyên mi và nail';
+  await page.saveBio();
+  assert.equal(page.sent[0].staff_id, 9);
+
+  // The switcher itself is only drawn for somebody who holds more than one row.
+  assert.match(profileMeHtml, /x-cloak="" x-show="profiles\.length > 1"/);
+  assert.match(profileMeHtml, /:aria-pressed="row\.staff_id === selected \? 'true' : 'false'"/);
+});
+
+test('a bio half typed survives a look at the other salon, and is dropped once it is saved', async () => {
+  const second = { ...CLAIMED_ROW, staff_id: 9, salon: { id: 5, name: 'Mộc', slug: 'moc' }, bio: 'Chuyên mi' };
+  const page = profilePage({ profiles: [{ ...CLAIMED_ROW, bio: 'Chuyên nail' }, second] });
+  await page.init();
+
+  // Checking what the other row says is not a reason to lose a paragraph.
+  page.bio = 'Mười năm làm nail, chuyên đắp bột';
+  page.select(9);
+  assert.equal(page.bio, 'Chuyên mi');
+  page.select(7);
+  assert.equal(page.bio, 'Mười năm làm nail, chuyên đắp bột');
+
+  /* And once the server has it the stash is dropped, so the row itself is the answer again:
+     a draft left behind here would outrank the column on the next read of the list — which
+     is exactly what the retry button does. */
+  await page.saveBio();
+  assert.ok(!(CLAIMED_ROW.staff_id in page.bioDrafts), 'a saved row keeps a draft to outrank it');
+  assert.equal(page.row().bio, 'Mười năm làm nail, chuyên đắp bột');
+});
+
+test('a picture belongs to the salon it was picked for, not the one on screen when it lands', async () => {
+  /* The switcher stays live for the whole upload on purpose — abandoning a file somebody is
+     waiting on is the worse trade — so both writers that read a file first have to pin their
+     row before the read rather than look it up again when it comes back. */
+  const second = {
+    ...CLAIMED_ROW,
+    staff_id: 9,
+    salon: { id: 5, name: 'Mộc', slug: 'moc' },
+    portfolio: ['uploads/moc.webp'],
+  };
+  const page = profilePage({ profiles: [CLAIMED_ROW, second] });
+  await page.init();
+  assert.equal(page.selected, 7);
+
+  const avatar = page.uploadAvatar(pickFile('cua-lala.webp'));
+  page.select(9);
+  await avatar;
+
+  const gallery = page.addPhoto(pickFile('cua-moc.webp'));
+  page.select(7);
+  await gallery;
+
+  assert.deepEqual(page.sent.map((body) => body.staff_id), [7, 9]);
+  // …and the gallery write appends to the list of the row it was started on, not the one the
+  // switcher happens to be pointing at when the upload lands.
+  assert.deepEqual([...page.sent[1].portfolio], ['uploads/moc.webp', UPLOADED]);
+});
+
+test('a review list that never arrived leaves the half the technician can edit standing', async () => {
+  const page = profilePage({
+    profiles: [CLAIMED_ROW],
+    reviewsFail: 'Không tải được đánh giá.',
+  });
+  await page.init();
+
+  /* The reviews are read-only and the rest of the page is not: a 500 on them used to take
+     the avatar, the bio, the gallery and the withdrawal switch off the page with it, because
+     one catch emptied `profiles` and the x-if that mounts all four reads row(). */
+  assert.equal(page.error, '');
+  assert.equal(page.profiles.length, 1);
+  assert.equal(page.row().staff_id, CLAIMED_ROW.staff_id);
+  assert.equal(page.reviewsError, 'Không tải được đánh giá.');
+
+  // The list says so where the list is, and offers the one thing worth pressing.
+  const section = handler(profileMeHtml, '>Đánh giá về bạn</h2>', '</section>');
+  assert.match(section, /<template x-if="reviewsError">/);
+  assert.match(section, /@click="loadReviews\(\)"/);
+  // …and the empty state stays out of the way of it, rather than claiming there are none.
+  assert.match(section, /<template x-if="!reviewsError &amp;&amp; !reviewRows\(\)\.length">/);
+
+  // Retrying reaches only that read: the editor above it is not re-fetched to fix a list.
+  const before = page.asked.filter((endpoint) => endpoint === '/api/staff-me/profile').length;
+  await page.loadReviews();
+  assert.equal(page.asked.filter((endpoint) => endpoint === '/api/staff-me/profile').length, before);
 });

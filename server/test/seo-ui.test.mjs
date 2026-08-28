@@ -21,6 +21,7 @@ const PRIVATE = [
   'dang-nhap-doi-tac.html', 'dang-nhap-nguoi-dung.html', 'dang-nhap-nhan-vien.html',
   'danh-gia-cua-toi.html',
   'danh-gia-salon.html', 'danh-sach-salon.html', 'dat-lai-mat-khau.html', 'dat-lich.html', 'ho-so-ca-nhan.html',
+  'ho-so-nhan-vien.html',
   'index.html', 'lich-cua-toi.html', 'lich-hen-cua-toi.html', 'quan-ly-dich-vu.html', 'quan-ly-lich-hen.html',
   'quan-ly-nhan-vien.html', 'salon-profile-lala-nail-studio.html', 'thong-bao.html',
   'tong-quan-doi-tac.html', 'xac-nhan-dat-lich.html', 'yeu-thich.html',
@@ -39,7 +40,7 @@ const appJs = fs.readFileSync(path.join(root, 'server/src/app.js'), 'utf8');
 test('exactly the private pages are noindexed', () => {
   const noindexed = pages.filter((page) => /<meta content="noindex,nofollow" name="robots">/.test(readUi(page)));
   assert.deepEqual(noindexed, [...PRIVATE].sort());
-  assert.equal(noindexed.length, 24);
+  assert.equal(noindexed.length, 25);
 });
 
 test('robots.txt keeps crawlers out of the API, the uploads and every private page', () => {

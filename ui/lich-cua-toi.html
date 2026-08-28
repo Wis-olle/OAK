@@ -54,6 +54,17 @@
 <span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="calendar_month">calendar_month</span>
 Lịch của tôi
 </a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="ho-so-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="person">person</span>
+Hồ sơ của tôi
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="notifications">notifications</span>
+Thông báo
+<span class="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-error text-on-error font-caption text-caption" x-cloak="" x-show="unread">
+<span class="sr-only">Thông báo chưa đọc</span> <span x-text="unread"></span>
+</span>
+</a>
 <template :key="row.staff_id" x-for="row in profiles">
 <a :href="salonUrl(row)" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container">
 <span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="storefront">storefront</span>
@@ -86,6 +97,17 @@ Lịch của tôi
 <a aria-current="page" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="lich-cua-toi.html">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="calendar_month">calendar_month</span>
 Lịch của tôi
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="ho-so-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="person">person</span>
+Hồ sơ của tôi
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="notifications">notifications</span>
+Thông báo
+<span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-error text-on-error font-caption text-caption" x-cloak="" x-show="unread">
+<span class="sr-only">Thông báo chưa đọc</span> <span x-text="unread"></span>
+</span>
 </a>
 <template :key="row.staff_id" x-for="row in profiles">
 <a :href="salonUrl(row)" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container">
@@ -292,6 +314,7 @@ Lịch của tôi
             user: null,
             profiles: [],
             bookings: [],
+            unread: 0,
             loading: true,
             error: '',
 
@@ -300,9 +323,24 @@ Lịch của tôi
                 try {
                     this.profiles = await OAK.api('/api/staff-me/profile');
                 } catch (error) {
+                    // The rail and the numbers card are drawn from these rows, and the shift
+                    // below still renders without them: a toast says so without taking the
+                    // page's own error block, which belongs to load().
                     this.profiles = [];
+                    OAK.toast(error.message, 'error');
                 }
+                this.loadUnread();
                 await this.load();
+            },
+
+            /* Silent on failure, exactly like initNotificationBell in assets/js/oak-api.js: a
+               count nobody could fetch is a badge that stays away. */
+            async loadUnread() {
+                try {
+                    this.unread = (await OAK.api('/api/notifications?count_only=true')).unread_count;
+                } catch (error) {
+                    this.unread = 0;
+                }
             },
 
             async load() {

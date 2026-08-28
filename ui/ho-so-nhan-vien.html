@@ -1,0 +1,610 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
+<script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
+<title>Hồ sơ của tôi - OAK Beauty</title>
+<meta content="noindex,nofollow" name="robots">
+<!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
+<link href="assets/css/oak-tailwind.css" rel="stylesheet">
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
+<!-- TopNavBar -->
+<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
+<script src="assets/js/oak-header.js"></script>
+<!-- Main Content -->
+<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full" x-data="oakStaffMe()">
+<div class="flex gap-gutter">
+<!-- The technician rail, desktop. Its own hook rather than the account one: the six
+     customer pages carry an identical rail under [data-oak-account-nav] and this is a
+     different set of entries entirely. -->
+<aside class="hidden md:block w-72 shrink-0 sticky top-28 self-start" data-oak-staff-nav="">
+<nav aria-label="Kỹ thuật viên" class="bg-surface-container-low rounded-lg shadow-sm flex flex-col gap-2 p-4">
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="lich-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="calendar_month">calendar_month</span>
+Lịch của tôi
+</a>
+<a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="ho-so-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="person">person</span>
+Hồ sơ của tôi
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="notifications">notifications</span>
+Thông báo
+<span class="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-error text-on-error font-caption text-caption" x-cloak="" x-show="unread">
+<span class="sr-only">Thông báo chưa đọc</span> <span x-text="unread"></span>
+</span>
+</a>
+<template :key="row.staff_id" x-for="row in profiles">
+<a :href="salonUrl(row)" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="storefront">storefront</span>
+<span x-text="row.salon.name"></span>
+</a>
+</template>
+<a @click.prevent="OAK.logout()" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" data-oak-logout href="dang-nhap-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="logout">logout</span>
+Đăng xuất
+</a>
+</nav>
+</aside>
+<div class="flex-1 min-w-0 max-w-4xl">
+<div class="mt-8 mb-8 border-b border-outline-variant/30 pb-4">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Hồ sơ của tôi</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Ảnh, giới thiệu, ảnh tác phẩm và trạng thái hiển thị là phần hồ sơ bạn tự quản lý.</p>
+</div>
+<!-- The technician rail, mobile. -->
+<nav aria-label="Kỹ thuật viên" class="md:hidden -mx-margin-mobile px-margin-mobile mb-8 overflow-x-auto" data-oak-staff-tabs="">
+<div class="flex gap-2 w-max pb-2">
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="lich-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="calendar_month">calendar_month</span>
+Lịch của tôi
+</a>
+<a aria-current="page" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="ho-so-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="person">person</span>
+Hồ sơ của tôi
+</a>
+<a class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="notifications">notifications</span>
+Thông báo
+<span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-error text-on-error font-caption text-caption" x-cloak="" x-show="unread">
+<span class="sr-only">Thông báo chưa đọc</span> <span x-text="unread"></span>
+</span>
+</a>
+<template :key="row.staff_id" x-for="row in profiles">
+<a :href="salonUrl(row)" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="storefront">storefront</span>
+<span x-text="row.salon.name"></span>
+</a>
+</template>
+<a @click.prevent="OAK.logout()" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" data-oak-logout href="dang-nhap-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="logout">logout</span>
+Đăng xuất
+</a>
+</div>
+</nav>
+<!-- One chip per claimed row, and only for somebody who holds more than one: every section
+     below is about a single roster row, and with one row there is nothing to choose. -->
+<div class="flex flex-wrap gap-2 mb-8" x-cloak="" x-show="profiles.length > 1">
+<template :key="row.staff_id" x-for="row in profiles">
+<button :aria-pressed="row.staff_id === selected ? 'true' : 'false'" :class="row.staff_id === selected ? 'bg-primary-container text-on-primary border-primary-container' : 'bg-transparent text-on-surface-variant border-outline-variant hover:border-primary'" @click="select(row.staff_id)" class="inline-flex items-center gap-2 px-4 py-2 rounded-full border font-label-md text-label-md transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="storefront">storefront</span>
+<span x-text="row.salon.name"></span>
+</button>
+</template>
+</div>
+<div aria-hidden="true" class="flex flex-col gap-6" x-show="loading">
+<template :key="row" x-for="row in 3">
+<div class="bg-surface-container-lowest p-6 flex flex-col gap-3 rounded-xl border border-outline-variant/20">
+<div class="h-6 w-1/3 rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-2/3 rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-1/2 rounded bg-surface-container animate-pulse"></div>
+</div>
+</template>
+</div>
+<template x-if="!loading &amp;&amp; error">
+<div class="flex flex-col items-start gap-3 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
+<div class="flex items-center gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-surface" x-text="error"></p>
+</div>
+<button @click="load()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+</div>
+</template>
+<!-- OAK-EMPTY -->
+<template x-if="!loading &amp;&amp; !error &amp;&amp; !profiles.length">
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="person">person</span>
+<p class="font-body-md text-body-md text-on-surface-variant">Bạn chưa nhận hồ sơ kỹ thuật viên nào.</p>
+</div>
+</template>
+<template x-if="row()">
+<div>
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/20 mb-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Ảnh đại diện</h2>
+<div class="flex flex-wrap items-center gap-6">
+<div class="relative shrink-0">
+<div class="w-28 h-28 rounded-full overflow-hidden bg-surface-variant border-2 border-surface shadow-sm flex items-center justify-center">
+<span aria-hidden="true" class="material-symbols-outlined text-[56px] text-on-surface-variant" x-show="!row().image">person</span>
+<img decoding="async" :src="row().image" alt="Ảnh đại diện" class="w-full h-full object-cover" x-cloak="" x-show="row().image">
+</div>
+<button :disabled="uploading" @click="$refs.avatarInput.click()" aria-label="Đổi ảnh đại diện" class="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-primary-container text-on-primary flex items-center justify-center hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">
+<span class="material-symbols-outlined text-[20px]" data-icon="photo_camera">photo_camera</span>
+</button>
+<input @change="uploadAvatar($event)" accept="image/png, image/jpeg, image/webp" class="hidden" type="file" x-ref="avatarInput">
+</div>
+<div class="min-w-0">
+<p class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="uploading">Đang tải ảnh lên…</p>
+<p class="font-caption text-caption text-on-surface-variant">Ảnh này là ảnh khách thấy trên hồ sơ công khai của bạn. Tối đa 5MB.</p>
+</div>
+</div>
+</section>
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/20 mb-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Giới thiệu</h2>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Vài dòng về tay nghề và phong cách của bạn, tối đa 1000 ký tự.</p>
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-bio">Giới thiệu về bạn</label>
+<textarea class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-bio" maxlength="1000" rows="6" x-model="bio"></textarea>
+<p class="font-caption text-caption text-error mt-4" role="alert" x-cloak="" x-show="bioError" x-text="bioError"></p>
+<button :disabled="bioSaving" @click="saveBio()" class="mt-6 inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="button" x-text="bioSaving ? 'Đang lưu…' : 'Lưu thay đổi'">Lưu thay đổi</button>
+</section>
+<!-- The gallery on the public profile. Each picture saves itself the moment it is picked or
+     dropped, because the column is one JSON list and the whole list is what travels. -->
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/20 mb-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Ảnh tác phẩm</h2>
+<p class="font-caption text-caption text-on-surface-variant mb-2">Vài tác phẩm gần đây của bạn, hiện ngay trên hồ sơ công khai.</p>
+<p class="font-caption text-caption text-on-surface-variant mb-6">
+<span>Đã thêm</span> <span x-text="row().portfolio.length + '/' + portfolioMax"></span> <span>ảnh</span>
+</p>
+<div class="grid grid-cols-2 gap-4 mb-6" x-show="row().portfolio.length > 0">
+<template :key="url" x-for="url in row().portfolio">
+<div class="relative aspect-square rounded-xl overflow-hidden bg-surface-variant">
+<img decoding="async" width="600" height="600" loading="lazy" alt="Ảnh tác phẩm" :src="url" class="w-full h-full object-cover">
+<div class="absolute inset-x-0 bottom-0 flex items-center justify-end px-1 py-1 bg-surface/80 backdrop-blur">
+<button :disabled="portfolioBusy" @click="removePhoto(url)" aria-label="Xóa ảnh" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-error transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+</template>
+</div>
+<!-- OAK-EMPTY -->
+<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-show="row().portfolio.length === 0">Chưa có ảnh tác phẩm nào.</p>
+<p class="font-caption text-caption text-error mb-4" role="alert" x-cloak="" x-show="portfolioError" x-text="portfolioError"></p>
+<p class="font-caption text-caption text-on-surface-variant mb-4" x-cloak="" x-show="atPortfolioCap()">Bạn đã dùng hết số ảnh tối đa. Hãy xóa bớt một ảnh trước khi thêm ảnh mới.</p>
+<label :class="atPortfolioCap() ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary hover:text-primary cursor-pointer'" class="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider transition-colors">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="add_photo_alternate">add_photo_alternate</span>
+<span x-text="portfolioBusy ? 'Đang tải ảnh…' : 'Thêm ảnh'">Thêm ảnh</span>
+<input :disabled="portfolioBusy || atPortfolioCap()" @change="addPhoto($event)" accept="image/jpeg,image/png,image/webp" class="sr-only" type="file">
+</label>
+</section>
+<!-- The switch the consent line promised when the profile was claimed. Saved on the change
+     itself: whether a page is public is not a draft anybody wants sitting in a form. -->
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/20 mb-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Hiển thị công khai</h2>
+<label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer">
+<input :disabled="hiddenSaving" @change="saveHidden()" class="mt-1" type="checkbox" x-model="hidden">
+<span class="flex flex-col gap-1">
+<span class="font-label-md text-label-md text-primary uppercase tracking-widest" x-text="hidden ? 'Đang ẩn hồ sơ' : 'Đang hiện hồ sơ'"></span>
+<span class="font-caption text-caption">Bật: trang hồ sơ công khai của bạn không còn mở được, và thẻ của bạn không còn hiện trên trang salon. Lịch hẹn của bạn và trang quản lý của salon vẫn chạy bình thường. Bạn tắt lại lúc nào cũng được.</span>
+</span>
+</label>
+<p class="font-caption text-caption text-error mt-4" role="alert" x-cloak="" x-show="hiddenError" x-text="hiddenError"></p>
+</section>
+<!-- The salon's half of the row, on the page so the technician can read it — and with
+     nothing to press, because the console is where it is changed. -->
+<section class="bg-surface-container-low p-6 md:p-8 rounded-xl mb-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Thông tin do salon quản lý</h2>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Liên hệ chủ salon để chỉnh sửa.</p>
+<dl class="flex flex-col gap-4">
+<div>
+<dt class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant">Họ và tên</dt>
+<dd class="font-body-md text-body-md text-on-surface" x-text="row().name"></dd>
+</div>
+<div>
+<dt class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant">Chức danh</dt>
+<dd class="font-body-md text-body-md text-on-surface" x-text="row().title || '—'"></dd>
+</div>
+<div>
+<dt class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant">Chuyên môn</dt>
+<dd class="font-body-md text-body-md text-on-surface" x-text="row().specialty || '—'"></dd>
+</div>
+</dl>
+</section>
+<!-- Read-only, like the numbers on Lịch của tôi: what a customer wrote is theirs, and the
+     only thing this page does with it is show it to the person it is about. -->
+<section class="mb-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Đánh giá về bạn</h2>
+<!-- Its own error, and its own way out of it: this list is read-only and the editor above it
+     is not, so a review read that failed must not take the form down with it. -->
+<template x-if="reviewsError">
+<div class="flex flex-col items-start gap-3 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
+<div class="flex items-center gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-surface" x-text="reviewsError"></p>
+</div>
+<button @click="loadReviews()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+</div>
+</template>
+<div class="flex flex-col gap-4">
+<template :key="review.id" x-for="review in reviewRows()">
+<article class="bg-surface-container-lowest p-4 md:p-6 rounded-lg border border-outline-variant/20">
+<div class="flex flex-wrap justify-between items-start gap-3 mb-3">
+<p class="font-headline-sm text-[20px] text-primary min-w-0" x-text="review.salon.name"></p>
+<span class="font-caption text-caption text-on-surface-variant shrink-0" x-text="OAK.fmtDate(review.created_at)"></span>
+</div>
+<div :aria-label="review.rating + '/5'" class="flex items-center gap-1 mb-3" role="img">
+<template x-for="star in 5">
+<span :class="star &lt;= review.rating ? 'text-secondary fill' : 'text-outline-variant'" aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="star">star</span>
+</template>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="review.comment" x-text="review.comment"></p>
+</article>
+</template>
+</div>
+<!-- OAK-EMPTY -->
+<template x-if="!reviewsError &amp;&amp; !reviewRows().length">
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="star_rate">star_rate</span>
+<p class="font-body-md text-body-md text-on-surface-variant">Chưa có đánh giá nào cho hồ sơ này.</p>
+</div>
+</template>
+</section>
+</div>
+</template>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<!-- Brand Column -->
+<div class="col-span-1 md:col-span-1 flex flex-col gap-4">
+<span class="font-headline-sm text-headline-sm text-on-tertiary font-bold">OAK Beauty</span>
+<p class="font-caption text-caption text-on-tertiary/70 mt-4 max-w-xs">
+                    Nâng tầm vẻ đẹp Việt.<br>
+                    Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
+                </p>
+</div>
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
+</div>
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+</div>
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
+<div class="col-span-1 flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
+</div>
+</div>
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
+<div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
+<span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
+</div>
+</footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+
+    /* PORTFOLIO_MAX in server/src/routes/staff-me.js, which refuses a thirteenth picture with a
+       400. Named here so the add control closes at the ceiling rather than letting somebody
+       upload a file the save is going to throw away. */
+    const OAK_PORTFOLIO_MAX = 12;
+
+    function oakStaffMe() {
+        return {
+            user: null,
+            profiles: [],
+            reviews: [],
+            reviewsError: '',
+            // The roster row every section below is about. Null until the first one arrives.
+            selected: null,
+            unread: 0,
+            loading: true,
+            error: '',
+            portfolioMax: OAK_PORTFOLIO_MAX,
+            bio: '',
+            // Half-written text, per roster row, so switching salons does not throw it away.
+            bioDrafts: {},
+            bioSaving: false,
+            bioError: '',
+            hidden: false,
+            hiddenSaving: false,
+            hiddenError: '',
+            uploading: false,
+            portfolioBusy: false,
+            portfolioError: '',
+
+            async init() {
+                this.user = await OAK.requireStaff();
+                this.loadUnread();
+                await this.load();
+            },
+
+            /* Silent on failure, exactly like initNotificationBell in assets/js/oak-api.js: a
+               count nobody could fetch is a badge that stays away, not an error on a page
+               whose own content arrived. */
+            async loadUnread() {
+                try {
+                    this.unread = (await OAK.api('/api/notifications?count_only=true')).unread_count;
+                } catch (error) {
+                    this.unread = 0;
+                }
+            },
+
+            async load() {
+                this.loading = true;
+                this.error = '';
+                try {
+                    this.profiles = await OAK.api('/api/staff-me/profile');
+                    this.select(this.profiles.length ? this.profiles[0].staff_id : null);
+                } catch (error) {
+                    this.profiles = [];
+                    this.error = error.message;
+                } finally {
+                    this.loading = false;
+                }
+                await this.loadReviews();
+            },
+
+            /* Read on its own, and failing on its own. The rows above are the editor — the
+               avatar, the bio, the gallery, the switch — and a read-only list that 500'd must
+               not take any of that off the page; it carries its own line inside its own
+               section instead. One page of fifty rather than the default ten, because the
+               list covers every row the technician holds and is cut down to the selected one
+               here: ten rows shared between two salons can leave that row with none. */
+            async loadReviews() {
+                this.reviewsError = '';
+                try {
+                    this.reviews = await OAK.api('/api/staff-me/reviews?limit=50');
+                } catch (error) {
+                    this.reviews = [];
+                    this.reviewsError = error.message;
+                }
+            },
+
+            /** Move the whole page onto one roster row: the two form fields are per-row state,
+                so they are read back out of that row rather than left on the one before. */
+            select(staffId) {
+                // What is on the row being left is kept rather than dropped; saveBio() clears
+                // it once the server has it, so a saved row comes back from the row itself.
+                if (this.selected !== null) {
+                    this.bioDrafts[this.selected] = this.bio;
+                }
+                this.selected = staffId;
+                const row = this.row();
+                this.bio = staffId in this.bioDrafts ? this.bioDrafts[staffId] : ((row && row.bio) || '');
+                this.hidden = Boolean(row && row.profile_hidden);
+                this.bioError = '';
+                this.hiddenError = '';
+                this.portfolioError = '';
+            },
+
+            /** The claimed row with this id, or null once it is no longer one of theirs. */
+            rowOf(staffId) {
+                return this.profiles.find((row) => row.staff_id === staffId) || null;
+            },
+
+            /** The claimed row on screen, or null before one has arrived. */
+            row() {
+                return this.rowOf(this.selected);
+            },
+
+            salonUrl(row) {
+                return 'salon-profile.html?salon=' + encodeURIComponent(row.salon.slug);
+            },
+
+            /** The reviews of the row on screen. One list arrives for every row the technician
+                holds, so it is cut down here rather than asked for again per row. */
+            reviewRows() {
+                const selected = this.selected;
+                return this.reviews.filter((review) => review.staff_id === selected);
+            },
+
+            /* The one way this page writes. PATCH /api/staff-me/profile owns exactly four
+               columns and answers a fifth key with a 400 rather than dropping it, so every
+               caller here names its own field and the staff_id is added in one place.
+
+               The row is a required argument and never read off `this` here: a default of
+               `this.selected` would be resolved at the moment of the call, which for the two
+               writers that read a file first is after the switcher may have moved — see
+               uploadAvatar below. Every caller captures it before its own first await. */
+            async patch(staffId, fields) {
+                const updated = await OAK.api('/api/staff-me/profile', {
+                    method: 'PATCH',
+                    body: Object.assign({ staff_id: staffId }, fields),
+                });
+                this.profiles = this.profiles.map((row) =>
+                    (row.staff_id === updated.staff_id ? updated : row));
+                return updated;
+            },
+
+            async saveBio() {
+                const staffId = this.selected;
+                this.bioSaving = true;
+                this.bioError = '';
+                try {
+                    await this.patch(staffId, { bio: this.bio });
+                    delete this.bioDrafts[staffId];
+                    OAK.toast('Đã lưu giới thiệu.');
+                } catch (error) {
+                    this.bioError = error.message;
+                } finally {
+                    this.bioSaving = false;
+                }
+            },
+
+            /** Saved on the change itself: whether a page is public is not a form to submit. */
+            async saveHidden() {
+                const staffId = this.selected;
+                this.hiddenSaving = true;
+                this.hiddenError = '';
+                try {
+                    await this.patch(staffId, { profile_hidden: this.hidden });
+                } catch (error) {
+                    // Put back what is actually stored, so the box never claims a state the
+                    // server refused.
+                    this.hidden = !this.hidden;
+                    this.hiddenError = error.message;
+                } finally {
+                    this.hiddenSaving = false;
+                }
+            },
+
+            /** Read the file as a data URL and store it; the caller points a column at it. */
+            async upload(file) {
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error('Không đọc được tệp ảnh.'));
+                    reader.readAsDataURL(file);
+                });
+                return OAK.api('/api/uploads', {
+                    method: 'POST',
+                    body: { filename: file.name, data: dataUrl },
+                });
+            },
+
+            /** The file a picker handed over, or null. Cleared off the input first, so picking
+                the same file twice in a row fires the change event the second time too. */
+            picked(event) {
+                const file = event.target.files[0];
+                event.target.value = '';
+                if (!file) {
+                    return null;
+                }
+                // Same ceiling as POST /api/uploads: past it the body parser fails first, with
+                // a message that says nothing about the size.
+                if (file.size > 5 * 1024 * 1024) {
+                    OAK.toast('Ảnh vượt quá dung lượng tối đa 5MB.', 'error');
+                    return null;
+                }
+                return file;
+            },
+
+            /* The row this picture is for, pinned before the file is read rather than looked
+               up again once it comes back. Reading and uploading take long enough to switch
+               salons under, and the switcher stays live throughout on purpose — abandoning an
+               upload somebody is waiting on is the worse trade — so a picture that lands after
+               a switch has to go to the salon it was picked for. A row that is gone by then
+               (the retry button re-read the list) is left alone rather than guessed at. */
+            async uploadAvatar(event) {
+                const file = this.picked(event);
+                if (!file) {
+                    return;
+                }
+
+                const staffId = this.selected;
+                this.uploading = true;
+                try {
+                    const upload = await this.upload(file);
+                    if (!this.rowOf(staffId)) {
+                        return;
+                    }
+                    await this.patch(staffId, { image: upload.url });
+                    OAK.toast('Đã cập nhật ảnh đại diện.');
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.uploading = false;
+                }
+            },
+
+            atPortfolioCap() {
+                const row = this.row();
+                return Boolean(row) && row.portfolio.length >= this.portfolioMax;
+            },
+
+            /* The column is one JSON list, so both of these send the list as it will be
+               afterwards rather than the one picture that moved. */
+            async addPhoto(event) {
+                const file = this.picked(event);
+                if (!file) {
+                    return;
+                }
+
+                // Pinned the same way, and the list appended to is that row's own.
+                const staffId = this.selected;
+                this.portfolioBusy = true;
+                this.portfolioError = '';
+                try {
+                    const upload = await this.upload(file);
+                    const row = this.rowOf(staffId);
+                    if (!row) {
+                        return;
+                    }
+                    await this.patch(staffId, { portfolio: row.portfolio.concat(upload.url) });
+                } catch (error) {
+                    this.portfolioError = error.message;
+                } finally {
+                    this.portfolioBusy = false;
+                }
+            },
+
+            async removePhoto(url) {
+                const staffId = this.selected;
+                this.portfolioBusy = true;
+                this.portfolioError = '';
+                try {
+                    const kept = this.rowOf(staffId).portfolio.filter((item) => item !== url);
+                    await this.patch(staffId, { portfolio: kept });
+                } catch (error) {
+                    this.portfolioError = error.message;
+                } finally {
+                    this.portfolioBusy = false;
+                }
+            },
+        };
+    }
+</script>
+</body></html>

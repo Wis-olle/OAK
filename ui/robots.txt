@@ -23,6 +23,7 @@ Disallow: /danh-sach-salon.html
 Disallow: /dat-lai-mat-khau.html
 Disallow: /dat-lich.html
 Disallow: /ho-so-ca-nhan.html
+Disallow: /ho-so-nhan-vien.html
 Disallow: /index.html
 Disallow: /lich-cua-toi.html
 Disallow: /lich-hen-cua-toi.html
