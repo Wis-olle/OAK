@@ -1,7 +1,9 @@
 // Customer reviews: create from a completed booking, list own.
 import express from 'express';
 import { db } from '../db.js';
+import { notifyStaff } from '../lib/notify.js';
 import { RECOMPUTE_STAFF_RATING } from '../lib/staff-stats.js';
+import { formatDateVN } from '../lib/time.js';
 import { httpError, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -12,9 +14,16 @@ const MAX_RATING = 5;
 // Reviews are always written and read as the signed-in customer.
 router.use(requireAuth);
 
-const selectBooking = db.prepare(
-  'SELECT id, user_id, salon_id, service_id, staff_id, status FROM bookings WHERE id = ?',
-);
+// code, date and the salon's name are read alongside the ids the review is built from: the
+// technician named by the review is told about it, and a notice that cannot say which visit
+// it is about is not one they can do anything with.
+const selectBooking = db.prepare(`
+  SELECT b.id, b.user_id, b.salon_id, b.service_id, b.staff_id, b.status, b.code, b.date,
+         s.name AS salon_name
+  FROM bookings b
+  JOIN salons s ON s.id = b.salon_id
+  WHERE b.id = ?
+`);
 const selectReviewOfBooking = db.prepare('SELECT id FROM reviews WHERE booking_id = ?');
 // staff_id is read here rather than derived again from the booking: an edit must recompute
 // the average of the technician this review has always pointed at.
@@ -99,6 +108,16 @@ router.post('/', async (req, res, next) => {
         if (booking.staff_id !== null) {
           await tx.run(RECOMPUTE_STAFF_RATING, booking.staff_id, booking.staff_id);
         }
+        /* And the person the review is about hears it from OAK rather than from a customer
+           in the chair next week. In the same transaction as the row it announces, so a
+           review that failed to write cannot leave a notice about it standing. */
+        await notifyStaff(
+          tx,
+          booking.staff_id,
+          'Bạn có đánh giá mới',
+          `Khách đã đánh giá ${rating} sao cho lịch hẹn ${booking.code} tại ${booking.salon_name} ngày ${formatDateVN(booking.date)}.`,
+          booking.id,
+        );
         return written;
       });
     } catch (error) {

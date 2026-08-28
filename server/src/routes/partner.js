@@ -5,7 +5,7 @@ import { db } from '../db.js';
 import { getServiceSlots, getStaffSlots, isSalonOpenFor } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
 import { recordEvent } from '../lib/events.js';
-import { notifyUser } from '../lib/notify.js';
+import { notifyStaff, notifyUser } from '../lib/notify.js';
 import { normalisePhone, normalisedPhoneSql } from '../lib/phone.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
 import {
@@ -882,6 +882,17 @@ router.post('/bookings', async (req, res, next) => {
               bookingId,
             );
           }
+          // The seat was typed at the counter onto somebody's calendar, and that somebody is
+          // not standing at the counter reading it. Unguarded: a walk-in taken without a
+          // technician passes staffId null and a row nobody claimed has no account behind it,
+          // and notifyStaff answers for both so no call site has to.
+          await notifyStaff(
+            tx,
+            staffId,
+            'Lịch hẹn mới trên lịch của bạn',
+            `${salon.name} đã xếp lịch hẹn ${code} ngày ${formatDateVN(date)} lúc ${time} cho bạn.`,
+            bookingId,
+          );
         }),
       );
     } catch (error) {
@@ -1036,6 +1047,13 @@ router.patch('/bookings/:id', async (req, res, next) => {
       movable &&
       Object.hasOwn(patch, 'staff_id') &&
       Number(patch.staff_id ?? 0) !== Number(booking.staff_id ?? 0);
+    /* The technician side of a status change, and 'cancelled' is the whole of it: an hour has
+       come off somebody's day and the console is the only thing that knows. Deliberately NOT
+       'completed' and NOT 'no_show' — both of those are the counter writing down what the
+       technician was standing there for, and ringing their bell for every appointment they
+       finished is how a notification channel stops being read at all. */
+    const staffCancelled = Object.hasOwn(patch, 'status') && patch.status === 'cancelled';
+
     /* The audit's own flag, and deliberately not `restaffed`: that one is gated on `movable`
        because it drives a customer notification, and the reassignments worth writing down
        are precisely the ones it leaves out — a completed or closed row moved onto somebody
@@ -1114,11 +1132,61 @@ router.patch('/bookings/:id', async (req, res, next) => {
           }
         }
 
-        if (notification) {
+        if (notification || staffCancelled || restaffed) {
           const updated = await tx.get(SELECT_OWNED_BOOKING_ROW, bookingId, salon.id);
-          const { title, body: message, type } = notification(salon, updated);
-          // No-op for walk-ins (user_id NULL), so this needs no guard of its own.
-          await notifyUser(tx, booking.user_id, title, message, type, bookingId);
+          if (notification) {
+            const { title, body: message, type } = notification(salon, updated);
+            // No-op for walk-ins (user_id NULL), so this needs no guard of its own.
+            await notifyUser(tx, booking.user_id, title, message, type, bookingId);
+          }
+
+          /* The two people whose day this save changed, on the same read of the row the
+             customer's notice is written from, so all three sentences name the same hour.
+
+             `restaffed` is the customer's flag and it is gated on `movable`, which is exactly
+             the gate this wants too: a cancelled or completed booking moved between two names
+             is a correction to the record — the work is done or the hour is gone — and neither
+             technician has anything to do about it today. And the two branches are exclusive
+             because a save that cancels a booking while reassigning it has ended the hour for
+             everybody; the person who was holding it is told that, once, and the name it
+             passed through on the way out is not news. */
+          const when = `ngày ${formatDateVN(updated.date)} lúc ${updated.time}`;
+          if (staffCancelled) {
+            await notifyStaff(
+              tx,
+              booking.staff_id,
+              'Một lịch hẹn đã bị hủy',
+              `${salon.name} đã hủy lịch hẹn ${updated.code} ${when}.`,
+              bookingId,
+            );
+          } else if (restaffed) {
+            /* One loses an hour and one gains it, so they get different sentences: a single
+               wording covering both would leave each of them working out which half is theirs.
+
+               And the departing side has two cases, because staff_id is nullable: the console
+               can clear a booking back to "Bất kỳ", which takes the hour off this technician
+               without giving it to anybody. Told that it went "sang một kỹ thuật viên khác"
+               they would go looking for a colleague who does not exist — and nothing would
+               correct it, since the arriving call below no-ops on a null. */
+            await notifyStaff(
+              tx,
+              booking.staff_id,
+              patch.staff_id === null
+                ? 'Lịch hẹn đã gỡ khỏi lịch của bạn'
+                : 'Lịch hẹn đã chuyển sang người khác',
+              patch.staff_id === null
+                ? `${salon.name} đã gỡ lịch hẹn ${updated.code} ${when} khỏi lịch của bạn.`
+                : `${salon.name} đã chuyển lịch hẹn ${updated.code} ${when} sang một kỹ thuật viên khác.`,
+              bookingId,
+            );
+            await notifyStaff(
+              tx,
+              patch.staff_id,
+              'Lịch hẹn mới trên lịch của bạn',
+              `${salon.name} đã chuyển lịch hẹn ${updated.code} ${when} sang cho bạn.`,
+              bookingId,
+            );
+          }
         }
       });
     } catch (error) {
@@ -2099,7 +2167,39 @@ router.patch('/staff/:id', async (req, res, next) => {
   try {
     const salon = await ownedSalon(req);
     const staffId = requireId(req.params.id, 'Mã kỹ thuật viên không hợp lệ.');
-    await ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
+    const staff = await ownedRow(
+      selectOwnedStaff,
+      staffId,
+      salon.id,
+      'Không tìm thấy kỹ thuật viên này.',
+    );
+
+    /* The one column on a claimed row that stops being the owner's. A roster row is a shared
+       object: the salon runs the operational half — who this person is on the team, what they
+       do, what hours, whether the stint is open — and the technician owns how they appear,
+       which is the avatar, the bio and the portfolio. bio and portfolio were never in
+       STAFF_COLUMNS, so `image` is the only one that has to be taken back, and it is taken
+       back only once somebody actually stands behind the row: an unclaimed row is the salon's
+       own description of a chair and stays entirely theirs to edit.
+
+       409 rather than a silent drop, for the same reason PATCH /api/staff-me/profile refuses
+       an unknown key: an owner who changed a photo and was told it saved would go on believing
+       they had. The row is read above anyway, so user_id costs no extra query.
+
+       What counts is that the value actually CHANGED, not that the form posted it — the same
+       rule the customer notices twenty lines up in this file are gated on, for the same
+       reason. quan-ly-nhan-vien.html sends name, title, specialty and image on every save and
+       awaits this PATCH before the schedule and service PUTs, so refusing on the presence of
+       the key would refuse the whole form: a claimed technician's title, hours and service
+       list would all become unsaveable, which is a frozen roster rather than a boundary.
+       Parsed through the column's own validator before comparing, so the '' the form sends for
+       an empty photo and the NULL the column holds are compared as the same thing. */
+    if (staff.user_id != null && Object.hasOwn(req.body ?? {}, 'image')) {
+      const wanted = STAFF_COLUMNS.image(req.body.image);
+      if (wanted !== (staff.image ?? null)) {
+        throw httpError(409, 'CONFLICT', 'Ảnh đại diện do kỹ thuật viên tự quản lý.');
+      }
+    }
 
     const { assignments, values } = await buildPatch(req.body ?? {}, STAFF_COLUMNS);
     await db

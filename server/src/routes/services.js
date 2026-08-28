@@ -62,6 +62,11 @@ const selectCategoryCount = db.prepare(`
   WHERE sv.category = ? AND sv.active = 1 AND s.published = 1
 `);
 
+/* Deliberately NOT gated on staff.profile_hidden. This is the booking wizard's technician
+   picker — dat-lich.html and chi-tiet-dich-vu.html both choose from this list — so it is
+   operational, not a profile surface: a technician who has taken their public page down is
+   still working this week, and dropping them out of the picker would quietly take a salon's
+   chair off sale. The withdrawal hides a page, never a person's shift. */
 const selectServiceStaff = db.prepare(`
   SELECT st.id, st.name, st.title, st.specialty, st.image, st.rating, st.years_experience
   FROM staff st

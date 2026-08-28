@@ -6427,12 +6427,674 @@ async function groupStaffPersona() {
         'and the months are counted from it, not from the bookings',
         declaredStats,
       );
+
+      /* -- a hidden flag on a row nobody stands behind changes nothing ------------ */
+
+      /* profile_hidden is the technician's withdrawal of their own page, so the predicate
+         everywhere is "claimed AND hidden" and never "hidden". A row nobody has claimed is the
+         salon's own description of a chair: there is no person behind it to have withdrawn
+         anything, and a bare flag test would let a stray column value quietly delete a roster
+         entry off a salon's page. Only SQL can stage this — no route will set the column on a
+         row it cannot prove the caller holds — which is why it lives in here. */
+      const unclaimedHidden = ok(
+        await partner.fetch('/api/partner/staff', {
+          method: 'POST',
+          json: { name: 'KTV Chưa Nhận Bị Ẩn' },
+        }),
+        'POST /api/partner/staff (an unclaimed row to hide by hand)',
+      );
+      await directClient.query('UPDATE staff SET profile_hidden = 1 WHERE id = $1', [
+        unclaimedHidden.id,
+      ]);
+      const hiddenUnclaimedResponse = await session('guest').fetch(
+        `/api/staff/${unclaimedHidden.id}`,
+      );
+      const hiddenUnclaimedRoster = await session('guest').fetch(
+        `/api/salons/${state.lalaId}/staff`,
+      );
+      /* Put back before anything is asserted, the way the stored start date above is: a flag
+         left standing would follow this row into whatever is appended to the group next and
+         point at the wrong code when it failed. */
+      await directClient.query('UPDATE staff SET profile_hidden = 0 WHERE id = $1', [
+        unclaimedHidden.id,
+      ]);
+      ok(hiddenUnclaimedResponse, 'GET /api/staff/:id (unclaimed, flag set by hand)');
+      assert(
+        ok(hiddenUnclaimedRoster, 'GET /api/salons/:id/staff (with an unclaimed row flagged)')
+          .some((member) => member.id === unclaimedHidden.id),
+        'an unclaimed row carrying the flag must still be listed: nobody withdrew it',
+        hiddenUnclaimedRoster,
+      );
     } finally {
       await directClient.end();
     }
   } else {
     skip('the tier partition needs a legacy row, which no route can write any more');
   }
+
+  /* -- the personal half of a roster row, and who may write it ---------------- */
+
+  /* Staged on a row and an account opened here rather than on the seeded ones: this block
+     rewrites a bio, takes a public page down and moves bookings on and off a calendar, and
+     every one of those is something the groups around it would read differently. The row gets
+     a full week and the service attached so the operational surfaces further down have
+     something to answer with. */
+  const personaRow = ok(
+    await partner.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: {
+        name: 'KTV Tự Quản Hồ Sơ',
+        schedule: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+          weekday,
+          start: '00:00',
+          end: '23:59',
+          is_off: 0,
+        })),
+        service_ids: [service.id],
+      },
+    }),
+    'POST /api/partner/staff (the row whose holder owns its personal half)',
+  );
+  const personaInvite = ok(
+    await partner.fetch(`/api/partner/staff/${personaRow.id}/invite`, { method: 'POST' }),
+    'POST invite for the technician who owns their own page',
+  );
+  const persona = new Session();
+  ok(
+    await persona.fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        token: tokenOf(personaInvite.url),
+        name: 'KTV Tự Quản Hồ Sơ',
+        email: `persona${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/staff/register (the technician who owns their own page)',
+  );
+  // A row nobody stands behind, for the two halves of every rule below that turn on that.
+  const chairRow = ok(
+    await partner.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: { name: 'KTV Ghế Trống', service_ids: [service.id] },
+    }),
+    'POST /api/partner/staff (a chair nobody stands behind)',
+  );
+
+  const BIO = 'Mình theo nghề nail tám năm, thích những bộ móng gọn và bền màu.';
+  const PORTFOLIO = ['assets/img/tac-pham-1.webp', 'https://cdn.oak.test/tac-pham-2.webp'];
+  const AVATAR = 'assets/img/ktv-tu-quan.webp';
+
+  const saved = ok(
+    await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id, bio: BIO, portfolio: PORTFOLIO, image: AVATAR },
+    }),
+    'PATCH /api/staff-me/profile (bio, portfolio and avatar at once)',
+  );
+  assert(saved.bio === BIO, 'the reply must carry the bio that was just written', saved);
+  assert(
+    JSON.stringify(saved.portfolio) === JSON.stringify(PORTFOLIO),
+    'the portfolio must come back as the array it went in as, not as the JSON column',
+    saved,
+  );
+  assert(saved.image === AVATAR, 'the avatar must have been written', saved);
+
+  // Read back both ways: through the technician's own list, and through the public page it
+  // exists to fill. The two are one row, and a save that only one of them can see is a lie.
+  const ownProfileResponse = await persona.fetch('/api/staff-me/profile');
+  const ownProfileRow = ok(ownProfileResponse, 'GET /api/staff-me/profile after the save').find(
+    (row) => row.staff_id === personaRow.id,
+  );
+  assert(
+    ownProfileRow?.bio === BIO && ownProfileRow.image === AVATAR,
+    'the technician reads back what they just wrote',
+    ownProfileResponse,
+  );
+  assert(
+    ownProfileRow.profile_hidden === 0,
+    'a profile nobody has hidden reads as visible',
+    ownProfileResponse,
+  );
+  const publicResponse = await session('guest').fetch(`/api/staff/${personaRow.id}`);
+  const publicPage = ok(publicResponse, 'GET /api/staff/:id after the save');
+  assert(
+    publicPage.bio === BIO && publicPage.image === AVATAR,
+    'the public page shows what the technician wrote',
+    publicResponse,
+  );
+  assert(
+    JSON.stringify(publicPage.portfolio) === JSON.stringify(PORTFOLIO),
+    'and the gallery with it',
+    publicResponse,
+  );
+
+  /* A form with a blank row left in it. isSafeMediaUrl calls an empty value safe — which is
+     right for a nullable column, where empty is how the field is cleared — so without a filter
+     the blank is stored and the public gallery renders an <img src=""> for it. */
+  const trimmed = ok(
+    await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id, portfolio: [PORTFOLIO[0], '', '   ', PORTFOLIO[1]] },
+    }),
+    'PATCH /api/staff-me/profile (a gallery with blank rows in it)',
+  );
+  assert(
+    JSON.stringify(trimmed.portfolio) === JSON.stringify(PORTFOLIO),
+    'a blank gallery row is dropped rather than stored as an empty image',
+    trimmed,
+  );
+
+  /* A roster row the caller does not hold answers exactly like one that does not exist. Minh
+     Anh is a real Lala row and this technician is a real technician: a 403 here would confirm
+     the id, which is the whole of what a 404 is protecting. */
+  expectError(
+    await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: minhAnh.id, bio: 'Không phải hồ sơ của tôi.' },
+    }),
+    404,
+    'NOT_FOUND',
+    "PATCH /api/staff-me/profile on somebody else's roster row",
+  );
+
+  /* The operational half is the salon's, and posting it is refused rather than dropped: a
+     technician who renamed themselves, got a 200 and then found the old name still on their
+     page would be arguing with the site about who they are. */
+  for (const [field, value] of [
+    ['name', 'Tên Tôi Tự Đặt'],
+    ['title', 'Giám đốc nghệ thuật'],
+  ]) {
+    expectError(
+      await persona.fetch('/api/staff-me/profile', {
+        method: 'PATCH',
+        json: { staff_id: personaRow.id, [field]: value },
+      }),
+      400,
+      'VALIDATION_ERROR',
+      `PATCH /api/staff-me/profile with ${field} in the body`,
+    );
+  }
+  expectError(
+    await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/staff-me/profile with nothing to change',
+  );
+  // Every gallery entry goes through the same guard the avatar does: these strings come back
+  // out of the column straight into the profile's <img> bindings.
+  expectError(
+    await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id, portfolio: ['javascript:alert(1)'] },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/staff-me/profile with a script url in the gallery',
+  );
+
+  /* -- and the owner's side of the same row ----------------------------------- */
+
+  const refusedPhoto = await partner.fetch(`/api/partner/staff/${personaRow.id}`, {
+    method: 'PATCH',
+    json: { name: 'Tên Chủ Salon Đặt Lại', image: 'assets/img/chu-salon-doi.webp' },
+  });
+  expectError(refusedPhoto, 409, 'CONFLICT', 'PATCH image on a claimed roster row');
+  // Pinned: the console shows the server's own sentence, so this string is the whole of what
+  // an owner is told about why the save did not go through.
+  assert(
+    refusedPhoto.body?.error?.message === 'Ảnh đại diện do kỹ thuật viên tự quản lý.',
+    'the refusal must name whose the avatar is, in the words the console will show',
+    refusedPhoto,
+  );
+  // Refused before the patch is built, so a body carrying the photo AND the name writes
+  // neither half rather than half of it.
+  const untouched = ok(
+    await partner.fetch(`/api/partner/staff/${personaRow.id}`),
+    'GET /api/partner/staff/:id after the refused photo',
+  );
+  assert(
+    untouched.name === 'KTV Tự Quản Hồ Sơ' && untouched.image === AVATAR,
+    'a refused save must leave the whole row exactly as it was',
+    untouched,
+  );
+
+  /* The rest of the row is still the salon's, and the save that carries it looks exactly like
+     the one above bar one field: quan-ly-nhan-vien.html posts name, title, specialty AND image
+     on every save, and awaits this PATCH before the schedule and service PUTs. So the ordinary
+     console save echoes the photo it was shown, unchanged, and must go through — refusing it
+     would leave a claimed technician's title, hours and service list unsaveable. */
+  const renamed = ok(
+    await partner.fetch(`/api/partner/staff/${personaRow.id}`, {
+      method: 'PATCH',
+      json: { name: 'KTV Tự Quản Hồ Sơ', title: 'Chuyên viên nail', image: AVATAR },
+    }),
+    'PATCH name and title on a claimed roster row, echoing the photo unchanged',
+  );
+  assert(renamed.title === 'Chuyên viên nail', 'the owner still writes the operational half');
+  assert(renamed.image === AVATAR, 'and the photo it echoed is still the technician’s own');
+
+  /* The same save on a technician who has not set a photo at all: the column holds NULL and
+     the form sends null — or '', which is the same absence spelled the way a text input
+     spells it. Both have to read as unchanged, or an empty photo field would freeze the row
+     just as surely as a filled one. */
+  ok(
+    await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id, image: null },
+    }),
+    'PATCH /api/staff-me/profile (the technician clears their own photo)',
+  );
+  for (const [spelling, value] of [
+    ['null', null],
+    ['an empty string', ''],
+  ]) {
+    const echoed = ok(
+      await partner.fetch(`/api/partner/staff/${personaRow.id}`, {
+        method: 'PATCH',
+        json: { name: 'KTV Tự Quản Hồ Sơ', specialty: 'Nail nghệ thuật', image: value },
+      }),
+      `PATCH a claimed row with no photo, echoing the empty field as ${spelling}`,
+    );
+    assert(
+      echoed.specialty === 'Nail nghệ thuật' && echoed.image === null,
+      `an unset photo echoed back as ${spelling} is not a change`,
+      echoed,
+    );
+  }
+  ok(
+    await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id, image: AVATAR },
+    }),
+    'PATCH /api/staff-me/profile (the technician puts their photo back)',
+  );
+  // And on a row nobody stands behind, the photo is the salon's too — there is no technician
+  // there to have taken it over.
+  const chairPhoto = ok(
+    await partner.fetch(`/api/partner/staff/${chairRow.id}`, {
+      method: 'PATCH',
+      json: { image: 'assets/img/ghe-trong.webp' },
+    }),
+    'PATCH image on an unclaimed roster row',
+  );
+  assert(
+    chairPhoto.image === 'assets/img/ghe-trong.webp',
+    'an unclaimed row is the salon’s own description of a chair',
+    chairPhoto,
+  );
+
+  /* -- what a technician is told about their own day -------------------------- */
+
+  /** The technician's own notices, counted by the type only they receive. */
+  const staffBell = async (label) =>
+    ok(await persona.fetch('/api/notifications'), label).filter((row) => row.type === 'staff')
+      .length;
+  const unreadCount = async (label) =>
+    ok(await persona.fetch('/api/notifications?count_only=true'), label).unread_count;
+
+  let bell = await staffBell('GET /api/notifications (the technician, before anything)');
+  let unread = await unreadCount('GET /api/notifications?count_only=true (before anything)');
+  /* Counted before and after each trigger rather than totalled at the end: what has to hold is
+     that one event rings exactly once, and a total cannot tell one event ringing twice from
+     two events ringing once. The badge is read alongside, because it is the same rows counted
+     a second way and the two must never disagree. */
+  const rang = async (expected, label) => {
+    const now = await staffBell(`GET /api/notifications (${label})`);
+    assert(now === bell + expected, `${label}: expected ${expected} new notice(s), saw ${now - bell}`);
+    bell = now;
+    const nowUnread = await unreadCount(`unread count (${label})`);
+    assert(
+      nowUnread === unread + expected,
+      `${label}: the unread badge must move with the bell`,
+    );
+    unread = nowUnread;
+  };
+
+  /** A free hour on this technician's calendar, as the booking wizard finds it. */
+  const personaSlot = async (taken) => {
+    const response = await session('guest').fetch(
+      `/api/staff/${personaRow.id}/availability?from=${addDays(state.today, 3)}&days=7&service_id=${service.id}`,
+    );
+    for (const day of ok(response, 'GET /api/staff/:id/availability (persona)').week) {
+      for (const slot of day.slots) {
+        const clash = taken.some((one) => one.date === day.date && one.time === slot.time);
+        if (slot.available && !clash) {
+          return { date: day.date, time: slot.time };
+        }
+      }
+    }
+    return null;
+  };
+  /** POST /api/bookings on this technician, confirmed however the salon is set today. */
+  const bookOnPersona = async (slot, label) => {
+    const created = ok(
+      await session('customer').fetch('/api/bookings', {
+        method: 'POST',
+        json: {
+          salon_id: state.lalaId,
+          service_id: service.id,
+          staff_id: personaRow.id,
+          ...slot,
+        },
+      }),
+      `POST /api/bookings (${label})`,
+    );
+    if (created.status === 'pending') {
+      ok(
+        await partner.fetch(`/api/partner/bookings/${created.id}`, {
+          method: 'PATCH',
+          json: { status: 'confirmed' },
+        }),
+        `PATCH /api/partner/bookings/:id (confirm the ${label})`,
+      );
+    }
+    return created;
+  };
+
+  // 1. A customer puts an hour on their calendar.
+  const customerSlot = await personaSlot([]);
+  assert(customerSlot !== null, 'the notification case needed a free hour on the technician');
+  const customerBooking = await bookOnPersona(customerSlot, 'the hour a customer books');
+  await rang(1, 'a customer booking lands on their calendar');
+
+  // 2. And so does the counter. Same event, other door.
+  const walkIn = ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: personaRow.id,
+        date: bookingDate,
+        time: '10:05',
+        customer_name: 'Khách Tại Quầy Của Tôi',
+      },
+    }),
+    'POST /api/partner/bookings (a walk-in onto the technician)',
+  );
+  await rang(1, 'a walk-in typed onto their calendar');
+
+  // The same walk-in onto a chair nobody stands behind reaches nobody at all, which is the
+  // whole reason the account is resolved off the roster row rather than passed in.
+  ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: chairRow.id,
+        date: bookingDate,
+        time: '10:15',
+        customer_name: 'Khách Của Ghế Trống',
+      },
+    }),
+    'POST /api/partner/bookings (a walk-in onto an unclaimed row)',
+  );
+  await rang(0, 'a walk-in on a row nobody holds notifies nobody');
+
+  // 3. The reassignment, from both ends: one loses the hour, one gains it.
+  ok(
+    await partner.fetch(`/api/partner/bookings/${walkIn.id}`, {
+      method: 'PATCH',
+      json: { staff_id: chairRow.id },
+    }),
+    'PATCH staff_id off the technician',
+  );
+  await rang(1, 'the hour leaving their day');
+  ok(
+    await partner.fetch(`/api/partner/bookings/${walkIn.id}`, {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id },
+    }),
+    'PATCH staff_id back onto the technician',
+  );
+  await rang(1, 'the hour arriving on their day');
+
+  // 4. Both ways an appointment is cancelled: by the console, and by the customer.
+  ok(
+    await partner.fetch(`/api/partner/bookings/${walkIn.id}`, {
+      method: 'PATCH',
+      json: { status: 'cancelled' },
+    }),
+    'PATCH status cancelled on the technician’s walk-in',
+  );
+  await rang(1, 'the console cancelling an hour off their day');
+  ok(
+    await session('customer').fetch(`/api/bookings/${customerBooking.id}/cancel`, {
+      method: 'PATCH',
+      json: {},
+    }),
+    'PATCH /api/bookings/:id/cancel (the customer cancels)',
+  );
+  await rang(1, 'the customer cancelling an hour off their day');
+
+  /* The chair cleared rather than handed on. staff_id is nullable, so the console can put a
+     booking back to "Bất kỳ", and that takes the hour off this technician without giving it to
+     anybody: the arriving call no-ops on a null, so whatever the departing sentence says is
+     the last word on it. Telling them it went to a colleague would send them looking for one. */
+  const clearedBooking = ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: personaRow.id,
+        date: bookingDate,
+        time: '10:25',
+        customer_name: 'Khách Gỡ Kỹ Thuật Viên',
+      },
+    }),
+    'POST /api/partner/bookings (the walk-in whose chair gets cleared)',
+  );
+  await rang(1, 'the walk-in that is about to be cleared off their calendar');
+  ok(
+    await partner.fetch(`/api/partner/bookings/${clearedBooking.id}`, {
+      method: 'PATCH',
+      json: { staff_id: null },
+    }),
+    'PATCH staff_id back to "Bất kỳ"',
+  );
+  await rang(1, 'the hour taken off their calendar and handed to nobody');
+  const clearedNotice = ok(
+    await persona.fetch('/api/notifications'),
+    'GET /api/notifications after the chair was cleared',
+  )[0];
+  assert(
+    clearedNotice.body.includes('khỏi lịch của bạn'),
+    'a booking cleared to "Bất kỳ" says it left their calendar',
+    clearedNotice,
+  );
+  assert(
+    !clearedNotice.body.includes('sang một kỹ thuật viên khác'),
+    'and must not name a colleague who does not exist',
+    clearedNotice,
+  );
+
+  /* One save that cancels AND reassigns. The hour has ended for everybody, so the technician
+     who was holding it is told once — that it was cancelled — and the name it passed through
+     on the way out is not news. Two notices here would be the console ringing twice for one
+     event, which is the failure the branch is written to avoid. */
+  const bothAtOnce = ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: personaRow.id,
+        date: bookingDate,
+        time: '10:35',
+        customer_name: 'Khách Vừa Hủy Vừa Chuyển',
+      },
+    }),
+    'POST /api/partner/bookings (to be cancelled and reassigned in one save)',
+  );
+  await rang(1, 'the walk-in that is about to be cancelled and reassigned at once');
+  ok(
+    await partner.fetch(`/api/partner/bookings/${bothAtOnce.id}`, {
+      method: 'PATCH',
+      json: { status: 'cancelled', staff_id: chairRow.id },
+    }),
+    'PATCH cancelling and reassigning in one save',
+  );
+  await rang(1, 'a save that cancels while reassigning rings exactly once');
+
+  // 5. A review naming them — and, on the way to it, the two closures that deliberately do
+  //    not ring: a technician does not need their own bell rung for work they just finished.
+  const reviewSlot = await personaSlot([customerSlot]);
+  assert(reviewSlot !== null, 'the review case needed a second free hour on the technician');
+  const reviewed = await bookOnPersona(reviewSlot, 'the visit that gets reviewed');
+  await rang(1, 'the reviewable booking landing on their calendar');
+  ok(
+    await partner.fetch(`/api/partner/bookings/${reviewed.id}`, {
+      method: 'PATCH',
+      json: { date: addDays(state.today, -1) },
+    }),
+    'PATCH the reviewable visit into yesterday',
+  );
+  ok(
+    await partner.fetch(`/api/partner/bookings/${reviewed.id}`, {
+      method: 'PATCH',
+      json: { status: 'completed' },
+    }),
+    'PATCH the reviewable visit to completed',
+  );
+  await rang(0, 'finishing an appointment is not news for the person who worked it');
+  ok(
+    await session('customer').fetch('/api/reviews', {
+      method: 'POST',
+      json: { booking_id: reviewed.id, rating: 5, comment: 'Rất ưng bộ móng.' },
+    }),
+    'POST /api/reviews (on the technician who owns their page)',
+  );
+  await rang(1, 'a review naming them');
+
+  /* -- and their own list of what customers said ------------------------------ */
+
+  const ownReviewsResponse = await persona.fetch('/api/staff-me/reviews');
+  const ownReviews = ok(ownReviewsResponse, 'GET /api/staff-me/reviews');
+  assert(ownReviews.length === 1, 'the technician reads their one review', ownReviewsResponse);
+  assert(
+    ownReviews[0].staff_id === personaRow.id && ownReviews[0].rating === 5,
+    'and it is the review of their own visit',
+    ownReviewsResponse,
+  );
+  assert(
+    ownReviews[0].salon.name === 'Lala Nail Studio' &&
+      ownReviews[0].booking_date === addDays(state.today, -1),
+    'each row carries the salon and the day, so it means something on its own',
+    ownReviewsResponse,
+  );
+  assert(
+    ownReviewsResponse.body.meta.total === 1,
+    'GET /api/staff-me/reviews: expected the house pagination meta',
+    ownReviewsResponse,
+  );
+  // Scoped through the claim and never through an id in the request: another technician's
+  // reviews are not on this list, and this technician's are not on theirs.
+  const neighbourReviews = ok(
+    await staffClient.fetch('/api/staff-me/reviews'),
+    'GET /api/staff-me/reviews (another technician)',
+  );
+  assert(
+    !neighbourReviews.some((row) => row.staff_id === personaRow.id),
+    "one technician's reviews never reach another's list",
+    neighbourReviews,
+  );
+  expectError(
+    await session('customer').fetch('/api/staff-me/reviews'),
+    403,
+    'FORBIDDEN',
+    'GET /api/staff-me/reviews as a customer',
+  );
+
+  /* -- taking the page down, and what stays up -------------------------------- */
+
+  const hidden = ok(
+    await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id, profile_hidden: 1 },
+    }),
+    'PATCH /api/staff-me/profile (hide the page)',
+  );
+  assert(hidden.profile_hidden === 1, 'the switch must read as thrown', hidden);
+
+  // The page itself, and the review list that IS the rest of that page.
+  expectError(
+    await session('guest').fetch(`/api/staff/${personaRow.id}`),
+    404,
+    'NOT_FOUND',
+    'GET /api/staff/:id on a withdrawn profile',
+  );
+  expectError(
+    await session('guest').fetch(`/api/staff/${personaRow.id}/reviews`),
+    404,
+    'NOT_FOUND',
+    'GET /api/staff/:id/reviews on a withdrawn profile',
+  );
+  const rosterWhileHidden = await session('guest').fetch(`/api/salons/${state.lalaId}/staff`);
+  assert(
+    !ok(rosterWhileHidden, 'GET /api/salons/:id/staff while hidden').some(
+      (member) => member.id === personaRow.id,
+    ),
+    "the salon page's team section is a profile surface, so a withdrawn page leaves it",
+    rosterWhileHidden,
+  );
+
+  /* And everything operational carries on exactly as it did. A technician who has taken their
+     page down is still at work today: the wizard still offers them, their day strip still
+     answers, the console still lists them, and they can still see their own row. */
+  const pickerWhileHidden = await session('guest').fetch(`/api/services/${service.id}/staff`);
+  assert(
+    ok(pickerWhileHidden, 'GET /api/services/:id/staff while hidden').some(
+      (member) => member.id === personaRow.id,
+    ),
+    'the booking wizard must still be able to offer a technician who hid their page',
+    pickerWhileHidden,
+  );
+  const weekWhileHidden = await session('guest').fetch(
+    `/api/staff/${personaRow.id}/availability?days=1`,
+  );
+  assert(
+    ok(weekWhileHidden, 'GET /api/staff/:id/availability while hidden').week.length === 1,
+    'the day strip must still answer for a technician who hid their page',
+    weekWhileHidden,
+  );
+  const consoleWhileHidden = await partner.fetch('/api/partner/staff');
+  assert(
+    ok(consoleWhileHidden, 'GET /api/partner/staff while hidden').some(
+      (member) => member.id === personaRow.id,
+    ),
+    "the console is the salon's own view of its roster, and keeps the whole roster",
+    consoleWhileHidden,
+  );
+  const selfWhileHidden = await persona.fetch('/api/staff-me/profile');
+  assert(
+    ok(selfWhileHidden, 'GET /api/staff-me/profile while hidden').some(
+      (row) => row.staff_id === personaRow.id && row.profile_hidden === 1,
+    ),
+    'a technician must be able to see the switch they threw, and to throw it back',
+    selfWhileHidden,
+  );
+
+  // Thrown back, and the page returns whole: a withdrawal is reversible, and nothing about
+  // the row was deleted to honour it.
+  ok(
+    await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id, profile_hidden: 0 },
+    }),
+    'PATCH /api/staff-me/profile (put the page back up)',
+  );
+  const restored = ok(
+    await session('guest').fetch(`/api/staff/${personaRow.id}`),
+    'GET /api/staff/:id after the page went back up',
+  );
+  assert(restored.bio === BIO, 'the page comes back exactly as it was', restored);
+  ok(
+    await session('guest').fetch(`/api/staff/${personaRow.id}/reviews`),
+    'GET /api/staff/:id/reviews after the page went back up',
+  );
 
   /* -- the preview allowance, spent deliberately and last --------------------- */
 

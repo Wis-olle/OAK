@@ -66,10 +66,17 @@ const selectPhotos = db.prepare(
   'SELECT id, image, caption, sort FROM salon_photos WHERE salon_id = ? ORDER BY sort, id',
 );
 
+/* The salon page's public team section and the "other technicians" strip on a profile both
+   read this list, so both are profile surfaces and a technician who has withdrawn their page
+   drops out of them: being listed there is being shown to the public, one tap short of the
+   page that no longer answers. Claimed rows only — an unclaimed row is the salon's own
+   description of a chair, and nobody has withdrawn anything from it. The operational reads
+   (the booking wizard's picker, the day strip) are gated on nothing and must not be. */
 const selectSalonStaff = db.prepare(`
   SELECT id, name, title, specialty, image, rating, years_experience
   FROM staff
   WHERE salon_id = ? AND active = 1
+    AND (user_id IS NULL OR COALESCE(profile_hidden, 0) = 0)
   ORDER BY rating DESC, id
 `);
 

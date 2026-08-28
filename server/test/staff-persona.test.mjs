@@ -31,6 +31,12 @@ const apiJs = ui('assets/js/oak-api.js');
 const inviteSource = source('lib', 'staff-invite.js');
 const eventsLibSource = source('lib', 'events.js');
 const middlewareSource = source('middleware', 'auth.js');
+const staffSource = source('routes', 'staff.js');
+const salonsSource = source('routes', 'salons.js');
+const servicesSource = source('routes', 'services.js');
+const bookingsSource = source('routes', 'bookings.js');
+const reviewsSource = source('routes', 'reviews.js');
+const notifySource = source('lib', 'notify.js');
 
 /** The handler of one route, up to whatever comes after it. */
 function handler(text, from, to) {
@@ -46,6 +52,50 @@ function declaration(text, from) {
   assert.notEqual(start, -1, `no declaration matching ${from}`);
   return text.slice(start, text.indexOf('\n}', start) + 2);
 }
+
+/**
+ * Every call to `name(` in `text`, as source text with its parentheses balanced.
+ *
+ * A regex cannot do this: the arguments here span lines and carry calls of their own. The
+ * scan is naive about parentheses inside string literals, which is safe for the call sites
+ * it is pointed at — none of the Vietnamese bodies in this codebase contain one — and would
+ * fail loudly rather than silently if one ever did.
+ */
+function calls(text, name) {
+  const found = [];
+  for (let index = text.indexOf(`${name}(`); index !== -1; ) {
+    let depth = 0;
+    let end = index + name.length;
+    for (; end < text.length; end += 1) {
+      if (text[end] === '(') {
+        depth += 1;
+      } else if (text[end] === ')') {
+        depth -= 1;
+        if (depth === 0) {
+          end += 1;
+          break;
+        }
+      }
+    }
+    found.push(text.slice(index, end));
+    index = text.indexOf(`${name}(`, end);
+  }
+  return found;
+}
+
+/* Every file that reads or writes a roster row, for the sweeps that have to hold across all
+   of them rather than in one place. */
+const STAFF_READERS = [
+  ['db.js', dbSource],
+  ['lib/notify.js', notifySource],
+  ['routes/staff.js', staffSource],
+  ['routes/staff-me.js', staffMeSource],
+  ['routes/salons.js', salonsSource],
+  ['routes/services.js', servicesSource],
+  ['routes/bookings.js', bookingsSource],
+  ['routes/partner.js', partnerSource],
+  ['routes/reviews.js', reviewsSource],
+];
 
 // ------------------------------------------------------------------ who may become staff
 
@@ -243,12 +293,18 @@ test('garbage, spent, expired, retired and already-claimed all answer with one b
     inviteSource,
     /export function inviteNotFound\(\) \{\s*return httpError\(\s*404,\s*'NOT_FOUND',/,
   );
-  // One factory and nothing else: a 404 written by hand in any of the three paths that
-  // take a token would be a reply that says whether the token was real.
+  /* One factory and nothing else: a 404 written by hand in any of the three paths that take a
+     token would be a reply that says whether the token was real.
+
+     staff-me.js is asked about its claim handler rather than about the whole file, because
+     PATCH /profile answers 404 too and that one is a different question — a roster row the
+     caller does not hold, addressed by an id they already had. It says nothing about a token
+     and borrows nothing from this rule, so folding it in here would only blunt the rule. */
   assert.equal((inviteSource.match(/httpError\(\s*404/g) || []).length, 1);
+  const claim = handler(staffMeSource, "router.post('/claim'", 'const CLAIMED_STAFF_COLUMNS');
   for (const [name, text] of [
     ['routes/auth.js', authSource],
-    ['routes/staff-me.js', staffMeSource],
+    ['routes/staff-me.js (the claim)', claim],
   ]) {
     assert.equal((text.match(/httpError\(\s*404/g) || []).length, 0, name);
     assert.match(text, /inviteNotFound/, name);
@@ -872,4 +928,303 @@ test('the console hands a refusal on in the words the server refused it in', () 
     consoleHtml,
     /@click="setStatus\('completed'\)"[^>]*x-show="canSet\('completed'\)"/,
   );
+});
+
+// -------------------------------------------------- who owns which half of a roster row
+
+test('the technician writes exactly four columns, and an unknown key is refused', () => {
+  /* The four are the personal half of the row. Everything a salon runs on — the name on the
+     roster, the title, the specialty, whether the stint is open — is deliberately absent, and
+     asserting the map is exactly these four is what keeps it that way as the form grows. */
+  const columns = handler(staffMeSource, 'const PROFILE_COLUMNS = {', '};');
+  const named = [...columns.matchAll(/^ {2}([a-z_]+): /gm)].map((match) => match[1]);
+  assert.deepEqual(named.sort(), ['bio', 'image', 'portfolio', 'profile_hidden']);
+  for (const owned of ['name', 'title', 'specialty', 'active']) {
+    assert.doesNotMatch(columns, new RegExp(`\\b${owned}:`), owned);
+  }
+
+  /* And an unrecognised key is a 400 rather than a silent drop, which is the one place this
+     endpoint deliberately parts company with buildPatch in routes/partner.js: that one walks
+     its whitelist and ignores the rest, and a technician who posted `name`, got a 200 and
+     believed they had renamed themselves would be left arguing with their own page. */
+  const patch = handler(staffMeSource, "router.patch('/profile'", 'const selectMyStaffReviews');
+  assert.match(
+    patch,
+    /if \(!Object\.hasOwn\(PROFILE_COLUMNS, key\)\) \{\s*throw httpError\(400, 'VALIDATION_ERROR', NOT_YOURS\);/,
+  );
+  assert.doesNotMatch(staffMeSource, /buildPatch\(/);
+  // The refusal says who owns the rest, rather than only that the caller may not have it.
+  assert.match(staffMeSource, /Tên, chức danh, chuyên môn và lịch làm việc do salon quản lý\./);
+  // An empty body is the house's own words for it, not a fifth wording of the same thing.
+  assert.match(patch, /'VALIDATION_ERROR', 'Không có thông tin nào để cập nhật\.'/);
+
+  /* Scoped by user_id in the UPDATE itself and not merely by the read above it: between
+     proving the row is theirs and writing to it there is no window at all. The read answers
+     404 rather than 403 for the same reason ownedRow does — a 403 would confirm the id. */
+  assert.match(
+    patch,
+    /UPDATE staff SET \$\{assignments\.join\(', '\)\} WHERE id = \? AND user_id = \?/,
+  );
+  assert.match(patch, /if \(!row\) \{\s*throw httpError\(404, 'NOT_FOUND'/);
+  assert.match(staffMeSource, /WHERE st\.id = \? AND st\.user_id = \?/);
+
+  /* The portfolio strings come back out of the column into public <img> bindings, so every
+     entry goes through the same guard the avatar does — an array of plain strings would let
+     one 'javascript:…' through in a list of twelve. */
+  const portfolio = declaration(staffMeSource, 'function requireMediaUrlArray(');
+  assert.match(portfolio, /if \(!isSafeMediaUrl\(url\)\) \{/);
+  assert.match(portfolio, /'Đường dẫn ảnh không hợp lệ\.'/);
+  assert.match(portfolio, /JSON\.stringify\(urls\)/);
+  assert.match(declaration(staffMeSource, 'function optionalMediaUrl('), /isSafeMediaUrl/);
+
+  /* Blank entries are dropped before anything else looks at them. isSafeMediaUrl calls an
+     empty value safe — correct for a nullable column, where empty is how the field is cleared,
+     and wrong for an array element, where it is an unfilled form row that reaches the profile
+     as <img src="">. The ceiling then counts what will actually be stored. */
+  assert.match(portfolio, /\.filter\(\(url\) => url !== ''\)/);
+  assert.match(portfolio, /if \(urls\.length > PORTFOLIO_MAX\)/);
+  assert.ok(portfolio.indexOf(".filter((url) => url !== '')") < portfolio.indexOf('urls.length > PORTFOLIO_MAX'));
+});
+
+test("the avatar on a claimed row stops being the owner's, in exactly these words", () => {
+  const patch = handler(partnerSource, "router.patch('/staff/:id'", "router.delete('/staff/:id'");
+  // Pinned byte for byte: the console puts the server's own sentence in front of the caret,
+  // so this string is the whole of what an owner is told about why the save was refused.
+  assert.match(
+    patch,
+    /throw httpError\(409, 'CONFLICT', 'Ảnh đại diện do kỹ thuật viên tự quản lý\.'\);/,
+  );
+  // Only on a row somebody stands behind, and only for `image`. An unclaimed row is the
+  // salon's own description of a chair and stays entirely theirs.
+  assert.match(
+    patch,
+    /if \(staff\.user_id != null && Object\.hasOwn\(req\.body \?\? \{\}, 'image'\)\)/,
+  );
+
+  /* And only when the value actually CHANGED — the same rule this file's customer notices are
+     gated on, because quan-ly-nhan-vien.html posts name, title, specialty and image on every
+     save and awaits this PATCH before the schedule and services PUTs. Refusing on the presence
+     of the key would make a claimed technician's title, hours and service list unsaveable, so
+     the boundary would read as a frozen roster. Compared through the column's own parser, so
+     the '' an empty photo field sends and the NULL the column holds are the same value. */
+  assert.match(patch, /const wanted = STAFF_COLUMNS\.image\(req\.body\.image\);/);
+  assert.match(patch, /if \(wanted !== \(staff\.image \?\? null\)\) \{/);
+  // Refused before the patch is built, so a body carrying `image` alongside `name` writes
+  // neither half rather than half of it.
+  assert.ok(patch.indexOf('Ảnh đại diện do kỹ thuật viên') < patch.indexOf('buildPatch'));
+
+  /* The other two personal columns need no guard because they were never on the owner's map
+     to begin with — asserting their absence is what keeps a later edit from adding them back
+     and quietly handing the bio to the console. name/title/specialty/active stay: the owner
+     runs the roster. */
+  const columns = handler(partnerSource, 'const STAFF_COLUMNS = {', '};');
+  assert.doesNotMatch(columns, /\bbio\b/);
+  assert.doesNotMatch(columns, /\bportfolio\b/);
+  for (const owned of ['name', 'title', 'specialty', 'image', 'active']) {
+    assert.match(columns, new RegExp(`^ {2}${owned}: `, 'm'), owned);
+  }
+});
+
+test('a hidden profile is always a CLAIMED hidden profile, never a bare flag', () => {
+  /* An unclaimed row carrying profile_hidden = 1 is only reachable by direct SQL, and it must
+     behave exactly as it does today: nobody stands behind it, so nobody has withdrawn
+     anything from it. A bare `hidden` test anywhere would let a stray column value take a
+     salon's own roster entry off its page, which is a deletion nobody asked for. */
+  for (const [name, text] of STAFF_READERS) {
+    assert.doesNotMatch(text, /profile_hidden\s*(?:=|<>|!=)\s*1/, name);
+  }
+  // Both halves of the predicate, spelled the same way in both places that carry it. COALESCE
+  // because the column was added to a table that already had rows: an unwritten value is 0,
+  // not a reason to disappear.
+  assert.match(
+    staffSource,
+    /const VISIBLE_PROFILE =\s*'\(st\.user_id IS NULL OR COALESCE\(st\.profile_hidden, 0\) = 0\)';/,
+  );
+  assert.match(salonsSource, /AND \(user_id IS NULL OR COALESCE\(profile_hidden, 0\) = 0\)/);
+
+  // Added like any other column, once, unconditionally, and no sweep writes it: hiding a
+  // profile is an act by the person behind the row and never something a boot decides.
+  assert.match(
+    dbSource,
+    /^ALTER TABLE staff ADD COLUMN IF NOT EXISTS profile_hidden INTEGER DEFAULT 0;$/m,
+  );
+  assert.equal((dbSource.match(/ADD COLUMN IF NOT EXISTS profile_hidden/g) || []).length, 1);
+  assert.doesNotMatch(dbSource, /SET profile_hidden/);
+});
+
+test('the withdrawal hides the page and never the working day', () => {
+  /* The public profile and its own review list are the page; both refuse a hidden row, and
+     both refuse it in the words an id naming nobody already got. Two statements rather than
+     one shared resolver, because the other two reads in this file resolve through the same
+     path and must NOT ask the question. */
+  assert.match(staffSource, /WHERE st\.id = \? AND st\.active = 1 AND \$\{VISIBLE_PROFILE\}/);
+  assert.match(
+    staffSource,
+    /const selectVisibleStaffExists = db\.prepare\(\s*`SELECT 1 FROM staff st WHERE st\.id = \? AND st\.active = 1 AND \$\{VISIBLE_PROFILE\}`,/,
+  );
+  assert.match(
+    staffSource,
+    /router\.get\('\/:id\/reviews'[\s\S]{0,400}?await visibleStaffIdOrThrow\(req\.params\.id\)/,
+  );
+  const detail = handler(staffSource, "router.get('/:id',", 'export default router');
+  assert.match(detail, /'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này\.'/);
+
+  /* Operational, and gated on nothing: the day strip and the service list of one technician.
+     Somebody who has taken their page down is still at work today, still on the calendar, and
+     still owed the appointments the salon has already put on it. */
+  assert.match(
+    staffSource,
+    /const selectStaffExists = db\.prepare\('SELECT 1 FROM staff WHERE id = \? AND active = 1'\);/,
+  );
+  for (const route of ['/:id/availability', '/:id/services']) {
+    const read = handler(staffSource, `router.get('${route}'`, '});');
+    assert.match(read, /staffIdOrThrow\(req\.params\.id\)/, route);
+    assert.doesNotMatch(read, /visibleStaffIdOrThrow/, route);
+  }
+
+  // The booking wizard's technician picker, for the same reason: dropping a technician out of
+  // it would quietly take a salon's chair off sale.
+  const picker = handler(servicesSource, 'const selectServiceStaff', '`);');
+  assert.doesNotMatch(picker, /profile_hidden/);
+
+  /* The console is the salon's own operational view of its roster, so a withdrawn technician
+     is still on it — the owner has a day to run and a person to run it with. Unchanged, and
+     pinned as unchanged. */
+  assert.match(
+    partnerSource,
+    /const selectSalonStaff = db\.prepare\('SELECT \* FROM staff WHERE salon_id = \? ORDER BY id'\);/,
+  );
+  assert.doesNotMatch(partnerSource, /profile_hidden/);
+
+  /* And the technician's own reads never hide their own row from them: they have to be able
+     to see the switch they just threw, and to throw it back. */
+  assert.match(staffMeSource, /st\.profile_hidden, st\.active, st\.claimed_at,/);
+  assert.doesNotMatch(staffMeSource, /profile_hidden\s*(?:=|IS)/);
+});
+
+test("a 'staff' notification can only be written by notifyStaff", () => {
+  // One definition of the type, in the one function that uses it. It is the routing key
+  // ui/thong-bao.html maps a row by, and every other type in that map opens a customer page.
+  assert.match(notifySource, /const STAFF_NOTIFICATION_TYPE = 'staff';/);
+  assert.equal((notifySource.match(/'staff'/g) || []).length, 1);
+
+  /* The account is resolved off the roster row, on the caller's own transaction, rather than
+     being passed in: "claimed rows only" then lives in exactly one place, and no call site
+     can aim a technician's notice at an account of its own choosing. */
+  const notifyStaff = declaration(notifySource, 'export async function notifyStaff(');
+  assert.match(
+    notifyStaff,
+    /export async function notifyStaff\(tx, staffId, title, body, bookingId = null\)/,
+  );
+  assert.match(
+    notifySource,
+    /const SELECT_STAFF_ACCOUNT = 'SELECT user_id FROM staff WHERE id = \?';/,
+  );
+  assert.match(notifyStaff, /const staff = await tx\.get\(SELECT_STAFF_ACCOUNT, staffId\);/);
+  // A booking with no technician, an id naming no row, and a row nobody has claimed all
+  // no-op — the same reasoning as notifyUser's null-user no-op, in the same place.
+  assert.match(notifyStaff, /if \(staffId === null \|\| staffId === undefined\) \{\s*return;/);
+  assert.match(notifyStaff, /staff\?\.user_id \?\? null,/);
+  assert.match(notifyStaff, /STAFF_NOTIFICATION_TYPE,/);
+  // Through notifyUser, so there is still exactly one INSERT into the table in the codebase.
+  for (const [name, text] of STAFF_READERS) {
+    if (name !== 'lib/notify.js') {
+      assert.doesNotMatch(text, /INSERT INTO notifications/, name);
+    }
+  }
+
+  // And no caller anywhere writes that type by hand through notifyUser, which is the one way
+  // a technician's routing key could end up on a customer's row or the other way about.
+  for (const [name, text] of STAFF_READERS) {
+    for (const call of calls(text, 'notifyUser')) {
+      assert.ok(!call.includes("'staff'"), `${name}: notifyUser must not be handed the staff type`);
+    }
+  }
+});
+
+test('the five things a technician is told about, each written once and in a transaction', () => {
+  /* Every notice rides the transaction that made the change it announces, so a booking that
+     rolled back cannot leave a technician looking at an appointment nobody has. The count per
+     file is the "exactly once per event" half: a second call anywhere is a second bell. Seven
+     call sites for five triggers, because the reassignment is two events in one save — one
+     technician loses the hour and another gains it. */
+  const sites = [
+    ['routes/bookings.js', bookingsSource, 2],
+    ['routes/partner.js', partnerSource, 4],
+    ['routes/reviews.js', reviewsSource, 1],
+  ];
+  for (const [name, text, expected] of sites) {
+    const found = calls(text, 'notifyStaff');
+    assert.equal(found.length, expected, name);
+    for (const call of found) {
+      assert.match(call, /^notifyStaff\(\s*tx,/, `${name}: ${call.slice(0, 40)}`);
+    }
+  }
+
+  /* The customer booking: the technician actually assigned, which covers "Bất kỳ" as well as
+     an explicit choice — the customer named nobody, but somebody is expected at that hour. */
+  const created = handler(bookingsSource, 'const assigned =', 'catch (error) {');
+  assert.match(created, /await notifyStaff\(\s*tx,\s*assigned,/);
+  assert.doesNotMatch(created, /notifyStaff\(\s*tx,\s*staffId,/);
+
+  /* The reassignment tells both ends and gates on `restaffed`, which is `movable`-gated: a
+     cancelled or completed row moved between two names is a correction to the record and not
+     news for anybody's day. Cancelling wins over it, so one save cannot ring twice. */
+  const patch = handler(
+    partnerSource,
+    "router.patch('/bookings/:id'",
+    'Free hours, and the customer',
+  );
+  assert.match(
+    patch,
+    /const staffCancelled = Object\.hasOwn\(patch, 'status'\) && patch\.status === 'cancelled';/,
+  );
+  assert.match(patch, /if \(staffCancelled\) \{[\s\S]*?\} else if \(restaffed\) \{/);
+  assert.match(patch, /await notifyStaff\(\s*tx,\s*booking\.staff_id,/);
+  assert.match(
+    patch,
+    /await notifyStaff\(\s*tx,\s*patch\.staff_id,\s*'Lịch hẹn mới trên lịch của bạn',/,
+  );
+  /* staff_id is nullable, so the departing side has two cases: the console can clear a booking
+     back to "Bất kỳ", which takes the hour off somebody without giving it to anybody. Told it
+     went "sang một kỹ thuật viên khác" they would go looking for a colleague who does not
+     exist, and nothing would correct it — the arriving call no-ops on a null. */
+  assert.match(patch, /patch\.staff_id === null\s*\? 'Lịch hẹn đã gỡ khỏi lịch của bạn'/);
+  assert.match(patch, /đã gỡ lịch hẹn \$\{updated\.code\} \$\{when\} khỏi lịch của bạn/);
+  /* 'cancelled' and nothing else. Not 'completed' and not 'no_show': both of those are the
+     counter writing down what the technician was standing there for, and a bell for every
+     appointment somebody finished is a bell nobody reads. */
+  for (const closed of ['completed', 'no_show']) {
+    assert.doesNotMatch(patch, new RegExp(`patch\\.status === '${closed}'`), closed);
+  }
+  // One read of the row for all three sentences, so the customer and both technicians are
+  // told about the same hour.
+  assert.match(
+    patch,
+    /if \(notification \|\| staffCancelled \|\| restaffed\) \{\s*const updated = await tx\.get\(/,
+  );
+
+  // The walk-in, and the customer's own cancellation, on the row each of them is about.
+  const walkIn = handler(partnerSource, "router.post('/bookings'", "router.get('/bookings/:id'");
+  assert.match(walkIn, /await notifyStaff\(\s*tx,\s*staffId,/);
+  const cancel = handler(bookingsSource, "router.patch('/:id/cancel'", 'export default router');
+  assert.match(cancel, /await notifyStaff\(\s*tx,\s*booking\.staff_id,/);
+
+  // And the review, inside the transaction that writes the review itself.
+  const review = handler(reviewsSource, 'id = await db.withTransaction', 'catch (error) {');
+  assert.match(review, /await notifyStaff\(\s*tx,\s*booking\.staff_id,/);
+  assert.match(review, /Khách đã đánh giá \$\{rating\} sao cho lịch hẹn/);
+});
+
+test('the unread badge already counts these, and gains nothing new', () => {
+  /* GET /api/notifications?count_only=true has answered {unread_count} since the bell existed,
+     and assets/js/oak-api.js reads exactly that. A technician's rows are notifications like
+     any other, so a second count beside it would be a number that can disagree with itself. */
+  const notificationsSource = source('routes', 'notifications.js');
+  assert.match(
+    notificationsSource,
+    /if \(req\.query\.count_only === 'true'\) \{\s*res\.json\(\{\s*success: true,\s*data: \{ unread_count: \(await selectUnreadCount\.get\(req\.user\.id\)\)\.count \},/,
+  );
+  assert.doesNotMatch(notificationsSource, /meta: \{[^}]*unread/);
+  assert.match(apiJs, /count_only=true/);
 });

@@ -84,6 +84,12 @@ export function addDaysISO(iso, n) {
   return toISO(new Date(year, month - 1, day + n));
 }
 
+/** 'YYYY-MM-DD' -> 'DD/MM/YYYY', the way a Vietnamese notification body reads a date. */
+export function formatDateVN(iso) {
+  const [year, month, day] = String(iso).split('-');
+  return `${day}/${month}/${year}`;
+}
+
 /** 0 = Sunday .. 6 = Saturday, matching staff_schedule.weekday. */
 export function weekdayOf(iso) {
   const [year, month, day] = String(iso).split('-').map(Number);

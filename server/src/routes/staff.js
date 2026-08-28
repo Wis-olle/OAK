@@ -14,16 +14,37 @@ const DEFAULT_DAYS = 7;
 const MIN_DAYS = 1;
 const MAX_DAYS = 14;
 
+/* The technician's withdrawal, in the one clause every page-shaped read in this file is
+   gated on. COALESCE because the column was added to a table that already had rows, so an
+   unwritten one is 0 rather than a reason to disappear; user_id IS NULL because a row nobody
+   stands behind has nobody to have withdrawn it — the predicate is "claimed AND hidden"
+   everywhere it appears, and a bare hidden test would let a stray column value take a salon's
+   own roster entry off the site. */
+const VISIBLE_PROFILE = '(st.user_id IS NULL OR COALESCE(st.profile_hidden, 0) = 0)';
+
+// THIS IS the public profile page, so the withdrawal lands here first: a hidden row answers
+// 404 in the same words as an id that names nobody. Not "no longer exists" and not "hidden" —
+// a reply that told those apart would put the page back up in the negative.
 const selectStaffProfile = db.prepare(`
   SELECT st.id, st.name, st.title, st.specialty, st.bio, st.image, st.rating,
          st.years_experience, st.portfolio,
          s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name
   FROM staff st
   JOIN salons s ON s.id = st.salon_id
-  WHERE st.id = ? AND st.active = 1
+  WHERE st.id = ? AND st.active = 1 AND ${VISIBLE_PROFILE}
 `);
 
+/* Deliberately NOT gated on the withdrawal: this is what /:id/availability and /:id/services
+   resolve their path through, and both of those are operational. Once the booking wizard has
+   a technician, those two size the day strip and list what that person performs — and a
+   technician who has taken their page down is still at work today, still on the calendar, and
+   still owed the appointments the salon has already put on it. Hiding a page is not calling
+   in sick. The review list below asks the visible question instead, on its own statement. */
 const selectStaffExists = db.prepare('SELECT 1 FROM staff WHERE id = ? AND active = 1');
+
+const selectVisibleStaffExists = db.prepare(
+  `SELECT 1 FROM staff st WHERE st.id = ? AND st.active = 1 AND ${VISIBLE_PROFILE}`,
+);
 
 const selectStaffSalon = db.prepare('SELECT salon_id FROM staff WHERE id = ?');
 
@@ -56,6 +77,15 @@ const selectStaffReviewSummary = db.prepare(
 async function staffIdOrThrow(value) {
   const id = Number.parseInt(value, 10);
   if (!Number.isInteger(id) || !(await selectStaffExists.get(id))) {
+    throw httpError(404, 'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này.');
+  }
+  return id;
+}
+
+/** The same resolution for the reads that ARE the public profile, in the same words. */
+async function visibleStaffIdOrThrow(value) {
+  const id = Number.parseInt(value, 10);
+  if (!Number.isInteger(id) || !(await selectVisibleStaffExists.get(id))) {
     throw httpError(404, 'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này.');
   }
   return id;
@@ -135,9 +165,17 @@ router.get('/:id/services', async (req, res, next) => {
   }
 });
 
+/* Hidden with the page, because it IS the page: this is the review list the public profile
+   renders under itself, and leaving it open would serve the contents of a page that is no
+   longer there — the same words, the same faces, one endpoint further in.
+
+   What is deliberately NOT touched is the salon's own list. GET /api/salons/:id/reviews joins
+   staff_name and goes on naming this technician in the reviews of visits they worked: that is
+   the salon's record of its own work, written by its own customers, and gutting it to honour
+   one person's withdrawal would take the salon's history down with the technician's page. */
 router.get('/:id/reviews', async (req, res, next) => {
   try {
-    const staffId = await staffIdOrThrow(req.params.id);
+    const staffId = await visibleStaffIdOrThrow(req.params.id);
     const { page, limit, offset } = parsePagination(req.query, REVIEW_LIMIT);
     const summary = await selectStaffReviewSummary.get(staffId);
     const rows = await selectStaffReviews.all(staffId, limit, offset);

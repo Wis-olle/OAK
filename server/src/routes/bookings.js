@@ -9,7 +9,7 @@ import {
   timeOffOn,
 } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
-import { notifyUser } from '../lib/notify.js';
+import { notifyStaff, notifyUser } from '../lib/notify.js';
 import { parsePagination } from '../lib/query.js';
 import { fromMinutes, isHHMM, isISODate, nowMinutes, toMinutes, todayISO } from '../lib/time.js';
 import { httpError, requireAuth } from '../middleware/auth.js';
@@ -554,6 +554,17 @@ router.post('/', async (req, res, next) => {
             'booking',
             bookingId,
           );
+          /* And the technician whose day this hour just came out of. `assigned` rather than
+             `staffId`, so the "Bất kỳ" auto-pick is covered too: the customer chose nobody in
+             particular, but somebody is now expected at that hour and it is their calendar
+             that says so. notifyStaff no-ops on a row nobody has claimed. */
+          await notifyStaff(
+            tx,
+            assigned,
+            'Lịch hẹn mới trên lịch của bạn',
+            `Khách đã đặt lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(date)} lúc ${time}.`,
+            bookingId,
+          );
         }),
       );
     } catch (error) {
@@ -639,6 +650,15 @@ router.patch('/:id/cancel', async (req, res, next) => {
         'Khách đã hủy lịch hẹn',
         `Khách đã hủy lịch hẹn ${booking.code} ngày ${formatDate(booking.date)} lúc ${booking.time}. Khung giờ này đã trống trở lại.`,
         'booking',
+        booking.id,
+      );
+      // The technician loses the hour, so they are told as well as the salon: an appointment
+      // that vanishes off a calendar without a word is one somebody turns up for.
+      await notifyStaff(
+        tx,
+        booking.staff_id,
+        'Một lịch hẹn đã bị hủy',
+        `Khách đã hủy lịch hẹn ${booking.code} tại ${booking.salon_name} ngày ${formatDate(booking.date)} lúc ${booking.time}.`,
         booking.id,
       );
     });

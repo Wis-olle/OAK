@@ -275,6 +275,20 @@ ALTER TABLE staff ADD COLUMN IF NOT EXISTS claimed_at TEXT;
 -- than a gap in what a profile can say.
 ALTER TABLE staff ADD COLUMN IF NOT EXISTS started_at TEXT;
 
+-- The technician's own kill-switch over their own public page, and the lever the PDPD
+-- withdrawal of consent actually pulls: claimed_at records that they agreed to stand behind
+-- what the row shows the public, and this is how they take that back without losing the row,
+-- the stint, or the history hanging off it. Set to 1, the public profile answers 404 and the
+-- salon's public roster listing stops naming them.
+--
+-- It hides a PAGE and never anything operational. Bookings already on the calendar, the
+-- booking wizard's technician picker, that row's availability and the partner console are all
+-- untouched, because a technician who has withdrawn their page is still at work today and the
+-- salon still has to be able to run its day around them. And it is read together with user_id
+-- everywhere: an unclaimed row nobody stands behind has nobody to have withdrawn anything, so
+-- the predicate is always "claimed AND hidden" and never "hidden".
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS profile_hidden INTEGER DEFAULT 0;
+
 -- One live claimed row per person per salon; the same technician may still hold a row at
 -- every salon they work for. A row is one employment stint: taking someone off the roster
 -- is a soft delete (active = 0) that deliberately keeps user_id, so their past bookings and
