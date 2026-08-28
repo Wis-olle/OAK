@@ -89,7 +89,13 @@
 <div class="md:col-span-5 order-2 md:order-1 flex flex-col gap-6">
 <div class="flex items-center gap-2">
 <span class="inline-block px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant font-caption text-caption rounded-full" x-text="staff.title"></span>
-<span class="inline-block px-3 py-1 bg-surface-variant text-on-surface-variant font-caption text-caption rounded-full" x-show="staff.years_experience" x-text="staff.years_experience + ' năm kinh nghiệm'"></span>
+<!-- The years are a number the technician typed about themselves. Once the roster row has a
+     real start date behind it, the chip says which of the two it is — a date the bookings
+     prove outranks a figure nobody checked. With no such date there is nothing to contrast
+     it with, so the chip is left as it was rather than casting doubt on the only figure. -->
+<span class="inline-block px-3 py-1 bg-surface-variant text-on-surface-variant font-caption text-caption rounded-full" x-show="staff.years_experience">
+<span x-text="staff.years_experience + ' năm kinh nghiệm'"></span><span x-show="stats() &amp;&amp; stats().started_at"> (tự khai)</span>
+</span>
 </div>
 <div class="flex flex-wrap items-center gap-3">
 <h1 class="font-display-lg text-display-lg md:font-display-lg md:text-display-lg text-on-background" x-text="staff.name"></h1>
@@ -104,6 +110,54 @@
 <span>Làm việc tại</span>
 <a :href="'salon-profile.html?salon=' + encodeURIComponent(staff.salon.slug)" class="text-primary hover:underline" x-text="staff.salon.name"></a>
 </p>
+<!-- What this person has actually done here, as the server counted it: the completed total,
+     the people behind it, the live review average, and how long the roster row has stood.
+     The quieter line under it says how much of that total two independent parties attested
+     to. A tier with nothing in it is no line at all, and a row the backfill gave no start
+     date says nothing about one rather than guessing. Informational: the booking button and
+     the week grid above and below it are still what the page is for. -->
+<template x-if="stats()">
+<div class="flex flex-col gap-1">
+<p class="flex flex-wrap items-center gap-2 font-body-md text-body-md text-on-surface">
+<span x-text="completedTotal() + ' lượt hoàn thành'"></span>
+<span aria-hidden="true" class="text-on-surface-variant">·</span>
+<!-- The one figure a salon cannot lift by putting the same customer through twice, so it is
+     the one the eye is meant to land on. -->
+<span class="font-bold text-primary" x-text="stats().distinct_customers + ' khách khác nhau'"></span>
+<span class="flex items-center gap-2" x-show="stats().review_count">
+<span aria-hidden="true" class="text-on-surface-variant">·</span>
+<span class="flex items-center gap-1">
+<span aria-hidden="true" class="material-symbols-outlined oak-star oak-star-sm">star</span>
+<span x-text="Number(stats().rating_avg).toFixed(1) + ' từ ' + stats().review_count + ' đánh giá'"></span>
+</span>
+</span>
+<span class="flex items-center gap-2" x-show="sinceLabel()">
+<span aria-hidden="true" class="text-on-surface-variant">·</span>
+<span x-text="sinceLabel()"></span>
+</span>
+</p>
+<!-- All four tiers, each under its own name. A tier folded into the total without being
+     named is the one thing this line exists to prevent: a walk-in is real work and is
+     counted as such, and it is still not a visit a customer attested to. -->
+<p class="flex flex-wrap items-center gap-2 font-caption text-caption text-on-surface-variant" x-show="stats().verified_count || stats().walkin_count || stats().unattested_count || stats().legacy_count">
+<span x-show="stats().verified_count" x-text="'trong đó ' + stats().verified_count + ' lượt do khách đặt và đã xác thực'"></span>
+<!-- Each separator belongs to whatever it follows, so a line that opens on its second,
+     third or fourth piece opens on a word rather than on a dangling dot. -->
+<span class="flex items-center gap-2" x-show="stats().walkin_count">
+<span aria-hidden="true" x-show="stats().verified_count">·</span>
+<span x-text="stats().walkin_count + ' lượt khách tại quầy'"></span>
+</span>
+<span class="flex items-center gap-2" x-show="stats().unattested_count">
+<span aria-hidden="true" x-show="stats().verified_count || stats().walkin_count">·</span>
+<span x-text="stats().unattested_count + ' lượt hệ thống tự đóng'"></span>
+</span>
+<span class="flex items-center gap-2" x-show="stats().legacy_count">
+<span aria-hidden="true" x-show="stats().verified_count || stats().walkin_count || stats().unattested_count">·</span>
+<span x-text="stats().legacy_count + ' lượt trước hệ thống xác thực'"></span>
+</span>
+</p>
+</div>
+</template>
 <p class="font-body-lg text-body-lg text-on-surface-variant max-w-lg" x-text="staff.bio"></p>
 <div class="flex flex-wrap gap-3 mt-4">
 <template :key="tag" x-for="tag in specialties()">
@@ -434,6 +488,32 @@
                         this.weekLoading = false;
                     }
                 }
+            },
+
+            /* The block GET /api/staff/:id computes from the bookings and the reviews. Null
+               until it has arrived, and null for a reply that carries none, so the strip is
+               absent rather than reading zero at a technician whose numbers nobody has. */
+            stats() {
+                return (this.staff && this.staff.stats) || null;
+            },
+
+            /** Every completed visit, whoever attested to it: the four tiers are a partition
+                of exactly that set, so the sum is the total and no visit is counted twice. */
+            completedTotal() {
+                const stats = this.stats();
+                return stats.verified_count + stats.walkin_count
+                    + stats.unattested_count + stats.legacy_count;
+            },
+
+            /** "tại salon từ 08/2026", or nothing at all: started_at is the earliest booking
+                on this roster row and a row with none has no month to name. */
+            sinceLabel() {
+                const started = this.stats() && this.stats().started_at;
+                if (!started) {
+                    return '';
+                }
+                const parts = String(started).slice(0, 10).split('-');
+                return 'tại salon từ ' + parts[1] + '/' + parts[0];
             },
 
             /** "Vẽ móng nghệ thuật, Đắp gel" → one chip per skill. */

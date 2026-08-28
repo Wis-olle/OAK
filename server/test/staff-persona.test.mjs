@@ -22,7 +22,12 @@ const dbSource = source('db.js');
 const partnerSource = source('routes', 'partner.js');
 const staffMeSource = source('routes', 'staff-me.js');
 const usersSource = source('routes', 'users.js');
-const loginHtml = fs.readFileSync(path.join(root, '..', 'ui', 'dang-nhap-nhan-vien.html'), 'utf8');
+const ui = (name) => fs.readFileSync(path.join(root, '..', 'ui', name), 'utf8');
+const loginHtml = ui('dang-nhap-nhan-vien.html');
+const profileHtml = ui('ho-so-chuyen-gia.html');
+const scheduleHtml = ui('lich-cua-toi.html');
+const consoleHtml = ui('quan-ly-lich-hen.html');
+const apiJs = ui('assets/js/oak-api.js');
 const inviteSource = source('lib', 'staff-invite.js');
 const eventsLibSource = source('lib', 'events.js');
 const middlewareSource = source('middleware', 'auth.js');
@@ -498,4 +503,241 @@ test('the events the server writes itself can never name a person', () => {
   // Logged on every staff sign-in, because "first" cannot be derived without either a
   // column for it or an account id in this table, and the second is not on the table.
   assert.match(authSource, /recordEvent\('staff_login', '\/api\/auth\/login'\)/);
+});
+
+// ------------------------------------------------- the numbers, on the pages that show them
+
+/* Both pages keep their factory inline in a <script>, so lift each one out and drive it,
+   the way the sign-in page above is driven. */
+
+/** oakStaffProfile() over a stand-in browser, answering /api/staff/:id with `stats`. */
+function specialistPage(stats) {
+  const tail = profileHtml.slice(profileHtml.indexOf('function oakTodayISO('));
+  const reviews = Object.assign([], { meta: { total: 0, average: 0 } });
+  const context = {
+    URLSearchParams,
+    location: { href: 'https://oak.test/ho-so-chuyen-gia.html?id=1' },
+    navigator: {},
+    window: {},
+    OAK: {
+      qs: (name) => (name === 'id' ? '1' : null),
+      meta: () => {},
+      fmtDate: (value) => value,
+      toast: () => {},
+      api: async (url) => {
+        if (url.includes('/availability')) {
+          return { week: [] };
+        }
+        if (url.includes('/reviews')) {
+          return reviews;
+        }
+        if (url.endsWith('/services')) {
+          return [];
+        }
+        return {
+          id: 1, name: 'KTV Số Liệu', title: 'KTV', specialty: '', bio: '', image: 'a.webp',
+          rating: 4.8, years_experience: 6, portfolio: [],
+          salon: { id: 4, slug: 'lala', name: 'Lala' }, stats,
+        };
+      },
+    },
+  };
+  vm.runInNewContext(
+    `${tail.slice(0, tail.indexOf('</script>'))}\nresult = oakStaffProfile();`,
+    context,
+  );
+  return context.result;
+}
+
+/** oakStaffSchedule() over the same kind of stand-in, answering /api/staff-me/profile. */
+function schedulePage(profiles) {
+  const tail = scheduleHtml.slice(scheduleHtml.indexOf('function oakStaffSchedule('));
+  const context = {
+    OAK: {
+      requireStaff: async () => ({ name: 'KTV Số Liệu' }),
+      api: async (endpoint) => (endpoint === '/api/staff-me/profile' ? profiles : []),
+      todayISO: () => '2026-08-28',
+      fmtDate: (value) => value,
+      fmtTime: (value) => value,
+      bookingStatus: () => ({ label: '', icon: '', class: '' }),
+    },
+  };
+  vm.runInNewContext(
+    `${tail.slice(0, tail.indexOf('</script>'))}\nresult = oakStaffSchedule();`,
+    context,
+  );
+  return context.result;
+}
+
+const COUNTED = {
+  verified_count: 3,
+  walkin_count: 2,
+  unattested_count: 1,
+  legacy_count: 4,
+  distinct_customers: 3,
+  review_count: 5,
+  rating_avg: 4.8,
+  started_at: '2026-02-14',
+  months_active: 6,
+};
+
+test('the profile adds the four tiers up, and never invents a month it was not given', async () => {
+  const page = specialistPage(COUNTED);
+  await page.init();
+
+  // The tiers are a partition of the completed bookings, so the headline figure is their
+  // sum — not verified_count, which would understate the work, and not a fifth query.
+  assert.equal(page.completedTotal(), 10);
+  assert.equal(page.sinceLabel(), 'tại salon từ 02/2026');
+
+  /* started_at has one writer, the boot backfill, so a roster row opened after it ran has
+     none however many bookings it goes on to take. The fragment is dropped whole rather
+     than filled with today, which would read as a career starting this morning. */
+  const fresh = specialistPage({ ...COUNTED, started_at: null, months_active: null });
+  await fresh.init();
+  assert.equal(fresh.sinceLabel(), '');
+
+  // And a reply with no block at all leaves the strip off the page rather than reading a
+  // row of zeroes at a technician whose numbers nobody has.
+  const bare = specialistPage(undefined);
+  await bare.init();
+  assert.equal(bare.stats(), null);
+});
+
+test('every figure on the profile is one the server counted, and a tier of nothing is no line', () => {
+  assert.match(profileHtml, /<template x-if="stats\(\)">/);
+  assert.match(profileHtml, /x-text="completedTotal\(\) \+ ' lượt hoàn thành'"/);
+  // distinct_customers is the one figure a salon cannot lift by putting the same customer
+  // through twice, so it is the one carrying the emphasis.
+  assert.match(
+    profileHtml,
+    /class="font-bold text-primary" x-text="stats\(\)\.distinct_customers \+ ' khách khác nhau'"/,
+  );
+  // The average and the count behind it come out of that same block, live…
+  assert.match(
+    profileHtml,
+    /Number\(stats\(\)\.rating_avg\)\.toFixed\(1\) \+ ' từ ' \+ stats\(\)\.review_count \+ ' đánh giá'/,
+  );
+  // …and nothing on the page reads the cached column beside it, which is the field a
+  // profile used to state a seeded number out of.
+  assert.doesNotMatch(profileHtml, /staff\.rating/);
+
+  /* Every tier is named, and a tier nobody has any of is not a line saying zero. All four,
+     deliberately: a walk-in counted into the headline total and then left unnamed underneath
+     it is the one arithmetic this line exists to close. */
+  const TIERS = ['verified_count', 'walkin_count', 'unattested_count', 'legacy_count'];
+  for (const tier of TIERS) {
+    assert.match(profileHtml, new RegExp(`x-show="stats\\(\\)\\.${tier}"`), tier);
+  }
+
+  /* And each separator hangs off the piece in front of it rather than the one behind, so a
+     technician with nothing verified opens that line on a word instead of on a stray dot —
+     which is exactly the reading a roster row of walk-ins gets. Each dot is therefore shown
+     on the disjunction of every tier that could precede it, and the first piece has none. */
+  for (const page of [profileHtml, scheduleHtml]) {
+    for (let index = 1; index < TIERS.length; index += 1) {
+      const preceding = TIERS.slice(0, index)
+        .map((tier) => `[\\w.()]*${tier}`)
+        .join(' \\|\\| ');
+      assert.match(
+        page,
+        new RegExp(`<span aria-hidden="true" x-show="${preceding}">·</span>`),
+        TIERS[index],
+      );
+    }
+    // The first phrase carries no dot at all, whichever tier turns out to be first.
+    assert.doesNotMatch(page, /<span aria-hidden="true">·<\/span>/);
+  }
+
+  /* The headline figure is the sum of exactly the tiers named underneath it, so the line
+     accounts for every visit the number above it counted and a reader can add it up. */
+  const total = handler(profileHtml, 'completedTotal() {', '},');
+  for (const tier of TIERS) {
+    assert.match(total, new RegExp(`stats\\.${tier}`), tier);
+  }
+
+  // The years are self-declared, and are labelled as such exactly where there is a real
+  // date to outrank them — never on a row that has nothing else to go on.
+  assert.match(profileHtml, /x-show="stats\(\) &amp;&amp; stats\(\)\.started_at"> \(tự khai\)</);
+});
+
+test('the technician reads their own numbers, and a row without them shows no card', async () => {
+  const page = schedulePage([
+    { staff_id: 7, salon: { id: 4, name: 'Lala', slug: 'lala' }, stats: COUNTED },
+    { staff_id: 9, salon: { id: 5, name: 'Mộc', slug: 'moc' } },
+  ]);
+  await page.init();
+
+  assert.deepEqual(page.statRows().map((row) => row.staff_id), [7]);
+  assert.equal(page.completedTotal(COUNTED), 10);
+  assert.equal(page.sinceLabel(COUNTED), 'tại salon từ 02/2026');
+  assert.equal(page.sinceLabel({ started_at: null }), '');
+});
+
+test('the two pages say the same thing about the same figures, word for word', () => {
+  /* lib/staff-stats.js computes these once so the page a customer reads and the page the
+     technician reads cannot disagree about one person. Two copies of the markup can still
+     drift apart in their wording, which is that same failure one layer up. */
+  const phrases = [
+    "' lượt hoàn thành'",
+    "' khách khác nhau'",
+    "' từ '",
+    "' đánh giá'",
+    "'trong đó '",
+    "' lượt do khách đặt và đã xác thực'",
+    "' lượt khách tại quầy'",
+    "' lượt hệ thống tự đóng'",
+    "' lượt trước hệ thống xác thực'",
+    "'tại salon từ '",
+  ];
+  for (const phrase of phrases) {
+    assert.ok(profileHtml.includes(phrase), `ho-so-chuyen-gia.html: ${phrase}`);
+    assert.ok(scheduleHtml.includes(phrase), `lich-cua-toi.html: ${phrase}`);
+  }
+
+  // The technician's card names what it is and what "verified" is counted from, in words
+  // somebody who never read the schema can act on.
+  assert.match(scheduleHtml, /<h2[^>]*>Số liệu của bạn \(như khách thấy\)<\/h2>/);
+  assert.match(scheduleHtml, /Số "đã xác thực" đếm từ lượt khách tự đặt và hoàn tất/);
+
+  // And it stays a reading, not a console: there is nothing in it to press.
+  const card = scheduleHtml.slice(
+    scheduleHtml.indexOf('x-show="statRows().length"'),
+    scheduleHtml.indexOf('<template x-if="!loading'),
+  );
+  assert.ok(card.length > 0, 'the numbers card has moved');
+  assert.doesNotMatch(card, /<button|@click/);
+});
+
+test('the console hands a refusal on in the words the server refused it in', () => {
+  /* Two refusals reach this page for the first time with this slice: finishing a booking
+     before it has begun, and moving a completed one off a roster row somebody stands
+     behind. Both are 409s carrying a Vietnamese sentence that says which it was, and both
+     arrive on paths the console already had — so what has to hold is that neither path
+     replaces that sentence with a house apology. */
+  assert.match(partnerSource, /'Chỉ có thể hoàn tất lịch hẹn sau giờ hẹn\.'/);
+  assert.match(
+    partnerSource,
+    /'Không thể đổi kỹ thuật viên của lịch hẹn đã hoàn tất: việc này ảnh hưởng hồ sơ đã xác thực của kỹ thuật viên\.'/,
+  );
+
+  // OAK.api carries the envelope's own message onto the Error it throws.
+  assert.match(apiJs, /envelope\.code \|\| 'UNKNOWN_ERROR',\s*envelope\.message \|\|/);
+
+  // The status buttons put that message straight into the toast…
+  const setStatus = handler(consoleHtml, 'async setStatus(status) {', 'canSet(status) {');
+  assert.match(setStatus, /catch \(error\) \{\s*OAK\.toast\(error\.message, 'error'\);/);
+  // …and the edit form — the only place in the console a booking changes technician — puts
+  // it in front of the caret instead, where a refused save is being read.
+  const submit = handler(consoleHtml, 'async submitBooking() {', 'showFormError(message) {');
+  assert.match(submit, /catch \(error\) \{\s*this\.showFormError\(error\.message\);/);
+  assert.doesNotMatch(consoleHtml, /Có lỗi xảy ra/);
+
+  /* The early-finish refusal is one a partner can actually walk into: "Không đến" is gated
+     on the clock by canMarkNoShow(), and "Hoàn tất" deliberately is not — the transition
+     table is all that stands in front of it. */
+  assert.match(
+    consoleHtml,
+    /@click="setStatus\('completed'\)"[^>]*x-show="canSet\('completed'\)"/,
+  );
 });

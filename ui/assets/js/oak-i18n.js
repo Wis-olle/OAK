@@ -251,6 +251,36 @@
     [/^(.+) \(đã nghỉ\)$/, '$1 (inactive)'],
     [/^Toạ độ: (.+)$/, 'Coordinates: $1'],
 
+    /* -- what a technician's record adds up to, on the public profile and on the page they
+          read it back from. Every one of these is a count the server computed, so none of
+          them can be a key. ------------------------------------------------------------- */
+    [/^(\d+) lượt hoàn thành$/, function (all, count) {
+      return plural(count, 'completed visit', 'completed visits');
+    }],
+    [/^(\d+) khách khác nhau$/, function (all, count) {
+      return plural(count, 'different customer', 'different customers');
+    }],
+    [/^([\d.]+) từ (\d+) đánh giá$/, function (all, average, count) {
+      return average + ' from ' + plural(count, 'review', 'reviews');
+    }],
+    [/^tại salon từ (\d{2}\/\d{4})$/, 'at this salon since $1'],
+    [/^trong đó (\d+) lượt do khách đặt và đã xác thực$/, function (all, count) {
+      return 'of which ' + plural(
+        count,
+        'visit was booked by a customer and verified',
+        'visits were booked by customers and verified',
+      );
+    }],
+    [/^(\d+) lượt khách tại quầy$/, function (all, count) {
+      return plural(count, 'walk-in visit', 'walk-in visits');
+    }],
+    [/^(\d+) lượt hệ thống tự đóng$/, function (all, count) {
+      return plural(count, 'visit closed by the system', 'visits closed by the system');
+    }],
+    [/^(\d+) lượt trước hệ thống xác thực$/, function (all, count) {
+      return plural(count, 'visit predating verification', 'visits predating verification');
+    }],
+
     /* -- salon profile and packages ----------------------------------------------------- */
     [/^Chuyên gia: (.+)$/, 'Specialist: $1'],
     [/^Xem ảnh: (.+)$/, 'View photo: $1'],

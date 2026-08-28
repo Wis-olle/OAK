@@ -99,6 +99,59 @@ Lịch của tôi
 </a>
 </div>
 </nav>
+<!-- The same figures a customer reads on the public profile, served from the same query, so
+     the page the technician reads and the page the customer reads can never become an
+     argument about the same work. Read-only, like the shift below it: nothing on this page
+     moves a number, and the only thing that ever does is a visit actually taking place. -->
+<section class="mb-8" x-cloak="" x-show="statRows().length">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Số liệu của bạn (như khách thấy)</h2>
+<p class="font-caption text-caption text-on-surface-variant mb-4">Số "đã xác thực" đếm từ lượt khách tự đặt và hoàn tất</p>
+<div class="flex flex-col gap-4">
+<template :key="row.staff_id" x-for="row in statRows()">
+<div class="bg-surface-container-lowest p-4 md:p-6 flex flex-col gap-2 rounded-lg border border-outline-variant/20">
+<p class="font-caption text-caption text-on-surface-variant flex items-center gap-2">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]">store</span> <span x-text="row.salon.name"></span>
+</p>
+<p class="flex flex-wrap items-center gap-2 font-body-md text-body-md text-on-surface">
+<span x-text="completedTotal(row.stats) + ' lượt hoàn thành'"></span>
+<span aria-hidden="true" class="text-on-surface-variant">·</span>
+<span class="font-bold text-primary" x-text="row.stats.distinct_customers + ' khách khác nhau'"></span>
+<span class="flex items-center gap-2" x-show="row.stats.review_count">
+<span aria-hidden="true" class="text-on-surface-variant">·</span>
+<span class="flex items-center gap-1">
+<span aria-hidden="true" class="material-symbols-outlined oak-star oak-star-sm">star</span>
+<span x-text="Number(row.stats.rating_avg).toFixed(1) + ' từ ' + row.stats.review_count + ' đánh giá'"></span>
+</span>
+</span>
+<span class="flex items-center gap-2" x-show="sinceLabel(row.stats)">
+<span aria-hidden="true" class="text-on-surface-variant">·</span>
+<span x-text="sinceLabel(row.stats)"></span>
+</span>
+</p>
+<!-- All four tiers, each under its own name. A tier folded into the total without being
+     named is the one thing this line exists to prevent: a walk-in is real work and is
+     counted as such, and it is still not a visit a customer attested to. -->
+<p class="flex flex-wrap items-center gap-2 font-caption text-caption text-on-surface-variant" x-show="row.stats.verified_count || row.stats.walkin_count || row.stats.unattested_count || row.stats.legacy_count">
+<span x-show="row.stats.verified_count" x-text="'trong đó ' + row.stats.verified_count + ' lượt do khách đặt và đã xác thực'"></span>
+<!-- Each separator belongs to whatever it follows, so a line that opens on its second,
+     third or fourth piece opens on a word rather than on a dangling dot. -->
+<span class="flex items-center gap-2" x-show="row.stats.walkin_count">
+<span aria-hidden="true" x-show="row.stats.verified_count">·</span>
+<span x-text="row.stats.walkin_count + ' lượt khách tại quầy'"></span>
+</span>
+<span class="flex items-center gap-2" x-show="row.stats.unattested_count">
+<span aria-hidden="true" x-show="row.stats.verified_count || row.stats.walkin_count">·</span>
+<span x-text="row.stats.unattested_count + ' lượt hệ thống tự đóng'"></span>
+</span>
+<span class="flex items-center gap-2" x-show="row.stats.legacy_count">
+<span aria-hidden="true" x-show="row.stats.verified_count || row.stats.walkin_count || row.stats.unattested_count">·</span>
+<span x-text="row.stats.legacy_count + ' lượt trước hệ thống xác thực'"></span>
+</span>
+</p>
+</div>
+</template>
+</div>
+</section>
 <template x-if="!loading &amp;&amp; error">
 <div class="flex flex-col items-start gap-3 mt-4 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
 <div class="flex items-center gap-3">
@@ -292,6 +345,31 @@ Lịch của tôi
 
             salonUrl(row) {
                 return 'salon-profile.html?salon=' + encodeURIComponent(row.salon.slug);
+            },
+
+            /* The claimed rows whose numbers arrived. A row with no block behind it shows no
+               card rather than a card of zeroes, which is a different claim entirely. */
+            statRows() {
+                return this.profiles.filter(function (row) {
+                    return Boolean(row.stats);
+                });
+            },
+
+            /** Every completed visit, whoever attested to it: the four tiers are a partition
+                of exactly that set, so the sum is the total and no visit is counted twice. */
+            completedTotal(stats) {
+                return stats.verified_count + stats.walkin_count
+                    + stats.unattested_count + stats.legacy_count;
+            },
+
+            /** "tại salon từ 08/2026", or nothing at all: started_at is the earliest booking
+                on this roster row and a row with none has no month to name. */
+            sinceLabel(stats) {
+                if (!stats.started_at) {
+                    return '';
+                }
+                var parts = String(stats.started_at).slice(0, 10).split('-');
+                return 'tại salon từ ' + parts[1] + '/' + parts[0];
             },
 
             /* Label, icon and chip tone all come from oak-api.js, so this row, the customer's
