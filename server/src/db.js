@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS users (
   email CITEXT NOT NULL UNIQUE,
   phone TEXT,
   password_hash TEXT NOT NULL,
-  role TEXT DEFAULT 'customer' CHECK (role IN ('customer','partner')),
+  role TEXT DEFAULT 'customer' CHECK (role IN ('customer','partner','staff')),
   avatar TEXT,
   city TEXT DEFAULT 'TP.HCM',
   district TEXT DEFAULT 'Quận 1',
@@ -71,6 +71,31 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS consent_at TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_opt_in INTEGER DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TEXT;
+
+-- 'staff' joined the two original roles: a technician can hold an account of their own,
+-- distinct from the owner whose console runs the salon. The CHECK is inline in the CREATE
+-- TABLE above, so on an existing database it still carries the old pair and has to be
+-- replaced — dropped only while it is the old shape, so a re-boot is a no-op. It lands one
+-- deploy ahead of anything that writes the role, because Render runs the old and the new
+-- instance side by side: the constraint has to already accept 'staff' before any code can
+-- produce it, and until that code ships nothing does.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'users_role_check' AND conrelid = 'users'::regclass
+      AND pg_get_constraintdef(oid) NOT LIKE '%staff%'
+  ) THEN
+    ALTER TABLE users DROP CONSTRAINT users_role_check;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'users_role_check' AND conrelid = 'users'::regclass
+  ) THEN
+    ALTER TABLE users ADD CONSTRAINT users_role_check
+      CHECK (role IN ('customer','partner','staff'));
+  END IF;
+END $$;
 
 -- A booking made before the customer had an account (or made for them at the counter)
 -- carries only customer_phone. Registering, or adding the number to a profile, looks the
@@ -234,6 +259,27 @@ CREATE TABLE IF NOT EXISTS staff (
   active INTEGER DEFAULT 1
 );
 
+-- Who this roster row actually is, once a person steps behind it. user_id NULL is the
+-- ordinary state and stays the default: an owner types their team into the console by
+-- hand, and those rows describe people who hold no account here. claimed_at is stamped by
+-- the claim itself, and doubles as the consent timestamp for it — one act, in which the
+-- technician takes the row over and agrees to stand behind what it shows the public.
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS claimed_at TEXT;
+
+-- One live claimed row per person per salon; the same technician may still hold a row at
+-- every salon they work for. A row is one employment stint: taking someone off the roster
+-- is a soft delete (active = 0) that deliberately keeps user_id, so their past bookings and
+-- reviews stay attributed to a person rather than to a blank, and re-hiring opens a new row
+-- instead of reviving the old one. Both halves of the predicate earn their place — guarding
+-- on user_id alone would let a departed stint sit on (user_id, salon_id) forever and leave
+-- a returning technician unable to claim anything. Unclaimed rows are outside it because
+-- Postgres treats their NULLs as distinct anyway, so the clause only says out loud which
+-- rows the rule is about. A later phase refines "open" from active = 1 to a left_at column,
+-- which says the same thing in a shape that can also record when.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_user_salon ON staff(user_id, salon_id)
+  WHERE user_id IS NOT NULL AND active = 1;
+
 -- weekday: 0 = Sunday .. 6 = Saturday. "start"/"end" quoted because they are reserved
 -- words in Postgres, like "read".
 CREATE TABLE IF NOT EXISTS staff_schedule (
@@ -252,6 +298,27 @@ CREATE TABLE IF NOT EXISTS staff_services (
   service_id INTEGER REFERENCES services(id),
   UNIQUE (staff_id, service_id)
 );
+
+-- One row per single-use claim link a salon owner hands to their technician, so the person
+-- behind a roster row is vouched for by the salon rather than self-asserted. Shaped like
+-- password_resets and for the same reasons: the token is the whole secret in the link, so a
+-- row is spent (used = 1) the moment it is redeemed and stops validating once expires_at has
+-- passed; nothing prunes old rows, they are simply never valid again. created_by is the
+-- owner who sent it, kept because "who let this person in" has to have an answer later.
+CREATE TABLE IF NOT EXISTS staff_invites (
+  token TEXT PRIMARY KEY,
+  staff_id INTEGER REFERENCES staff(id),
+  created_by INTEGER REFERENCES users(id),
+  expires_at TEXT,
+  used INTEGER DEFAULT 0,
+  created_at TEXT
+);
+
+-- Retiring a roster row's outstanding link happens whenever the owner invites again, and it
+-- is the only query that reaches this table by staff_id. Partial, because a spent row is
+-- never retired again and the live set per row is at most one.
+CREATE INDEX IF NOT EXISTS idx_staff_invites_staff ON staff_invites(staff_id)
+  WHERE used = 0;
 
 CREATE TABLE IF NOT EXISTS bookings (
   id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
