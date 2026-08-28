@@ -1,0 +1,425 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
+<script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
+<style>
+        /* Staff auth form sizing (this page only). The boundary and the focus state are
+           input.oak-field in ui/assets/css/oak-utils.css — one source, one token. */
+        .oak-field {
+            width: 100%; padding: 12px 16px;
+            background-color: #ffffff; color: #171818; font-size: 16px; line-height: 1.6;
+            outline: none; box-shadow: none; transition: border-color 0.3s ease;
+        }
+    </style>
+<title>Đăng nhập kỹ thuật viên - OAK Beauty</title>
+<meta content="noindex,nofollow" name="robots">
+<!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
+<link href="assets/css/oak-tailwind.css" rel="stylesheet">
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
+<!-- TopNavBar -->
+<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
+<script src="assets/js/oak-header.js"></script>
+<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-gutter lg:gap-16 items-center">
+<!-- Left Side: Editorial Image & Value Proposition -->
+<div class="relative w-full h-[400px] lg:h-[700px] rounded-xl overflow-hidden group">
+<div class="bg-cover bg-center w-full h-full absolute inset-0 transition-transform duration-700 group-hover:scale-105" data-alt="A sophisticated, high-end beauty salon interior. Soft, warm natural light illuminating elegant minimalist furniture, pale cream walls, and subtle touches of charcoal. The atmosphere is serene, professional, and luxurious, conveying a sense of premium service and business growth. A modern editorial composition." style="background-image: url('assets/images/img-817bbf045c.jpg')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-8 w-full text-white">
+<h2 class="font-headline-md text-headline-md text-white mb-4">Tay nghề của bạn, mang tên bạn</h2>
+<div class="space-y-4 font-body-md text-body-md text-white/90">
+<div class="flex items-start gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">verified</span>
+<p>Một hồ sơ nghề nghiệp của riêng bạn, đứng cạnh tên salon chứ không lẫn vào đó.</p>
+</div>
+<div class="flex items-start gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">calendar_month</span>
+<p>Lịch làm việc của bạn, xem được mọi lúc trên điện thoại.</p>
+</div>
+<div class="flex items-start gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">how_to_reg</span>
+<p>Đánh giá khách để lại cho bạn đi theo bạn, kể cả khi bạn đổi nơi làm.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Side: Claim / Login Form -->
+<div class="w-full max-w-md mx-auto lg:ml-auto lg:mr-0 mt-8 lg:mt-0 glass-panel rounded-xl p-8 ambient-shadow" x-data="oakStaffAuth()">
+<div class="mb-8 text-center">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Đăng nhập kỹ thuật viên</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Lịch làm việc và hồ sơ nghề nghiệp của bạn tại OAK Beauty.</p>
+</div>
+<!-- The invite has to be read before the panel knows what it is: with a link in the address
+     bar every reading below is wrong until the server has answered. -->
+<p class="font-body-md text-body-md text-on-surface-variant text-center" x-show="mode === ''">Đang tải…</p>
+<!-- Dead or spent claim link -->
+<div class="space-y-6" x-cloak="" x-show="mode === 'dead'">
+<div class="p-6 bg-error-container rounded-xl flex items-start gap-3" role="alert">
+<span aria-hidden="true" class="material-symbols-outlined text-on-error-container" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-error-container" x-text="inviteError"></p>
+</div>
+<button @click="show('login')" class="block w-full py-4 border border-primary text-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary hover:text-white transition-colors" type="button">
+                        Đăng nhập bằng tài khoản đã có
+                    </button>
+</div>
+<!-- Signed in as a salon owner, with no claim link to redeem -->
+<div class="space-y-6" x-cloak="" x-show="mode === 'partner'">
+<div class="p-6 bg-tertiary rounded-xl">
+<h3 class="font-headline-sm text-headline-sm text-on-tertiary mb-2">Bạn đang dùng tài khoản đối tác</h3>
+<p class="font-body-md text-body-md text-on-tertiary/80">Trang này dành cho kỹ thuật viên. Chủ salon quản lý đội ngũ ở trang quản lý salon.</p>
+</div>
+<a class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors" href="tong-quan-doi-tac.html">
+                        Về trang quản lý salon
+                    </a>
+</div>
+<!-- Already signed in under another account, holding a live claim link -->
+<div class="space-y-6" x-cloak="" x-show="mode === 'claim'">
+<div class="p-6 bg-tertiary rounded-xl">
+<!-- Two nodes, not one string built in JavaScript: the wording is a dictionary key and
+     the two names beside it are the salon's own. -->
+<p class="font-body-md text-body-md text-on-tertiary mb-2"><span>Bạn được mời nhận hồ sơ kỹ thuật viên của</span> <span x-text="invite.staff_name"></span> <span>tại</span> <span x-text="invite.salon_name"></span></p>
+<p class="font-caption text-caption text-on-tertiary/80"><span>Liên kết có hiệu lực đến</span> <span x-text="expiryLabel()"></span></p>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant">Bạn đang đăng nhập bằng một tài khoản OAK khác. Bạn có thể nhận hồ sơ bằng chính tài khoản đó.</p>
+<p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
+<button :disabled="busy" @click="claim()" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : 'Dùng tài khoản hiện tại'">Dùng tài khoản hiện tại</button>
+</div>
+<!-- Plain login, and the reason there is no way to register from here -->
+<div class="space-y-6" x-cloak="" x-show="mode === 'login'">
+<form @submit.prevent="login()" class="space-y-4">
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="staff-email">Email</label>
+<input class="oak-field" id="staff-email" required="" type="email" x-model="form.email">
+</div>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="staff-password">Mật khẩu</label>
+<input class="oak-field" id="staff-password" required="" type="password" x-model="form.password">
+</div>
+<div class="flex items-center justify-end">
+<button :disabled="busy || sending" @click="forgotPassword()" class="font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors disabled:opacity-60" type="button">Quên mật khẩu?</button>
+</div>
+<p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
+<button :disabled="busy" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="submit" x-text="busy ? 'Đang xử lý…' : 'Đăng nhập'">Đăng nhập</button>
+</form>
+<div class="relative flex py-4 items-center">
+<div class="flex-grow border-t border-outline-variant/30"></div>
+<span class="flex-shrink-0 mx-4 font-caption text-caption text-on-surface-variant">HOẶC</span>
+<div class="flex-grow border-t border-outline-variant/30"></div>
+</div>
+<div class="p-6 bg-tertiary rounded-xl">
+<h3 class="font-headline-sm text-headline-sm text-on-tertiary mb-2">Chưa có tài khoản?</h3>
+<p class="font-body-md text-body-md text-on-tertiary/80">Hồ sơ kỹ thuật viên chỉ mở được bằng liên kết mời của salon bạn đang làm. Hãy hỏi chủ salon liên kết đó.</p>
+</div>
+</div>
+<!-- Creating the account the claim link was minted for -->
+<form @submit.prevent="register()" class="space-y-4" x-cloak="" x-show="mode === 'register'">
+<div class="p-6 bg-tertiary rounded-xl">
+<!-- Two nodes, not one string built in JavaScript: the wording is a dictionary key and
+     the two names beside it are the salon's own. -->
+<p class="font-body-md text-body-md text-on-tertiary mb-2"><span>Bạn được mời tạo hồ sơ cho</span> <span x-text="invite.staff_name"></span> <span>tại</span> <span x-text="invite.salon_name"></span></p>
+<p class="font-caption text-caption text-on-tertiary/80"><span>Liên kết có hiệu lực đến</span> <span x-text="expiryLabel()"></span></p>
+</div>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-name">Họ và tên</label>
+<input class="oak-field" id="register-name" required="" type="text" x-model="form.name">
+</div>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-email">Email</label>
+<input class="oak-field" id="register-email" required="" type="email" x-model="form.email">
+</div>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-password">Mật khẩu (tối thiểu 8 ký tự)</label>
+<input class="oak-field" id="register-password" minlength="8" required="" type="password" x-model="form.password">
+</div>
+<div>
+<label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-confirm">Xác nhận mật khẩu</label>
+<input class="oak-field" id="register-confirm" minlength="8" required="" type="password" x-model="form.confirm">
+</div>
+<!-- Consent, asked as an act of its own rather than read into the button below it. What a
+     technician is agreeing to here is publication, so it is spelled out item by item
+     rather than folded into a link to the terms. -->
+<label class="flex items-start gap-3 cursor-pointer" for="register-consent">
+<input class="mt-1" id="register-consent" type="checkbox" x-model="form.consent">
+<span class="font-caption text-caption text-on-surface-variant">
+<span>Tôi đồng ý mở hồ sơ kỹ thuật viên công khai trên OAK Beauty.</span>
+<span>Hồ sơ công khai gồm tên, ảnh, chuyên môn, đánh giá của khách và số liệu làm việc tổng hợp của tôi.</span>
+<span>Số liệu tổng hợp sau này có thể gộp cả công việc của tôi ở các salon khác.</span>
+</span>
+</label>
+<p class="font-caption text-caption text-on-surface-variant">Bạn có thể ẩn hồ sơ công khai trong phần Cài đặt bất cứ lúc nào.</p>
+<p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
+<button :disabled="busy" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="submit" x-text="busy ? 'Đang xử lý…' : 'Tạo tài khoản kỹ thuật viên'">Tạo tài khoản kỹ thuật viên</button>
+</form>
+<div class="mt-8 text-center">
+<p class="font-caption text-caption text-on-surface-variant">Bằng việc tiếp tục, bạn đồng ý với <a class="underline hover:text-primary transition-colors" href="dieu-khoan.html">Điều khoản dịch vụ</a> và <a class="underline hover:text-primary transition-colors" href="bao-mat.html">Chính sách bảo mật</a> của chúng tôi.</p>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<!-- Brand Column -->
+<div class="col-span-1 md:col-span-1 flex flex-col gap-4">
+<span class="font-headline-sm text-headline-sm text-on-tertiary font-bold">OAK Beauty</span>
+<p class="font-caption text-caption text-on-tertiary/70 mt-4 max-w-xs">
+                    Nâng tầm vẻ đẹp Việt.<br>
+                    Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
+                </p>
+</div>
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
+</div>
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+</div>
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
+<div class="col-span-1 flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
+</div>
+</div>
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
+<div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
+<span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
+</div>
+</footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+
+    /** A guard sends the page the visitor wanted as ?next=; honour it when it names a page of
+        this site, otherwise fall back to `home` — which differs by who just signed in. */
+    function oakStaffNext(home) {
+        const next = OAK.qs('next');
+        return next && /^[\w-]+\.html(\?.*)?$/.test(next) ? next : home;
+    }
+
+    function oakStaffAuth() {
+        return {
+            /* '' until init() has read the claim link and asked who is signed in: with a
+               link in the address bar, every other reading of this page is wrong until the
+               server has answered. Then one of login | register | claim | dead | partner. */
+            mode: '',
+            token: '',
+            invite: { staff_name: '', salon_name: '', expires_at: '' },
+            inviteError: '',
+            error: '',
+            busy: false,
+            /* Its own flag, not `busy`: the submit button renames itself to "Đang xử lý…"
+               off that one, and a password-reset request is not a sign-in attempt. */
+            sending: false,
+            form: { name: '', email: '', password: '', confirm: '', consent: false },
+
+            async init() {
+                this.token = OAK.qs('invite') || '';
+                if (this.token) {
+                    try {
+                        this.invite = await OAK.api(
+                            '/api/auth/staff/invite/' + encodeURIComponent(this.token),
+                        );
+                    } catch (error) {
+                        // Every dead reason answers alike on purpose, so there is one state
+                        // here too rather than a branch per reason.
+                        this.inviteError = error.message;
+                        this.token = '';
+                    }
+                }
+
+                const user = await OAK.me();
+                if (user && user.role === 'staff') {
+                    location.href = oakStaffNext('lich-cua-toi.html');
+                    return;
+                }
+                if (user && this.token) {
+                    // Including a partner: the refusal is the server's to give, and it says
+                    // more than a button we withheld would have.
+                    this.mode = 'claim';
+                    return;
+                }
+                // Before the wrong-account-type state, not after it: an owner who opens
+                // their own technician's expired link needs to be told the link is dead,
+                // which is the fact they act on. That it is their account is the lesser
+                // half, and saying only that leaves them with nothing to do.
+                if (this.inviteError) {
+                    this.mode = 'dead';
+                    return;
+                }
+                if (user && user.role === 'partner') {
+                    this.mode = 'partner';
+                    return;
+                }
+                if (this.token) {
+                    this.form.name = this.invite.staff_name;
+                    this.mode = 'register';
+                    return;
+                }
+                this.mode = 'login';
+            },
+
+            show(mode) {
+                this.mode = mode;
+                this.error = '';
+            },
+
+            /** The day the link stops working, as a date and not as a countdown. */
+            expiryLabel() {
+                return OAK.fmtDate(this.invite.expires_at, 'long');
+            },
+
+            async login() {
+                this.error = '';
+                this.busy = true;
+                try {
+                    const data = await OAK.api('/api/auth/login', {
+                        method: 'POST',
+                        body: { email: this.form.email, password: this.form.password },
+                    });
+                    // Every role may sign in from here; they are simply sent where their
+                    // own account lives. Nobody is signed back out, because unlike the
+                    // partner gateway this page is not a place only one role belongs.
+                    if (data.user.role === 'partner') {
+                        location.href = 'tong-quan-doi-tac.html';
+                        return;
+                    }
+                    location.href = data.user.role === 'staff'
+                        ? oakStaffNext('lich-cua-toi.html')
+                        : oakStaffNext('kham-pha.html');
+                } catch (error) {
+                    this.error = error.message;
+                    this.busy = false;
+                }
+            },
+
+            /* The reply is a toast, which says nothing about WHICH email it was sent to, so an
+               empty box has to be answered here rather than by the server's refusal. */
+            async forgotPassword() {
+                const email = this.form.email.trim();
+                if (!email) {
+                    this.error = 'Nhập email của bạn rồi bấm lại.';
+                    const field = document.getElementById('staff-email');
+                    if (field) {
+                        field.focus();
+                    }
+                    return;
+                }
+                if (this.sending) {
+                    return;
+                }
+                this.error = '';
+                this.sending = true;
+                try {
+                    const data = await OAK.api('/api/auth/forgot-password', {
+                        method: 'POST',
+                        body: { email: email },
+                    });
+                    OAK.toast(data.message);
+                } catch (error) {
+                    OAK.toast(error.message, 'error');
+                } finally {
+                    this.sending = false;
+                }
+            },
+
+            /** Redeem the link as whoever is already signed in. A partner account is refused
+                by the server, and that refusal is the copy shown in the error slot. */
+            async claim() {
+                this.error = '';
+                this.busy = true;
+                try {
+                    await OAK.api('/api/staff-me/claim', {
+                        method: 'POST',
+                        body: { token: this.token },
+                    });
+                    location.href = oakStaffNext('lich-cua-toi.html');
+                } catch (error) {
+                    this.error = error.message;
+                    this.busy = false;
+                }
+            },
+
+            async register() {
+                this.error = '';
+                if (this.form.confirm !== this.form.password) {
+                    this.error = 'Mật khẩu xác nhận không khớp.';
+                    return;
+                }
+                if (!this.form.consent) {
+                    this.error = 'Vui lòng đồng ý mở hồ sơ công khai để tiếp tục.';
+                    return;
+                }
+                this.busy = true;
+                try {
+                    await OAK.api('/api/auth/staff/register', {
+                        method: 'POST',
+                        body: {
+                            token: this.token,
+                            name: this.form.name,
+                            email: this.form.email,
+                            password: this.form.password,
+                            // What the technician actually ticked, not a literal: the gate
+                            // above is what makes this true, and a gate can be moved.
+                            consent: this.form.consent,
+                        },
+                    });
+                    location.href = oakStaffNext('lich-cua-toi.html');
+                } catch (error) {
+                    this.error = error.message;
+                    this.busy = false;
+                }
+            },
+        };
+    }
+</script>
+</body></html>

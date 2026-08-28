@@ -261,7 +261,11 @@
                         // The credentials were valid, so a session cookie now exists. Drop it
                         // rather than leave a customer signed in from the partner gateway.
                         await OAK.api('/api/auth/logout', { method: 'POST' });
-                        this.error = 'Tài khoản này không phải đối tác.';
+                        // A technician has a gateway of their own, so they are told which
+                        // one rather than merely told this is not it.
+                        this.error = data.user.role === 'staff'
+                            ? 'Tài khoản này là kỹ thuật viên. Vui lòng dùng trang đăng nhập kỹ thuật viên.'
+                            : 'Tài khoản này không phải đối tác.';
                         this.busy = false;
                         return;
                     }

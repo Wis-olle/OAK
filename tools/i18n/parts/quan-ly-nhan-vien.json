@@ -74,5 +74,22 @@
   "Đã xóa ngày nghỉ.": "Days off removed.",
 
   "Nội dung": "Content",
-  "Đánh giá": "Reviews"
+  "Đánh giá": "Reviews",
+
+  "Đã liên kết": "Linked",
+  "Đã mời": "Invited",
+  "Mời lên OAK": "Invite to OAK",
+  "Kỹ thuật viên này đã có tài khoản OAK và tự giữ hồ sơ của mình.": "This technician already holds an OAK account and keeps their own profile.",
+  "Gửi liên kết đăng nhập lại": "Send a new sign-in link",
+  "Đã gửi email khôi phục cho nhân viên.": "A recovery email has been sent to the technician.",
+  "Tạo một liên kết để kỹ thuật viên tự mở tài khoản và nhận hồ sơ này. Liên kết là toàn bộ chứng cứ, nên chỉ đưa trực tiếp cho họ.": "Create a link the technician can open their own account with and take this profile over. The link is the whole proof, so hand it to them directly.",
+  "Liên kết mời": "Invitation link",
+  "Liên kết có hiệu lực đến": "This link works until",
+  "Đang có một liên kết chờ nhận. OAK không hiện lại liên kết cũ, nên nếu kỹ thuật viên chưa nhận được, hãy tạo một liên kết mới.": "An invitation link is already waiting. OAK never shows an old link a second time, so if the technician has not received it, create a new one.",
+  "Tạo liên kết mời": "Create an invitation link",
+  "Tạo liên kết mới": "Create a new link",
+  "Thu hồi": "Revoke",
+  "Đã thu hồi liên kết mời.": "The invitation link has been revoked.",
+  "Không sao chép được, vui lòng chép thủ công.": "Could not copy it. Please copy it by hand.",
+  "Kỹ thuật viên này đã ngừng hoạt động, không thể tạo liên kết.": "This technician is no longer active, so no link can be created."
 }

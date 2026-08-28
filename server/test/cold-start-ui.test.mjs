@@ -68,6 +68,7 @@ function harness(options = {}) {
   const respond = options.respond || (() => ({ success: true, data: { user: null } }));
   const fields = options.fields || [];
   const listeners = new Map();
+  const redirects = [];
   let reloads = 0;
 
   const context = {
@@ -82,9 +83,15 @@ function harness(options = {}) {
     clearTimeout: timers.clearTimeout,
     LOGIN_PAGE: 'dang-nhap-nguoi-dung.html',
     PARTNER_LOGIN_PAGE: 'dang-nhap-doi-tac.html',
-    sessionSeen: false,
-    partnerPage: false,
-    redirectToLogin: () => new Promise(() => {}),
+    // Both of these live outside the lifted slice, so they are supplied here — and both
+    // are read by api()'s expired-session branch, which is what the last test drives.
+    // `loginPage` is the page whose guard ran; a page with no guard keeps the default.
+    sessionSeen: Boolean(options.sessionSeen),
+    loginPage: options.loginPage || 'dang-nhap-nguoi-dung.html',
+    redirectToLogin: (page) => {
+      redirects.push(page);
+      return new Promise(() => {});
+    },
     location: {
       reload() {
         reloads += 1;
@@ -144,6 +151,7 @@ function harness(options = {}) {
     calls,
     banner: () => nodes.get('oak-server-down') || null,
     reloads: () => reloads,
+    redirects,
     // The visitor puts something into the page: what the reload has to protect is this
     // act, not the contents of any field.
     interact: (type) => listeners.get(type)(),
@@ -348,4 +356,43 @@ test('a read is abandoned after eight seconds; a write is left to finish', async
     await Promise.race([write.then(() => 'settled'), Promise.resolve('pending')]),
     'pending',
   );
+});
+
+/* A session that expired while the page was open is sent back to a login page — and to the
+   right one of the three. api() reads that target from `loginPage`, a module-level variable
+   the guards set and this slice does not declare, so the stub above is the only thing
+   standing in for it: before this case existed, renaming that variable left the harness
+   supplying a name nothing read and the branch threw a ReferenceError nobody was driving. */
+test('an expired session goes back to the login page the page belongs to', async () => {
+  const expired = () => ({ success: false, error: { code: 'UNAUTHENTICATED', message: 'hết hạn' } });
+
+  const customer = harness({ sessionSeen: true, respond: expired });
+  // Never settles, the way a redirect does not: what is asserted is where it went.
+  customer.api('/api/bookings/mine');
+  await customer.advance(0);
+  assert.deepEqual(customer.redirects, ['dang-nhap-nguoi-dung.html']);
+
+  const console_ = harness({
+    sessionSeen: true,
+    loginPage: 'dang-nhap-doi-tac.html',
+    respond: expired,
+  });
+  console_.api('/api/partner/staff');
+  await console_.advance(0);
+  assert.deepEqual(console_.redirects, ['dang-nhap-doi-tac.html']);
+
+  const staff = harness({
+    sessionSeen: true,
+    loginPage: 'dang-nhap-nhan-vien.html',
+    respond: expired,
+  });
+  staff.api('/api/staff-me/bookings');
+  await staff.advance(0);
+  assert.deepEqual(staff.redirects, ['dang-nhap-nhan-vien.html']);
+
+  // An anonymous visitor on a public page has no session to have lost, so the same
+  // envelope is an ordinary error there rather than a bounce.
+  const guest = harness({ respond: expired });
+  await assert.rejects(guest.api('/api/salons'), (error) => error.code === 'UNAUTHENTICATED');
+  assert.deepEqual(guest.redirects, []);
 });

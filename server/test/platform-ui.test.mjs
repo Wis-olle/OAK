@@ -20,9 +20,11 @@ const readServer = (name) => fs.readFileSync(path.join(root, 'server/src', name)
 /* The same split robots.txt, ui/sitemap.xml and server/test/seo-ui.test.mjs are built on. */
 const PRIVATE = [
   'bao-cao-doanh-thu.html', 'cai-dat-salon.html', 'cai-dat.html', 'dang-ky.html',
-  'dang-nhap-doi-tac.html', 'dang-nhap-nguoi-dung.html', 'danh-gia-cua-toi.html',
+  'dang-nhap-doi-tac.html', 'dang-nhap-nguoi-dung.html', 'dang-nhap-nhan-vien.html',
+  'danh-gia-cua-toi.html',
   'danh-gia-salon.html', 'danh-sach-salon.html', 'dat-lai-mat-khau.html', 'dat-lich.html',
-  'ho-so-ca-nhan.html', 'index.html', 'lich-hen-cua-toi.html', 'quan-ly-dich-vu.html',
+  'ho-so-ca-nhan.html', 'index.html', 'lich-cua-toi.html', 'lich-hen-cua-toi.html',
+  'quan-ly-dich-vu.html',
   'quan-ly-lich-hen.html', 'quan-ly-nhan-vien.html', 'salon-profile-lala-nail-studio.html',
   'thong-bao.html', 'tong-quan-doi-tac.html', 'xac-nhan-dat-lich.html', 'yeu-thich.html',
 ];

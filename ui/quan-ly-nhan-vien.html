@@ -200,6 +200,17 @@
 <div>
 <h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="member.name"></h3>
 <p class="font-body-md text-body-md text-on-surface-variant" x-text="member.title || member.specialty || ''"></p>
+<!-- Whether this row has a person standing behind it on OAK. Nothing at all for the
+     rows nobody has been invited to yet: an empty chip on every card would say less
+     than the two that mean something. -->
+<span class="inline-flex items-center gap-1 bg-surface-container px-2 py-1 rounded mt-2 font-label-md text-caption text-secondary" x-show="member.claimed">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="how_to_reg">how_to_reg</span>
+                                    Đã liên kết
+                                </span>
+<span class="inline-flex items-center gap-1 bg-surface-container px-2 py-1 rounded mt-2 font-label-md text-caption text-on-surface-variant" x-show="!member.claimed &amp;&amp; member.invite_pending">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="mail">mail</span>
+                                    Đã mời
+                                </span>
 </div>
 <div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded shrink-0" x-show="member.rating">
 <span aria-hidden="true" class="material-symbols-outlined text-secondary fill text-[16px]" data-icon="star" data-weight="fill">star</span>
@@ -272,6 +283,54 @@
 <input @change="uploadImage($event)" accept=".jpg,.jpeg,.png,.webp" class="font-body-md text-body-md text-on-surface-variant min-w-0" id="staff-image" type="file"/>
 </div>
 </div>
+</div>
+<!-- Mời lên OAK. Only for a row that already exists, because a claim link has to point
+     at one — and the whole section reads differently once somebody stands behind it. -->
+<div x-show="form.id">
+<h4 class="font-headline-sm text-[18px] text-primary mb-4 border-b border-outline-variant/20 pb-2">Mời lên OAK</h4>
+<!-- Already claimed. No claim link is minted here and the server will not mint one: a
+     link the OWNER holds that sets a password on their technician's account is account
+     takeover with a friendly name on it. What goes out is an ordinary reset, to the
+     technician's own address, and the owner is told only that it went. -->
+<div class="space-y-4" x-show="form.claimed">
+<p class="font-body-md text-body-md text-on-surface-variant">Kỹ thuật viên này đã có tài khoản OAK và tự giữ hồ sơ của mình.</p>
+<p class="font-body-md text-body-md text-primary" role="alert" x-show="inviteNotice" x-text="inviteNotice"></p>
+<button :disabled="inviteBusy" @click="sendRecovery()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="mail">mail</span>
+                                Gửi liên kết đăng nhập lại
+                            </button>
+</div>
+<!-- Not claimed yet: a link to hand over in person or over Zalo. -->
+<div class="space-y-4" x-show="!form.claimed">
+<p class="font-body-md text-body-md text-on-surface-variant">Tạo một liên kết để kỹ thuật viên tự mở tài khoản và nhận hồ sơ này. Liên kết là toàn bộ chứng cứ, nên chỉ đưa trực tiếp cho họ.</p>
+<div class="space-y-2" x-show="inviteUrl">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-invite-url">Liên kết mời</label>
+<div class="flex flex-wrap items-center gap-3">
+<input :value="inviteUrl" class="flex-1 min-w-0 bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-invite-url" readonly type="text"/>
+<button @click="copyInvite()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors shrink-0" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="content_copy">content_copy</span>
+                                    Sao chép liên kết
+                                </button>
+</div>
+<!-- Two nodes, not one string built in JavaScript: the label is a dictionary key and
+     the date beside it is a date. -->
+<p class="font-caption text-caption text-on-surface-variant"><span>Liên kết có hiệu lực đến</span> <span x-text="inviteExpiryLabel()"></span></p>
+</div>
+<!-- Pending from an earlier visit. The token is never handed back a second time, so
+     there is state here but no link: the honest offer is a fresh one. -->
+<p class="font-caption text-caption text-on-surface-variant" x-show="!inviteUrl &amp;&amp; form.invite_pending">Đang có một liên kết chờ nhận. OAK không hiện lại liên kết cũ, nên nếu kỹ thuật viên chưa nhận được, hãy tạo một liên kết mới.</p>
+<div class="flex flex-wrap gap-3">
+<button :disabled="inviteBusy" @click="mintInvite()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="person_add">person_add</span>
+<span x-text="form.invite_pending ? 'Tạo liên kết mới' : 'Tạo liên kết mời'"></span>
+</button>
+<button :disabled="inviteBusy" @click="revokeInvite()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-error hover:text-error transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button" x-show="form.invite_pending">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="cancel">cancel</span>
+                                Thu hồi
+                            </button>
+</div>
+</div>
+<p class="font-body-md text-body-md text-error mt-4" role="alert" x-show="inviteError" x-text="inviteError"></p>
 </div>
 <!-- Schedule -->
 <div>
@@ -488,6 +547,13 @@
             timeOffError: '',
             timeOffSaving: false,
             timeOffAffected: 0,
+            /* The claim link, held only for as long as the modal that minted it is open:
+               the server never hands a token back a second time. */
+            inviteUrl: '',
+            inviteExpiresAt: '',
+            inviteError: '',
+            inviteNotice: '',
+            inviteBusy: false,
             confirmOpen: false,
             confirmMessage: '',
 
@@ -574,6 +640,10 @@
                 this.timeOffError = '';
                 this.timeOffAffected = 0;
                 this.timeOffForm = { date_from: '', date_to: '', reason: '' };
+                this.inviteUrl = '';
+                this.inviteExpiresAt = '';
+                this.inviteError = '';
+                this.inviteNotice = '';
                 if (!member) {
                     this.form = {
                         id: null,
@@ -583,6 +653,8 @@
                         image: '',
                         service_ids: [],
                         schedule: this.buildSchedule([]),
+                        claimed: false,
+                        invite_pending: false,
                     };
                     this.staffModalOpen = true;
                     return;
@@ -598,6 +670,10 @@
                         image: detail.image || '',
                         service_ids: detail.service_ids.slice(),
                         schedule: this.buildSchedule(detail.schedule),
+                        // Off the list row, not the detail: GET /staff/:id answers with the
+                        // profile the owner edits and says nothing about who holds it.
+                        claimed: Boolean(member.claimed),
+                        invite_pending: Boolean(member.invite_pending),
                     };
                     this.staffModalOpen = true;
                 } catch (error) {
@@ -622,6 +698,102 @@
 
             hasService(id) {
                 return (this.form.service_ids || []).indexOf(id) !== -1;
+            },
+
+            /* ---- claim link ---- */
+
+            /** The day the link stops working, as a date and not as a countdown. */
+            inviteExpiryLabel() {
+                return OAK.fmtDate(this.inviteExpiresAt, 'long');
+            },
+
+            /* load() after each of these, because the chip on the grid card behind the modal
+               is drawn from the list row and would otherwise still say the old thing. */
+            async mintInvite() {
+                this.inviteError = '';
+                this.inviteNotice = '';
+                this.inviteBusy = true;
+                try {
+                    var data = await OAK.api('/api/partner/staff/' + this.form.id + '/invite', {
+                        method: 'POST',
+                    });
+                    // The server answers with a path; what the owner hands over has to be
+                    // something a browser can open.
+                    this.inviteUrl = location.origin + data.url;
+                    this.inviteExpiresAt = data.expires_at;
+                    this.form.invite_pending = true;
+                    await this.load();
+                } catch (error) {
+                    this.inviteError = error.message;
+                } finally {
+                    this.inviteBusy = false;
+                }
+            },
+
+            async revokeInvite() {
+                this.inviteError = '';
+                this.inviteNotice = '';
+                this.inviteBusy = true;
+                try {
+                    await OAK.api('/api/partner/staff/' + this.form.id + '/invite', {
+                        method: 'DELETE',
+                    });
+                    this.inviteUrl = '';
+                    this.inviteExpiresAt = '';
+                    this.form.invite_pending = false;
+                    OAK.toast('Đã thu hồi liên kết mời.');
+                    await this.load();
+                } catch (error) {
+                    this.inviteError = error.message;
+                } finally {
+                    this.inviteBusy = false;
+                }
+            },
+
+            /* The same endpoint as minting, on a row somebody already holds: what comes back
+               is that a reset went to the technician's own inbox, and nothing else. */
+            async sendRecovery() {
+                this.inviteError = '';
+                this.inviteNotice = '';
+                this.inviteBusy = true;
+                try {
+                    await OAK.api('/api/partner/staff/' + this.form.id + '/invite', {
+                        method: 'POST',
+                    });
+                    this.inviteNotice = 'Đã gửi email khôi phục cho nhân viên.';
+                } catch (error) {
+                    this.inviteError = error.message;
+                } finally {
+                    this.inviteBusy = false;
+                }
+            },
+
+            async copyInvite() {
+                var field = document.getElementById('staff-invite-url');
+                try {
+                    await navigator.clipboard.writeText(this.inviteUrl);
+                    OAK.toast('Đã sao chép liên kết.');
+                    return;
+                } catch (error) {
+                    // The clipboard API needs a secure context, which an http deploy never
+                    // is. The older way still works there.
+                }
+                if (field) {
+                    field.select();
+                    try {
+                        // Reports failure by returning false rather than by throwing, and a
+                        // copy the browser refused must never be reported as one that
+                        // happened: the owner would paste whatever was on the clipboard
+                        // before into Zalo and hand the technician somebody else's text.
+                        if (document.execCommand('copy')) {
+                            OAK.toast('Đã sao chép liên kết.');
+                            return;
+                        }
+                    } catch (error) {
+                        // Disabled by policy. Same answer as a false return.
+                    }
+                }
+                OAK.toast('Không sao chép được, vui lòng chép thủ công.', 'error');
             },
 
             /* ---- days off ---- */

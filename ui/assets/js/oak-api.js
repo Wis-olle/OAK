@@ -15,6 +15,8 @@
 
   var LOGIN_PAGE = 'dang-nhap-nguoi-dung.html';
   var PARTNER_LOGIN_PAGE = 'dang-nhap-doi-tac.html';
+  var STAFF_LOGIN_PAGE = 'dang-nhap-nhan-vien.html';
+  var STAFF_HOME_PAGE = 'lich-cua-toi.html';
   var PROFILE_PAGE = 'ho-so-ca-nhan.html';
   var NOTIFICATIONS_PAGE = 'thong-bao.html';
   var HOME_PAGE = 'kham-pha.html';
@@ -271,7 +273,7 @@
         // auth and answers {user:null} for a guest, so `sessionSeen` is only ever set by a
         // real user, and an anonymous visitor on a public page is never bounced from here.
         sessionSeen = false;
-        return redirectToLogin(partnerPage ? PARTNER_LOGIN_PAGE : LOGIN_PAGE);
+        return redirectToLogin(loginPage);
       }
       throw apiError(
         envelope.code || 'UNKNOWN_ERROR',
@@ -312,9 +314,11 @@
   // True once this page load has seen a real session. UNAUTHENTICATED then means the session
   // expired rather than "never signed in", which is what makes the redirect in api() safe.
   var sessionSeen = false;
-  // True on the partner console: only those pages gate themselves with requirePartner(), and
-  // they belong to the partner login page, not the customer one.
-  var partnerPage = false;
+  // Which login page this one belongs to. Three of them now, and a page cannot be sorted
+  // into one by looking at it: the guard it calls is what says whose page it is, so
+  // requirePartner and requireStaff each name their own and everything else keeps the
+  // customer default.
+  var loginPage = LOGIN_PAGE;
 
   /** The signed-in user, or null. Never redirects — a guest page must still render. */
   function me() {
@@ -375,12 +379,22 @@
   }
 
   async function requirePartner() {
-    partnerPage = true;
+    loginPage = PARTNER_LOGIN_PAGE;
     var user = await me();
     if (serverUnreachable) {
       return reportServerUnreachable();
     }
     return user && user.role === 'partner' ? user : redirectToLogin(PARTNER_LOGIN_PAGE);
+  }
+
+  /** The same gate for the technician's own pages, which belong to the staff login. */
+  async function requireStaff() {
+    loginPage = STAFF_LOGIN_PAGE;
+    var user = await me();
+    if (serverUnreachable) {
+      return reportServerUnreachable();
+    }
+    return user && user.role === 'staff' ? user : redirectToLogin(STAFF_LOGIN_PAGE);
   }
 
   /** 350000 → "350.000đ". Empty string for anything that is not a number. */
@@ -770,7 +784,12 @@
       : document.querySelector('[data-oak-avatar-img]');
     var icon = (link || document).querySelector('[data-oak-avatar-icon]');
     if (link) {
-      link.href = PROFILE_PAGE;
+      // A technician's account is their schedule rather than the customer profile page.
+      // Groundwork, not live behaviour: as the comment above says, this link belongs to
+      // the partner console bar, and requirePartner keeps a technician off every page
+      // that carries one — no staff-reachable page has an [aria-label="Tài khoản"] link
+      // today. It is one line, and it is the line that will be wrong if one ever does.
+      link.href = user.role === 'staff' ? STAFF_HOME_PAGE : PROFILE_PAGE;
     }
     if (image && user.avatar) {
       image.onerror = function () {
@@ -1080,6 +1099,7 @@
     districts: loadDistricts,
     requireLogin: requireLogin,
     requirePartner: requirePartner,
+    requireStaff: requireStaff,
     fmtPrice: fmtPrice,
     fmtPriceFrom: fmtPriceFrom,
     fmtDate: fmtDate,

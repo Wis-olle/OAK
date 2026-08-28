@@ -1,0 +1,38 @@
+{
+  "Đăng nhập kỹ thuật viên - OAK Beauty": "Technician sign-in - OAK Beauty",
+
+  "Tay nghề của bạn, mang tên bạn": "Your craft, under your own name",
+  "Một hồ sơ nghề nghiệp của riêng bạn, đứng cạnh tên salon chứ không lẫn vào đó.": "A professional profile of your own, standing beside the salon's name rather than lost inside it.",
+  "Lịch làm việc của bạn, xem được mọi lúc trên điện thoại.": "Your work schedule, readable any time on your phone.",
+  "Đánh giá khách để lại cho bạn đi theo bạn, kể cả khi bạn đổi nơi làm.": "The reviews customers leave for you follow you, even when you move salon.",
+
+  "Đăng nhập kỹ thuật viên": "Technician sign-in",
+  "Lịch làm việc và hồ sơ nghề nghiệp của bạn tại OAK Beauty.": "Your work schedule and your professional profile at OAK Beauty.",
+
+  "Đăng nhập bằng tài khoản đã có": "Sign in with an existing account",
+  "Bạn đang dùng tài khoản đối tác": "You are signed in as a salon partner",
+  "Trang này dành cho kỹ thuật viên. Chủ salon quản lý đội ngũ ở trang quản lý salon.": "This page is for technicians. Salon owners manage their team from the salon dashboard.",
+  "Về trang quản lý salon": "Go to the salon dashboard",
+
+  "Bạn được mời nhận hồ sơ kỹ thuật viên của": "You have been invited to take over the technician profile of",
+  "Bạn được mời tạo hồ sơ cho": "You have been invited to create the profile for",
+  "Liên kết có hiệu lực đến": "This link works until",
+  "Bạn đang đăng nhập bằng một tài khoản OAK khác. Bạn có thể nhận hồ sơ bằng chính tài khoản đó.": "You are signed in with another OAK account. You can take the profile over with that same account.",
+  "Dùng tài khoản hiện tại": "Use my current account",
+
+  "Hồ sơ kỹ thuật viên chỉ mở được bằng liên kết mời của salon bạn đang làm. Hãy hỏi chủ salon liên kết đó.": "A technician profile can only be opened with an invitation link from the salon you work at. Ask your salon owner for one.",
+
+  "Tôi đồng ý mở hồ sơ kỹ thuật viên công khai trên OAK Beauty.": "I agree to open a public technician profile on OAK Beauty.",
+  "Hồ sơ công khai gồm tên, ảnh, chuyên môn, đánh giá của khách và số liệu làm việc tổng hợp của tôi.": "The public profile carries my name, my photo, my specialty, the reviews customers leave me and my aggregate work figures.",
+  "Số liệu tổng hợp sau này có thể gộp cả công việc của tôi ở các salon khác.": "Those aggregate figures may later include my work at other salons as well.",
+  "Bạn có thể ẩn hồ sơ công khai trong phần Cài đặt bất cứ lúc nào.": "You can hide the public profile from Settings at any time.",
+  "Tạo tài khoản kỹ thuật viên": "Create technician account",
+
+  "Vui lòng đồng ý mở hồ sơ công khai để tiếp tục.": "Please agree to open the public profile to continue.",
+
+  "Liên kết không hợp lệ hoặc đã hết hạn. Vui lòng hỏi chủ salon một liên kết mới.": "This link is not valid, or it has expired. Please ask your salon owner for a new one.",
+  "Bạn đã mở liên kết quá nhiều lần. Vui lòng đợi 15 phút rồi thử lại.": "You have opened this link too many times. Please wait 15 minutes and try again.",
+  "Tài khoản đối tác không thể nhận hồ sơ kỹ thuật viên. Vui lòng dùng một email khác.": "A partner account cannot take over a technician profile. Please use a different email address.",
+  "Hồ sơ này đã có người nhận.": "Somebody has already taken this profile.",
+  "Bạn đã có hồ sơ kỹ thuật viên tại salon này.": "You already hold a technician profile at this salon."
+}

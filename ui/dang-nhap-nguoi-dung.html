@@ -156,9 +156,11 @@
 
     const OAK_NEXT_PAGE = /^[\w-]+\.html(\?.*)?$/;
 
-    /** Partners always land on their dashboard; everyone else on ?next= when it names a page here. */
+    /** Partners always land on their dashboard and technicians on their schedule; everyone
+        else on ?next= when it names a page here. */
     function oakLoginDestination(role) {
         if (role === 'partner') return 'tong-quan-doi-tac.html';
+        if (role === 'staff') return 'lich-cua-toi.html';
         const next = OAK.qs('next');
         return next && OAK_NEXT_PAGE.test(next) ? next : 'kham-pha.html';
     }

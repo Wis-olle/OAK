@@ -269,9 +269,13 @@
             async init() {
                 const user = await OAK.me();
                 if (user) {
-                    location.href = user.role === 'partner'
-                        ? 'tong-quan-doi-tac.html'
-                        : oakRegisterDestination();
+                    if (user.role === 'partner') {
+                        location.href = 'tong-quan-doi-tac.html';
+                    } else if (user.role === 'staff') {
+                        location.href = 'lich-cua-toi.html';
+                    } else {
+                        location.href = oakRegisterDestination();
+                    }
                 }
             },
 

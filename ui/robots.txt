@@ -16,6 +16,7 @@ Disallow: /cai-dat.html
 Disallow: /dang-ky.html
 Disallow: /dang-nhap-doi-tac.html
 Disallow: /dang-nhap-nguoi-dung.html
+Disallow: /dang-nhap-nhan-vien.html
 Disallow: /danh-gia-cua-toi.html
 Disallow: /danh-gia-salon.html
 Disallow: /danh-sach-salon.html
@@ -23,6 +24,7 @@ Disallow: /dat-lai-mat-khau.html
 Disallow: /dat-lich.html
 Disallow: /ho-so-ca-nhan.html
 Disallow: /index.html
+Disallow: /lich-cua-toi.html
 Disallow: /lich-hen-cua-toi.html
 Disallow: /quan-ly-dich-vu.html
 Disallow: /quan-ly-lich-hen.html

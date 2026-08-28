@@ -1,0 +1,313 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<script defer src="assets/js/alpine-a18e64ece2.js"></script>
+<!-- Not deferred: Alpine starts in a microtask as soon as its own script runs, so
+     window.OAK must already exist by then for x-data init() blocks to use it. -->
+<script src="assets/js/oak-api.js"></script>
+<!-- The English dictionary is 72KB and only an English reader needs it, so it is fetched
+     only for one. Same storage key as oak-i18n.js reads, wrapped the same way;
+     document.write is what keeps it ahead of oak-i18n.js without deferring either. -->
+<script>
+(function () {
+  var lang;
+  try { lang = localStorage.getItem('oak_lang'); } catch (error) { lang = null; }
+  if (lang === 'en') {
+    document.write('<script src="assets/js/oak-i18n-en.js"><\/script>');
+  }
+})();
+</script>
+<script src="assets/js/oak-i18n.js"></script>
+<!-- The five faces every page paints its first screen with: the Fraunces of the headings,
+     the Inter of the body (latin and vietnamese apiece) and the icon subset. They are named
+     inside assets/css/oak-fonts.css, two stylesheets deep, so without these the browser only
+     learns it needs them after the CSS has arrived and been parsed. Change one hash here and
+     the preload fetches bytes no @font-face asks for — the file names come from oak-fonts.css
+     and the material stylesheet next to it, and they are the only source. -->
+<link as="font" crossorigin="" href="assets/fonts/font-8f90dc3721.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-27169327aa.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-6ab57b19c6.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-f059b71e05.woff2" rel="preload" type="font/woff2">
+<link as="font" crossorigin="" href="assets/fonts/font-material-subset.woff2" rel="preload" type="font/woff2">
+<link href="assets/css/gf-material-symbols-outlined-de9b7b5eb5.css" rel="stylesheet">
+<link href="assets/css/oak-fonts.css" rel="stylesheet">
+<link href="assets/css/oak-utils.css" rel="stylesheet">
+<link href="assets/images/favicon.png" rel="icon">
+<title>Lịch của tôi - OAK Beauty</title>
+<meta content="noindex,nofollow" name="robots">
+<!-- Last in <head>: the Play CDN appended its generated <style> here, so utilities keep out-ranking rules like .material-symbols-outlined { font-size: 24px }. -->
+<link href="assets/css/oak-tailwind.css" rel="stylesheet">
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-surface-variant selection:text-on-surface">
+<!-- TopNavBar -->
+<header class="glass-nav fixed top-0 w-full z-50 transition-colors" data-oak-header></header>
+<script src="assets/js/oak-header.js"></script>
+<!-- Main Content -->
+<main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto w-full" x-data="oakStaffSchedule()">
+<div class="flex gap-gutter">
+<!-- The technician rail, desktop. Its own hook rather than the account one: the six
+     customer pages carry an identical rail under [data-oak-account-nav] and this is a
+     different set of entries entirely. -->
+<aside class="hidden md:block w-72 shrink-0 sticky top-28 self-start" data-oak-staff-nav="">
+<nav aria-label="Kỹ thuật viên" class="bg-surface-container-low rounded-lg shadow-sm flex flex-col gap-2 p-4">
+<a aria-current="page" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" href="lich-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="calendar_month">calendar_month</span>
+Lịch của tôi
+</a>
+<template :key="row.staff_id" x-for="row in profiles">
+<a :href="salonUrl(row)" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="storefront">storefront</span>
+<span x-text="row.salon.name"></span>
+</a>
+</template>
+<a @click.prevent="OAK.logout()" class="flex items-center gap-4 px-4 py-3 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container" data-oak-logout href="dang-nhap-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="logout">logout</span>
+Đăng xuất
+</a>
+</nav>
+</aside>
+<div class="flex-1 min-w-0 max-w-4xl">
+<div class="mt-8 mb-8 border-b border-outline-variant/30 pb-4">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Lịch của tôi</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mb-3" x-text="user ? user.name : ''"></p>
+<!-- One chip per salon the technician holds a claimed row at, so somebody working two
+     places can see at a glance which diaries this list is drawn from. -->
+<div class="flex flex-wrap gap-2">
+<template :key="row.staff_id" x-for="row in profiles">
+<span class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-full bg-surface-container-high text-on-surface">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]">store</span> <span x-text="row.salon.name"></span>
+</span>
+</template>
+</div>
+</div>
+<!-- The technician rail, mobile. -->
+<nav aria-label="Kỹ thuật viên" class="md:hidden -mx-margin-mobile px-margin-mobile mb-8 overflow-x-auto" data-oak-staff-tabs="">
+<div class="flex gap-2 w-max pb-2">
+<a aria-current="page" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" href="lich-cua-toi.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="calendar_month">calendar_month</span>
+Lịch của tôi
+</a>
+<template :key="row.staff_id" x-for="row in profiles">
+<a :href="salonUrl(row)" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="storefront">storefront</span>
+<span x-text="row.salon.name"></span>
+</a>
+</template>
+<a @click.prevent="OAK.logout()" class="flex items-center gap-2 shrink-0 px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md aria-[current=page]:bg-secondary-container aria-[current=page]:text-on-secondary-container aria-[current=page]:border-secondary-container" data-oak-logout href="dang-nhap-nhan-vien.html">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="logout">logout</span>
+Đăng xuất
+</a>
+</div>
+</nav>
+<template x-if="!loading &amp;&amp; error">
+<div class="flex flex-col items-start gap-3 mt-4 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
+<div class="flex items-center gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-surface" x-text="error"></p>
+</div>
+<button @click="load()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+</div>
+</template>
+<div aria-hidden="true" class="flex flex-col gap-6 mt-4" x-show="loading">
+<template :key="row" x-for="row in 3">
+<div class="bg-surface-container-lowest p-4 md:p-6 flex flex-col md:flex-row gap-6 rounded-lg border border-outline-variant/20">
+<div class="w-24 h-10 shrink-0 rounded bg-surface-container animate-pulse"></div>
+<div class="flex-1 flex flex-col gap-3">
+<div class="h-6 w-2/3 rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-1/2 rounded bg-surface-container animate-pulse"></div>
+</div>
+</div>
+</template>
+</div>
+<!-- OAK-EMPTY -->
+<template x-if="!loading &amp;&amp; !error &amp;&amp; !bookings.length">
+<div class="bg-surface-container-low rounded-lg py-16 px-6 text-center mt-4">
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="event_available">event_available</span>
+<p class="font-body-md text-body-md text-on-surface-variant">Chưa có lịch hẹn nào trong 14 ngày tới</p>
+</div>
+</template>
+<!-- Read-only: this list is the shift as the salon booked it, and every decision about a
+     booking — confirming, cancelling, marking somebody absent — stays with the owner. -->
+<section class="mt-4" x-cloak="" x-show="!loading &amp;&amp; todayRows().length">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-4">Hôm nay</h2>
+<div class="flex flex-col gap-4">
+<template :key="booking.id" x-for="booking in todayRows()">
+<div class="bg-surface-container-lowest p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4 rounded-lg border border-outline-variant/20">
+<div class="flex md:flex-col items-baseline md:items-start gap-2 md:gap-0 md:w-28 shrink-0">
+<span class="font-headline-sm text-headline-sm text-primary" x-text="OAK.fmtTime(booking.time)"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(booking.date, 'short')"></span>
+</div>
+<div class="flex-1 min-w-0">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="booking.service.name"></h3>
+<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-2" x-show="booking.customer.given_name">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">person</span> <span x-text="booking.customer.given_name"></span>
+</p>
+<p class="font-caption text-caption text-on-surface-variant mt-1 flex items-center gap-2">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]">store</span> <span x-text="booking.salon.name"></span>
+</p>
+</div>
+<span :class="statusClass(booking.status)" class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-full shrink-0">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" x-text="statusIcon(booking.status)"></span> <span x-text="statusLabel(booking.status)"></span>
+</span>
+</div>
+</template>
+</div>
+</section>
+<section class="mt-8" x-cloak="" x-show="!loading &amp;&amp; laterRows().length">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-4">Sắp tới</h2>
+<div class="flex flex-col gap-4">
+<template :key="booking.id" x-for="booking in laterRows()">
+<div class="bg-surface-container-lowest p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4 rounded-lg border border-outline-variant/20">
+<div class="flex md:flex-col items-baseline md:items-start gap-2 md:gap-0 md:w-28 shrink-0">
+<span class="font-headline-sm text-headline-sm text-primary" x-text="OAK.fmtTime(booking.time)"></span>
+<span class="font-caption text-caption text-on-surface-variant" x-text="OAK.fmtDate(booking.date, 'short')"></span>
+</div>
+<div class="flex-1 min-w-0">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-1" x-text="booking.service.name"></h3>
+<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-2" x-show="booking.customer.given_name">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]">person</span> <span x-text="booking.customer.given_name"></span>
+</p>
+<p class="font-caption text-caption text-on-surface-variant mt-1 flex items-center gap-2">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]">store</span> <span x-text="booking.salon.name"></span>
+</p>
+</div>
+<span :class="statusClass(booking.status)" class="inline-flex items-center gap-1 font-caption text-caption px-2 py-1 rounded-full shrink-0">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" x-text="statusIcon(booking.status)"></span> <span x-text="statusLabel(booking.status)"></span>
+</span>
+</div>
+</template>
+</div>
+</section>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<!-- Brand Column -->
+<div class="col-span-1 md:col-span-1 flex flex-col gap-4">
+<span class="font-headline-sm text-headline-sm text-on-tertiary font-bold">OAK Beauty</span>
+<p class="font-caption text-caption text-on-tertiary/70 mt-4 max-w-xs">
+                    Nâng tầm vẻ đẹp Việt.<br>
+                    Khám phá và đặt lịch các dịch vụ làm đẹp cao cấp một cách dễ dàng và tinh tế.
+                </p>
+</div>
+<!-- Links Columns. A landmark, so a screen reader can jump to the footer links instead of
+     walking every page down to them. -->
+<nav aria-label="Chân trang" class="col-span-1 md:col-span-2 grid grid-cols-2 gap-8">
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Khám phá</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
+</div>
+<div class="flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="lien-he.html">Liên hệ</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html">Điều khoản</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dieu-khoan.html#doi-tac">Điều khoản đối tác</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="bao-mat.html">Bảo mật</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="sitemap.html">Sơ đồ trang</a>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-doi-tac.html">Trở thành đối tác</a>
+</div>
+</nav>
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
+     number answers when, and the hotline hours are the part a visitor needs before dialling.
+     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
+     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
+<div class="col-span-1 flex flex-col gap-4">
+<span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
+<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
+<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
+</div>
+</div>
+<!-- Copyright. No tax code and no business-registration number here until there is a legal
+     entity to name — an invented one is worse than none. -->
+<div class="mt-16 pt-8 border-t border-on-tertiary/10 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+<span class="font-caption text-caption text-on-tertiary/50">© 2026 OAK Beauty. Nâng tầm vẻ đẹp Việt.</span>
+<span class="font-caption text-caption text-on-tertiary/50">Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP.HCM</span>
+<span class="font-caption text-caption text-on-tertiary/50">Vietnam (VN)</span>
+</div>
+</footer>
+<script>
+    /* Inline scripts run before deferred ones, so this factory exists by the time Alpine boots. */
+
+    function oakStaffSchedule() {
+        return {
+            user: null,
+            profiles: [],
+            bookings: [],
+            loading: true,
+            error: '',
+
+            async init() {
+                this.user = await OAK.requireStaff();
+                try {
+                    this.profiles = await OAK.api('/api/staff-me/profile');
+                } catch (error) {
+                    this.profiles = [];
+                }
+                await this.load();
+            },
+
+            async load() {
+                this.loading = true;
+                this.error = '';
+                try {
+                    const rows = await OAK.api('/api/staff-me/bookings');
+                    // The endpoint answers newest first, which is how a history reads; a
+                    // shift reads the other way round, so it is turned here.
+                    this.bookings = rows.slice().sort(function (left, right) {
+                        return left.date === right.date
+                            ? left.time.localeCompare(right.time)
+                            : left.date.localeCompare(right.date);
+                    });
+                } catch (error) {
+                    this.bookings = [];
+                    this.error = error.message;
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            /* Anything not in the future is today's work. Asked at each render rather than
+               kept from init(): a tab left open overnight would otherwise file yesterday's
+               rows under "Hôm nay" and today's under "Sắp tới" — and `<=` is what keeps
+               yesterday's, once the day has turned, at the top rather than nowhere. */
+            todayRows() {
+                const today = OAK.todayISO();
+                return this.bookings.filter(function (booking) {
+                    return booking.date <= today;
+                });
+            },
+
+            laterRows() {
+                const today = OAK.todayISO();
+                return this.bookings.filter(function (booking) {
+                    return booking.date > today;
+                });
+            },
+
+            salonUrl(row) {
+                return 'salon-profile.html?salon=' + encodeURIComponent(row.salon.slug);
+            },
+
+            /* Label, icon and chip tone all come from oak-api.js, so this row, the customer's
+               own card and the console calendar say the same thing about the same booking. */
+            statusLabel(status) {
+                return OAK.bookingStatus(status).label;
+            },
+
+            statusIcon(status) {
+                return OAK.bookingStatus(status).icon;
+            },
+
+            statusClass(status) {
+                return OAK.bookingStatus(status).class;
+            },
+        };
+    }
+</script>
+</body></html>
