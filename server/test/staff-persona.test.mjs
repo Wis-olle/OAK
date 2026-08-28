@@ -344,43 +344,84 @@ test('a customer is upgraded in place, keeping the row their history hangs off',
 
 // ------------------------------------------------------------ what the numbers rest on
 
-test('the two figures a profile rests on are backfilled once, behind the column that says so', () => {
+test('neither figure a profile rests on is left to a sweep that ran once', () => {
   /* Neither of these can be driven end to end: this file may not open a connection, and the
      smoke suite boots the server exactly once, so "boot it twice and watch nothing move" is
      out of reach from either side. Pinned at source level instead, the way the expiry clause
      above is.
 
-     The sentinel is the absence of staff.started_at — a database that has not seen this
-     slice — and not a marker table of its own, which is the shape the salons.published
-     backfill already uses. */
-  assert.match(
-    dbSource,
-    /IF NOT EXISTS \(\s*SELECT 1 FROM information_schema\.columns\s*WHERE table_name = 'staff' AND column_name = 'started_at'\s*\) THEN/,
+     The whole shape being pinned is the absence of a one-time migration. A backfill guarded
+     by a sentinel writes every row it will ever write on one boot, so anything opened
+     afterwards is a row that block will never see again — which is how started_at came to
+     mark the veterans and leave every later hire blank forever. */
+  assert.doesNotMatch(dbSource, /column_name = 'started_at'/);
+
+  // The column is added like any other, in SCHEMA and unconditionally: nothing writes it
+  // yet, and where it is empty lib/staff-stats.js answers from the bookings instead.
+  assert.match(dbSource, /^ALTER TABLE staff ADD COLUMN IF NOT EXISTS started_at TEXT;$/m);
+  assert.equal((dbSource.match(/ADD COLUMN IF NOT EXISTS started_at/g) || []).length, 1);
+  // And no sweep writes it, at boot or anywhere else — a start date is derived on every read
+  // or it is the salon's own answer, never a value frozen at whatever one boot could see.
+  assert.doesNotMatch(dbSource, /SET started_at/);
+
+  /* The rating cache is the opposite case and gets the opposite treatment: it has live
+     writers in routes/reviews.js, so bringing it to the real average is self-healing rather
+     than a one-time guess, and it runs on every boot behind no sentinel at all. */
+  const converge = dbSource.slice(
+    dbSource.indexOf('UPDATE staff st SET rating'),
+    dbSource.indexOf('`);', dbSource.indexOf('UPDATE staff st SET rating')),
   );
-
-  const start = dbSource.indexOf("WHERE table_name = 'staff' AND column_name = 'started_at'");
-  assert.notEqual(start, -1, 'the slice-2 sentinel has moved');
-  const guarded = dbSource.slice(start, dbSource.indexOf('END $$;', start));
-
-  // Both backfills inside it, and the column added in there too: an ALTER outside the guard
-  // would create the column before the block ever ran, and the sentinel would read false on
-  // the one boot it exists for.
-  assert.match(guarded, /ALTER TABLE staff ADD COLUMN IF NOT EXISTS started_at TEXT;/);
-  assert.match(guarded, /UPDATE staff st SET started_at = earliest\.first_date/);
-  assert.match(guarded, /SELECT staff_id, MIN\(date\) AS first_date/);
+  assert.ok(converge.length > 0, 'the rating convergence has moved');
   assert.match(
-    guarded,
+    converge,
     /UPDATE staff st SET rating = COALESCE\(\s*\(SELECT ROUND\(AVG\(r\.rating\), 1\) FROM reviews r WHERE r\.staff_id = st\.id\), 0\s*\)/,
   );
-  assert.equal((dbSource.match(/ADD COLUMN IF NOT EXISTS started_at/g) || []).length, 1);
-  // And nothing else in the file rewrites a roster row: a second convergence outside the
-  // guard would run on every boot and undo whatever routes/reviews.js had been maintaining.
-  assert.equal((dbSource.match(/UPDATE staff st SET/g) || []).length, 2);
+  assert.doesNotMatch(converge, /IF NOT EXISTS|DO \$\$/);
+  /* What keeps every-boot from meaning every-boot-rewrites-the-roster: the WHERE, and the
+     cast inside it. Without ::real the stored four-byte 4.8 is compared against the ten-digit
+     4.8 the average comes back as, no row ever looks converged, and the guard is decoration. */
+  assert.match(
+    converge,
+    /WHERE st\.rating IS DISTINCT FROM COALESCE\(\s*\(SELECT ROUND\(AVG\(r\.rating\), 1\) FROM reviews r WHERE r\.staff_id = st\.id\), 0\s*\)::real/,
+  );
+  // And it is the only sweep that rewrites a roster row.
+  assert.equal((dbSource.match(/UPDATE staff st SET/g) || []).length, 1);
 
   // A row written before the source column existed keeps NULL: there is no sweep anywhere
   // that guesses at who attested to a visit nobody recorded.
   assert.match(dbSource, /ALTER TABLE bookings ADD COLUMN IF NOT EXISTS source TEXT;/);
   assert.doesNotMatch(dbSource, /UPDATE bookings SET source/);
+
+  /* The other half of "NULL means the pre-column era and nothing else": the seed names it on
+     every row it writes, so a fresh install demos the tiers it actually has rather than
+     filing today's demo data as history from before the system existed. */
+  const seedSource = source('seed.js');
+  assert.match(seedSource, /INSERT INTO bookings \([^)]*payment_method, source, created_at\)/);
+  assert.equal(
+    (seedSource.match(/source: '(customer|partner)',/g) || []).length,
+    (seedSource.match(/code: 'OAK-[A-Z0-9]+',/g) || []).length,
+  );
+  // One of them is a walk-in, so the tier a counter-typed visit lands in is not empty on a
+  // demo — and it is completed, because nothing else is counted into a tier at all.
+  assert.match(seedSource, /status: 'completed',[\s\S]{0,300}?source: 'partner',/);
+});
+
+/* The start date is a read, not a stored fact: the column wins where a salon has entered one
+   and the bookings answer everywhere else. Pinned here because the expression is the whole
+   rule — completed only, and the column first — and the smoke suite can only see its result. */
+test('a start date is the first completed visit, unless the salon entered one', () => {
+  const statsSource = source('lib', 'staff-stats.js');
+  const start = handler(statsSource, 'const selectStaffStart', '`);');
+  // The stored value leads the COALESCE, so it outranks the derived date rather than being
+  // averaged with it or ignored.
+  assert.match(start, /COALESCE\(\s*st\.started_at,/);
+  assert.match(start, /SELECT MIN\(b\.date\) FROM bookings b WHERE b\.staff_id = st\.id/);
+  /* Completed only. A cancelled visit is not a day anybody worked, and a booking still in
+     the future is not a day anybody has worked yet — either one would date a career from a
+     day that never happened, and put a "tại salon từ" on the profile to prove it. */
+  assert.match(start, /AND b\.status = 'completed'/);
+  // And months_active counts from that same effective value rather than from the column.
+  assert.match(statsSource, /months_active: monthsActive\(startedAt, todayISO\(\)\)/);
 });
 
 // ------------------------------------------------------ the page the link opens onto
@@ -590,9 +631,11 @@ test('the profile adds the four tiers up, and never invents a month it was not g
   assert.equal(page.completedTotal(), 10);
   assert.equal(page.sinceLabel(), 'tại salon từ 02/2026');
 
-  /* started_at has one writer, the boot backfill, so a roster row opened after it ran has
-     none however many bookings it goes on to take. The fragment is dropped whole rather
-     than filled with today, which would read as a career starting this morning. */
+  /* A roster row whose only bookings were cancelled, or are still ahead of it, has completed
+     nothing to date from and no date of its own, so the server sends null. The fragment is
+     dropped whole rather than filled with today, which would read as a career starting this
+     morning. The "(tự khai)" beside the self-declared years stays regardless: those years
+     are the technician's own claim whether or not anything here corroborates them. */
   const fresh = specialistPage({ ...COUNTED, started_at: null, months_active: null });
   await fresh.init();
   assert.equal(fresh.sinceLabel(), '');
@@ -602,10 +645,68 @@ test('the profile adds the four tiers up, and never invents a month it was not g
   const bare = specialistPage(undefined);
   await bare.init();
   assert.equal(bare.stats(), null);
+  assert.equal(bare.showStats(), false);
+});
+
+test('a technician with nothing behind them yet is shown no numbers, not a row of zeroes', async () => {
+  const EMPTY = {
+    verified_count: 0, walkin_count: 0, unattested_count: 0, legacy_count: 0,
+    distinct_customers: 0, review_count: 0, rating_avg: 0,
+    started_at: null, months_active: null,
+  };
+
+  /* The strip is not information at zero — "0 lượt hoàn thành · 0 khách khác nhau" under
+     somebody hired last week says nothing a customer can act on, and reads as a verdict on
+     them. The whole thing is withheld rather than trimmed figure by figure. */
+  const opening = specialistPage(EMPTY);
+  await opening.init();
+  assert.equal(opening.completedTotal(), 0);
+  assert.equal(opening.showStats(), false);
+
+  /* One completed visit, and it all comes back — including the bold zero. "0 khách khác
+     nhau" beside real completed work is the one reading this line exists to make possible:
+     a salon that ran the same customer through twice, or a row of counter-typed walk-ins.
+     Hiding that figure on its own is what would make the strip a claim rather than a count. */
+  const working = specialistPage({ ...EMPTY, walkin_count: 1 });
+  await working.init();
+  assert.equal(working.completedTotal(), 1);
+  assert.equal(working.showStats(), true);
+  assert.equal(working.stats().distinct_customers, 0);
+
+  // A review with no completed visit behind it is also something to say, so it opens the
+  // strip on its own.
+  const reviewed = specialistPage({ ...EMPTY, review_count: 1, rating_avg: 5 });
+  await reviewed.init();
+  assert.equal(reviewed.showStats(), true);
+
+  /* The case the later slice creates: a salon enters a start date for somebody who has
+     completed nothing and been reviewed by nobody. The strip stays away — a date somebody
+     typed is not a record of work — so the page carries the years chip and nothing to hold
+     it against. */
+  const dated = specialistPage({ ...EMPTY, started_at: '2020-03-01', months_active: 77 });
+  await dated.init();
+  assert.equal(dated.sinceLabel(), 'tại salon từ 03/2020');
+  assert.equal(dated.showStats(), false);
+
+  /* And that is exactly the profile the hedge must not desert. `opening` above is the
+     starkest version of it — no start date, no strip — and the label is on the years chip
+     there as much as anywhere, because it is unconditional markup: no x-show to evaluate,
+     so no state of this component can withhold it. Pinned as markup rather than driven,
+     since there is no method left to call: that is the point of the change. */
+  assert.equal(opening.sinceLabel(), '');
+  assert.equal(opening.showStats(), false);
+  assert.match(profileHtml, /<span> \(tự khai\)<\/span>/);
+  assert.doesNotMatch(profileHtml, /x-show="[^"]*"> \(tự khai\)</);
+
+  // The strip itself still hangs off showStats() and not off stats(), which is only "did a
+  // block arrive" — and stats() is read first inside it, since completedTotal() derefs it.
+  assert.match(profileHtml, /<template x-if="showStats\(\)">/);
+  assert.doesNotMatch(profileHtml, /<template x-if="stats\(\)">/);
+  const show = handler(profileHtml, 'showStats() {', '},');
+  assert.ok(show.indexOf('this.stats()') < show.indexOf('this.completedTotal()'));
 });
 
 test('every figure on the profile is one the server counted, and a tier of nothing is no line', () => {
-  assert.match(profileHtml, /<template x-if="stats\(\)">/);
   assert.match(profileHtml, /x-text="completedTotal\(\) \+ ' lượt hoàn thành'"/);
   // distinct_customers is the one figure a salon cannot lift by putting the same customer
   // through twice, so it is the one carrying the emphasis.
@@ -656,22 +757,53 @@ test('every figure on the profile is one the server counted, and a tier of nothi
     assert.match(total, new RegExp(`stats\\.${tier}`), tier);
   }
 
-  // The years are self-declared, and are labelled as such exactly where there is a real
-  // date to outrank them — never on a row that has nothing else to go on.
-  assert.match(profileHtml, /x-show="stats\(\) &amp;&amp; stats\(\)\.started_at"> \(tự khai\)</);
+  /* The years are self-declared in every case, so the label carries no condition at all —
+     no x-show, no expression, nothing that could switch it off on the profile with the least
+     behind it. It stays its own element rather than being folded into the text beside it
+     because "(tự khai)" is a dictionary entry of its own, and the i18n scanner reads text
+     nodes. */
+  assert.match(profileHtml, /<span x-text="staff\.years_experience \+ ' năm kinh nghiệm'"><\/span><span> \(tự khai\)<\/span>/);
+  // Nothing anywhere still gates it on the stats block or on a start date.
+  assert.doesNotMatch(profileHtml, /x-show="[^"]*"> \(tự khai\)</);
 });
 
 test('the technician reads their own numbers, and a row without them shows no card', async () => {
+  const NOTHING_YET = {
+    verified_count: 0, walkin_count: 0, unattested_count: 0, legacy_count: 0,
+    distinct_customers: 0, review_count: 0, rating_avg: 0,
+    started_at: null, months_active: null,
+  };
   const page = schedulePage([
     { staff_id: 7, salon: { id: 4, name: 'Lala', slug: 'lala' }, stats: COUNTED },
     { staff_id: 9, salon: { id: 5, name: 'Mộc', slug: 'moc' } },
+    // A second salon that hired them last week: the block arrived, and it has nothing in it.
+    { staff_id: 11, salon: { id: 6, name: 'Hạ', slug: 'ha' }, stats: NOTHING_YET },
   ]);
   await page.init();
 
   assert.deepEqual(page.statRows().map((row) => row.staff_id), [7]);
   assert.equal(page.completedTotal(COUNTED), 10);
   assert.equal(page.sinceLabel(COUNTED), 'tại salon từ 02/2026');
+  // A row with no completed visit and no date of its own names no month.
   assert.equal(page.sinceLabel({ started_at: null }), '');
+
+  /* One completed visit is enough to bring the card back whole, bold zero and all — the same
+     rule the public profile applies, so the two pages appear and disappear together. */
+  const started = schedulePage([
+    { staff_id: 11, salon: { id: 6, name: 'Hạ', slug: 'ha' }, stats: { ...NOTHING_YET, walkin_count: 1 } },
+  ]);
+  await started.init();
+  assert.deepEqual(started.statRows().map((row) => row.staff_id), [11]);
+  assert.match(scheduleHtml, /x-text="row\.stats\.distinct_customers \+ ' khách khác nhau'"/);
+
+  // And with every claimed row empty, x-show on the section takes the heading with it rather
+  // than leaving a titled panel over nothing.
+  const none = schedulePage([
+    { staff_id: 11, salon: { id: 6, name: 'Hạ', slug: 'ha' }, stats: NOTHING_YET },
+  ]);
+  await none.init();
+  assert.equal(none.statRows().length, 0);
+  assert.match(scheduleHtml, /<section class="mb-8" x-cloak="" x-show="statRows\(\)\.length">/);
 });
 
 test('the two pages say the same thing about the same figures, word for word', () => {

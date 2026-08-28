@@ -882,6 +882,7 @@ const BOOKINGS = [
     note: 'Em muốn mẫu nail tone pastel nhẹ nhàng, ưu tiên form vuông bo tròn.',
     customer_name: 'Ngọc Anh',
     customer_phone: '0901 234 567',
+    source: 'customer',
     created_at: '2026-08-05T02:30:00.000Z',
   },
   {
@@ -896,6 +897,7 @@ const BOOKINGS = [
     note: null,
     customer_name: 'Ngọc Anh',
     customer_phone: '0901 234 567',
+    source: 'customer',
     created_at: '2026-08-09T08:10:00.000Z',
   },
   {
@@ -910,6 +912,7 @@ const BOOKINGS = [
     note: null,
     customer_name: 'Ngọc Anh',
     customer_phone: '0901 234 567',
+    source: 'customer',
     created_at: '2026-07-12T06:45:00.000Z',
   },
   {
@@ -924,10 +927,17 @@ const BOOKINGS = [
     note: 'Bận công việc đột xuất nên xin phép huỷ lịch, hẹn salon dịp khác.',
     customer_name: 'Ngọc Anh',
     customer_phone: '0901 234 567',
+    source: 'customer',
     created_at: '2026-07-24T09:05:00.000Z',
   },
   // Completed and deliberately left un-reviewed, so there is always a booking the
   // review flow can be exercised against.
+  //
+  // The one 'partner' row, so the demo shows a walk-in tier that is not empty. This one and
+  // not the other completed row: Minh Anh's is what the profile demo leans on and carries the
+  // seeded review, and it stays verified. And this row is the exact case the column exists
+  // for — a visit typed at the counter against a phone number that happens to belong to a
+  // real account, which user_id alone cannot tell apart from a booking that customer made.
   {
     user: 'khach@oak.vn',
     salon: 'lala-nail-studio',
@@ -940,6 +950,7 @@ const BOOKINGS = [
     note: null,
     customer_name: 'Ngọc Anh',
     customer_phone: '0901 234 567',
+    source: 'partner',
     created_at: '2026-06-04T03:15:00.000Z',
   },
 ];
@@ -1182,8 +1193,12 @@ const INSERT_STAFF_SCHEDULE =
   'INSERT INTO staff_schedule (staff_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)';
 const INSERT_STAFF_SERVICE =
   'INSERT INTO staff_services (staff_id, service_id) VALUES (?, ?)';
+// source is written like every other demo field rather than left to the column default,
+// because there is no default: a NULL row means "from before this column existed", and a
+// fresh install has no such rows. Without it every seeded visit would demo as pre-verification
+// history and the verified tier — the one the profile is built around — would show zero.
 const INSERT_BOOKING =
-  'INSERT INTO bookings (user_id, salon_id, service_id, staff_id, code, date, time, status, note, total_price, customer_name, customer_phone, payment_method, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+  'INSERT INTO bookings (user_id, salon_id, service_id, staff_id, code, date, time, status, note, total_price, customer_name, customer_phone, payment_method, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 const INSERT_REVIEW =
   'INSERT INTO reviews (user_id, salon_id, service_id, staff_id, booking_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
 const INSERT_FAVORITE =
@@ -1360,6 +1375,7 @@ export async function seed(db) {
         booking.customer_name,
         booking.customer_phone,
         'at_salon',
+        booking.source,
         booking.created_at,
       );
       bookingIds.push(Number(lastInsertRowid));

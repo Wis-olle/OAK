@@ -5506,16 +5506,73 @@ async function groupStaffPersona() {
     const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
     await directClient.connect();
     try {
-      /* Read before this block touches anything. started_at is frozen at the boot backfill,
-         so the way to check it is against the earliest booking as it stood — and this block
-         goes on to re-date a booking onto minhAnh's row further down, which would make the
-         same query at assertion time a different question. */
+      /* Read before this block touches anything. A roster row with no date of its own starts
+         at its earliest COMPLETED visit, so that is the figure to hold the profile against —
+         and this block goes on to re-date a booking onto minhAnh's row further down, which
+         would make the same query at assertion time a different question. */
       const minhAnhEarliest = (
         await directClient.query(
-          'SELECT MIN(date) AS earliest FROM bookings WHERE staff_id = $1',
+          "SELECT MIN(date) AS earliest FROM bookings WHERE staff_id = $1 AND status = 'completed'",
           [minhAnh.id],
         )
       ).rows[0].earliest;
+
+      /* -- what the seed itself demos, before this block writes anything --------- */
+
+      /* The five rows seed.js writes, by the codes it writes them under (the reviews group
+         above reaches for OAK-7TJ5ZA the same way). Every one of them has to name who
+         attested to it: NULL is reserved for rows from before the column existed, and a
+         fresh install has none — leaving them blank filed the whole demo as pre-verification
+         history and showed the verified tier, the figure the profile is built around, at
+         zero on every technician. */
+      const SEEDED_CODES = ['OAK-4K7P2M', 'OAK-9XB3QT', 'OAK-2D8HRN', 'OAK-6VC1LW', 'OAK-7TJ5ZA'];
+      const seededRows = (
+        await directClient.query(
+          'SELECT code, source, status, staff_id FROM bookings WHERE code = ANY($1)',
+          [SEEDED_CODES],
+        )
+      ).rows;
+      assert(
+        seededRows.length === SEEDED_CODES.length,
+        'seed: the demo bookings this block reads must all be present',
+        seededRows,
+      );
+      assert(
+        seededRows.every((row) => row.source !== null),
+        'seed: every seeded booking must name who attested to it',
+        seededRows,
+      );
+
+      // The tier a customer's own completed visit lands in is not empty on a fresh install.
+      const seededVerified = ok(
+        await session('guest').fetch(`/api/staff/${minhAnh.id}`),
+        'GET /api/staff/:id (the seeded technician the demo leans on)',
+      ).stats;
+      assert(
+        seededVerified.verified_count > 0,
+        'seed: the flagship tier must not demo at zero',
+        seededVerified,
+      );
+
+      // And neither is the walk-in tier, which is the whole reason one seeded row is typed at
+      // the counter rather than booked by the customer whose number is on it.
+      const seededWalkIn = seededRows.find(
+        (row) => row.source === 'partner' && row.status === 'completed',
+      );
+      assert(
+        seededWalkIn !== undefined,
+        'seed: one completed row must be a walk-in, or the tier demos empty',
+        seededRows,
+      );
+      const walkInStats = ok(
+        await session('guest').fetch(`/api/staff/${seededWalkIn.staff_id}`),
+        'GET /api/staff/:id (the seeded walk-in)',
+      ).stats;
+      assert(
+        walkInStats.walkin_count > 0,
+        'seed: the seeded walk-in must reach the tier it was written for',
+        walkInStats,
+      );
 
       const statsTech = ok(
         await partner.fetch('/api/partner/staff', {
@@ -5927,16 +5984,86 @@ async function groupStaffPersona() {
           ownProfile,
         );
       }
-      /* started_at has exactly one writer — the boot backfill — so a roster row opened after
-         it ran carries none, however many bookings it goes on to take. Asserted so the
-         limitation is written down rather than discovered: this technician has four
-         completed bookings a few lines above and still reads null. Giving the column a
-         forward writer is the change that makes months_active mean anything for anybody
-         hired from today on. */
+      /* This roster row was opened minutes ago, long after any migration could have seen it,
+         and it still has a start date: the four completed visits staged above are what it is
+         derived from, earliest first. That is the whole point of deriving it — a date that
+         only a one-time sweep wrote would leave everybody hired from today on blank forever,
+         so "tại salon từ" would mark the veterans and say nothing about anybody hired since,
+         which is a reading of the roster rather than a fact about it. */
+      const ownEarliest = (
+        await directClient.query(
+          "SELECT MIN(date) AS earliest FROM bookings WHERE staff_id = $1 AND status = 'completed'",
+          [statsTech.id],
+        )
+      ).rows[0].earliest;
       assert(
-        ownRow.stats.months_active === null && ownRow.stats.started_at === null,
-        'a roster row opened after the backfill carries no start date, and none is invented',
+        ownRow.stats.started_at === ownEarliest,
+        `a roster row opened today starts at its earliest completed visit (${ownEarliest})`,
         ownProfile,
+      );
+      assert(
+        ownRow.stats.months_active === 0,
+        'and counts the whole months since, which for a row a few days old is none',
+        ownProfile,
+      );
+
+      /* The progression that rule is really about, on a row of its own so nothing above it
+         interferes: a technician the salon opened just now, then given a booking that is not
+         a completed one, then given one that is. Only the last step may move the date. */
+      const openedToday = ok(
+        await partner.fetch('/api/partner/staff', {
+          method: 'POST',
+          json: {
+            name: 'KTV Mới Vào',
+            schedule: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+              weekday, start: '00:00', end: '23:59', is_off: 0,
+            })),
+            service_ids: [service.id],
+          },
+        }),
+        'POST /api/partner/staff (the technician hired today)',
+      );
+      const freshStats = async (label) =>
+        ok(await session('guest').fetch(`/api/staff/${openedToday.id}`), label).stats;
+
+      let opening = await freshStats('GET /api/staff/:id (hired today, nothing behind them)');
+      assert(
+        opening.started_at === null && opening.months_active === null,
+        'a roster row with nothing behind it names no start date, and none is invented',
+        opening,
+      );
+
+      const openingSlot = await staffSlot(openedToday.id, []);
+      assert(openingSlot !== null, 'stats: needed a free hour on the technician hired today');
+      const openingBooking = await bookAsCustomer(
+        attesting, openedToday.id, openingSlot, 'the first visit of a new technician',
+      );
+      opening = await freshStats('GET /api/staff/:id (one booking, not yet completed)');
+      assert(
+        opening.started_at === null,
+        'a booking nobody has completed is not a day anybody worked',
+        opening,
+      );
+
+      ok(
+        await partner.fetch(`/api/partner/bookings/${openingBooking.id}`, {
+          method: 'PATCH',
+          json: { date: yesterday },
+        }),
+        'PATCH the new technician’s first visit into yesterday',
+      );
+      ok(
+        await partner.fetch(`/api/partner/bookings/${openingBooking.id}`, {
+          method: 'PATCH',
+          json: { status: 'completed' },
+        }),
+        'PATCH the new technician’s first visit to completed',
+      );
+      opening = await freshStats('GET /api/staff/:id (the first visit completed)');
+      assert(
+        opening.started_at === yesterday && opening.months_active === 0,
+        `completing the first visit is what starts the count (${yesterday})`,
+        opening,
       );
 
       /* -- a verified record cannot be moved onto somebody else ------------------- */
@@ -6242,27 +6369,64 @@ async function groupStaffPersona() {
       ).rows[0].total;
       assert(pendingAudit === 0, 'a pending reassignment must leave no audit row');
 
-      /* -- and the start dates the backfill wrote are the dates the rows hold ----- */
+      /* -- and where the start date comes from, in both directions --------------- */
 
-      const backfilled = (
-        await directClient.query('SELECT started_at FROM staff WHERE id = $1', [minhAnh.id])
-      ).rows[0];
-      assert(
-        /^\d{4}-\d{2}-\d{2}$/.test(backfilled.started_at ?? ''),
-        'a technician who had bookings when the column arrived must carry a start date',
-      );
-      assert(
-        backfilled.started_at === minhAnhEarliest,
-        'the start date must be that technician’s earliest booking',
-      );
-      const invented = (
+      /* Nothing writes staff.started_at yet — the owner-entered date is a later slice — so
+         every roster row on this database is answering from its bookings, seeded rows
+         included, and every start date read above was derived rather than stored. */
+      const stored = (
         await directClient.query(
-          `SELECT COUNT(*)::int AS total FROM staff st
-           WHERE st.started_at IS NOT NULL
-             AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.staff_id = st.id)`,
+          'SELECT COUNT(*)::int AS total FROM staff WHERE started_at IS NOT NULL',
         )
       ).rows[0].total;
-      assert(invented === 0, 'no roster row may carry a start date it has no booking for');
+      assert(stored === 0, 'no code path may write a start date yet: it is derived on read');
+
+      const seededStart = ok(
+        await session('guest').fetch(`/api/staff/${minhAnh.id}`),
+        'GET /api/staff/:id (the seeded technician’s start date)',
+      ).stats;
+      assert(
+        /^\d{4}-\d{2}-\d{2}$/.test(seededStart.started_at ?? ''),
+        'a technician with completed visits behind them must carry a start date',
+        seededStart,
+      );
+      assert(
+        seededStart.started_at === minhAnhEarliest,
+        `the start date must be that technician’s earliest completed booking (${minhAnhEarliest})`,
+        seededStart,
+      );
+
+      /* And the moment the column does hold something, it is the answer. The salon knows when
+         it hired somebody and the bookings only know when the work first showed up, so a date
+         the owner entered outranks the derived one rather than being averaged with it. Two
+         years back to the day, so the months are countable rather than approximately right. */
+      const declared = `${Number(state.today.slice(0, 4)) - 2}${state.today.slice(4)}`;
+      await directClient.query('UPDATE staff SET started_at = $1 WHERE id = $2', [
+        declared,
+        statsTech.id,
+      ]);
+      const declaredStats = ok(
+        await session('guest').fetch(`/api/staff/${statsTech.id}`),
+        'GET /api/staff/:id (a start date the salon entered)',
+      ).stats;
+      /* Put back before anything is asserted, not after. This is the one write in the suite
+         that breaks the invariant twenty lines above — that no row carries a stored start
+         date — so leaving it standing would fail whatever is appended to this group next, and
+         point at the wrong code when it did. Restoring ahead of the asserts means a failure
+         here cannot leave it behind either. */
+      await directClient.query('UPDATE staff SET started_at = NULL WHERE id = $1', [
+        statsTech.id,
+      ]);
+      assert(
+        declaredStats.started_at === declared,
+        `a stored start date outranks the earliest completed visit (${declared})`,
+        declaredStats,
+      );
+      assert(
+        declaredStats.months_active === 24,
+        'and the months are counted from it, not from the bookings',
+        declaredStats,
+      );
     } finally {
       await directClient.end();
     }

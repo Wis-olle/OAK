@@ -347,11 +347,17 @@ Lịch của tôi
                 return 'salon-profile.html?salon=' + encodeURIComponent(row.salon.slug);
             },
 
-            /* The claimed rows whose numbers arrived. A row with no block behind it shows no
-               card rather than a card of zeroes, which is a different claim entirely. */
+            /* The claimed rows there is something to say about. A row with no numbers behind
+               it yet — none arrived, or none have happened — shows no card rather than a card
+               of zeroes, which is a different claim entirely. One completed visit or one
+               review is enough to bring the whole card back, zeroes and all: "0 khách khác
+               nhau" beside real work is a reading, not an absence. With every claimed row
+               empty the section above disappears with them. */
             statRows() {
+                var self = this;
                 return this.profiles.filter(function (row) {
-                    return Boolean(row.stats);
+                    return Boolean(row.stats)
+                        && (self.completedTotal(row.stats) > 0 || row.stats.review_count > 0);
                 });
             },
 
@@ -362,8 +368,9 @@ Lịch của tôi
                     + stats.unattested_count + stats.legacy_count;
             },
 
-            /** "tại salon từ 08/2026", or nothing at all: started_at is the earliest booking
-                on this roster row and a row with none has no month to name. */
+            /** "tại salon từ 08/2026", or nothing at all: started_at is this roster row's
+                first completed visit unless the salon entered a date, and a row with
+                neither has no month to name. */
             sinceLabel(stats) {
                 if (!stats.started_at) {
                     return '';

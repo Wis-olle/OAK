@@ -89,12 +89,14 @@
 <div class="md:col-span-5 order-2 md:order-1 flex flex-col gap-6">
 <div class="flex items-center gap-2">
 <span class="inline-block px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant font-caption text-caption rounded-full" x-text="staff.title"></span>
-<!-- The years are a number the technician typed about themselves. Once the roster row has a
-     real start date behind it, the chip says which of the two it is — a date the bookings
-     prove outranks a figure nobody checked. With no such date there is nothing to contrast
-     it with, so the chip is left as it was rather than casting doubt on the only figure. -->
+<!-- The years are a number the technician typed about themselves, in every case, and the
+     label says so wherever the number appears. It used to be conditional — added only where
+     a start date was there to outrank it — and that had it backwards: the profile with the
+     least behind it carried the fewest hedges, and the reader least able to check anything
+     was told least about what they were reading. Nothing OAK cannot verify goes out
+     unlabelled, whatever else is or is not on the page beside it. -->
 <span class="inline-block px-3 py-1 bg-surface-variant text-on-surface-variant font-caption text-caption rounded-full" x-show="staff.years_experience">
-<span x-text="staff.years_experience + ' năm kinh nghiệm'"></span><span x-show="stats() &amp;&amp; stats().started_at"> (tự khai)</span>
+<span x-text="staff.years_experience + ' năm kinh nghiệm'"></span><span> (tự khai)</span>
 </span>
 </div>
 <div class="flex flex-wrap items-center gap-3">
@@ -113,10 +115,10 @@
 <!-- What this person has actually done here, as the server counted it: the completed total,
      the people behind it, the live review average, and how long the roster row has stood.
      The quieter line under it says how much of that total two independent parties attested
-     to. A tier with nothing in it is no line at all, and a row the backfill gave no start
-     date says nothing about one rather than guessing. Informational: the booking button and
-     the week grid above and below it are still what the page is for. -->
-<template x-if="stats()">
+     to. A tier with nothing in it is no line at all, and a row with no completed visit and
+     no date of its own says nothing about a start rather than guessing. Informational: the
+     booking button and the week grid above and below it are still what the page is for. -->
+<template x-if="showStats()">
 <div class="flex flex-col gap-1">
 <p class="flex flex-wrap items-center gap-2 font-body-md text-body-md text-on-surface">
 <span x-text="completedTotal() + ' lượt hoàn thành'"></span>
@@ -497,6 +499,18 @@
                 return (this.staff && this.staff.stats) || null;
             },
 
+            /* Whether there is anything to say at all. A technician nobody has finished a
+               visit with and nobody has reviewed would otherwise read "0 lượt hoàn thành ·
+               0 khách khác nhau", which tells a customer nothing and reads as a verdict.
+               Once either exists the strip comes back whole, zeroes and all — "0 khách khác
+               nhau" against real completed visits is a salon that ran one customer through
+               repeatedly, or a row of walk-ins, and that is the reading it is there to give.
+               stats() first, because completedTotal() reads it without a guard of its own. */
+            showStats() {
+                return Boolean(this.stats())
+                    && (this.completedTotal() > 0 || this.stats().review_count > 0);
+            },
+
             /** Every completed visit, whoever attested to it: the four tiers are a partition
                 of exactly that set, so the sum is the total and no visit is counted twice. */
             completedTotal() {
@@ -505,8 +519,9 @@
                     + stats.unattested_count + stats.legacy_count;
             },
 
-            /** "tại salon từ 08/2026", or nothing at all: started_at is the earliest booking
-                on this roster row and a row with none has no month to name. */
+            /** "tại salon từ 08/2026", or nothing at all: started_at is this roster row's
+                first completed visit unless the salon entered a date, and a row with
+                neither has no month to name. */
             sinceLabel() {
                 const started = this.stats() && this.stats().started_at;
                 if (!started) {

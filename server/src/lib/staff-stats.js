@@ -32,7 +32,11 @@ const MONTHS_PER_YEAR = 12;
  *                                             "customers" carry exactly the weight of a
  *                                             calendar sweep.
  *   4. source = 'partner'                     walkin. The salon says it happened, and only
- *                                             the salon.
+ *                                             the salon. Promoting one the customer later
+ *                                             reviewed was considered and deliberately not
+ *                                             done: a tier is the channel a booking came in
+ *                                             by, and the review is already on the profile
+ *                                             as rating_avg and review_count.
  *   5. source IS NULL                         legacy. Written before the column existed;
  *                                             provenance unknown and never guessed at.
  *
@@ -90,12 +94,27 @@ export const RECOMPUTE_STAFF_RATING = `
   WHERE id = ?
 `;
 
-const selectStaffStart = db.prepare('SELECT started_at FROM staff WHERE id = ?');
+/* The date a profile counts from: the roster row's first completed visit, unless the salon
+   owner has entered one, in which case that is the answer. The column wins wherever it is
+   set — it is the salon's own statement, confirmed by the technician — and it is empty on
+   every row today, so what a profile shows is derived every time it is read rather than
+   frozen at whatever a sweep once wrote. Completed only: a cancelled visit is not a day
+   anybody worked, and a booking still in the future is not a day anybody has worked yet. A
+   row with neither reads NULL, and the profile says nothing rather than naming a month it
+   cannot know. */
+const selectStaffStart = db.prepare(`
+  SELECT COALESCE(
+    st.started_at,
+    (SELECT MIN(b.date) FROM bookings b WHERE b.staff_id = st.id AND b.status = 'completed')
+  ) AS started_at
+  FROM staff st WHERE st.id = ?
+`);
 
 /**
  * Whole calendar months from `startedAt` to `today`, floored — the figure a profile shows
- * as "N tháng tại OAK". Null when there is no start date: a roster row with no bookings
- * behind it has nothing to count from, and inventing one is worse than saying nothing.
+ * as "N tháng tại OAK". Null when there is no start date: a roster row that has completed
+ * nothing yet, and whose salon has entered no date of its own, has nothing to count from,
+ * and inventing one is worse than saying nothing.
  */
 export function monthsActive(startedAt, today) {
   if (!startedAt) {
