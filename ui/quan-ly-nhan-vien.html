@@ -170,7 +170,11 @@
 </div>
 <div class="bg-surface-container-lowest p-6 border border-outline-variant/20 flex flex-col gap-2">
 <span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Đang làm ca hôm nay</span>
-<span class="font-headline-lg text-headline-lg text-primary" x-text="stats.on_shift"></span>
+<!-- Counted off the cards below rather than read from meta.on_shift, which counts
+     active = 1 and so drops a technician working out her notice. She keeps the "Đang làm
+     ca" badge on her card — she is here today — and a tile that disagreed with the cards
+     under it would be the same page answering the same question twice. -->
+<span class="font-headline-lg text-headline-lg text-primary" x-text="onShiftToday()"></span>
 </div>
 <div class="bg-surface-container-lowest p-6 border border-outline-variant/20 flex flex-col gap-2">
 <span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Đánh giá trung bình</span>
@@ -183,7 +187,7 @@
 <!-- Staff Grid -->
 <div :class="{ 'opacity-50': loading }" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 transition-opacity">
 <template :key="member.id" x-for="member in roster()">
-<div @click="openStaffCard(member)" class="group bg-surface-container-lowest border border-outline-variant/20 hover:border-outline/40 transition-colors flex flex-col cursor-pointer">
+<div :class="hasLeft(member) ? 'opacity-60' : ''" @click="openStaffCard(member)" class="group bg-surface-container-lowest border border-outline-variant/20 hover:border-outline/40 transition-colors flex flex-col cursor-pointer">
 <div class="aspect-[4/3] w-full relative overflow-hidden bg-surface-container-low">
 <template x-if="member.image">
 <img decoding="async" width="600" height="450" loading="lazy" :src="member.image" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-in-out"/>
@@ -193,7 +197,10 @@
 <span class="material-symbols-outlined text-[40px]">person</span>
 </div>
 </template>
-<div :class="onShift(member) ? 'text-primary' : 'text-on-surface-variant'" class="absolute top-4 right-4 bg-surface-container-lowest px-3 py-1 font-label-md text-caption uppercase tracking-wider border border-outline-variant/20" x-text="onShift(member) ? 'Đang làm ca' : 'Nghỉ hôm nay'"></div>
+<!-- Nothing about today for somebody who has gone: a shift badge on that card would be
+     answering a question nobody asked of it. Gone, though, and not merely working out a
+     notice period — the badge is the owner's read on who is here right now. -->
+<div :class="onShift(member) ? 'text-primary' : 'text-on-surface-variant'" class="absolute top-4 right-4 bg-surface-container-lowest px-3 py-1 font-label-md text-caption uppercase tracking-wider border border-outline-variant/20" x-show="stillWorking(member)" x-text="onShift(member) ? 'Đang làm ca' : 'Nghỉ hôm nay'"></div>
 </div>
 <div class="p-6 flex flex-col flex-grow">
 <div class="flex justify-between items-start gap-3 mb-4">
@@ -211,6 +218,22 @@
 <span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="mail">mail</span>
                                     Đã mời
                                 </span>
+<!-- A stint that has closed. Two nodes, so the English pass needs no rule for the pair:
+     the words are a phrase the dictionary holds and the date beside them is a date. The
+     date node is absent, never a placeholder, on a row that predates this feature and
+     therefore has no left_at — an invented day would be the one thing on this card the
+     technician could not answer for. -->
+<span class="inline-flex items-center gap-1 bg-surface-container px-2 py-1 rounded mt-2 font-label-md text-caption text-on-surface-variant" x-show="hasLeft(member)">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="event">event</span>
+<span>Đã nghỉ</span>
+<span x-show="member.left_at" x-text="OAK.fmtDate(member.left_at, 'short')"></span>
+</span>
+<!-- She has told OAK the date is wrong. The owner fixes it in the modal, so the card only
+     has to make sure they know to open it. -->
+<span class="inline-flex items-center gap-1 bg-surface-container px-2 py-1 rounded mt-2 font-label-md text-caption text-error" x-show="member.tenure_disputed === 1">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="info">info</span>
+                                    Kỹ thuật viên khiếu nại ngày làm việc
+                                </span>
 </div>
 <div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded shrink-0" x-show="member.rating">
 <span aria-hidden="true" class="material-symbols-outlined text-secondary fill text-[16px]" data-icon="star" data-weight="fill">star</span>
@@ -218,7 +241,7 @@
 </div>
 </div>
 <div class="mt-auto pt-6 border-t border-outline-variant/20 flex justify-between items-center gap-3">
-<div class="flex flex-col">
+<div class="flex flex-col" x-show="stillWorking(member)">
 <span class="font-caption text-caption text-on-surface-variant mb-1" x-text="onShift(member) ? 'Ca hôm nay' : 'Ca kế tiếp'"></span>
 <span class="font-body-md text-label-md text-primary" x-text="shiftLabel(member)"></span>
 </div>
@@ -283,6 +306,50 @@
 <input @change="uploadImage($event)" accept=".jpg,.jpeg,.png,.webp" class="font-body-md text-body-md text-on-surface-variant min-w-0" id="staff-image" type="file"/>
 </div>
 </div>
+</div>
+<!-- The day the stint began. It is the salon's entry, but it is the technician's record —
+     her own profile dates her career from it — so she is asked to answer for it, and this
+     is the one field on the form whose value has a second side to it. -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-started-at">Ngày vào làm</label>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-started-at" type="date" x-model="form.started_at"/>
+<p class="font-caption text-caption text-on-surface-variant">Đổi ngày sẽ cần kỹ thuật viên xác nhận lại.</p>
+<!-- What she has answered about THIS date, on a row that already exists and already
+     carries one. Two states and never both at once, so the note reads as one line. Both
+     go quiet while a dispute stands: see startedState(), and the block under the pair. -->
+<p class="flex items-center gap-1 font-caption text-caption text-on-surface-variant" x-cloak="" x-show="startedState() === 'pending'">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="schedule">schedule</span>
+                                Chờ xác nhận
+                            </p>
+<p class="flex items-center gap-1 font-caption text-caption text-secondary" x-cloak="" x-show="startedState() === 'confirmed'">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="check_circle">check_circle</span>
+                                Đã xác nhận
+                            </p>
+</div>
+</div>
+<!-- The dispute, said once and under the pair rather than beside one of them. It is ONE
+     column over the stint and confirming either date clears it, so it is not a statement
+     about the field above: a technician who says the salon has her leaving date wrong
+     raises exactly this flag. Its own gate and not a startedState() value, so a stint with
+     no start date on it still says the thing the card chip already announced.
+
+     The leaving date is named here because this modal has no field for it and cannot get
+     one: left_at is not in STAFF_COLUMNS, so PATCH /staff/:id has no way to carry it. Said
+     plainly rather than left to be discovered, and said beside the one warning that matters
+     — editing the start date fires RESET_STARTED_ATTESTATION, which sets tenure_disputed
+     back to 0 whatever the objection was about. -->
+<div class="space-y-1 mt-6" x-cloak="" x-show="form.id &amp;&amp; form.tenure_disputed === 1">
+<p class="flex items-start gap-1 font-caption text-caption text-error">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="info">info</span>
+<span>Kỹ thuật viên đang khiếu nại ngày làm việc của cả quá trình này, không riêng một mốc ngày.</span>
+</p>
+<p class="flex flex-wrap items-center gap-1 font-caption text-caption text-on-surface-variant" x-show="form.left_at">
+<span>Ngày kết thúc đang ghi nhận:</span>
+<span x-text="OAK.fmtDate(form.left_at, 'short')"></span>
+<span>Ngày này chưa sửa được ở đây.</span>
+</p>
+<p class="font-caption text-caption text-on-surface-variant">Đổi ngày vào làm sẽ gỡ khiếu nại, kể cả khi kỹ thuật viên đang nói về ngày kết thúc.</p>
 </div>
 <!-- Mời lên OAK. Only for a row that already exists, because a claim link has to point
      at one — and the whole section reads differently once somebody stands behind it. -->
@@ -406,9 +473,12 @@
 </form>
 </div>
 <div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4 sticky bottom-0">
-<button @click="removeStaff()" class="btn-ghost text-error mr-auto" type="button" x-show="form.id">
-                    Xóa
-                </button>
+<!-- One affordance, two meanings. A chair nobody has claimed is a line in the salon's own
+     list and deleting it is all it ever was; a row somebody holds is a collaboration, which
+     ends on a day both sides can name — and the server refuses DELETE on it anyway. Away
+     once the stint has closed: there is nothing left to end and the POST would 409. Closed
+     is hasLeft(), the one reading of it this page has, and not the date alone. -->
+<button @click="form.claimed ? endStint() : removeStaff()" class="btn-ghost text-error mr-auto" type="button" x-show="form.id &amp;&amp; !hasLeft(form)" x-text="form.claimed ? 'Kết thúc hợp tác' : 'Xóa'"></button>
 <button @click="staffModalOpen = false" class="btn-secondary" type="button">
                     Hủy
                 </button>
@@ -418,23 +488,37 @@
 </div>
 </div>
 </div>
-<!-- Confirm Delete Modal -->
+<!-- Confirm Delete Modal. It carries the departure too rather than standing beside a second
+     dialog of its own: the two ask the same question about the same row, and one dialog is
+     one escape key, one backdrop and one z-index to keep straight above the edit modal. -->
 <div @keydown.escape.window="confirmOpen = false" aria-labelledby="confirm-title" aria-modal="true" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="confirmOpen">
 <div @click="confirmOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
 <div class="oak-dialog transform overflow-hidden transition-all sm:w-full sm:max-w-md flex flex-col" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <div class="px-6 py-6 border-b border-outline-variant/20">
-<h3 class="font-headline-sm text-headline-sm text-primary" id="confirm-title">Xác nhận xóa</h3>
+<h3 class="font-headline-sm text-headline-sm text-primary" id="confirm-title" x-text="confirmMode === 'departure' ? 'Kết thúc hợp tác' : 'Xác nhận xóa'"></h3>
 </div>
-<div class="px-6 py-6">
+<div class="px-6 py-6 space-y-4">
 <p class="font-body-md text-body-md text-on-surface-variant" x-text="confirmMessage"></p>
+<div class="space-y-1" x-cloak="" x-show="confirmMode === 'departure'">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-left-at">Ngày kết thúc</label>
+<!-- The ceiling is the server's, computed again here so a mistyped year is refused by the
+     picker instead of coming back as a 400 after the press. The past is left open: writing
+     a departure down weeks later is the ordinary case. -->
+<input :max="departureMax()" class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-left-at" type="date" x-model="departureDate"/>
+<p class="font-caption text-caption text-on-surface-variant">Lịch hẹn sau ngày này sẽ được chuyển sang kỹ thuật viên còn trống. Lịch không ai nhận được sẽ giữ nguyên và chờ bạn xử lý.</p>
+<!-- Said before the press, because afterwards there is nowhere to say it: the red button
+     goes once hasLeft(form) is true, POST /departure answers a second one with a 409, and
+     left_at is not in STAFF_COLUMNS for a PATCH to carry. A date typed wrong here is a date
+     that stands on the technician's public CV. -->
+<p class="font-caption text-caption text-error">Sau khi xác nhận, ngày kết thúc không đổi được nữa.</p>
+</div>
+<p class="font-body-md text-body-md text-error" role="alert" x-show="confirmError" x-text="confirmError"></p>
 </div>
 <div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4">
 <button @click="confirmOpen = false" class="btn-secondary" type="button">
                     Giữ lại
                 </button>
-<button @click="deleteStaff()" class="btn-danger" type="button">
-                    Xóa
-                </button>
+<button @click="confirmMode === 'departure' ? submitDeparture() : deleteStaff()" class="btn-danger" type="button" x-text="confirmMode === 'departure' ? 'Kết thúc' : 'Xóa'"></button>
 </div>
 </div>
 </div>
@@ -471,6 +555,24 @@
     var OAK_WEEKDAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     var OAK_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
     var OAK_DEFAULT_SHIFT = { start: '09:00', end: '18:00' };
+    /* The furthest ahead a departure may be dated. The same number as DEPARTURE_MAX_LEAD_DAYS
+       in server/src/lib/staff-departure.js, kept in step by hand: the picker is the polite
+       half of a rule the server enforces either way. */
+    var OAK_DEPARTURE_MAX_LEAD_DAYS = 30;
+
+    /* Today, or today plus a number of days, as 'YYYY-MM-DD' in the reader's own clock —
+       which is the clock the salon closes its day by. */
+    function oakDateISO(offsetDays) {
+        var date = new Date();
+        date.setDate(date.getDate() + (offsetDays || 0));
+        return (
+            date.getFullYear() +
+            '-' +
+            String(date.getMonth() + 1).padStart(2, '0') +
+            '-' +
+            String(date.getDate()).padStart(2, '0')
+        );
+    }
 
     /* Partner chrome shared by all four console pages: owner name/avatar, salon name, logout. */
     function oakPartnerChrome() {
@@ -556,6 +658,10 @@
             inviteBusy: false,
             confirmOpen: false,
             confirmMessage: '',
+            /* 'delete' or 'departure': one dialog asks both questions, and this is which. */
+            confirmMode: 'delete',
+            confirmError: '',
+            departureDate: '',
 
             async init() {
                 await OAK.requirePartner();
@@ -585,6 +691,7 @@
                     var result = await OAK.api(path);
                     this.staff = result;
                     this.stats = result.meta;
+                    await this.loadStints();
                 } catch (error) {
                     this.staff = [];
                     OAK.toast(error.message, 'error');
@@ -593,15 +700,90 @@
                 }
             },
 
-            /* Removal is a soft delete, so the roster shows only the people still working. */
+            /* The stint — when somebody started, whether they have left, whether they say the
+               date is wrong — lives on GET /staff/:id and NOT on the list this grid is built
+               from, so the rows that have it are re-read one at a time to fetch it. Claiming
+               is new, so that is a handful of requests and not the roster; the fix is to widen
+               the list endpoint, and this fan-out should go the day it is widened.
+
+               Soft-failing per row on purpose: a detail read that fails costs that one card
+               its stint chips, and must never cost the page its roster. */
+            async loadStints() {
+                var claimed = this.staff.filter(function (member) {
+                    return member.claimed;
+                });
+                await Promise.all(
+                    claimed.map(async function (member) {
+                        try {
+                            var detail = await OAK.api('/api/partner/staff/' + member.id);
+                            member.started_at = detail.started_at;
+                            member.left_at = detail.left_at;
+                            member.tenure_disputed = detail.tenure_disputed;
+                            member.tenure_verified = detail.tenure_verified;
+                        } catch (error) {
+                            // The list row stands as it came. No chips, but a card.
+                        }
+                    }),
+                );
+            },
+
+            /* Removal is a soft delete, so the roster shows only the people still working —
+               and, beside them, the claimed rows whose stint has closed. Those are a record of
+               who worked here and of a date somebody has to be able to answer for, so they
+               stay on the page, dimmed. A soft-deleted row nobody ever claimed is still gone:
+               taking it off the list is the whole of what deleting it ever meant. */
             roster() {
                 return this.staff.filter(function (member) {
-                    return member.active === 1;
+                    return member.active === 1 || member.claimed;
                 });
+            },
+
+            /* A stint that has closed: on the page as a record, not as a collaboration that
+               is still running. One meaning of closed for the whole page — the dim, the "Đã
+               nghỉ" chip and the red button under the editor all ask this. Two conditions,
+               the same pair ho-so-nhan-vien.html's canLeave() reads: END_STINT writes left_at
+               and active = 0 together, but a row deactivated before departures existed has
+               the flag with no date behind it, and POST /departure answers that row with a
+               409 — so a button offered on the date alone would be a button that fails. */
+            hasLeft(member) {
+                return member.active !== 1 || Boolean(member.left_at);
+            },
+
+            /* Whether she is still working here TODAY, which is a different question from
+               whether the stint has closed. A departure may be recorded a month of notice
+               before the last day worked, and for that month she keeps her hours and keeps
+               the appointments the sweep deliberately left on her — lib/staff-departure.js
+               moves only b.date > left_at, so the last day worked is a day worked.
+
+               What she does not keep is a place in the console's own pickers: the booking
+               form and the staff select on quan-ly-lich-hen.html both read activeStaff(),
+               active === 1, so through the notice period she cannot be booked and cannot be
+               picked out of that select. A gap and not a rule — pickAvailableStaff in the
+               server reads st.active = 1 too, so offering her there would offer an hour the
+               availability endpoint then refuses.
+
+               Only the shift lines and the count above ask this: everything else on the card
+               is about the stint, not about today. */
+            stillWorking(member) {
+                if (!this.hasLeft(member)) {
+                    return true;
+                }
+                return Boolean(member.left_at) && member.left_at >= oakDateISO(0);
             },
 
             onShift(member) {
                 return Boolean(member.shift) && !member.shift.is_off;
+            },
+
+            /* The "Đang làm ca hôm nay" tile, counted out of the same two readings the badge
+               on each card is drawn from and over the same rows the grid renders. meta.on_shift
+               answers a third question — active = 1 with a shift today — and a technician
+               inside her notice period is on the cards and not in that number. */
+            onShiftToday() {
+                var self = this;
+                return this.roster().filter(function (member) {
+                    return self.stillWorking(member) && self.onShift(member);
+                }).length;
             },
 
             shiftLabel(member) {
@@ -651,6 +833,12 @@
                         title: '',
                         specialty: '',
                         image: '',
+                        started_at: '',
+                        started_at_was: '',
+                        left_at: null,
+                        active: 1,
+                        tenure_disputed: 0,
+                        tenure_verified: {},
                         service_ids: [],
                         schedule: this.buildSchedule([]),
                         claimed: false,
@@ -668,10 +856,21 @@
                         title: detail.title || '',
                         specialty: detail.specialty || '',
                         image: detail.image || '',
+                        // The stint IS on the detail — it is the one thing here the technician
+                        // answers for, and the endpoint carries her answer with it.
+                        started_at: detail.started_at || '',
+                        // The date as it stood when the modal opened, so the save can tell a
+                        // date the owner moved from one they only looked at.
+                        started_at_was: detail.started_at || '',
+                        left_at: detail.left_at || null,
+                        tenure_disputed: detail.tenure_disputed,
+                        tenure_verified: detail.tenure_verified || {},
                         service_ids: detail.service_ids.slice(),
                         schedule: this.buildSchedule(detail.schedule),
                         // Off the list row, not the detail: GET /staff/:id answers with the
-                        // profile the owner edits and says nothing about who holds it.
+                        // profile the owner edits and says nothing about who holds it, nor
+                        // about whether the row is still on the roster.
+                        active: member.active,
                         claimed: Boolean(member.claimed),
                         invite_pending: Boolean(member.invite_pending),
                     };
@@ -698,6 +897,28 @@
 
             hasService(id) {
                 return (this.form.service_ids || []).indexOf(id) !== -1;
+            },
+
+            /** '', 'pending' or 'confirmed' — what the technician has said about the start
+             *  date now in the form. Empty on a row that does not exist yet or has no date on
+             *  it: there is nothing for her to have answered. Decided here rather than in two
+             *  x-show expressions, so the notes cannot both appear and cannot both vanish.
+             *
+             *  Empty too while a dispute stands, and that is the whole of what this method
+             *  knows about one: tenure_disputed is ONE column over the stint, so a note here
+             *  reading "this date" would be attributing to the start date an objection that
+             *  may be about the leaving date. A dispute also suspends the ✓ without clearing
+             *  the stamp underneath it — tenureVerified() in lib/staff-stats.js takes both
+             *  marks off the row — so "chờ xác nhận" would be just as wrong about a
+             *  technician who did confirm this date and then disputed the other one. The
+             *  dispute is said once, under the pair, on its own gate. */
+            startedState() {
+                if (!this.form.id || !this.form.started_at || this.form.tenure_disputed === 1) {
+                    return '';
+                }
+                return this.form.tenure_verified && this.form.tenure_verified.started
+                    ? 'confirmed'
+                    : 'pending';
             },
 
             /* ---- claim link ---- */
@@ -918,6 +1139,15 @@
                 };
                 try {
                     if (this.form.id) {
+                        /* started_at rides along ONLY when the owner actually moved it. The
+                           PATCH clears the technician's ✓ and her dispute on the presence of
+                           the key, not on a change to the value, so echoing the date back on
+                           every title edit would take her answer away each time she gave it —
+                           and the note beside the field would never leave "chờ xác nhận".
+                           Null is a value like any other here: clearing the date is an entry. */
+                        if ((this.form.started_at || null) !== (this.form.started_at_was || null)) {
+                            profile.started_at = this.form.started_at || null;
+                        }
                         await OAK.api('/api/partner/staff/' + this.form.id, {
                             method: 'PATCH',
                             body: profile,
@@ -931,6 +1161,8 @@
                             body: { service_ids: this.form.service_ids },
                         });
                     } else {
+                        // Nothing to compare against on a create, and nothing to reset either.
+                        profile.started_at = this.form.started_at || null;
                         profile.schedule = this.schedulePayload();
                         profile.service_ids = this.form.service_ids;
                         await OAK.api('/api/partner/staff', { method: 'POST', body: profile });
@@ -947,8 +1179,50 @@
 
             /* A styled dialog stands in for confirm(); the delete itself is unchanged. */
             removeStaff() {
+                this.confirmMode = 'delete';
+                this.confirmError = '';
                 this.confirmMessage = 'Xóa nhân viên "' + this.form.name + '" khỏi danh sách?';
                 this.confirmOpen = true;
+            },
+
+            /* The same dialog for the row somebody holds, asking the one thing a deletion
+               could never ask: which day. It opens on today, because that is the answer far
+               more often than any other. */
+            endStint() {
+                this.confirmMode = 'departure';
+                this.confirmError = '';
+                this.departureDate = oakDateISO(0);
+                this.confirmMessage = 'Kết thúc hợp tác với "' + this.form.name + '"?';
+                this.confirmOpen = true;
+            },
+
+            departureMax() {
+                return oakDateISO(OAK_DEPARTURE_MAX_LEAD_DAYS);
+            },
+
+            /* The error stays inside the dialog rather than closing it: every refusal here is
+               about the date in the field, and closing would take the field away with it. */
+            async submitDeparture() {
+                this.confirmError = '';
+                try {
+                    var result = await OAK.api(
+                        '/api/partner/staff/' + this.form.id + '/departure',
+                        { method: 'POST', body: { left_at: this.departureDate } },
+                    );
+                    this.confirmOpen = false;
+                    this.staffModalOpen = false;
+                    // One sentence built here rather than nodes on the page: a toast is a
+                    // single string, and the two counts are one piece of news read together.
+                    OAK.toast(
+                        result.reassigned +
+                            ' lịch đã chuyển, ' +
+                            result.needs_attention +
+                            ' lịch cần bạn xử lý',
+                    );
+                    await this.load();
+                } catch (error) {
+                    this.confirmError = error.message;
+                }
             },
 
             async deleteStaff() {

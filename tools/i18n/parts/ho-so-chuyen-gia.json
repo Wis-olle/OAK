@@ -24,5 +24,19 @@
   "Không tải được hồ sơ chuyên gia.": "We couldn't load this specialist profile.",
   "Không tải được lịch trống.": "We couldn't load the open times.",
   "Đã sao chép liên kết.": "Link copied.",
-  "Không sao chép được liên kết.": "We couldn't copy the link."
+  "Không sao chép được liên kết.": "We couldn't copy the link.",
+
+  "Quá trình làm việc": "Work history",
+  "Hiện tại": "Current",
+  "trước đây": "previously",
+  "Được OAK xác thực": "Verified by OAK",
+  "chưa xác thực": "not verified",
+  "Kỹ thuật viên đang khiếu nại ngày làm việc tại salon này.": "The technician is disputing the working dates at this salon.",
+  "Kỹ thuật viên đang khiếu nại ngày bắt đầu do salon nhập.": "The technician is disputing the start date the salon entered.",
+
+  "Chú giải": "Legend",
+  "Được OAK xác thực:": "Verified by OAK:",
+  "ngày làm việc là ngày cả salon và kỹ thuật viên cùng xác nhận. Số lượt được tính từ những lần khách tự đặt qua OAK, đã hoàn tất, tại salon đã công khai. Đánh giá đến từ khách có lịch hẹn thật.": "a working date is one both the salon and the technician have confirmed. Visits are counted from bookings a customer made themselves through OAK, completed, at a published salon. Reviews come from customers with a real appointment.",
+  "Tự khai:": "Self-reported:",
+  "số năm kinh nghiệm do kỹ thuật viên tự ghi, OAK không kiểm chứng.": "the years of experience are written by the technician, and OAK does not check them."
 }

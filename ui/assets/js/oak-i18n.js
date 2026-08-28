@@ -244,6 +244,17 @@
     [/^Đã hủy lịch hẹn (.+)\.$/, 'Appointment $1 cancelled.'],
     [/^Đã cập nhật lịch hẹn (.+)\.$/, 'Appointment $1 updated.'],
     [/^Đã tạo lịch hẹn (.+)\.$/, 'Appointment $1 created.'],
+    // What a departure swept, in the one sentence each side is told it in. Both numbers are
+    // the server's, so neither sentence can be a key. The salon owner is told who is holding
+    // the hours nobody could take; the technician is told the same thing about the salon.
+    [/^(\d+) lịch đã chuyển, (\d+) lịch cần bạn xử lý$/, function (all, moved, stuck) {
+      return plural(moved, 'appointment moved', 'appointments moved') + ', ' +
+        plural(stuck, 'needs you to handle it', 'need you to handle them');
+    }],
+    [/^(\d+) lịch đã chuyển, (\d+) lịch cần salon xử lý$/, function (all, moved, stuck) {
+      return plural(moved, 'appointment moved', 'appointments moved') + ', ' +
+        plural(stuck, 'needs the salon to handle it', 'need the salon to handle them');
+    }],
 
     /* -- partner console --------------------------------------------------------------- */
     [/^Tới (\d{1,2}:\d{2})$/, 'Until $1'],
@@ -279,6 +290,10 @@
     }],
     [/^(\d+) lượt trước hệ thống xác thực$/, function (all, count) {
       return plural(count, 'visit predating verification', 'visits predating verification');
+    }],
+    // One salon's share of that record, beside its name on the public work history.
+    [/^(\d+) lượt đã xác thực$/, function (all, count) {
+      return plural(count, 'verified visit', 'verified visits');
     }],
 
     /* -- salon profile and packages ----------------------------------------------------- */

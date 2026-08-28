@@ -175,6 +175,13 @@ const cases = [
     ['Đã hủy lịch hẹn OAK-12.', 'Appointment OAK-12 cancelled.'],
     ['Đã cập nhật lịch hẹn OAK-12.', 'Appointment OAK-12 updated.'],
     ['Đã tạo lịch hẹn OAK-12.', 'Appointment OAK-12 created.'],
+    // what a departure swept, as the owner console says it and as the technician's page does
+    ['3 lịch đã chuyển, 2 lịch cần bạn xử lý', '3 appointments moved, 2 need you to handle them'],
+    ['1 lịch đã chuyển, 1 lịch cần bạn xử lý', '1 appointment moved, 1 needs you to handle it'],
+    ['3 lịch đã chuyển, 1 lịch cần salon xử lý',
+        '3 appointments moved, 1 needs the salon to handle it'],
+    ['0 lịch đã chuyển, 2 lịch cần salon xử lý',
+        '0 appointments moved, 2 need the salon to handle them'],
     // partner console
     ['Tới 14:30', 'Until 14:30'],
     ['Kế tiếp 15:00', 'Next 15:00'],
@@ -198,6 +205,8 @@ const cases = [
     ['1 lượt hệ thống tự đóng', '1 visit closed by the system'],
     ['5 lượt trước hệ thống xác thực', '5 visits predating verification'],
     ['1 lượt trước hệ thống xác thực', '1 visit predating verification'],
+    ['12 lượt đã xác thực', '12 verified visits'],
+    ['1 lượt đã xác thực', '1 verified visit'],
     // salon profile and packages
     ['Chuyên gia: Ngọc Anh', 'Specialist: Ngọc Anh'],
     ['Xem ảnh: Không gian tiếp đón', 'View photo: Không gian tiếp đón'],

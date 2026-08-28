@@ -113,12 +113,19 @@ Thông báo
 </div>
 </nav>
 <!-- One chip per claimed row, and only for somebody who holds more than one: every section
-     below is about a single roster row, and with one row there is nothing to choose. -->
+     below is about a single roster row, and with one row there is nothing to choose.
+
+     A stint that has ended keeps its chip and stays choosable — the dates on a finished
+     stint are still theirs to answer for — but it is faded and carries the span it covered,
+     so it reads as somewhere they worked rather than somewhere they work. -->
 <div class="flex flex-wrap gap-2 mb-8" x-cloak="" x-show="profiles.length > 1">
 <template :key="row.staff_id" x-for="row in profiles">
-<button :aria-pressed="row.staff_id === selected ? 'true' : 'false'" :class="row.staff_id === selected ? 'bg-primary-container text-on-primary border-primary-container' : 'bg-transparent text-on-surface-variant border-outline-variant hover:border-primary'" @click="select(row.staff_id)" class="inline-flex items-center gap-2 px-4 py-2 rounded-full border font-label-md text-label-md transition-colors" type="button">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="storefront">storefront</span>
+<button :aria-pressed="row.staff_id === selected ? 'true' : 'false'" :class="(row.staff_id === selected ? 'bg-primary-container text-on-primary border-primary-container' : 'bg-transparent text-on-surface-variant border-outline-variant hover:border-primary') + (row.active === 1 ? '' : ' opacity-60')" @click="select(row.staff_id)" class="inline-flex items-center gap-2 px-4 py-2 rounded-full border font-label-md text-label-md transition-colors" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="storefront" x-show="row.active === 1">storefront</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="person_off" x-show="row.active !== 1">person_off</span>
 <span x-text="row.salon.name"></span>
+<span class="sr-only" x-show="row.active !== 1">Đã kết thúc</span>
+<span class="font-caption text-caption" x-show="row.active !== 1" x-text="stintRange(row)"></span>
 </button>
 </template>
 </div>
@@ -239,6 +246,85 @@ Thông báo
 </div>
 </dl>
 </section>
+<!-- The two dates on the stint, and the technician's answer to each. Only the salon can
+     change a date, so the answer is the whole of what this card writes: a ✓, or a word to the
+     owner that the day is wrong. A date nobody entered is said to be missing rather than
+     guessed at from the calendar.
+
+     Three things take a date out of her hands. A date the salon never entered has nothing to
+     answer about. A date SHE entered — the end date, whenever she recorded her own departure
+     — has nobody on the other side to answer to, so it is never offered a ✓: the legend on
+     ho-so-chuyen-gia.html calls that mark a day both sides named, and her own confirmation is
+     the only route to it. And while the stint is disputed no single date is answerable at
+     all: tenure_disputed is one flag over both of them and confirming either one clears it,
+     so the way out is the one action below the rows, worded as the whole thing it does. See
+     the note over POST /tenure/:staffId/dispute in server/src/routes/staff-me.js. -->
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/20 mb-8">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Quá trình tại salon</h2>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Ngày bắt đầu do salon nhập, ngày kết thúc do salon hoặc chính bạn ghi nhận. Ngày cả hai bên cùng xác nhận sẽ hiện dấu xác thực trên hồ sơ công khai; nếu ngày chưa đúng, hãy báo để chủ salon sửa lại.</p>
+<div class="flex flex-col">
+<div class="flex flex-wrap items-center gap-3 py-3 border-b border-outline-variant/20">
+<span class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant">Ngày bắt đầu</span>
+<span class="font-body-md text-body-md text-on-surface" x-show="row().stint.started_at" x-text="OAK.fmtDate(row().stint.started_at, 'short')"></span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-show="!row().stint.started_at">Salon chưa nhập ngày này</span>
+<span class="inline-flex items-center gap-1 font-caption text-caption text-primary" x-show="tenureState('started') === 'confirmed'">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="check_circle">check_circle</span>
+<span>đã xác nhận</span>
+</span>
+<span class="inline-flex items-center gap-1 font-caption text-caption text-error" x-show="tenureState('started') === 'disputed'">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="info">info</span>
+<span>đang khiếu nại</span>
+</span>
+<span class="inline-flex items-center gap-1 font-caption text-caption text-on-surface-variant" x-show="tenureState('started') === 'pending'">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="schedule">schedule</span>
+<span>chờ xác nhận</span>
+</span>
+<div class="flex flex-wrap items-center gap-2 ml-auto" x-show="canAnswer('started')">
+<button :disabled="tenureBusy" @click="answerTenure('confirm', 'started')" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-4 py-2 rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="button">Xác nhận</button>
+<button :disabled="tenureBusy" @click="openDispute('started')" class="inline-flex items-center justify-center px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors disabled:opacity-60" type="button">Ngày không đúng</button>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-3 py-3 border-b border-outline-variant/20" x-show="showEnd()">
+<span class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant">Ngày kết thúc</span>
+<span class="font-body-md text-body-md text-on-surface" x-show="row().stint.left_at" x-text="OAK.fmtDate(row().stint.left_at, 'short')"></span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-show="!row().stint.left_at">Chưa rõ ngày</span>
+<span class="inline-flex items-center gap-1 font-caption text-caption text-on-surface-variant" x-show="tenureState('left') === 'self'">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="person">person</span>
+<span>bạn tự ghi ngày này, salon đã nhận thông báo</span>
+</span>
+<span class="inline-flex items-center gap-1 font-caption text-caption text-primary" x-show="tenureState('left') === 'confirmed'">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="check_circle">check_circle</span>
+<span>đã xác nhận</span>
+</span>
+<span class="inline-flex items-center gap-1 font-caption text-caption text-error" x-show="tenureState('left') === 'disputed'">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="info">info</span>
+<span>đang khiếu nại</span>
+</span>
+<span class="inline-flex items-center gap-1 font-caption text-caption text-on-surface-variant" x-show="tenureState('left') === 'pending'">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="schedule">schedule</span>
+<span>chờ xác nhận</span>
+</span>
+<div class="flex flex-wrap items-center gap-2 ml-auto" x-show="canAnswer('left')">
+<button :disabled="tenureBusy" @click="answerTenure('confirm', 'left')" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-4 py-2 rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="button">Xác nhận</button>
+<button :disabled="tenureBusy" @click="openDispute('left')" class="inline-flex items-center justify-center px-4 py-2 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors disabled:opacity-60" type="button">Ngày không đúng</button>
+</div>
+</div>
+</div>
+<!-- The one way out of a dispute, and it is one action over the stint rather than a button
+     beside each row: the server clears the single tenure_disputed column whichever date is
+     named, so a bare "Xác nhận" on one row would read as an answer about that row and be an
+     answer about the pair. Worded as the whole of what it does. -->
+<div class="mt-6 flex flex-col gap-3" x-cloak="" x-show="canWithdraw()">
+<p class="font-caption text-caption text-on-surface-variant">Khiếu nại của bạn tính cho cả quá trình tại salon này, không riêng một mốc ngày. Rút khiếu nại sẽ xác nhận lại những ngày salon đã nhập.</p>
+<button :disabled="tenureBusy" @click="withdrawDispute()" class="self-start inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-4 py-2 rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="button">Rút khiếu nại</button>
+</div>
+<p class="font-caption text-caption text-error mt-4" role="alert" x-cloak="" x-show="tenureError" x-text="tenureError"></p>
+<!-- Offered only while the stint is open: a row the salon has already dated has nothing left
+     to end, and the server answers a second departure with a 409. -->
+<div class="mt-6" x-cloak="" x-show="canLeave()">
+<button @click="openLeave()" class="border border-error text-error font-label-md text-label-md px-6 py-3 uppercase tracking-wider rounded-full hover:bg-error-container transition-colors" type="button">Tôi đã nghỉ việc ở salon này</button>
+</div>
+</section>
 <!-- Read-only, like the numbers on Lịch của tôi: what a customer wrote is theirs, and the
      only thing this page does with it is show it to the person it is about. -->
 <section class="mb-8">
@@ -280,6 +366,41 @@ Thông báo
 </section>
 </div>
 </template>
+<!-- Both confirm panels live out here rather than under the roster row above, so switching
+     salons cannot tear one down while it is open — select() closes them instead. -->
+<div @keydown.escape.window="closeDispute()" aria-labelledby="dispute-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="disputeOpen">
+<div @click="closeDispute()" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="disputeOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
+<div class="oak-dialog w-full sm:max-w-md p-6 md:p-8" x-show="disputeOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-3" id="dispute-title">Báo ngày chưa đúng</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4">Chủ salon sẽ nhận được thông báo, vì họ là người duy nhất sửa được ngày trên hồ sơ.</p>
+<p class="font-caption text-caption text-on-surface-variant mb-4">Trong lúc chờ, dấu xác nhận trên hồ sơ công khai của bạn sẽ tắt cho tới khi hai bên thống nhất ngày.</p>
+<div class="flex flex-wrap justify-end gap-3 mt-8">
+<button @click="closeDispute()" class="btn-secondary flex-1 sm:flex-none" type="button">Để nguyên</button>
+<button :disabled="tenureBusy" @click="confirmDispute()" class="btn-primary flex-1 sm:flex-none" type="button">Báo sai ngày</button>
+</div>
+</div>
+</div>
+<div @keydown.escape.window="closeLeave()" aria-labelledby="leave-title" aria-modal="true" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="leaveOpen">
+<div @click="closeLeave()" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="leaveOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
+<div class="oak-dialog w-full sm:max-w-md p-6 md:p-8" x-show="leaveOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-3" id="leave-title">Kết thúc làm việc tại salon</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4">Chọn ngày làm việc cuối cùng của bạn. Chủ salon sẽ nhận được thông báo.</p>
+<div class="space-y-1">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="leave-date">Ngày kết thúc</label>
+<input :max="leaveMax()" class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="leave-date" type="date" x-model="leaveDate"/>
+</div>
+<p class="font-caption text-caption text-on-surface-variant mt-4">Lịch hẹn sau ngày này sẽ được chuyển cho đồng nghiệp phù hợp, hoặc chuyển chủ salon xử lý nếu không có ai nhận. Hồ sơ và lịch sử làm việc của bạn tại salon vẫn được giữ nguyên.</p>
+<!-- Said before the press, because afterwards there is nowhere to say it: canLeave() goes
+     false, the server answers a second departure with a 409, and no route on either side
+     rewrites left_at. A date typed wrong here is a date that stands on the public CV. -->
+<p class="font-caption text-caption text-error mt-4">Sau khi xác nhận, ngày kết thúc không đổi được nữa.</p>
+<p class="font-caption text-caption text-error mt-4" role="alert" x-cloak="" x-show="leaveError" x-text="leaveError"></p>
+<div class="flex flex-wrap justify-end gap-3 mt-8">
+<button @click="closeLeave()" class="btn-secondary flex-1 sm:flex-none" type="button">Để sau</button>
+<button :disabled="leaveBusy" @click="confirmLeave()" class="btn-danger flex-1 sm:flex-none" type="button" x-text="leaveBusy ? 'Đang gửi…' : 'Xác nhận nghỉ việc'">Xác nhận nghỉ việc</button>
+</div>
+</div>
+</div>
 </div>
 </div>
 </main>
@@ -364,6 +485,18 @@ Thông báo
             uploading: false,
             portfolioBusy: false,
             portfolioError: '',
+            // The stint card. One busy flag over both attestation buttons and one line under
+            // them, because the two answers are the same size of act; the departure keeps its
+            // own pair, because its panel stays open on a refusal and says so in place.
+            tenureBusy: false,
+            tenureError: '',
+            disputeOpen: false,
+            // Which end of the stint the open dispute panel is about: 'started' or 'left'.
+            disputeField: 'started',
+            leaveOpen: false,
+            leaveDate: '',
+            leaveBusy: false,
+            leaveError: '',
 
             async init() {
                 this.user = await OAK.requireStaff();
@@ -422,12 +555,23 @@ Thông báo
                     this.bioDrafts[this.selected] = this.bio;
                 }
                 this.selected = staffId;
-                const row = this.row();
+                /* rowOf(staffId) and not row(), which is the same answer by a name the caller
+                   can shadow: the switcher calls this from inside x-for="row in profiles", and
+                   Alpine resolves `this` against the merged scope, so `this.row` finds the loop
+                   item — an object — and calling it throws. Nothing moved and the technician
+                   was left on the salon she was already reading. */
+                const row = this.rowOf(staffId);
                 this.bio = staffId in this.bioDrafts ? this.bioDrafts[staffId] : ((row && row.bio) || '');
                 this.hidden = Boolean(row && row.profile_hidden);
                 this.bioError = '';
                 this.hiddenError = '';
                 this.portfolioError = '';
+                this.tenureError = '';
+                this.leaveError = '';
+                // A panel opened over one salon must never be answered against another: both
+                // of them act on this.selected, and this is the moment that moves.
+                this.disputeOpen = false;
+                this.leaveOpen = false;
             },
 
             /** The claimed row with this id, or null once it is no longer one of theirs. */
@@ -603,6 +747,225 @@ Thông báo
                 } finally {
                     this.portfolioBusy = false;
                 }
+            },
+
+            /** What has been answered about one end of the stint: 'missing' when the salon
+                never entered that date, 'self' when the technician entered it herself,
+                otherwise 'confirmed', 'disputed' or 'pending'. The dispute flag is one flag
+                over the whole stint — there is no arbitration behind it, so it is the stint
+                that is in question and not one of its two days.
+
+                'self' outranks the dispute flag because it is not an answer that is missing:
+                POST /api/staff-me/leave writes left_by = 'staff' on a departure she recorded,
+                and there is no salon-side confirmation endpoint at all, so nobody is ever
+                going to answer for that day and saying it is awaited would be a lie. */
+            tenureState(field) {
+                const row = this.row();
+                if (!row || !row.stint[field + '_at']) {
+                    return 'missing';
+                }
+                if (field === 'left' && row.stint.left_by === 'staff') {
+                    return 'self';
+                }
+                if (row.stint.tenure_disputed) {
+                    return 'disputed';
+                }
+                return row.stint[field + '_confirmed'] ? 'confirmed' : 'pending';
+            },
+
+            /** Whether that one date is open to an answer of its own. A date already
+                confirmed has nothing to press, a date nobody entered has nothing to press
+                about — the server answers an attestation on one with a 409 — and a date she
+                wrote herself has nobody to press it at. A disputed stint is answered through
+                withdrawDispute below and never one row at a time: the flag covers both. */
+            canAnswer(field) {
+                return this.tenureState(field) === 'pending';
+            },
+
+            /** Whether the card has anything to say about the end of the stint at all. An
+                open stint has no end date yet, and a row telling somebody still working that
+                the salon failed to enter one accuses the salon of an omission about a day
+                that should not exist. A closed row with no date on it says the day is
+                unknown rather than inventing one. */
+            showEnd() {
+                const row = this.row();
+                return Boolean(row) && (Boolean(row.stint.left_at) || row.active !== 1);
+            },
+
+            /** The dates on this stint she is the one to attest to: entered by the salon and
+                not yet settled. A date she recorded herself is never one of them. */
+            answerable() {
+                return ['started', 'left'].filter((field) => {
+                    const state = this.tenureState(field);
+                    return state === 'pending' || state === 'disputed';
+                });
+            },
+
+            /** Whether there is a dispute standing and a date the withdrawal would land on. */
+            canWithdraw() {
+                const row = this.row();
+                return Boolean(row)
+                    && Boolean(row.stint.tenure_disputed)
+                    && this.answerable().length > 0;
+            },
+
+            /* The two attestations. Both answer with the whole updated row, exactly as PATCH
+               /profile does, so the swap is the swap patch() makes — but neither goes through
+               patch() itself, which is that one endpoint and refuses a key it does not own.
+               staffId is pinned before the await for the reason it is pinned there: the
+               switcher stays live while the request is out. */
+            async answerTenure(action, field) {
+                const staffId = this.selected;
+                this.tenureBusy = true;
+                this.tenureError = '';
+                try {
+                    this.mergeRow(await OAK.api(
+                        '/api/staff-me/tenure/' + staffId + '/' + action,
+                        { method: 'POST', body: { field: field } },
+                    ));
+                    OAK.toast(action === 'confirm'
+                        ? 'Đã xác nhận ngày.'
+                        : 'Đã gửi phản hồi tới chủ salon.');
+                } catch (error) {
+                    this.tenureError = error.message;
+                } finally {
+                    this.tenureBusy = false;
+                }
+            },
+
+            /** Swap a row an attestation answered with into the list it came from. */
+            mergeRow(updated) {
+                this.profiles = this.profiles.map((row) =>
+                    (row.staff_id === updated.staff_id ? updated : row));
+            },
+
+            /* Out of a dispute, for the whole stint, because that is the only size the server
+               has: /tenure/:staffId/confirm sets tenure_disputed to 0 whichever date it is
+               given. Every date she may attest to is confirmed, one call each — confirming
+               only the first would leave the dispute withdrawn over a date nobody agreed to,
+               which is the accident this action exists to make impossible. The list is read
+               before the loop rather than inside it, since each answer replaces the row. */
+            async withdrawDispute() {
+                const staffId = this.selected;
+                const fields = this.answerable();
+                this.tenureBusy = true;
+                this.tenureError = '';
+                let done = 0;
+                try {
+                    for (const field of fields) {
+                        this.mergeRow(await OAK.api(
+                            '/api/staff-me/tenure/' + staffId + '/confirm',
+                            { method: 'POST', body: { field: field } },
+                        ));
+                        done += 1;
+                    }
+                    OAK.toast('Đã rút khiếu nại.');
+                } catch (error) {
+                    /* A call that failed after the first one leaves the loop half done, and
+                       the half that landed is the half that cannot be undone here: the first
+                       confirm already cleared tenure_disputed server-side, so the button
+                       above has gone and the message is the only thing left to say what
+                       happened. The row it answered with is merged, so the date still
+                       unconfirmed is back to "chờ xác nhận" with its own Xác nhận beside it —
+                       which is the whole of the recovery, and is worth naming rather than
+                       leaving under a bare refusal. */
+                    this.tenureError = done > 0
+                        ? error.message
+                            + ' Khiếu nại đã được rút, nhưng ngày còn lại chưa xác nhận xong —'
+                            + ' hãy bấm Xác nhận ở dòng ngày đó.'
+                        : error.message;
+                } finally {
+                    this.tenureBusy = false;
+                }
+            },
+
+            openDispute(field) {
+                this.disputeField = field;
+                this.tenureError = '';
+                this.disputeOpen = true;
+            },
+
+            closeDispute() {
+                this.disputeOpen = false;
+            },
+
+            /* Shut before the request rather than after it: what a refusal has to say belongs
+               on the card beside the date it is about, not behind a panel. */
+            async confirmDispute() {
+                const field = this.disputeField;
+                this.disputeOpen = false;
+                await this.answerTenure('dispute', field);
+            },
+
+            /** Whether this is a stint the technician can still end themselves. */
+            canLeave() {
+                const row = this.row();
+                return Boolean(row) && row.active === 1 && !row.stint.left_at;
+            },
+
+            /* DEPARTURE_MAX_LEAD_DAYS in server/src/lib/staff-departure.js, which refuses
+               anything past it with a 400. The picker stops where that refusal starts, so a
+               month of notice can be entered and a mistyped year cannot. Local parts rather
+               than toISOString(), which reads the day in UTC — the same reason OAK.todayISO()
+               builds its own string. */
+            leaveMax() {
+                const day = new Date(OAK.todayISO() + 'T00:00:00');
+                day.setDate(day.getDate() + 30);
+                return day.getFullYear() + '-'
+                    + String(day.getMonth() + 1).padStart(2, '0') + '-'
+                    + String(day.getDate()).padStart(2, '0');
+            },
+
+            openLeave() {
+                this.leaveDate = OAK.todayISO();
+                this.leaveError = '';
+                this.leaveOpen = true;
+            },
+
+            closeLeave() {
+                this.leaveOpen = false;
+            },
+
+            /* Unlike the two attestations, this one answers with the sweep and not the row —
+               and it changes more of the row than it could report: the date, the active flag
+               and every appointment that sat after it. So the list is read again rather than
+               patched, and the technician is left standing on the same stint, now closed. */
+            async confirmLeave() {
+                const staffId = this.selected;
+                this.leaveBusy = true;
+                this.leaveError = '';
+                try {
+                    const swept = await OAK.api('/api/staff-me/leave', {
+                        method: 'POST',
+                        body: { staff_id: staffId, left_at: this.leaveDate },
+                    });
+                    // Shut once the reload is done and not before it: while the panel is up it
+                    // is the only place leaveError is read, so anything that still throws
+                    // between here and there has somewhere to be said.
+                    await this.load();
+                    this.leaveOpen = false;
+                    if (this.rowOf(staffId)) {
+                        this.select(staffId);
+                    }
+                    // One sentence, built here so it reaches the toast as a single text node.
+                    OAK.toast(swept.reassigned + ' lịch đã chuyển, '
+                        + swept.needs_attention + ' lịch cần salon xử lý');
+                } catch (error) {
+                    this.leaveError = error.message;
+                } finally {
+                    this.leaveBusy = false;
+                }
+            },
+
+            /** The span beside a finished stint's name in the switcher, so a row that is over
+                is read as a place they worked rather than a place they work. */
+            stintRange(row) {
+                if (!row.stint.left_at) {
+                    return '';
+                }
+                return row.stint.started_at
+                    ? OAK.fmtRange(row.stint.started_at, row.stint.left_at)
+                    : OAK.fmtDate(row.stint.left_at, 'short');
             },
         };
     }

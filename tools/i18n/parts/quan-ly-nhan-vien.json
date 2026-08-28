@@ -91,5 +91,20 @@
   "Thu hồi": "Revoke",
   "Đã thu hồi liên kết mời.": "The invitation link has been revoked.",
   "Không sao chép được, vui lòng chép thủ công.": "Could not copy it. Please copy it by hand.",
-  "Kỹ thuật viên này đã ngừng hoạt động, không thể tạo liên kết.": "This technician is no longer active, so no link can be created."
+  "Kỹ thuật viên này đã ngừng hoạt động, không thể tạo liên kết.": "This technician is no longer active, so no link can be created.",
+
+  "Đã nghỉ": "Left",
+  "Kỹ thuật viên khiếu nại ngày làm việc": "Technician disputes a working date",
+  "Ngày vào làm": "Start date",
+  "Đổi ngày sẽ cần kỹ thuật viên xác nhận lại.": "Changing the date will need the technician to confirm it again.",
+  "Kỹ thuật viên đang khiếu nại ngày làm việc của cả quá trình này, không riêng một mốc ngày.": "The technician is disputing the working dates for their whole time here, not one date on its own.",
+  "Ngày kết thúc đang ghi nhận:": "End date on record:",
+  "Ngày này chưa sửa được ở đây.": "This date cannot be edited here yet.",
+  "Đổi ngày vào làm sẽ gỡ khiếu nại, kể cả khi kỹ thuật viên đang nói về ngày kết thúc.": "Changing the start date will clear the dispute, even when the technician means the end date.",
+
+  "Kết thúc hợp tác": "End collaboration",
+  "Ngày kết thúc": "End date",
+  "Lịch hẹn sau ngày này sẽ được chuyển sang kỹ thuật viên còn trống. Lịch không ai nhận được sẽ giữ nguyên và chờ bạn xử lý.": "Appointments after this date move to a technician who is free. Any that nobody can take stay where they are and wait for you to handle them.",
+  "Sau khi xác nhận, ngày kết thúc không đổi được nữa.": "Once confirmed, the end date can no longer be changed.",
+  "quan-ly-nhan-vien.html::Kết thúc": "End"
 }

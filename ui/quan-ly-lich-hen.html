@@ -235,6 +235,9 @@
 </p>
 <p class="font-body-md text-body-md text-on-surface mt-1 truncate" x-text="booking.customer.name"></p>
 <p class="font-caption text-caption text-on-surface-variant mt-1 truncate" x-text="booking.service ? booking.service.name : 'Dịch vụ đã xóa'"></p>
+<!-- The list is the window that spans every day still ahead, so this is where an hour
+     with nobody behind it is found before the day arrives. -->
+<span class="inline-flex items-center mt-2 px-3 py-1 bg-tertiary-container rounded-full text-on-tertiary-container font-label-md text-caption uppercase tracking-wider" x-cloak="" x-show="staffLeft(booking)">KTV đã nghỉ</span>
 </div>
 <span class="font-caption text-caption text-on-surface-variant uppercase tracking-wider shrink-0" x-text="statusLabel(booking.status)"></span>
 </div>
@@ -396,6 +399,9 @@
 <div>
 <p class="font-label-md text-label-md text-on-surface">Nhân viên phụ trách</p>
 <p class="font-body-md text-body-md text-primary mt-1" x-text="detail.staff ? detail.staff.name : 'Chưa phân công'"></p>
+<!-- Beside the name, and in this panel rather than on the calendar card: the action bar
+     below is where the hour actually gets handed on, through the staff select in Đổi lịch. -->
+<span class="inline-flex items-center mt-2 px-3 py-1 bg-tertiary-container rounded-full text-on-tertiary-container font-label-md text-caption uppercase tracking-wider" x-cloak="" x-show="staffLeft(detail)">KTV đã nghỉ</span>
 </div>
 </div>
 </div>
@@ -793,6 +799,7 @@
                     this.salon = await OAK.api('/api/partner/salon');
                     this.staff = await OAK.api('/api/partner/staff');
                     this.services = await OAK.api('/api/partner/services');
+                    await this.loadStints();
                 } catch (error) {
                     OAK.toast(error.message, 'error');
                 }
@@ -823,6 +830,31 @@
                 oakWatchPending(function () {
                     self.refreshPending();
                 });
+            },
+
+            /* left_at lives on GET /staff/:id and NOT on the roster list this page is built
+               from, and staffLeft() below cannot tell a notice period from a departure
+               without it. So the rows that could carry one are re-read one at a time to fetch
+               it: claimed AND already off the roster, which on an ordinary salon is nought to
+               two rows. Same shape and same soft-fail as loadStints() in
+               quan-ly-nhan-vien.html — a detail read that fails costs that one row its date
+               and never the page its roster. It exists only because the list endpoint does
+               not carry the stint; the fix is to widen that endpoint, and this fan-out should
+               go the day it is widened. */
+            async loadStints() {
+                var closed = this.staff.filter(function (member) {
+                    return member.claimed && member.active !== 1;
+                });
+                await Promise.all(
+                    closed.map(async function (member) {
+                        try {
+                            var detail = await OAK.api('/api/partner/staff/' + member.id);
+                            member.left_at = detail.left_at;
+                        } catch (error) {
+                            // The list row stands as it came, and the flag alone answers.
+                        }
+                    }),
+                );
             },
 
             /* The bell count, with the tab title kept in step. */
@@ -1508,8 +1540,13 @@
                         off: self.staffOff(member.id, self.date),
                     };
                 });
-                // A booking left behind by a removed technician still belongs on the day:
-                // give it a column of its own instead of dropping the card.
+                /* A booking left behind by a technician who is off the roster still belongs on
+                   the day: give it a column of its own instead of dropping the card. Off the
+                   roster is not yet gone, though — activeStaff() above drops her the moment a
+                   departure is RECORDED, and staffGone() is the one place that knows a notice
+                   period from a departure. The header is a claim about the day this column is
+                   being drawn for, so it asks that same question about that same day rather
+                   than branding every row activeStaff() would not have. */
                 this.bookings.forEach(function (booking) {
                     if (!booking.staff) {
                         return;
@@ -1526,7 +1563,9 @@
                     });
                     columns.push({
                         key: key,
-                        name: booking.staff.name + ' (đã nghỉ)',
+                        name: self.staffGone(booking.staff.id, booking.date)
+                            ? booking.staff.name + ' (đã nghỉ)'
+                            : booking.staff.name,
                         subtitle: member ? member.title || '' : '',
                         image: member ? member.image : null,
                     });
@@ -1734,6 +1773,44 @@
                     return item.id === booking.staff.id;
                 });
                 return member ? member.image : null;
+            },
+
+            /* Whether this technician has gone by this date — she has left, or the row was
+               removed — so the hours on that day have nobody behind them. Read off the same
+               list the columns are drawn from; a row missing from it entirely counts too.
+
+               active is not the whole answer. It goes to 0 the moment a departure is
+               RECORDED, and left_at may be a month of notice further on, so the sweep in
+               lib/staff-departure.js deliberately moves only the bookings after that day and
+               leaves the ones up to and including it where they are. Those are appointments
+               she is still contracted to work, and branding them would send the owner off to
+               reassign hours that never needed touching. Without a date to compare against —
+               a row that predates this feature, or one whose stint read failed — the flag
+               alone stands, which is where this started.
+
+               One predicate for the chips and for the day column's own header: a page that
+               asked this twice could tell the owner she has gone on the calendar and that she
+               has not in the list, about the same booking on the same screen. */
+            staffGone(staffId, date) {
+                var member = this.staff.find(function (item) {
+                    return item.id === staffId;
+                });
+                if (!member) {
+                    return true;
+                }
+                return member.active !== 1 && (!member.left_at || date > member.left_at);
+            },
+
+            /* The chip on a booking. Only said about one somebody can still act on: a
+               completed or cancelled visit is a record of a day that is over, and a warning
+               there is one the salon would have to scroll past forever without ever being
+               able to answer it. The column header carries no such gate — a column is about
+               the day and not about one card's status. */
+            staffLeft(booking) {
+                if (!booking.staff || (booking.status !== 'pending' && booking.status !== 'confirmed')) {
+                    return false;
+                }
+                return this.staffGone(booking.staff.id, booking.date);
             },
 
             initial(name) {

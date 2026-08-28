@@ -28,5 +28,35 @@
   "Liên hệ chủ salon để chỉnh sửa.": "Contact the salon owner to change these.",
 
   "Đánh giá về bạn": "Reviews of you",
-  "Chưa có đánh giá nào cho hồ sơ này.": "No reviews for this profile yet."
+  "Chưa có đánh giá nào cho hồ sơ này.": "No reviews for this profile yet.",
+
+  "Đã kết thúc": "Ended",
+  "Quá trình tại salon": "Time at this salon",
+  "Ngày bắt đầu do salon nhập, ngày kết thúc do salon hoặc chính bạn ghi nhận. Ngày cả hai bên cùng xác nhận sẽ hiện dấu xác thực trên hồ sơ công khai; nếu ngày chưa đúng, hãy báo để chủ salon sửa lại.": "The start date is entered by the salon; the end date is recorded by the salon or by you. A date both sides have confirmed carries the verified mark on your public profile; if a date is wrong, report it so the salon owner can correct it.",
+  "Ngày bắt đầu": "Start date",
+  "Ngày kết thúc": "End date",
+  "Salon chưa nhập ngày này": "The salon has not entered this date",
+  "Chưa rõ ngày": "Date unknown",
+  "bạn tự ghi ngày này, salon đã nhận thông báo": "you recorded this date yourself — the salon has been notified",
+  "chờ xác nhận": "pending confirmation",
+  "đang khiếu nại": "under dispute",
+  "Ngày không đúng": "Date is wrong",
+  "Khiếu nại của bạn tính cho cả quá trình tại salon này, không riêng một mốc ngày. Rút khiếu nại sẽ xác nhận lại những ngày salon đã nhập.": "Your dispute covers your whole time at this salon, not one date on its own. Withdrawing it restores your confirmation of the dates the salon entered.",
+  "Rút khiếu nại": "Withdraw the dispute",
+  "Tôi đã nghỉ việc ở salon này": "I have left this salon",
+  "Đã xác nhận ngày.": "Date confirmed.",
+  "Đã gửi phản hồi tới chủ salon.": "Your report has been sent to the salon owner.",
+  "Đã rút khiếu nại.": "Dispute withdrawn.",
+
+  "Báo ngày chưa đúng": "Report an incorrect date",
+  "Chủ salon sẽ nhận được thông báo, vì họ là người duy nhất sửa được ngày trên hồ sơ.": "The salon owner will be notified, because they are the only one who can change a date on the profile.",
+  "Trong lúc chờ, dấu xác nhận trên hồ sơ công khai của bạn sẽ tắt cho tới khi hai bên thống nhất ngày.": "While you wait, the verified mark on your public profile stays off until the two of you agree on the date.",
+  "Để nguyên": "Leave it as is",
+  "Báo sai ngày": "Report the date",
+
+  "Kết thúc làm việc tại salon": "Leaving this salon",
+  "Chọn ngày làm việc cuối cùng của bạn. Chủ salon sẽ nhận được thông báo.": "Choose your last working day. The salon owner will be notified.",
+  "Lịch hẹn sau ngày này sẽ được chuyển cho đồng nghiệp phù hợp, hoặc chuyển chủ salon xử lý nếu không có ai nhận. Hồ sơ và lịch sử làm việc của bạn tại salon vẫn được giữ nguyên.": "Appointments after this date move to a suitable colleague, or to the salon owner to handle if nobody can take them. Your profile and your work history at this salon are kept as they are.",
+  "Sau khi xác nhận, ngày kết thúc không đổi được nữa.": "Once confirmed, the end date can no longer be changed.",
+  "Xác nhận nghỉ việc": "Confirm departure"
 }
