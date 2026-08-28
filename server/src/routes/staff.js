@@ -3,6 +3,7 @@ import express from 'express';
 import { db } from '../db.js';
 import { getStaffSlots, getStaffWeek, timeOffOn } from '../lib/availability.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
+import { staffStats } from '../lib/staff-stats.js';
 import { addDaysISO, isISODate, todayISO } from '../lib/time.js';
 import { httpError } from '../middleware/auth.js';
 
@@ -175,10 +176,17 @@ router.get('/:id', async (req, res, next) => {
         specialty: row.specialty,
         bio: row.bio,
         image: row.image,
+        // The cache of this technician's real review average (staff.rating), maintained by
+        // every write in routes/reviews.js — not a figure anybody typed. stats.rating_avg
+        // below is the same average computed live from the reviews table, so a reader of
+        // this reply can see for themselves whether the two still agree.
         rating: row.rating ?? 0,
         years_experience: row.years_experience,
         portfolio: parseJsonArray(row.portfolio),
         salon: { id: row.salon_id, slug: row.salon_slug, name: row.salon_name },
+        // What this technician has actually done here, split by who attested to it. The
+        // profile used to show a seeded number; this is the work, counted.
+        stats: await staffStats(row.id),
       },
     });
   } catch (error) {

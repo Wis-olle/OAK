@@ -19,6 +19,7 @@ import {
   RETIRE_STAFF_INVITES,
   inviteUrl,
 } from '../lib/staff-invite.js';
+import { RECOMPUTE_STAFF_RATING } from '../lib/staff-stats.js';
 import {
   addDaysISO,
   fromMinutes,
@@ -626,12 +627,28 @@ const SELECT_OWNED_BOOKING_ROW = 'SELECT * FROM bookings WHERE id = ? AND salon_
 const selectOwnedBookingRow = db.prepare(SELECT_OWNED_BOOKING_ROW);
 const selectOwnedService = db.prepare('SELECT * FROM services WHERE id = ? AND salon_id = ?');
 const selectOwnedStaff = db.prepare('SELECT * FROM staff WHERE id = ? AND salon_id = ?');
-// Run inside the create transaction, alongside the notice the linked customer gets.
+// Whether a person stands behind the roster row a completed booking currently sits on.
+// Not scoped to the salon: the booking has already been proved to be this owner's.
+const selectClaimedStaffRow = db.prepare(
+  'SELECT 1 FROM staff WHERE id = ? AND user_id IS NOT NULL',
+);
+// Both run inside the same transaction as the move they follow. A booking carries at most
+// one review (idx_reviews_booking_id), and only a completed booking can have one at all.
+const INSERT_BOOKING_STAFF_CHANGE = `
+  INSERT INTO booking_staff_changes
+    (booking_id, old_staff_id, new_staff_id, changed_by, created_at)
+  VALUES (?, ?, ?, ?, ?)
+`;
+const MOVE_BOOKING_REVIEW = 'UPDATE reviews SET staff_id = ? WHERE booking_id = ?';
+// Run inside the create transaction, alongside the notice the linked customer gets. source
+// 'partner' is a literal beside the other two: a seat typed at the counter is attested to by
+// the salon and by nobody else, and that stays true even when the phone number ties the row
+// to a customer's account.
 const INSERT_WALK_IN_BOOKING = `
   INSERT INTO bookings
     (user_id, salon_id, service_id, staff_id, code, date, time, status, note,
-     total_price, customer_name, customer_phone, payment_method, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, 'at_salon', ?)
+     total_price, customer_name, customer_phone, payment_method, source, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, 'at_salon', 'partner', ?)
 `;
 
 /**
@@ -925,6 +942,21 @@ router.patch('/bookings/:id', async (req, res, next) => {
       'Không tìm thấy lịch hẹn này.',
     );
 
+    /* The hour this save is actually leaving the appointment at, which is the one the two
+       clock guards below have to be asked about: a body that moves the date AND sets the
+       status is one request, and a guard that consulted only the stored date would wave
+       through a booking completed into next month.
+
+       Read off `body` rather than off `patch`, and deliberately: buildPatch fills `patch` as
+       it walks its column map, so the status parser is only guaranteed to see a parsed date
+       while `date` happens to sit above `status` in that map. Reading the body means the
+       guard cannot be broken by reordering it. Same validators the date and time parsers
+       use, so a malformed value is still refused in the same words. */
+    const startsAt = () => ({
+      date: Object.hasOwn(body, 'date') ? requireDate(body.date, 'Ngày hẹn') : booking.date,
+      time: Object.hasOwn(body, 'time') ? requireTime(body.time, 'Giờ hẹn') : booking.time,
+    });
+
     // Built per request because the parsers need the owner's salon and the current
     // status, but the column names are still a fixed whitelist.
     let newService = null;
@@ -944,13 +976,26 @@ router.patch('/bookings/:id', async (req, res, next) => {
       note: (value) => optionalText(value, 'Ghi chú'),
       status: (value) => {
         requireOneOf(value, BOOKING_STATUSES, 'Trạng thái lịch hẹn không hợp lệ.');
+        // Both guards ask about the hour this save leaves behind, not the one the row came
+        // in with, so a single body carrying a date and a status cannot step around them.
+        const start = startsAt();
         // Nobody is absent from an appointment that has not started yet, and a mis-tap on
         // tomorrow's card would otherwise notify the customer they missed it.
-        if (value === 'no_show' && !hasStarted(booking.date, booking.time)) {
+        if (value === 'no_show' && !hasStarted(start.date, start.time)) {
           throw httpError(
             409,
             'BOOKING_NOT_STARTED',
             'Chỉ có thể đánh dấu không đến sau giờ hẹn.',
+          );
+        }
+        // And nothing is finished before it has begun. The same guard for the same reason:
+        // a completed booking is work the technician's profile counts, so a console that
+        // could close out next week's calendar could mint a career in an afternoon.
+        if (value === 'completed' && !hasStarted(start.date, start.time)) {
+          throw httpError(
+            409,
+            'BOOKING_NOT_STARTED',
+            'Chỉ có thể hoàn tất lịch hẹn sau giờ hẹn.',
           );
         }
         if (!STATUS_TRANSITIONS[booking.status].includes(value)) {
@@ -991,6 +1036,38 @@ router.patch('/bookings/:id', async (req, res, next) => {
       movable &&
       Object.hasOwn(patch, 'staff_id') &&
       Number(patch.staff_id ?? 0) !== Number(booking.staff_id ?? 0);
+    /* The audit's own flag, and deliberately not `restaffed`: that one is gated on `movable`
+       because it drives a customer notification, and the reassignments worth writing down
+       are precisely the ones it leaves out — a completed or closed row moved onto somebody
+       else's name, after the work it describes was already done. */
+    const staffChanged =
+      Object.hasOwn(patch, 'staff_id') &&
+      Number(patch.staff_id ?? 0) !== Number(booking.staff_id ?? 0);
+
+    /* A completed booking sitting on a roster row somebody stands behind is part of that
+       person's verified record, and the console may not move it — in either direction. Off a
+       claimed row, the technician who did the work silently loses a visit; onto one, a
+       technician silently gains a visit they may never have performed, which inflates the
+       same verified figure by the same forgery and is if anything the easier of the two to
+       run at scale. Hence both ends are asked, and both answer the same way, so the reply
+       says a completed booking is not movable rather than which end objected.
+
+       Rows nobody has claimed stay editable — there is no profile to falsify yet — and every
+       such move is written into booking_staff_changes below, so a technician claiming the
+       row later can still see what was done under their name. */
+    if (staffChanged && booking.status === 'completed') {
+      const claimedEnd =
+        (await selectClaimedStaffRow.get(booking.staff_id)) ??
+        (await selectClaimedStaffRow.get(patch.staff_id));
+      if (claimedEnd) {
+        throw httpError(
+          409,
+          'CONFLICT',
+          'Không thể đổi kỹ thuật viên của lịch hẹn đã hoàn tất: việc này ảnh hưởng hồ sơ đã xác thực của kỹ thuật viên.',
+        );
+      }
+    }
+
     const notification = body.status
       ? BOOKING_NOTIFICATIONS[body.status]
       : moved
@@ -1007,6 +1084,35 @@ router.patch('/bookings/:id', async (req, res, next) => {
           bookingId,
           salon.id,
         );
+
+        /* Written in the same transaction as the move, so the record and the row it
+           describes can never come apart. Pending rows are left out: nothing has happened on
+           one yet, so a swap there is a cheap correction to a plan rather than a change to
+           anybody's history. */
+        if (staffChanged && booking.status !== 'pending') {
+          await tx.run(
+            INSERT_BOOKING_STAFF_CHANGE,
+            bookingId,
+            booking.staff_id,
+            patch.staff_id,
+            req.user.id,
+            new Date().toISOString(),
+          );
+
+          /* And the customer's review of that visit goes with it. A review is about the
+             person who did the work, so a correction that moved the booking and left the
+             review behind would leave one technician holding a rating for a visit they no
+             longer have and the other holding the visit with nothing said about it. Both
+             caches are then recomputed off the reviews as they now stand — the same
+             statement routes/reviews.js runs, from the same file, so the two cannot drift.
+             A move that carried no review recomputes both to what they already were. */
+          await tx.run(MOVE_BOOKING_REVIEW, patch.staff_id, bookingId);
+          for (const staffId of [booking.staff_id, patch.staff_id]) {
+            if (staffId !== null) {
+              await tx.run(RECOMPUTE_STAFF_RATING, staffId, staffId);
+            }
+          }
+        }
 
         if (notification) {
           const updated = await tx.get(SELECT_OWNED_BOOKING_ROW, bookingId, salon.id);

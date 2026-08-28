@@ -65,11 +65,14 @@ const selectStaffService = db.prepare(
 // Also used inside transactions, so the text is kept alongside the pool statement.
 const SELECT_BOOKING = `SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM} WHERE b.id = ?`;
 const selectBooking = db.prepare(SELECT_BOOKING);
+// source 'customer' is a literal in the column list, like the statuses the console writes:
+// this route is the one place a booking is made by the person who will sit in the chair, so
+// it is a property of the route and never of the request.
 const INSERT_BOOKING = `
   INSERT INTO bookings
     (user_id, salon_id, service_id, staff_id, code, date, time, status, note, total_price,
-     customer_name, customer_phone, payment_method, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     customer_name, customer_phone, payment_method, source, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'customer', ?)
 `;
 const CANCEL_BOOKING = "UPDATE bookings SET status = 'cancelled', note = ? WHERE id = ?";
 

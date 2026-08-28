@@ -2607,6 +2607,17 @@ async function groupPartner() {
   assert(walkIn.total_price === services[0].price, 'walk-in: total must come from the service price');
   assert(walkIn.customer.name === 'Khách vãng lai', 'walk-in: expected the counter name');
 
+  /* Nothing is finished before it has begun, so this booking has to have happened before the
+     console may say it did — and re-dating is the only way a suite that cannot create a
+     booking in the past gets one there. The transition itself is what the two assertions
+     below are about, and it is unchanged: completed still lists no way out. */
+  ok(
+    await partner.fetch(`/api/partner/bookings/${walkIn.id}`, {
+      method: 'PATCH',
+      json: { date: addDays(state.today, -1) },
+    }),
+    'PATCH /api/partner/bookings/:id (back into yesterday, so it can be completed)',
+  );
   const completedWalkIn = ok(
     await partner.fetch(`/api/partner/bookings/${walkIn.id}`, { method: 'PATCH', json: { status: 'completed' } }),
     'PATCH /api/partner/bookings/:id confirmed -> completed',
@@ -5367,6 +5378,897 @@ async function groupStaffPersona() {
     'restoring a row must not bring its old claim link back with it',
     afterRestoring,
   );
+
+  /* -- nothing is finished before it has begun -------------------------------- */
+
+  /* A completed booking is work a technician's profile counts, so the console cannot close
+     out a calendar that has not happened yet. Symmetric with the no-show guard beside it,
+     and refused in the same words. */
+  const earlyRow = ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: minhAnh.id,
+        date: addDays(state.today, 1),
+        time: '07:45',
+        customer_name: 'Khách Ngày Mai',
+      },
+    }),
+    'POST /api/partner/bookings (tomorrow, to be completed too early)',
+  );
+  expectError(
+    await partner.fetch(`/api/partner/bookings/${earlyRow.id}`, {
+      method: 'PATCH',
+      json: { status: 'completed' },
+    }),
+    409,
+    'BOOKING_NOT_STARTED',
+    "PATCH status completed on tomorrow's booking",
+  );
+  // The same booking, once its hour has been and gone: the guard is about the clock and
+  // nothing else.
+  ok(
+    await partner.fetch(`/api/partner/bookings/${earlyRow.id}`, {
+      method: 'PATCH',
+      json: { date: addDays(state.today, -1) },
+    }),
+    'PATCH /api/partner/bookings/:id (into yesterday)',
+  );
+  ok(
+    await partner.fetch(`/api/partner/bookings/${earlyRow.id}`, {
+      method: 'PATCH',
+      json: { status: 'completed' },
+    }),
+    'PATCH status completed once the hour has passed',
+  );
+
+  /* And a body that carries the move AND the status, which is one request rather than two.
+     The guard has to be asked about the hour the save LEAVES the appointment at: a booking
+     already sitting in the past, re-dated into next month and closed out in the same breath,
+     would otherwise come to rest completed and in the future — counted as work done, on a
+     day nobody has lived through yet. Both key orders, because a guard reading a value the
+     parsers had not filled in yet would answer differently depending on nothing at all. */
+  const forwardRow = ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: minhAnh.id,
+        date: addDays(state.today, 1),
+        time: '07:46',
+        customer_name: 'Khách Bị Đẩy Tới',
+      },
+    }),
+    'POST /api/partner/bookings (for the combined move-and-complete)',
+  );
+  ok(
+    await partner.fetch(`/api/partner/bookings/${forwardRow.id}`, {
+      method: 'PATCH',
+      json: { date: addDays(state.today, -1) },
+    }),
+    'PATCH the combined-case booking into yesterday first',
+  );
+  const nextMonth = addDays(state.today, 30);
+  for (const [order, json] of [
+    ['date first', { date: nextMonth, status: 'completed' }],
+    ['status first', { status: 'completed', date: nextMonth }],
+  ]) {
+    expectError(
+      await partner.fetch(`/api/partner/bookings/${forwardRow.id}`, { method: 'PATCH', json }),
+      409,
+      'BOOKING_NOT_STARTED',
+      `PATCH completing a booking while moving it into the future (${order})`,
+    );
+  }
+
+  /* The other direction of the same body is allowed, and has to be: moving a booking back
+     into a day that has been and gone and closing it out is what the console does when a
+     visit was recorded against the wrong date, and two requests already do exactly that.
+     One request must not disagree with two. */
+  for (const [order, json] of [
+    ['date first', { date: addDays(state.today, -1), status: 'completed' }],
+    ['status first', { status: 'completed', date: addDays(state.today, -1) }],
+  ]) {
+    const backwardRow = ok(
+      await partner.fetch('/api/partner/bookings', {
+        method: 'POST',
+        json: {
+          service_id: service.id,
+          staff_id: minhAnh.id,
+          date: addDays(state.today, 1),
+          time: order === 'date first' ? '07:47' : '07:48',
+          customer_name: 'Khách Ghi Nhầm Ngày',
+        },
+      }),
+      `POST /api/partner/bookings (for the backward combined case, ${order})`,
+    );
+    const closed = ok(
+      await partner.fetch(`/api/partner/bookings/${backwardRow.id}`, { method: 'PATCH', json }),
+      `PATCH moving a booking into yesterday and completing it at once (${order})`,
+    );
+    assert(
+      closed.status === 'completed' && closed.date === addDays(state.today, -1),
+      `the combined move-and-complete must land on both halves (${order})`,
+    );
+  }
+
+  /* -- the numbers on a public profile, and who attested to each of them ------ */
+
+  /* Staged on a technician created for it, so the seeded roster's own history cannot
+     pollute the counts. Three of the four tiers can be reached over HTTP; the fourth —
+     source IS NULL, the pre-verification era — can no longer be written by any route, which
+     is the whole point of it, so this block needs the direct handle the file already uses
+     for constraints. In external mode the partition would be missing a quarter of itself,
+     so it is skipped whole rather than asserted partially. */
+  if (!EXTERNAL_URL) {
+    const yesterday = addDays(state.today, -1);
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      /* Read before this block touches anything. started_at is frozen at the boot backfill,
+         so the way to check it is against the earliest booking as it stood — and this block
+         goes on to re-date a booking onto minhAnh's row further down, which would make the
+         same query at assertion time a different question. */
+      const minhAnhEarliest = (
+        await directClient.query(
+          'SELECT MIN(date) AS earliest FROM bookings WHERE staff_id = $1',
+          [minhAnh.id],
+        )
+      ).rows[0].earliest;
+
+      const statsTech = ok(
+        await partner.fetch('/api/partner/staff', {
+          method: 'POST',
+          json: {
+            name: 'KTV Số Liệu',
+            schedule: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+              weekday,
+              start: '00:00',
+              end: '23:59',
+              is_off: 0,
+            })),
+            service_ids: [service.id],
+          },
+        }),
+        'POST /api/partner/staff (the technician whose numbers are counted)',
+      );
+
+      /** The first hour a technician can actually be booked for, as the wizard finds it. */
+      const staffSlot = async (staffId, taken) => {
+        const response = await session('guest').fetch(
+          `/api/staff/${staffId}/availability?from=${addDays(state.today, 1)}&days=7&service_id=${service.id}`,
+        );
+        for (const day of ok(response, 'GET /api/staff/:id/availability (staging a visit)').week) {
+          for (const slot of day.slots) {
+            const clash = taken.some((one) => one.date === day.date && one.time === slot.time);
+            if (slot.available && !clash) {
+              return { date: day.date, time: slot.time };
+            }
+          }
+        }
+        return null;
+      };
+
+      /** A confirmed customer booking on that technician, ready to be dated backwards. */
+      const bookAsCustomer = async (client, staffId, slot, label) => {
+        const created = ok(
+          await client.fetch('/api/bookings', {
+            method: 'POST',
+            json: {
+              salon_id: state.lalaId,
+              service_id: service.id,
+              staff_id: staffId,
+              ...slot,
+            },
+          }),
+          `POST /api/bookings (${label})`,
+        );
+        // Whether Lala confirms by itself is a salon setting other groups move about, and
+        // only a confirmed booking survives a day going by as anything but a cancellation.
+        if (created.status === 'pending') {
+          ok(
+            await partner.fetch(`/api/partner/bookings/${created.id}`, {
+              method: 'PATCH',
+              json: { status: 'confirmed' },
+            }),
+            `PATCH /api/partner/bookings/:id (confirm the ${label})`,
+          );
+        }
+        return created;
+      };
+
+      /* Two customers, not one: distinct_customers counts the people behind the VERIFIED
+         set, and with the same account on both bookings the figure could not tell that
+         apart from counting everybody. */
+      const attesting = new Session();
+      ok(
+        await attesting.fetch('/api/auth/register', {
+          method: 'POST',
+          json: {
+            name: 'Khách Đã Xác Thực',
+            email: `attest${stamp}@oak.invalid`,
+            password: 'Oak@1234',
+            consent: true,
+          },
+        }),
+        'register the customer whose visit is verified',
+      );
+      const strandedCustomer = new Session();
+      ok(
+        await strandedCustomer.fetch('/api/auth/register', {
+          method: 'POST',
+          json: {
+            name: 'Khách Bị Bỏ Quên',
+            email: `strand${stamp}@oak.invalid`,
+            password: 'Oak@1234',
+            consent: true,
+          },
+        }),
+        'register the customer whose visit nobody confirmed',
+      );
+
+      // 1. verified: a customer booked it, and Lala is publicly listed and answerable.
+      const verifiedSlot = await staffSlot(statsTech.id, []);
+      assert(verifiedSlot !== null, 'stats: needed a free hour on the counted technician');
+      const verifiedBooking = await bookAsCustomer(attesting, statsTech.id, verifiedSlot, 'verified visit');
+      ok(
+        await partner.fetch(`/api/partner/bookings/${verifiedBooking.id}`, {
+          method: 'PATCH',
+          json: { date: yesterday },
+        }),
+        'PATCH the verified visit into yesterday',
+      );
+      ok(
+        await partner.fetch(`/api/partner/bookings/${verifiedBooking.id}`, {
+          method: 'PATCH',
+          json: { status: 'completed' },
+        }),
+        'PATCH the verified visit to completed',
+      );
+
+      // 2. unattested: the same customer booking, closed by the calendar instead of by a
+      //    person. The sweep is lazy, so it runs when its customer next opens their list.
+      const strandedSlot = await staffSlot(statsTech.id, [verifiedSlot]);
+      assert(strandedSlot !== null, 'stats: needed a second free hour on the counted technician');
+      const strandedBooking = await bookAsCustomer(strandedCustomer, statsTech.id, strandedSlot, 'stranded visit');
+      ok(
+        await partner.fetch(`/api/partner/bookings/${strandedBooking.id}`, {
+          method: 'PATCH',
+          json: { date: yesterday },
+        }),
+        'PATCH the stranded visit into yesterday',
+      );
+      const sweptList = ok(
+        await strandedCustomer.fetch('/api/bookings/mine?status=completed&limit=50'),
+        'GET /api/bookings/mine (the sweep that closes the stranded visit)',
+      );
+      assert(
+        sweptList.some((item) => item.id === strandedBooking.id && item.auto === true),
+        'stats: the stranded visit must have closed itself out',
+        sweptList,
+      );
+
+      // 3. walkin: the salon says it happened, and only the salon.
+      const walkInBooking = ok(
+        await partner.fetch('/api/partner/bookings', {
+          method: 'POST',
+          json: {
+            service_id: service.id,
+            staff_id: statsTech.id,
+            date: bookingDate,
+            time: '07:05',
+            customer_name: 'Khách Tại Quầy',
+          },
+        }),
+        'POST /api/partner/bookings (the counted walk-in)',
+      );
+      ok(
+        await partner.fetch(`/api/partner/bookings/${walkInBooking.id}`, {
+          method: 'PATCH',
+          json: { date: yesterday },
+        }),
+        'PATCH the walk-in into yesterday',
+      );
+      ok(
+        await partner.fetch(`/api/partner/bookings/${walkInBooking.id}`, {
+          method: 'PATCH',
+          json: { status: 'completed' },
+        }),
+        'PATCH the walk-in to completed',
+      );
+
+      // 4. legacy: written before the column existed. No route can produce this any more.
+      await directClient.query(
+        `INSERT INTO bookings
+           (salon_id, service_id, staff_id, code, date, time, status, total_price,
+            customer_name, payment_method, created_at)
+         VALUES ($1, $2, $3, $4, $5, '10:00', 'completed', $6, $7, 'at_salon', $8)`,
+        [
+          state.lalaId,
+          service.id,
+          statsTech.id,
+          `OAK-LEGACY${stamp}`,
+          addDays(state.today, -2),
+          service.price,
+          'Khách Từ Thời Trước',
+          new Date().toISOString(),
+        ],
+      );
+
+      const statsResponse = await session('guest').fetch(`/api/staff/${statsTech.id}`);
+      const counted = ok(statsResponse, 'GET /api/staff/:id (the counted technician)');
+      const stats = counted.stats;
+      assert(stats.verified_count === 1, 'stats: one visit two parties attested to', statsResponse);
+      assert(stats.walkin_count === 1, 'stats: one visit only the salon attested to', statsResponse);
+      assert(stats.unattested_count === 1, 'stats: one visit nobody confirmed', statsResponse);
+      assert(stats.legacy_count === 1, 'stats: one visit from before the column existed', statsResponse);
+
+      /* The tiers are a partition, not four filters that happen to be written next to each
+         other: the four counts have to add up to the completed total, or the profile is
+         showing a customer arithmetic that does not close. */
+      const completedTotal = (
+        await directClient.query(
+          "SELECT COUNT(*)::int AS total FROM bookings WHERE staff_id = $1 AND status = 'completed'",
+          [statsTech.id],
+        )
+      ).rows[0].total;
+      assert(
+        stats.verified_count + stats.walkin_count + stats.unattested_count + stats.legacy_count ===
+          completedTotal,
+        `stats: the four tiers must sum to the ${completedTotal} completed bookings`,
+        statsResponse,
+      );
+
+      /* The one overlap that would double-count if the tiers were independent tests: the
+         swept booking is a CUSTOMER booking at a PUBLISHED salon, and it is unattested all
+         the same, because auto_closed wins. verified_count staying at 1 is what says so. */
+      const sweptRow = (
+        await directClient.query(
+          'SELECT source, auto_closed, status FROM bookings WHERE id = $1',
+          [strandedBooking.id],
+        )
+      ).rows[0];
+      assert(
+        sweptRow.source === 'customer' && sweptRow.auto_closed === 1 && sweptRow.status === 'completed',
+        'stats: the stranded visit must be a completed customer booking the sweep closed',
+      );
+
+      // Two customers came through, and only the verified one is counted as a customer.
+      assert(
+        stats.distinct_customers === 1,
+        'stats: distinct_customers counts the people behind the verified visits and nobody else',
+        statsResponse,
+      );
+
+      /* -- the source column says who attested, and it is the route that decides --- */
+
+      const sourceRows = (
+        await directClient.query('SELECT id, source FROM bookings WHERE id = ANY($1::int[])', [
+          [verifiedBooking.id, walkInBooking.id],
+        ])
+      ).rows;
+      const sourceOf = (id) => sourceRows.find((row) => row.id === id)?.source;
+      assert(
+        sourceOf(verifiedBooking.id) === 'customer',
+        'POST /api/bookings must record that the customer attested to it',
+      );
+      assert(
+        sourceOf(walkInBooking.id) === 'partner',
+        'a walk-in is attested to by the salon and by nobody else',
+      );
+
+      /* -- an unlisted salon is not an independent party -------------------------- */
+
+      /* A free partner registration creates an unpublished salon, so "a customer booked it"
+         is something anybody can arrange for themselves. Those visits are counted, and
+         counted as unattested. Staged through the counter — the public wizard cannot reach
+         an unlisted salon's calendar at all — and then the one thing HTTP cannot do to it:
+         its source is flipped to the value a customer booking would have carried. */
+      const draftOwner = new Session();
+      ok(
+        await draftOwner.fetch('/api/auth/register', {
+          method: 'POST',
+          json: {
+            name: 'Chủ Salon Nháp',
+            email: `draftowner${stamp}@oak.invalid`,
+            password: 'Oak@1234',
+            role: 'partner',
+            salon_name: `Salon Chưa Lên Sóng ${stamp}`,
+            consent: true,
+          },
+        }),
+        'register the owner of an unlisted salon',
+      );
+      const draftSalon = ok(await draftOwner.fetch('/api/partner/salon'), 'the unlisted salon');
+      assert(draftSalon.published === 0, 'the sock-puppet salon must start unlisted');
+
+      const draftService = ok(
+        await draftOwner.fetch('/api/partner/services', {
+          method: 'POST',
+          json: { category: 'nail', name: 'Sơn gel nháp', price: 200000, duration_min: 60 },
+        }),
+        'POST /api/partner/services (at the unlisted salon)',
+      );
+      const draftTech = ok(
+        await draftOwner.fetch('/api/partner/staff', {
+          method: 'POST',
+          json: { name: 'KTV Tự Phong' },
+        }),
+        'POST /api/partner/staff (at the unlisted salon)',
+      );
+      const draftBooking = ok(
+        await draftOwner.fetch('/api/partner/bookings', {
+          method: 'POST',
+          json: {
+            service_id: draftService.id,
+            staff_id: draftTech.id,
+            date: bookingDate,
+            time: '09:00',
+            customer_name: 'Khách Tự Dựng',
+          },
+        }),
+        'POST /api/partner/bookings (at the unlisted salon)',
+      );
+      ok(
+        await draftOwner.fetch(`/api/partner/bookings/${draftBooking.id}`, {
+          method: 'PATCH',
+          json: { date: yesterday },
+        }),
+        'PATCH the sock-puppet visit into yesterday',
+      );
+      ok(
+        await draftOwner.fetch(`/api/partner/bookings/${draftBooking.id}`, {
+          method: 'PATCH',
+          json: { status: 'completed' },
+        }),
+        'PATCH the sock-puppet visit to completed',
+      );
+      await directClient.query("UPDATE bookings SET source = 'customer' WHERE id = $1", [
+        draftBooking.id,
+      ]);
+
+      const draftStatsResponse = await session('guest').fetch(`/api/staff/${draftTech.id}`);
+      const draftStats = ok(draftStatsResponse, 'GET /api/staff/:id (at the unlisted salon)').stats;
+      assert(
+        draftStats.verified_count === 0,
+        "stats: an unlisted salon's own customers verify nothing",
+        draftStatsResponse,
+      );
+      assert(
+        draftStats.unattested_count === 1,
+        'stats: that visit is still counted, under the tier it belongs to',
+        draftStatsResponse,
+      );
+
+      /* -- the rating on the profile and the rating under the reviews ------------- */
+
+      /* One number, computed two ways, and the endpoint that shows it must not be able to
+         disagree with the endpoint that lists what it is made of. staff.rating is a cache
+         now; GET /:id/reviews averages the rows live. */
+      const reviewed = ok(
+        await attesting.fetch('/api/reviews', {
+          method: 'POST',
+          json: { booking_id: verifiedBooking.id, rating: 4, comment: 'Rất kỹ và nhẹ tay.' },
+        }),
+        'POST /api/reviews (on the counted technician)',
+      );
+      assert(reviewed.rating === 4, 'the review must have been written as four stars');
+
+      const cachedResponse = await session('guest').fetch(`/api/staff/${statsTech.id}`);
+      const cached = ok(cachedResponse, 'GET /api/staff/:id after the review');
+      const listResponse = await session('guest').fetch(`/api/staff/${statsTech.id}/reviews`);
+      ok(listResponse, 'GET /api/staff/:id/reviews after the review');
+      // Number() on both sides: the cache is a REAL column and the average is a numeric, and
+      // the two arrive over the wire in different shapes.
+      assert(
+        Number(cached.rating) === Number(listResponse.body.meta.average),
+        `staff rating: the cached figure (${cached.rating}) must equal the live average (${listResponse.body.meta.average})`,
+        cachedResponse,
+      );
+      assert(Number(cached.rating) === 4, 'staff rating: one four-star review averages four');
+      assert(
+        Number(cached.stats.rating_avg) === Number(cached.rating),
+        'staff rating: the stats block must agree with the cache it sits beside',
+        cachedResponse,
+      );
+      assert(cached.stats.review_count === 1, 'staff stats: expected the one review');
+
+      /* And an edit moves both, in the same transaction as the review itself: a rating that
+         could be changed without the cache following is a split brain with a UI on it. */
+      ok(
+        await attesting.fetch(`/api/reviews/${reviewed.id}`, {
+          method: 'PATCH',
+          json: { rating: 2, comment: 'Nghĩ lại thì chưa ổn.' },
+        }),
+        'PATCH /api/reviews/:id (down to two stars)',
+      );
+      const afterEdit = ok(
+        await session('guest').fetch(`/api/staff/${statsTech.id}`),
+        'GET /api/staff/:id after the review was edited',
+      );
+      assert(Number(afterEdit.rating) === 2, 'staff rating: an edited review moves the cache');
+
+      /* -- the technician reads the same numbers the public reads ----------------- */
+
+      const countedInvite = ok(
+        await partner.fetch(`/api/partner/staff/${statsTech.id}/invite`, { method: 'POST' }),
+        'POST invite for the counted technician',
+      );
+      const counting = new Session();
+      ok(
+        await counting.fetch('/api/auth/staff/register', {
+          method: 'POST',
+          json: {
+            token: tokenOf(countedInvite.url),
+            name: 'KTV Số Liệu',
+            email: `counted${stamp}@oak.invalid`,
+            password: 'Oak@1234',
+            consent: true,
+          },
+        }),
+        'POST /api/auth/staff/register (the counted technician)',
+      );
+      const ownProfile = ok(
+        await counting.fetch('/api/staff-me/profile'),
+        'GET /api/staff-me/profile (with stats)',
+      );
+      const ownRow = ownProfile.find((row) => row.staff_id === statsTech.id);
+      assert(ownRow !== undefined, 'the counted technician must hold their own row', ownProfile);
+      assert(
+        Number(ownRow.stats.rating_avg) === Number(afterEdit.rating),
+        'the technician reads the same average the public does',
+        ownProfile,
+      );
+      for (const key of ['verified_count', 'walkin_count', 'unattested_count', 'legacy_count']) {
+        assert(
+          ownRow.stats[key] === afterEdit.stats[key],
+          `staff-me profile: ${key} must be the public figure`,
+          ownProfile,
+        );
+      }
+      /* started_at has exactly one writer — the boot backfill — so a roster row opened after
+         it ran carries none, however many bookings it goes on to take. Asserted so the
+         limitation is written down rather than discovered: this technician has four
+         completed bookings a few lines above and still reads null. Giving the column a
+         forward writer is the change that makes months_active mean anything for anybody
+         hired from today on. */
+      assert(
+        ownRow.stats.months_active === null && ownRow.stats.started_at === null,
+        'a roster row opened after the backfill carries no start date, and none is invented',
+        ownProfile,
+      );
+
+      /* -- a verified record cannot be moved onto somebody else ------------------- */
+
+      /* The row is claimed now, so its completed bookings are part of a person's record and
+         the console may not hand them to another technician: the one who did the work would
+         lose a visit, and the one who did not would gain it. */
+      expectError(
+        await partner.fetch(`/api/partner/bookings/${verifiedBooking.id}`, {
+          method: 'PATCH',
+          json: { staff_id: minhAnh.id },
+        }),
+        409,
+        'CONFLICT',
+        'PATCH staff_id on a completed booking held by a claimed technician',
+      );
+      /* Nor does bundling the reassignment with a status change get round it. This one is
+         answered earlier still — completed lists no way out of itself, so the transition
+         table refuses the body before the freeze is even consulted — and what matters is
+         that both spellings of the attempt leave the booking where it was. */
+      expectError(
+        await partner.fetch(`/api/partner/bookings/${verifiedBooking.id}`, {
+          method: 'PATCH',
+          json: { staff_id: minhAnh.id, status: 'completed' },
+        }),
+        400,
+        'INVALID_TRANSITION',
+        'PATCH staff_id bundled with a status change on a completed booking',
+      );
+      const stillOurs = (
+        await directClient.query('SELECT staff_id FROM bookings WHERE id = $1', [
+          verifiedBooking.id,
+        ])
+      ).rows[0];
+      assert(
+        stillOurs.staff_id === statsTech.id,
+        'the refused reassignment must have left the booking exactly where it was',
+      );
+
+      /* A row nobody stands behind is still editable — there is no profile to falsify — and
+         the move is written down, so whoever claims the row later can see what happened. */
+      const unclaimedTech = ok(
+        await partner.fetch('/api/partner/staff', {
+          method: 'POST',
+          json: { name: 'KTV Chưa Ai Nhận' },
+        }),
+        'POST /api/partner/staff (a row nobody stands behind)',
+      );
+      const movable = ok(
+        await partner.fetch('/api/partner/bookings', {
+          method: 'POST',
+          json: {
+            service_id: service.id,
+            staff_id: unclaimedTech.id,
+            date: bookingDate,
+            time: '07:15',
+            customer_name: 'Khách Bị Chuyển',
+          },
+        }),
+        'POST /api/partner/bookings (on the unclaimed row)',
+      );
+      ok(
+        await partner.fetch(`/api/partner/bookings/${movable.id}`, {
+          method: 'PATCH',
+          json: { date: yesterday },
+        }),
+        'PATCH the movable booking into yesterday',
+      );
+      ok(
+        await partner.fetch(`/api/partner/bookings/${movable.id}`, {
+          method: 'PATCH',
+          json: { status: 'completed' },
+        }),
+        'PATCH the movable booking to completed',
+      );
+      ok(
+        await partner.fetch(`/api/partner/bookings/${movable.id}`, {
+          method: 'PATCH',
+          json: { staff_id: minhAnh.id },
+        }),
+        'PATCH staff_id on a completed booking nobody stands behind',
+      );
+      const audit = (
+        await directClient.query(
+          `SELECT old_staff_id, new_staff_id, changed_by, created_at
+           FROM booking_staff_changes WHERE booking_id = $1`,
+          [movable.id],
+        )
+      ).rows;
+      assert(audit.length === 1, 'the move must be written down exactly once');
+      assert(
+        audit[0].old_staff_id === unclaimedTech.id && audit[0].new_staff_id === minhAnh.id,
+        'the audit row must name both ends of the move',
+      );
+      const partnerAccount = ok(await partner.fetch('/api/auth/me'), 'the owner behind the console');
+      assert(
+        audit[0].changed_by === partnerAccount.user.id,
+        'the audit row must name the owner who made the move',
+      );
+      assert(typeof audit[0].created_at === 'string', 'the audit row must be dated');
+
+      /* -- and not onto a claimed row either -------------------------------------- */
+
+      /* The other direction of the same forgery, and the easier one to run at scale: a
+         completed booking nobody stands behind, handed to a technician who does. They would
+         gain a verified visit they may never have performed, which moves exactly the figure
+         the freeze exists to protect. Refused in the same words as the other direction. */
+      const gifted = ok(
+        await partner.fetch('/api/partner/bookings', {
+          method: 'POST',
+          json: {
+            service_id: service.id,
+            staff_id: unclaimedTech.id,
+            date: bookingDate,
+            time: '07:35',
+            customer_name: 'Khách Bị Tặng',
+          },
+        }),
+        'POST /api/partner/bookings (to be gifted to a claimed technician)',
+      );
+      ok(
+        await partner.fetch(`/api/partner/bookings/${gifted.id}`, {
+          method: 'PATCH',
+          json: { date: yesterday },
+        }),
+        'PATCH the gifted booking into yesterday',
+      );
+      ok(
+        await partner.fetch(`/api/partner/bookings/${gifted.id}`, {
+          method: 'PATCH',
+          json: { status: 'completed' },
+        }),
+        'PATCH the gifted booking to completed',
+      );
+      expectError(
+        await partner.fetch(`/api/partner/bookings/${gifted.id}`, {
+          method: 'PATCH',
+          json: { staff_id: statsTech.id },
+        }),
+        409,
+        'CONFLICT',
+        'PATCH a completed booking onto a claimed technician',
+      );
+      const notGifted = (
+        await directClient.query('SELECT staff_id FROM bookings WHERE id = $1', [gifted.id])
+      ).rows[0];
+      assert(
+        notGifted.staff_id === unclaimedTech.id,
+        'the refused gift must have left the booking exactly where it was',
+      );
+
+      /* -- a correction carries the review with the visit ------------------------- */
+
+      /* Between two rows nobody stands behind the move is allowed, and then the customer's
+         verdict has to travel with the visit it is about. A review left behind would leave
+         one technician rated for work they no longer hold and the other holding the work
+         with nothing said about it — and both caches wrong, which is the split brain this
+         slice exists to close. Checked through the two endpoints rather than the column, so
+         what is asserted is what a reader of the profile actually sees. */
+      const wrongTech = ok(
+        await partner.fetch('/api/partner/staff', {
+          method: 'POST',
+          json: {
+            name: 'KTV Ghi Nhầm',
+            schedule: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+              weekday,
+              start: '00:00',
+              end: '23:59',
+              is_off: 0,
+            })),
+            service_ids: [service.id],
+          },
+        }),
+        'POST /api/partner/staff (the row the visit was recorded against by mistake)',
+      );
+      const rightTech = ok(
+        await partner.fetch('/api/partner/staff', {
+          method: 'POST',
+          json: { name: 'KTV Làm Thật' },
+        }),
+        'POST /api/partner/staff (the row that actually did the work)',
+      );
+      const reviewingSlot = await staffSlot(wrongTech.id, []);
+      assert(reviewingSlot !== null, 'the correction case needed a free hour');
+      const misrecorded = await bookAsCustomer(
+        attesting,
+        wrongTech.id,
+        reviewingSlot,
+        'misrecorded visit',
+      );
+      ok(
+        await partner.fetch(`/api/partner/bookings/${misrecorded.id}`, {
+          method: 'PATCH',
+          json: { date: yesterday },
+        }),
+        'PATCH the misrecorded visit into yesterday',
+      );
+      ok(
+        await partner.fetch(`/api/partner/bookings/${misrecorded.id}`, {
+          method: 'PATCH',
+          json: { status: 'completed' },
+        }),
+        'PATCH the misrecorded visit to completed',
+      );
+      ok(
+        await attesting.fetch('/api/reviews', {
+          method: 'POST',
+          json: { booking_id: misrecorded.id, rating: 5, comment: 'Tuyệt vời.' },
+        }),
+        'POST /api/reviews (on the misrecorded visit)',
+      );
+
+      /** The cached rating and the live average of one technician, which must be one number. */
+      const ratingOf = async (staffId, label) => {
+        const profile = ok(
+          await session('guest').fetch(`/api/staff/${staffId}`),
+          `GET /api/staff/:id (${label})`,
+        );
+        const list = await session('guest').fetch(`/api/staff/${staffId}/reviews`);
+        ok(list, `GET /api/staff/:id/reviews (${label})`);
+        assert(
+          Number(profile.rating) === Number(list.body.meta.average),
+          `${label}: the cache (${profile.rating}) must equal the live average (${list.body.meta.average})`,
+          list,
+        );
+        return { rating: Number(profile.rating), reviews: list.body.meta.total };
+      };
+
+      const wrongBefore = await ratingOf(wrongTech.id, 'the misrecorded row before the fix');
+      assert(
+        wrongBefore.rating === 5 && wrongBefore.reviews === 1,
+        'the review must start on the row the visit was recorded against',
+      );
+
+      ok(
+        await partner.fetch(`/api/partner/bookings/${misrecorded.id}`, {
+          method: 'PATCH',
+          json: { staff_id: rightTech.id },
+        }),
+        'PATCH the misrecorded visit onto the technician who did the work',
+      );
+
+      const movedReview = (
+        await directClient.query('SELECT staff_id FROM reviews WHERE booking_id = $1', [
+          misrecorded.id,
+        ])
+      ).rows[0];
+      assert(
+        movedReview.staff_id === rightTech.id,
+        'the review must point at the technician the visit was moved to',
+      );
+      const rightAfter = await ratingOf(rightTech.id, 'the row that did the work');
+      assert(
+        rightAfter.rating === 5 && rightAfter.reviews === 1,
+        'the technician who did the work must carry the verdict on it',
+      );
+      const wrongAfter = await ratingOf(wrongTech.id, 'the misrecorded row after the fix');
+      assert(
+        wrongAfter.rating === 0 && wrongAfter.reviews === 0,
+        'and the row it was taken off must be back to unrated, not left holding the figure',
+      );
+
+      /* Nothing has happened on a pending booking, so a swap there is a correction to a plan
+         rather than a change to anybody's history, and it leaves no trail. A walk-in is
+         confirmed the moment it is typed and confirmed has no way back to pending, so this
+         one comes in through the wizard with the salon's automatic confirmation switched
+         off — the same way group 06 stages a booking nobody has looked at. */
+      ok(
+        await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { auto_confirm: 0 } }),
+        'PATCH /api/partner/salon (manual confirmation, for the pending reassignment)',
+      );
+      const pendingSlot = await staffSlot(statsTech.id, [verifiedSlot, strandedSlot]);
+      assert(pendingSlot !== null, 'stats: needed a third free hour on the counted technician');
+      const pending = ok(
+        await attesting.fetch('/api/bookings', {
+          method: 'POST',
+          json: {
+            salon_id: state.lalaId,
+            service_id: service.id,
+            staff_id: statsTech.id,
+            ...pendingSlot,
+          },
+        }),
+        'POST /api/bookings (to be reassigned while pending)',
+      );
+      ok(
+        await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { auto_confirm: 1 } }),
+        'PATCH /api/partner/salon (automatic confirmation again)',
+      );
+      assert(pending.status === 'pending', 'the reassignment case needs a booking nobody has looked at');
+      ok(
+        await partner.fetch(`/api/partner/bookings/${pending.id}`, {
+          method: 'PATCH',
+          json: { staff_id: unclaimedTech.id },
+        }),
+        'PATCH staff_id while the booking is pending',
+      );
+      const pendingAudit = (
+        await directClient.query(
+          'SELECT COUNT(*)::int AS total FROM booking_staff_changes WHERE booking_id = $1',
+          [pending.id],
+        )
+      ).rows[0].total;
+      assert(pendingAudit === 0, 'a pending reassignment must leave no audit row');
+
+      /* -- and the start dates the backfill wrote are the dates the rows hold ----- */
+
+      const backfilled = (
+        await directClient.query('SELECT started_at FROM staff WHERE id = $1', [minhAnh.id])
+      ).rows[0];
+      assert(
+        /^\d{4}-\d{2}-\d{2}$/.test(backfilled.started_at ?? ''),
+        'a technician who had bookings when the column arrived must carry a start date',
+      );
+      assert(
+        backfilled.started_at === minhAnhEarliest,
+        'the start date must be that technician’s earliest booking',
+      );
+      const invented = (
+        await directClient.query(
+          `SELECT COUNT(*)::int AS total FROM staff st
+           WHERE st.started_at IS NOT NULL
+             AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.staff_id = st.id)`,
+        )
+      ).rows[0].total;
+      assert(invented === 0, 'no roster row may carry a start date it has no booking for');
+    } finally {
+      await directClient.end();
+    }
+  } else {
+    skip('the tier partition needs a legacy row, which no route can write any more');
+  }
 
   /* -- the preview allowance, spent deliberately and last --------------------- */
 

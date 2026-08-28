@@ -1,6 +1,7 @@
 // Customer reviews: create from a completed booking, list own.
 import express from 'express';
 import { db } from '../db.js';
+import { RECOMPUTE_STAFF_RATING } from '../lib/staff-stats.js';
 import { httpError, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -15,14 +16,16 @@ const selectBooking = db.prepare(
   'SELECT id, user_id, salon_id, service_id, staff_id, status FROM bookings WHERE id = ?',
 );
 const selectReviewOfBooking = db.prepare('SELECT id FROM reviews WHERE booking_id = ?');
-const selectReview = db.prepare('SELECT id, user_id FROM reviews WHERE id = ?');
-const updateReview = db.prepare(
-  'UPDATE reviews SET rating = ?, comment = ? WHERE id = ? AND user_id = ?',
-);
-const insertReview = db.prepare(`
+// staff_id is read here rather than derived again from the booking: an edit must recompute
+// the average of the technician this review has always pointed at.
+const selectReview = db.prepare('SELECT id, user_id, staff_id FROM reviews WHERE id = ?');
+// Both writes happen inside a transaction, so they are kept as SQL text.
+const UPDATE_REVIEW = 'UPDATE reviews SET rating = ?, comment = ? WHERE id = ? AND user_id = ?';
+const INSERT_REVIEW = `
   INSERT INTO reviews (user_id, salon_id, service_id, staff_id, booking_id, rating, comment, created_at)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-`);
+`;
+
 const selectMyReviews = db.prepare(`
   SELECT r.id, r.booking_id, r.rating, r.comment, r.created_at,
          s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name,
@@ -76,20 +79,28 @@ router.post('/', async (req, res, next) => {
     // could aim a review at a salon they never visited.
     let id;
     try {
-      id = Number(
-        (
-          await insertReview.run(
-            req.user.id,
-            booking.salon_id,
-            booking.service_id,
-            booking.staff_id,
-            booking.id,
-            rating,
-            comment ?? null,
-            new Date().toISOString(),
-          )
-        ).lastInsertRowid,
-      );
+      id = await db.withTransaction(async (tx) => {
+        const written = Number(
+          (
+            await tx.run(
+              INSERT_REVIEW,
+              req.user.id,
+              booking.salon_id,
+              booking.service_id,
+              booking.staff_id,
+              booking.id,
+              rating,
+              comment ?? null,
+              new Date().toISOString(),
+            )
+          ).lastInsertRowid,
+        );
+        // A booking taken without a technician has no average to move.
+        if (booking.staff_id !== null) {
+          await tx.run(RECOMPUTE_STAFF_RATING, booking.staff_id, booking.staff_id);
+        }
+        return written;
+      });
     } catch (error) {
       // Two requests raced past the pre-check above; the unique index answers for both.
       if (error.code === '23505' && error.constraint === 'idx_reviews_booking_id') {
@@ -122,7 +133,12 @@ router.patch('/:id', async (req, res, next) => {
 
     validateReviewBody(rating, comment);
 
-    await updateReview.run(rating, comment ?? null, review.id, req.user.id);
+    await db.withTransaction(async (tx) => {
+      await tx.run(UPDATE_REVIEW, rating, comment ?? null, review.id, req.user.id);
+      if (review.staff_id !== null) {
+        await tx.run(RECOMPUTE_STAFF_RATING, review.staff_id, review.staff_id);
+      }
+    });
 
     res.json({ success: true, data: { id: review.id, rating, comment: comment ?? null } });
   } catch (error) {

@@ -18,6 +18,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = (...parts) => fs.readFileSync(path.join(root, 'src', ...parts), 'utf8');
 
 const authSource = source('routes', 'auth.js');
+const dbSource = source('db.js');
 const partnerSource = source('routes', 'partner.js');
 const staffMeSource = source('routes', 'staff-me.js');
 const usersSource = source('routes', 'users.js');
@@ -334,6 +335,47 @@ test('a customer is upgraded in place, keeping the row their history hangs off',
   // One live claimed row per person per salon, enforced by the index rather than by a
   // check that a second request could slip past.
   assert.match(claim, /error\.constraint === 'idx_staff_user_salon'/);
+});
+
+// ------------------------------------------------------------ what the numbers rest on
+
+test('the two figures a profile rests on are backfilled once, behind the column that says so', () => {
+  /* Neither of these can be driven end to end: this file may not open a connection, and the
+     smoke suite boots the server exactly once, so "boot it twice and watch nothing move" is
+     out of reach from either side. Pinned at source level instead, the way the expiry clause
+     above is.
+
+     The sentinel is the absence of staff.started_at — a database that has not seen this
+     slice — and not a marker table of its own, which is the shape the salons.published
+     backfill already uses. */
+  assert.match(
+    dbSource,
+    /IF NOT EXISTS \(\s*SELECT 1 FROM information_schema\.columns\s*WHERE table_name = 'staff' AND column_name = 'started_at'\s*\) THEN/,
+  );
+
+  const start = dbSource.indexOf("WHERE table_name = 'staff' AND column_name = 'started_at'");
+  assert.notEqual(start, -1, 'the slice-2 sentinel has moved');
+  const guarded = dbSource.slice(start, dbSource.indexOf('END $$;', start));
+
+  // Both backfills inside it, and the column added in there too: an ALTER outside the guard
+  // would create the column before the block ever ran, and the sentinel would read false on
+  // the one boot it exists for.
+  assert.match(guarded, /ALTER TABLE staff ADD COLUMN IF NOT EXISTS started_at TEXT;/);
+  assert.match(guarded, /UPDATE staff st SET started_at = earliest\.first_date/);
+  assert.match(guarded, /SELECT staff_id, MIN\(date\) AS first_date/);
+  assert.match(
+    guarded,
+    /UPDATE staff st SET rating = COALESCE\(\s*\(SELECT ROUND\(AVG\(r\.rating\), 1\) FROM reviews r WHERE r\.staff_id = st\.id\), 0\s*\)/,
+  );
+  assert.equal((dbSource.match(/ADD COLUMN IF NOT EXISTS started_at/g) || []).length, 1);
+  // And nothing else in the file rewrites a roster row: a second convergence outside the
+  // guard would run on every boot and undo whatever routes/reviews.js had been maintaining.
+  assert.equal((dbSource.match(/UPDATE staff st SET/g) || []).length, 2);
+
+  // A row written before the source column existed keeps NULL: there is no sweep anywhere
+  // that guesses at who attested to a visit nobody recorded.
+  assert.match(dbSource, /ALTER TABLE bookings ADD COLUMN IF NOT EXISTS source TEXT;/);
+  assert.doesNotMatch(dbSource, /UPDATE bookings SET source/);
 });
 
 // ------------------------------------------------------ the page the link opens onto

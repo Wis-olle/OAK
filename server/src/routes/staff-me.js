@@ -15,6 +15,7 @@ import {
   findLiveInvite,
   inviteNotFound,
 } from '../lib/staff-invite.js';
+import { staffStats } from '../lib/staff-stats.js';
 import { addDaysISO, isISODate, todayISO } from '../lib/time.js';
 import { httpError, requireAuth, requireStaff } from '../middleware/auth.js';
 
@@ -107,9 +108,14 @@ const selectClaimedStaff = db.prepare(`
 router.get('/profile', requireStaff, async (req, res, next) => {
   try {
     const rows = await selectClaimedStaff.all(req.user.id);
-    res.json({
-      success: true,
-      data: rows.map((row) => ({
+
+    /* The same block lib/staff-stats.js serves the public profile, from the same query: a
+       technician has to be able to read their own numbers exactly as a customer reads them,
+       or the two pages become an argument. One call per roster row rather than one query
+       over all of them — a person holds one stint, two if they work at a second salon. */
+    const data = [];
+    for (const row of rows) {
+      data.push({
         staff_id: row.id,
         salon: { id: row.salon_id, name: row.salon_name, slug: row.salon_slug },
         name: row.name,
@@ -118,8 +124,11 @@ router.get('/profile', requireStaff, async (req, res, next) => {
         image: row.image,
         active: row.active,
         claimed_at: row.claimed_at,
-      })),
-    });
+        stats: await staffStats(row.id),
+      });
+    }
+
+    res.json({ success: true, data });
   } catch (error) {
     next(error);
   }
