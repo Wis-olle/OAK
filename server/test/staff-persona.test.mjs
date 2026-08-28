@@ -236,9 +236,21 @@ test('only a dead token spends the preview allowance', () => {
 });
 
 test('erasing an account gives its roster rows back to the salon', () => {
-  assert.match(
-    usersSource,
-    /RELEASE_STAFF_ROWS =\s*'UPDATE staff SET user_id = NULL, claimed_at = NULL WHERE user_id = \?'/,
+  /* The chair goes back to the salon and the personal half goes with the person. Clearing
+     user_id alone would not merely leave a bio and a face behind — it would PUT THEM BACK UP:
+     the public gates pass any row with user_id IS NULL, so a profile its holder had withdrawn
+     returns to the public side the moment they erase the account, with nobody left who can
+     sign in and take it down. And profile_hidden is reset so the next person to claim the
+     chair does not inherit somebody else's withdrawal. */
+  /* The whole statement, not three substrings of it: this UPDATE decides what survives an
+     erasure, and a scope or a column slipped into the gaps between substring matches — an
+     `active = 0`, an `AND salon_id = ?` — would change who it touches without failing a
+     thing. Whitespace-normalised so the SQL can be re-wrapped, never re-worded. */
+  const release = handler(usersSource, 'const RELEASE_STAFF_ROWS', '`;').replace(/\s+/g, ' ').trim();
+  assert.equal(
+    release,
+    'const RELEASE_STAFF_ROWS = ` UPDATE staff SET user_id = NULL, claimed_at = NULL, ' +
+      'bio = NULL, portfolio = NULL, image = NULL, profile_hidden = 0 WHERE user_id = ?',
   );
   // In the same transaction as the anonymise, and before it: a row still pointing at an
   // account whose address is now deleted+id@oak.invalid reads as claimed forever, and
@@ -1098,10 +1110,39 @@ test('the withdrawal hides the page and never the working day', () => {
     assert.doesNotMatch(read, /visibleStaffIdOrThrow/, route);
   }
 
-  // The booking wizard's technician picker, for the same reason: dropping a technician out of
-  // it would quietly take a salon's chair off sale.
-  const picker = handler(servicesSource, 'const selectServiceStaff', '`);');
-  assert.doesNotMatch(picker, /profile_hidden/);
+  /* The booking wizard's technician picker, for the same reason: dropping a technician out of
+     it would quietly take a salon's chair off sale.
+
+     Pinned by what the query IS rather than by what it does not say. A `doesNotMatch` on the
+     flag reads as a guard and is not one: a predicate can sit in the JOIN as easily as in the
+     WHERE, and no assertion over the SQL at all can see a `rows.filter(...)` dropping the row
+     in the route afterwards. So the whole shape of the query is spelled out here, and the
+     route is pinned as a straight map with no filter in it. */
+  const picker = handler(servicesSource, 'const selectServiceStaff', '`);')
+    .replace(/\s+/g, ' ')
+    .trim();
+  assert.equal(
+    picker,
+    'const selectServiceStaff = db.prepare(` SELECT st.id, st.name, st.title, st.specialty, ' +
+      'st.image, st.rating, st.years_experience, st.user_id, st.profile_hidden ' +
+      'FROM staff st JOIN staff_services ss ON ss.staff_id = st.id ' +
+      'WHERE ss.service_id = ? AND st.active = 1 ORDER BY st.rating DESC, st.id',
+  );
+  const pickerRoute = handler(servicesSource, "router.get('/:id/staff'", '});');
+  assert.match(pickerRoute, /data: rows\.map\(pickerCard\)/);
+  assert.doesNotMatch(pickerRoute, /\.filter\(/);
+
+  /* Claimed rows only, the standing rule: nobody stands behind an unclaimed row, so nobody has
+     withdrawn anything from it. Everything the public profile shows off is dropped; id and
+     name stay, because a customer who asks for her by name must still be able to pick her. */
+  const card = declaration(servicesSource, 'function pickerCard(');
+  assert.match(card, /const withdrawn = row\.user_id !== null && Boolean\(row\.profile_hidden\);/);
+  for (const shown of ['title', 'specialty', 'image', 'rating', 'years_experience']) {
+    assert.match(card, new RegExp(`\\b${shown}: withdrawn \\? null : row\\.${shown},`), shown);
+  }
+  assert.match(card, /^ {4}id: row\.id,\s*\n\s*name: row\.name,/m);
+  // The account column is asked about and never answered with.
+  assert.doesNotMatch(card, /user_id:/);
 
   /* The console is the salon's own operational view of its roster, so a withdrawn technician
      is still on it — the owner has a day to run and a person to run it with. Unchanged, and
@@ -1158,15 +1199,15 @@ test("a 'staff' notification can only be written by notifyStaff", () => {
   }
 });
 
-test('the five things a technician is told about, each written once and in a transaction', () => {
+test('the six things a technician is told about, each written once and in a transaction', () => {
   /* Every notice rides the transaction that made the change it announces, so a booking that
      rolled back cannot leave a technician looking at an appointment nobody has. The count per
-     file is the "exactly once per event" half: a second call anywhere is a second bell. Seven
-     call sites for five triggers, because the reassignment is two events in one save — one
+     file is the "exactly once per event" half: a second call anywhere is a second bell. Eight
+     call sites for six triggers, because the reassignment is two events in one save — one
      technician loses the hour and another gains it. */
   const sites = [
     ['routes/bookings.js', bookingsSource, 2],
-    ['routes/partner.js', partnerSource, 4],
+    ['routes/partner.js', partnerSource, 5],
     ['routes/reviews.js', reviewsSource, 1],
   ];
   for (const [name, text, expected] of sites) {
@@ -1185,7 +1226,8 @@ test('the five things a technician is told about, each written once and in a tra
 
   /* The reassignment tells both ends and gates on `restaffed`, which is `movable`-gated: a
      cancelled or completed row moved between two names is a correction to the record and not
-     news for anybody's day. Cancelling wins over it, so one save cannot ring twice. */
+     news for anybody's day. Cancelling wins over it, and it wins over the move, so one save
+     cannot ring twice. */
   const patch = handler(
     partnerSource,
     "router.patch('/bookings/:id'",
@@ -1196,6 +1238,19 @@ test('the five things a technician is told about, each written once and in a tra
     /const staffCancelled = Object\.hasOwn\(patch, 'status'\) && patch\.status === 'cancelled';/,
   );
   assert.match(patch, /if \(staffCancelled\) \{[\s\S]*?\} else if \(restaffed\) \{/);
+  /* And the move last of the three. The reassignment pair already carry the NEW hour in their
+     own sentences, so a save that moves the hour AND swaps the chair is fully told by them;
+     "and it moved" on top would be one save ringing twice. The move is therefore the branch
+     for the technician who is STAYING, and it names the hour she is now expected at. */
+  assert.match(patch, /\} else if \(restaffed\) \{[\s\S]*?\} else if \(moved\) \{/);
+  /* A move is a new date, a new time, or both, so the title says neither: 'đã đổi giờ' on a
+     save that shifted only the day would be the notice contradicting its own body. Worded
+     like its sibling three branches up, which had the same problem to solve. */
+  assert.match(
+    patch,
+    /await notifyStaff\(\s*tx,\s*booking\.staff_id,\s*'Một lịch hẹn đã được dời',/,
+  );
+  assert.match(patch, /đã dời lịch hẹn \$\{updated\.code\} sang \$\{when\}/);
   assert.match(patch, /await notifyStaff\(\s*tx,\s*booking\.staff_id,/);
   assert.match(
     patch,
@@ -1213,11 +1268,13 @@ test('the five things a technician is told about, each written once and in a tra
   for (const closed of ['completed', 'no_show']) {
     assert.doesNotMatch(patch, new RegExp(`patch\\.status === '${closed}'`), closed);
   }
-  // One read of the row for all three sentences, so the customer and both technicians are
-  // told about the same hour.
+  /* One read of the row for every sentence, so the customer and the technicians are told about
+     the same hour. `moved` is on the gate in its own right rather than left to the `notification`
+     it usually implies: a save carrying a status AND a new date takes `notification` from the
+     status, and the branch below would then depend on a coincidence to be reached at all. */
   assert.match(
     patch,
-    /if \(notification \|\| staffCancelled \|\| restaffed\) \{\s*const updated = await tx\.get\(/,
+    /if \(notification \|\| staffCancelled \|\| restaffed \|\| moved\) \{\s*const updated = await tx\.get\(/,
   );
 
   // The walk-in, and the customer's own cancellation, on the row each of them is about.

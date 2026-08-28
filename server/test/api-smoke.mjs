@@ -5253,6 +5253,175 @@ async function groupStaffPersona() {
     reinvite,
   );
 
+  /* -- and the personal half of the page goes with the person ----------------- */
+
+  /* The chair comes back; the person must not come back with it. bio, portfolio and the photo
+     are what routes/staff-me.js lets a technician write about themselves, and the public gates
+     pass any row with user_id IS NULL — so clearing the claim alone would not merely leave
+     those standing, it would put a WITHDRAWN page back UP, with the departed technician's own
+     words and own face on it and no account left that could sign in and take it down. */
+  const partingRow = ok(
+    await partner.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: { name: 'KTV Xóa Cả Trang' },
+    }),
+    'POST /api/partner/staff (the row whose holder erases a withdrawn page)',
+  );
+  const partingInvite = ok(
+    await partner.fetch(`/api/partner/staff/${partingRow.id}/invite`, { method: 'POST' }),
+    'POST invite for the technician who withdraws and then erases',
+  );
+  const parting = new Session();
+  ok(
+    await parting.fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        token: tokenOf(partingInvite.url),
+        name: 'KTV Xóa Cả Trang',
+        email: `parting${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/staff/register (the technician who withdraws and then erases)',
+  );
+
+  const PARTING_BIO = 'Mình làm móng gel và chăm sóc da tay, chủ yếu nhận khách quen.';
+  const PARTING_PORTFOLIO = ['assets/img/chia-tay-1.webp', 'assets/img/chia-tay-2.webp'];
+  const PARTING_AVATAR = 'assets/img/ktv-chia-tay.webp';
+  ok(
+    await parting.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: {
+        staff_id: partingRow.id,
+        bio: PARTING_BIO,
+        portfolio: PARTING_PORTFOLIO,
+        image: PARTING_AVATAR,
+      },
+    }),
+    'PATCH /api/staff-me/profile (the page they are about to take down)',
+  );
+  const takenDown = ok(
+    await parting.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: partingRow.id, profile_hidden: 1 },
+    }),
+    'PATCH /api/staff-me/profile (take the page down, then erase the account)',
+  );
+  /* The whole starting state, read back off the row rather than assumed from the 200s above.
+     Everything below asserts that these three columns are EMPTY afterwards, and a PATCH that
+     quietly wrote nothing would make every one of those assertions pass for the wrong
+     reason — the test would be proving that empty stays empty. */
+  assert(takenDown.profile_hidden === 1, 'the page must be down before the account goes', takenDown);
+  assert(takenDown.bio === PARTING_BIO, 'and there must be a bio there to lose', takenDown);
+  assert(takenDown.image === PARTING_AVATAR, 'and a face there to lose', takenDown);
+  assert(
+    JSON.stringify(takenDown.portfolio) === JSON.stringify(PARTING_PORTFOLIO),
+    'and a gallery there to lose',
+    takenDown,
+  );
+
+  // Down, and off the salon's team strip. This is the state the erasure must not undo.
+  expectError(
+    await session('guest').fetch(`/api/staff/${partingRow.id}`),
+    404,
+    'NOT_FOUND',
+    'GET /api/staff/:id while the page is held and withdrawn',
+  );
+  const stripWhileWithdrawn = await session('guest').fetch(`/api/salons/${state.lalaId}/staff`);
+  assert(
+    !ok(stripWhileWithdrawn, 'GET /api/salons/:id/staff while held and withdrawn').some(
+      (member) => member.id === partingRow.id,
+    ),
+    'the withdrawn row is off the salon page before the account is erased',
+    stripWhileWithdrawn,
+  );
+
+  ok(
+    await parting.fetch('/api/users/me', { method: 'DELETE', json: { password: 'Oak@1234' } }),
+    'DELETE /api/users/me (a technician who had withdrawn their page)',
+  );
+
+  /* Published again, and that is right — an unclaimed row is the salon's own roster entry and
+     nobody has withdrawn anything from it. What comes back is the CHAIR, not the person: the
+     name the owner typed into the roster is still on it, and so are the reviews its customers
+     wrote, because none of that was hers to take away. What she wrote about herself is what
+     goes with her. */
+  const handedBackChair = ok(
+    await session('guest').fetch(`/api/staff/${partingRow.id}`),
+    'GET /api/staff/:id after its holder erased their account',
+  );
+  assert(
+    handedBackChair.bio === null,
+    'the departed technician’s words go with them',
+    handedBackChair,
+  );
+  assert(handedBackChair.image === null, 'and so does their face', handedBackChair);
+  assert(
+    Array.isArray(handedBackChair.portfolio) && handedBackChair.portfolio.length === 0,
+    'and so does their gallery',
+    handedBackChair,
+  );
+  assert(
+    handedBackChair.name === 'KTV Xóa Cả Trang',
+    'while the name the salon put on its own roster stays: it was never hers to withdraw',
+    handedBackChair,
+  );
+  const stripAfterErasure = await session('guest').fetch(`/api/salons/${state.lalaId}/staff`);
+  assert(
+    ok(stripAfterErasure, 'GET /api/salons/:id/staff after the erasure').some(
+      (member) => member.id === partingRow.id,
+    ),
+    'the chair itself is back on the salon page, because nobody stands behind it any more',
+    stripAfterErasure,
+  );
+  const rosterAfterErasure = ok(
+    await partner.fetch('/api/partner/staff'),
+    'GET /api/partner/staff after a withdrawn page was erased',
+  );
+  assert(
+    rosterAfterErasure.find((member) => member.id === partingRow.id).claimed === false,
+    'and the console can hand it to whoever takes the chair next',
+    rosterAfterErasure,
+  );
+
+  /* And the next person to take it does not inherit a dark page. The withdrawal is a switch
+     only a claim can reach, so left standing it would be one the departed technician can no
+     longer undo — this technician's profile down without their ever having thrown it, and
+     nothing on their own page to say why. */
+  const nextInvite = ok(
+    await partner.fetch(`/api/partner/staff/${partingRow.id}/invite`, { method: 'POST' }),
+    'POST invite for whoever takes the chair next',
+  );
+  const nextHolder = new Session();
+  ok(
+    await nextHolder.fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        token: tokenOf(nextInvite.url),
+        name: 'KTV Nhận Ghế Sau',
+        email: `nextholder${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/staff/register (whoever takes the chair next)',
+  );
+  const nextProfileResponse = await nextHolder.fetch('/api/staff-me/profile');
+  const nextProfile = ok(nextProfileResponse, 'GET /api/staff-me/profile (the next holder)').find(
+    (row) => row.staff_id === partingRow.id,
+  );
+  assert(
+    nextProfile?.profile_hidden === 0,
+    'a chair handed on comes with its page up: the withdrawal before it was not theirs',
+    nextProfileResponse,
+  );
+  assert(
+    nextProfile.bio === null && nextProfile.image === null,
+    'and with nobody else’s words or face already on it',
+    nextProfileResponse,
+  );
+
   /* -- taking somebody off the roster ends their read of the calendar --------- */
 
   const departingRow = ok(
@@ -6853,6 +7022,132 @@ async function groupStaffPersona() {
   );
   await rang(1, 'the hour arriving on their day');
 
+  /* 3b. The hour moving. The customer has always been told; the technician was not, and turned
+         up at 09:00 for a visit the console had moved to 16:00. She is told once, and only
+         when the chair did not also change — a save that moves the hour AND swaps the chair is
+         already fully told by the reassignment pair, both of whose sentences carry the new
+         hour, so a further "it moved" to either end is the console ringing twice. */
+  const movingSlot = await personaSlot([customerSlot]);
+  assert(movingSlot !== null, 'the move case needed a free hour on the technician');
+  const movingBooking = await bookOnPersona(movingSlot, 'the hour that is about to be moved');
+  await rang(1, 'the booking that is about to be moved landing on their calendar');
+  const movedTo = await personaSlot([customerSlot]);
+  assert(movedTo !== null, 'the move case needed a second free hour to move into');
+  ok(
+    await partner.fetch(`/api/partner/bookings/${movingBooking.id}`, {
+      method: 'PATCH',
+      json: movedTo,
+    }),
+    'PATCH date and time on the technician’s booking',
+  );
+  await rang(1, 'the hour moving on their calendar');
+  const movedNotice = ok(
+    await persona.fetch('/api/notifications'),
+    'GET /api/notifications after the hour moved',
+  )[0];
+  assert(
+    movedNotice.title === 'Một lịch hẹn đã được dời' &&
+      movedNotice.body.includes('đã dời lịch hẹn'),
+    'a moved hour says it moved, in the technician’s own notice',
+    movedNotice,
+  );
+  assert(
+    movedNotice.body.includes(movedTo.time),
+    'and names the hour she is now expected at, not the one she had',
+    movedNotice,
+  );
+  // The customer is still told, in their own words: the technician's notice is a second
+  // sentence about one save, never a replacement for the first.
+  const customerNotice = ok(
+    await session('customer').fetch('/api/notifications'),
+    'GET /api/notifications (the customer, after the move)',
+  )[0];
+  assert(
+    customerNotice.title === 'Lịch hẹn đã được dời' && customerNotice.type === 'booking',
+    'the customer still hears that their appointment was moved',
+    customerNotice,
+  );
+
+  /* One save that moves the hour AND hands the chair on. The departing technician hears that
+     the hour left her calendar — at the hour it left at — and nothing else. */
+  const movedAway = ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: personaRow.id,
+        date: bookingDate,
+        time: '11:05',
+        customer_name: 'Khách Vừa Dời Vừa Chuyển',
+      },
+    }),
+    'POST /api/partner/bookings (to be moved and reassigned in one save)',
+  );
+  await rang(1, 'the walk-in that is about to be moved and reassigned at once');
+  ok(
+    await partner.fetch(`/api/partner/bookings/${movedAway.id}`, {
+      method: 'PATCH',
+      json: { time: '11:15', staff_id: chairRow.id },
+    }),
+    'PATCH moving the hour and handing the chair on in one save',
+  );
+  await rang(1, 'a save that moves the hour while reassigning rings exactly once');
+  const leavingNotice = ok(
+    await persona.fetch('/api/notifications'),
+    'GET /api/notifications after the hour moved away',
+  )[0];
+  assert(
+    leavingNotice.body.includes('sang một kỹ thuật viên khác') &&
+      leavingNotice.body.includes('11:15'),
+    'the departing technician is told where the hour went, at the hour it went at',
+    leavingNotice,
+  );
+  assert(
+    leavingNotice.title !== 'Một lịch hẹn đã được dời',
+    'and is not told a second time that it moved',
+    leavingNotice,
+  );
+
+  // The same save from the other end: the hour arrives, moved, and that is one notice too.
+  ok(
+    await partner.fetch(`/api/partner/bookings/${movedAway.id}`, {
+      method: 'PATCH',
+      json: { time: '11:25', staff_id: personaRow.id },
+    }),
+    'PATCH moving the hour back onto the technician in one save',
+  );
+  await rang(1, 'a save that moves the hour onto somebody rings them exactly once');
+  const arrivingNotice = ok(
+    await persona.fetch('/api/notifications'),
+    'GET /api/notifications after the hour arrived',
+  )[0];
+  assert(
+    arrivingNotice.title === 'Lịch hẹn mới trên lịch của bạn' &&
+      arrivingNotice.body.includes('11:25'),
+    'the arriving technician is told what she is expected at, once',
+    arrivingNotice,
+  );
+
+  /* And a save that cancels while moving. The hour is gone, so the date it was going to be
+     gone from is not the news — the cancellation is, and it is the only notice. */
+  ok(
+    await partner.fetch(`/api/partner/bookings/${movedAway.id}`, {
+      method: 'PATCH',
+      json: { status: 'cancelled', time: '11:35' },
+    }),
+    'PATCH cancelling and moving in one save',
+  );
+  await rang(1, 'a save that cancels while moving rings exactly once');
+  const cancelledNotice = ok(
+    await persona.fetch('/api/notifications'),
+    'GET /api/notifications after the cancel-and-move',
+  )[0];
+  assert(
+    cancelledNotice.title === 'Một lịch hẹn đã bị hủy',
+    'a cancelled hour is told as cancelled, never as moved',
+    cancelledNotice,
+  );
+
   // 4. Both ways an appointment is cancelled: by the console, and by the customer.
   ok(
     await partner.fetch(`/api/partner/bookings/${walkIn.id}`, {
@@ -6952,6 +7247,23 @@ async function groupStaffPersona() {
     }),
     'PATCH the reviewable visit into yesterday',
   );
+  /* Back-dating is a move like any other and rings like one. The console changed the day of a
+     confirmed appointment, which is the customer's rescheduled notice on the same save, and a
+     technician who is told less about her own calendar than the customer is told about theirs
+     is the whole thing the move branch exists to end. */
+  await rang(1, 'the visit being back-dated onto a day that has passed');
+  /* A date-only move, which is why the title says 'dời' and not 'đổi giờ': the hour on this
+     save did not change at all, and a notice headed "changed the hour" over a body naming the
+     hour she already had is the bell arguing with itself. */
+  const backDatedNotice = ok(
+    await persona.fetch('/api/notifications'),
+    'GET /api/notifications after the visit was back-dated',
+  )[0];
+  assert(
+    backDatedNotice.title === 'Một lịch hẹn đã được dời',
+    'a move that shifted only the day is not announced as a change of hour',
+    backDatedNotice,
+  );
   ok(
     await partner.fetch(`/api/partner/bookings/${reviewed.id}`, {
       method: 'PATCH',
@@ -7045,11 +7357,35 @@ async function groupStaffPersona() {
      page down is still at work today: the wizard still offers them, their day strip still
      answers, the console still lists them, and they can still see their own row. */
   const pickerWhileHidden = await session('guest').fetch(`/api/services/${service.id}/staff`);
+  const pickerRows = ok(pickerWhileHidden, 'GET /api/services/:id/staff while hidden');
+  const pickerEntry = pickerRows.find((member) => member.id === personaRow.id);
   assert(
-    ok(pickerWhileHidden, 'GET /api/services/:id/staff while hidden').some(
-      (member) => member.id === personaRow.id,
-    ),
+    pickerEntry !== undefined,
     'the booking wizard must still be able to offer a technician who hid their page',
+    pickerWhileHidden,
+  );
+  /* Still offered, and offered as a NAME. Served whole, the picker card is the public profile
+     in miniature — face, job title, speciality, rating — so a withdrawal that emptied the
+     salon's team strip and left this standing would be the same showcase one click further
+     in. Hidden means no public showcase; booking by name carries on. */
+  assert(
+    pickerEntry.name === 'KTV Tự Quản Hồ Sơ',
+    'and offered by name, because that is how a customer asks for her',
+    pickerEntry,
+  );
+  for (const shown of ['image', 'title', 'specialty', 'rating', 'years_experience']) {
+    assert(
+      pickerEntry[shown] === null,
+      `a withdrawn page shows no ${shown} in the booking wizard either`,
+      pickerEntry,
+    );
+  }
+  // And a row nobody stands behind is untouched by any of it: nobody has withdrawn anything
+  // from a chair, so the salon's own description of one stays whole.
+  const chairEntry = pickerRows.find((member) => member.id === chairRow.id);
+  assert(
+    chairEntry?.image === 'assets/img/ghe-trong.webp',
+    'an unclaimed row keeps the whole card the salon typed for it',
     pickerWhileHidden,
   );
   const weekWhileHidden = await session('guest').fetch(
@@ -7094,6 +7430,17 @@ async function groupStaffPersona() {
   ok(
     await session('guest').fetch(`/api/staff/${personaRow.id}/reviews`),
     'GET /api/staff/:id/reviews after the page went back up',
+  );
+  // And so does the card in the wizard: nothing was deleted to reduce it, only withheld.
+  const pickerRestored = await session('guest').fetch(`/api/services/${service.id}/staff`);
+  const restoredEntry = ok(
+    pickerRestored,
+    'GET /api/services/:id/staff after the page went back up',
+  ).find((member) => member.id === personaRow.id);
+  assert(
+    restoredEntry.image === AVATAR && restoredEntry.title === 'Chuyên viên nail',
+    'a technician who is not hiding is offered with the whole card, as before',
+    pickerRestored,
   );
 
   /* -- the preview allowance, spent deliberately and last --------------------- */

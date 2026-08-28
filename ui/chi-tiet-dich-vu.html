@@ -259,8 +259,13 @@
 <template :key="member.id" x-for="member in staff">
 <div class="flex flex-col items-center group">
 <button @click="pickStaff(member.id)" class="flex flex-col items-center" type="button">
-<div :class="staffId === member.id ? 'ring-2 ring-primary' : ''" class="w-32 h-32 rounded-full overflow-hidden mb-4 bg-surface-container">
+<div :class="staffId === member.id ? 'ring-2 ring-primary' : ''" class="w-32 h-32 rounded-full overflow-hidden mb-4 bg-surface-container flex items-center justify-center">
+<template x-if="member.image">
 <img decoding="async" loading="lazy" :alt="member.name" :src="member.image" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+</template>
+<template x-if="!member.image">
+<span aria-hidden="true" class="material-symbols-outlined text-[56px] text-on-surface-variant" data-icon="person">person</span>
+</template>
 </div>
 <h4 class="font-label-md text-label-md uppercase tracking-wider text-primary" x-text="member.name"></h4>
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-text="member.title"></p>

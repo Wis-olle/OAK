@@ -138,7 +138,37 @@ const ANONYMISE_BOOKING_CONTACT = `
 // the owner triggers from it, at an address that can never be read again.
 // idx_staff_user_salon is partial (WHERE user_id IS NOT NULL AND active = 1), so clearing
 // the column simply takes the row out of the index.
-const RELEASE_STAFF_ROWS = 'UPDATE staff SET user_id = NULL, claimed_at = NULL WHERE user_id = ?';
+//
+// And the personal half of the row goes with the person. bio, portfolio and image are what
+// routes/staff-me.js lets a technician write about themselves, and handing the row back with
+// those still on it is not handing back a chair — it is leaving somebody's page up with
+// nobody left who can take it down. Worse than left up: PUT BACK up. The public gates read
+// (user_id IS NULL OR COALESCE(profile_hidden, 0) = 0), so an unclaimed row is always
+// visible, and a technician who had WITHDRAWN their profile before erasing the account would
+// find it live again the moment they did — their own words and their own face, on a page no
+// account of theirs exists to reach any more. profile_hidden is reset for the same reason
+// rather than kept: it is a switch only a claim can reach, so leaving it thrown would be a
+// withdrawal she can no longer undo, sitting on the salon's row and waiting to darken the
+// page of whoever claims the chair next without their ever having thrown it.
+//
+// What is NOT cleared, and deliberately: the row goes on saying what the SALON says about
+// that chair. The name the owner typed into the roster, the title, the rating its customers
+// wrote — none of that was hers to withdraw, so the chair comes back published under the
+// same name, with the same reviews behind it, waiting for whoever sits in it next. This
+// statement takes back what the person wrote about herself, not what the salon wrote about
+// the job. The chair is handed back; it is not made anonymous.
+//
+// image is cleared knowing what it costs. Post-claim the photo in that column may be one the
+// salon supplied rather than one the technician uploaded — the two are indistinguishable once
+// stored — so an owner can lose a headshot that was theirs and have to put it back. That is
+// the accepted price: a face is the most identifying thing on the row, and re-uploading a
+// photo you own is a far smaller harm than leaving a departed person's face on a public page.
+const RELEASE_STAFF_ROWS = `
+  UPDATE staff
+  SET user_id = NULL, claimed_at = NULL,
+      bio = NULL, portfolio = NULL, image = NULL, profile_hidden = 0
+  WHERE user_id = ?
+`;
 const ANONYMISE_USER = `
   UPDATE users
   SET name = 'Người dùng đã xóa',

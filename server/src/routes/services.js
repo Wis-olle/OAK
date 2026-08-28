@@ -62,18 +62,51 @@ const selectCategoryCount = db.prepare(`
   WHERE sv.category = ? AND sv.active = 1 AND s.published = 1
 `);
 
-/* Deliberately NOT gated on staff.profile_hidden. This is the booking wizard's technician
-   picker — dat-lich.html and chi-tiet-dich-vu.html both choose from this list — so it is
-   operational, not a profile surface: a technician who has taken their public page down is
-   still working this week, and dropping them out of the picker would quietly take a salon's
-   chair off sale. The withdrawal hides a page, never a person's shift. */
+/* The booking wizard's technician picker — dat-lich.html and chi-tiet-dich-vu.html both choose
+   from this list — and the whole of what a withdrawn profile does to it.
+
+   The WHERE clause is deliberately NOT gated on staff.profile_hidden, and never may be. This
+   list is operational: a technician who has taken their public page down is still working this
+   week, and dropping them out of the picker would quietly take a salon's chair off sale. The
+   withdrawal hides a page, never a person's shift.
+
+   But the card is another matter. Served whole, it is the public profile in miniature — face,
+   job title, speciality, rating, years in the trade — so a withdrawal that emptied the salon's
+   team strip would leave the same showcase standing one click away in the wizard, which is the
+   page back up under another name. So a CLAIMED row that has been hidden is reduced to what
+   booking actually needs: an id and a name, enough for the customer who asks for her by name
+   to pick her. Both halves of the one decision — hidden means no public showcase, and booking
+   by name carries on regardless.
+
+   Reduced here in JS rather than in SQL because the row must still come back: a predicate is
+   how it would stop coming back. And CLAIMED only, the standing rule in this codebase —
+   nobody stands behind an unclaimed row, so nobody has withdrawn anything from it, and its
+   card is the salon's own description of a chair. st.user_id is selected to ask that question
+   and never leaves this file. */
 const selectServiceStaff = db.prepare(`
-  SELECT st.id, st.name, st.title, st.specialty, st.image, st.rating, st.years_experience
+  SELECT st.id, st.name, st.title, st.specialty, st.image, st.rating, st.years_experience,
+         st.user_id, st.profile_hidden
   FROM staff st
   JOIN staff_services ss ON ss.staff_id = st.id
   WHERE ss.service_id = ? AND st.active = 1
   ORDER BY st.rating DESC, st.id
 `);
+
+/** One picker entry: the whole card, or a name to book by when the page behind it is down. */
+function pickerCard(row) {
+  // The negation of VISIBLE_PROFILE in routes/staff.js, spelled the way JS spells it: an
+  // unwritten flag is 0 there and falsy here, and neither is a reason to reduce anything.
+  const withdrawn = row.user_id !== null && Boolean(row.profile_hidden);
+  return {
+    id: row.id,
+    name: row.name,
+    title: withdrawn ? null : row.title,
+    specialty: withdrawn ? null : row.specialty,
+    image: withdrawn ? null : row.image,
+    rating: withdrawn ? null : row.rating,
+    years_experience: withdrawn ? null : row.years_experience,
+  };
+}
 
 /** A query-string filter value, or null when it is absent or not a plain string. */
 function filterValue(value) {
@@ -239,7 +272,7 @@ router.get('/:id/availability', async (req, res, next) => {
 router.get('/:id/staff', async (req, res, next) => {
   try {
     const rows = await selectServiceStaff.all(await serviceIdOrThrow(req.params.id));
-    res.json({ success: true, data: rows, meta: { total: rows.length } });
+    res.json({ success: true, data: rows.map(pickerCard), meta: { total: rows.length } });
   } catch (error) {
     next(error);
   }

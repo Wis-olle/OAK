@@ -22,6 +22,7 @@ import {
 import { RECOMPUTE_STAFF_RATING } from '../lib/staff-stats.js';
 import {
   addDaysISO,
+  formatDateVN,
   fromMinutes,
   isHHMM,
   isISODate,
@@ -299,12 +300,6 @@ function roundRating(value) {
 function hasStarted(date, time) {
   const today = todayISO();
   return date < today || (date === today && toMinutes(time) <= nowMinutes());
-}
-
-/** 'YYYY-MM-DD' -> 'DD/MM/YYYY' for the Vietnamese notification bodies. */
-function formatDateVN(iso) {
-  const [year, month, day] = String(iso).split('-');
-  return `${day}/${month}/${year}`;
 }
 
 // What the cancel dialog writes into the note, and the only line of it the customer is
@@ -1132,7 +1127,7 @@ router.patch('/bookings/:id', async (req, res, next) => {
           }
         }
 
-        if (notification || staffCancelled || restaffed) {
+        if (notification || staffCancelled || restaffed || moved) {
           const updated = await tx.get(SELECT_OWNED_BOOKING_ROW, bookingId, salon.id);
           if (notification) {
             const { title, body: message, type } = notification(salon, updated);
@@ -1140,16 +1135,26 @@ router.patch('/bookings/:id', async (req, res, next) => {
             await notifyUser(tx, booking.user_id, title, message, type, bookingId);
           }
 
-          /* The two people whose day this save changed, on the same read of the row the
-             customer's notice is written from, so all three sentences name the same hour.
+          /* The people whose day this save changed, on the same read of the row the customer's
+             notice is written from, so every sentence names the same hour.
 
-             `restaffed` is the customer's flag and it is gated on `movable`, which is exactly
-             the gate this wants too: a cancelled or completed booking moved between two names
-             is a correction to the record — the work is done or the hour is gone — and neither
-             technician has anything to do about it today. And the two branches are exclusive
-             because a save that cancels a booking while reassigning it has ended the hour for
-             everybody; the person who was holding it is told that, once, and the name it
-             passed through on the way out is not news. */
+             `restaffed` and `moved` are the customer's own flags and both are gated on
+             `movable`, which is exactly the gate this wants too: a cancelled or completed
+             booking re-dated or moved between two names is a correction to the record — the
+             work is done or the hour is gone — and no technician has anything to do about it
+             today.
+
+             The three branches are exclusive, and in this order, because one save can trip
+             more than one of them and a technician must hear about it once. A save that
+             cancels while reassigning has ended the hour for everybody: the person holding it
+             is told that, and the name it passed through on the way out is not news. A save
+             that moves the hour AND swaps the chair is already fully told by the reassignment
+             pair — both of those sentences carry `when`, which is the NEW hour, so the
+             departing technician learns the hour left her calendar and the arriving one learns
+             what she is now expected at. Adding "and it moved" on top of either would be the
+             console ringing twice for one save. So the move rings on its own only when the
+             chair did not change: the technician who is staying, told once, that her hour is
+             not the hour she had. */
           const when = `ngày ${formatDateVN(updated.date)} lúc ${updated.time}`;
           if (staffCancelled) {
             await notifyStaff(
@@ -1184,6 +1189,14 @@ router.patch('/bookings/:id', async (req, res, next) => {
               patch.staff_id,
               'Lịch hẹn mới trên lịch của bạn',
               `${salon.name} đã chuyển lịch hẹn ${updated.code} ${when} sang cho bạn.`,
+              bookingId,
+            );
+          } else if (moved) {
+            await notifyStaff(
+              tx,
+              booking.staff_id,
+              'Một lịch hẹn đã được dời',
+              `${salon.name} đã dời lịch hẹn ${updated.code} sang ${when}.`,
               bookingId,
             );
           }
