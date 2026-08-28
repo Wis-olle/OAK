@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../db.js';
+import { recordEvent } from '../lib/events.js';
 import { sendResetMail } from '../lib/mailer.js';
 import { notifyUser } from '../lib/notify.js';
 // One rule for phone numbers, shared with the profile update and the console lookup:
@@ -13,6 +14,12 @@ import {
   normalisePhone,
   phoneHeldByAnother,
 } from '../lib/phone.js';
+import {
+  CLAIM_STAFF_ROW,
+  SPEND_STAFF_INVITE,
+  findLiveInvite,
+  inviteNotFound,
+} from '../lib/staff-invite.js';
 import { slugify } from '../lib/text.js';
 import { todayISO } from '../lib/time.js';
 // The one offer OAK runs, spelled once for the seed, this route and the db.js backfill.
@@ -63,6 +70,14 @@ const forgotAttempts = new Map();
 // what guessing needs. Its own tally, so asking for a reset link never spends a sign-in.
 const LOGIN_MAX_ATTEMPTS = 10;
 const loginAttempts = new Map();
+// And ten for opening a claim link, keyed on the caller alone: the preview takes a token
+// and nothing else, so there is no address to key on beside it. This one is housekeeping,
+// not a defence — it stops a single bored client hammering the lookup and filling the log,
+// and nothing more. Guessing a token is what the 256 bits of it make hopeless, and it
+// would go through /staff/register or /staff-me/claim anyway, which take the same tokens
+// and count nothing. Its own tally, so reading a link never spends a sign-in.
+const INVITE_PREVIEW_MAX_ATTEMPTS = 10;
+const invitePreviewAttempts = new Map();
 
 /** Record one attempt for `key` in `attempts`; true once `max` in the window is spent. */
 function rateLimited(attempts, key, max) {
@@ -92,11 +107,13 @@ const DUMMY_PASSWORD_HASH = bcrypt.hashSync('oak-timing-guard', 10);
 const selectCredentials = db.prepare('SELECT id, password_hash FROM users WHERE email = ?');
 const selectPasswordHash = db.prepare('SELECT password_hash FROM users WHERE id = ?');
 const selectUserIdByEmail = db.prepare('SELECT id FROM users WHERE email = ?');
+const selectUserEmail = db.prepare('SELECT email FROM users WHERE id = ?');
 // RETURNING spelled out: db.prepare appends ` RETURNING id` to any INSERT that lacks one,
-// and this is the only table whose primary key is not called id.
-const insertPasswordReset = db.prepare(
-  'INSERT INTO password_resets (token, user_id, expires_at) VALUES (?, ?, ?) RETURNING token',
-);
+// and this is the only table whose primary key is not called id. Kept as text as well as a
+// prepared handle, because the recovery path below writes it inside a caller's transaction.
+const INSERT_PASSWORD_RESET =
+  'INSERT INTO password_resets (token, user_id, expires_at) VALUES (?, ?, ?) RETURNING token';
+const insertPasswordReset = db.prepare(INSERT_PASSWORD_RESET);
 const selectPasswordReset = db.prepare(
   'SELECT user_id, expires_at, used FROM password_resets WHERE token = ?',
 );
@@ -170,10 +187,19 @@ function epochSeconds() {
 /**
  * Create an account and, for partners, the salon that comes with it.
  *
- * Shared by POST /register and POST /partner/register: the partner alias is the same flow
- * with the role fixed, so forcedRole overrides whatever the body claims.
+ * Shared by POST /register, POST /partner/register and POST /staff/register: each alias is
+ * the same flow with the role fixed, so forcedRole overrides whatever the body claims.
+ *
+ * `afterInsert` is an optional async (tx, userId) run inside the same transaction, right
+ * after the user row exists. It is how a role brings something of its own along — the
+ * staff alias uses it to take the roster row over — without this function having to know
+ * what that something is.
+ *
+ * Returns the created user, or undefined when nothing was created: every failure leaves
+ * here through next(), so a caller with work of its own to do afterwards has one thing to
+ * test rather than having to guess from the response object.
  */
-async function createAccount(req, res, next, forcedRole) {
+async function createAccount(req, res, next, forcedRole, afterInsert) {
   try {
     const {
       name,
@@ -221,7 +247,12 @@ async function createAccount(req, res, next, forcedRole) {
     }
 
     const accountRole = forcedRole ?? role ?? 'customer';
-    if (!ROLES.includes(accountRole)) {
+    // The list gates what a CALLER may name, which is why the check is skipped when
+    // forcedRole decided it: forcedRole is a literal written in this file's own routes and
+    // is not request input. 'staff' deliberately stays out of ROLES — a staff account is
+    // only ever created by redeeming a claim link, never by asking the public register for
+    // one.
+    if (forcedRole == null && !ROLES.includes(accountRole)) {
       throw httpError(400, 'VALIDATION_ERROR', 'Loại tài khoản không hợp lệ.');
     }
 
@@ -260,6 +291,13 @@ async function createAccount(req, res, next, forcedRole) {
             )
           ).lastInsertRowid,
         );
+
+        // Whatever this role brings with it, written before anything else and in the same
+        // transaction: a claim that could not be recorded takes the account down with it
+        // rather than leaving somebody holding an account attached to nothing.
+        if (afterInsert) {
+          await afterInsert(tx, userId);
+        }
 
         // Whatever was booked over the counter under this number is this person's history,
         // so it is theirs from the first sign-in rather than from their next visit. Customers
@@ -331,8 +369,10 @@ async function createAccount(req, res, next, forcedRole) {
     const user = await selectPublicUser.get(userId);
     issueCookie(res, user);
     res.json({ success: true, data: { user, welcome_code: welcomeCode } });
+    return user;
   } catch (error) {
     next(error);
+    return undefined;
   }
 }
 
@@ -341,6 +381,89 @@ router.post('/register', (req, res, next) => createAccount(req, res, next, null)
 // Same flow as /register, with the role fixed so a partner sign-up form cannot be
 // replayed to create a customer (or the reverse).
 router.post('/partner/register', (req, res, next) => createAccount(req, res, next, 'partner'));
+
+/* ============================================================================
+ * The claim link a salon owner hands a technician
+ *
+ * Public, both of them: the token is the whole proof, exactly as a reset link is. A claim
+ * link only ever exists for a roster row nobody stands behind yet, and redeeming it is the
+ * one way a staff account comes into existence. A technician who has already claimed their
+ * row and then lost their password does not come back through here — the salon owner
+ * triggers an ordinary reset to their inbox instead (POST /api/partner/staff/:id/invite).
+ * ========================================================================= */
+
+// What dang-nhap-nhan-vien.html reads before it asks for anything, so it can say whose
+// profile at which salon is being taken over rather than showing a bare password box.
+router.get('/staff/invite/:token', async (req, res, next) => {
+  try {
+    // Counted before the lookup, and every request counts whether the token was real or
+    // not — the cheapest thing to do with a call is refuse it, and an allowance that only
+    // counted misses would be one a valid token walks straight past.
+    if (rateLimited(invitePreviewAttempts, req.ip, INVITE_PREVIEW_MAX_ATTEMPTS)) {
+      console.warn(`staff invite: too many previews from ${req.ip}`);
+      throw httpError(
+        429,
+        'TOO_MANY_ATTEMPTS',
+        'Bạn đã mở liên kết quá nhiều lần. Vui lòng đợi 15 phút rồi thử lại.',
+      );
+    }
+
+    const invite = await findLiveInvite(req.params.token);
+    if (!invite) {
+      throw inviteNotFound();
+    }
+
+    await recordEvent('staff_invite_opened', '/api/auth/staff/invite/:token');
+    res.json({
+      success: true,
+      data: {
+        staff_name: invite.staff_name,
+        salon_name: invite.salon_name,
+        expires_at: invite.expires_at,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/staff/register', async (req, res, next) => {
+  try {
+    // Read before anything else: an unusable link is refused before ~90ms of hashing is
+    // spent on it. A link whose row was claimed in the meantime is not live any more, so
+    // that case arrives here as the same 404 as any other dead token.
+    const invite = await findLiveInvite((req.body ?? {}).token);
+    if (!invite) {
+      throw inviteNotFound();
+    }
+
+    // An ordinary registration that takes a roster row over on its way through.
+    // createAccount owns the validation, the consent gate, the hashing and the cookie; all
+    // this adds is what happens inside its transaction.
+    const claimedAt = new Date().toISOString();
+    const created = await createAccount(req, res, next, 'staff', async (tx, userId) => {
+      // Re-checked here rather than trusted from above: the read straddles the hash, so
+      // two people opening one link can both get past it. Both updates are guarded, and
+      // whoever actually changes the rows is the one who claimed the profile.
+      const claimed = await tx.run(CLAIM_STAFF_ROW, userId, claimedAt, invite.staff_id);
+      if (claimed.changes !== 1) {
+        throw httpError(409, 'CONFLICT', 'Hồ sơ này đã có người nhận.');
+      }
+      const spent = await tx.run(SPEND_STAFF_INVITE, invite.token);
+      if (spent.changes !== 1) {
+        throw httpError(409, 'CONFLICT', 'Hồ sơ này đã có người nhận.');
+      }
+    });
+    // createAccount hands back the account it created and nothing at all when it took the
+    // error path, so this is the transaction having committed and not an inference from
+    // the state of the response.
+    if (created) {
+      await recordEvent('staff_claimed', '/api/auth/staff/register');
+    }
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.post('/login', async (req, res, next) => {
   try {
@@ -382,6 +505,13 @@ router.post('/login', async (req, res, next) => {
 
     const user = await selectPublicUser.get(credentials.id);
     issueCookie(res, user);
+    // Every staff sign-in, not only the first one. "First" cannot be derived without a
+    // column saying so, and the only other way to get it would be putting an account id in
+    // the events table — the one table in this schema that must never be able to name a
+    // person. So the row says a technician signed in, and nothing more.
+    if (user.role === 'staff') {
+      await recordEvent('staff_login', '/api/auth/login');
+    }
     res.json({ success: true, data: { user } });
   } catch (error) {
     next(error);
@@ -393,6 +523,84 @@ async function mintReset(token, userId, expiresAt) {
   // Before the insert, never after: the new row must not retire itself.
   await retireUserResets.run(userId);
   await insertPasswordReset.run(token, userId, expiresAt);
+}
+
+/**
+ * The absolute link a reset mail carries, or null when this deploy has not said where it
+ * lives.
+ *
+ * The link leaves the browser, so it has to be absolute — and what it carries is a live
+ * reset token, so the address must never come from anything the caller controls. Render
+ * publishes the service's own origin as RENDER_EXTERNAL_URL; PUBLIC_BASE_URL is the same
+ * declaration for a host that does not. A forged Host header would otherwise be enough to
+ * have OAK mail a victim a genuine link pointing at the attacker's server, so a production
+ * deploy that declared neither builds nothing at all rather than trusting the request.
+ *
+ * One spelling for both callers — /forgot-password and the recovery hatch a salon owner
+ * can trigger — because this is the rule that must never drift between them.
+ */
+function resetLinkUrl(req, token) {
+  const declaredOrigin = process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_BASE_URL;
+  if (!declaredOrigin && process.env.NODE_ENV === 'production') {
+    return null;
+  }
+  const origin = (declaredOrigin || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  return `${origin}/dat-lai-mat-khau.html?token=${token}`;
+}
+
+/* The way back in for a technician who has lost their password, exported for
+   routes/partner.js. It lives here because it is all this file's machinery — the same
+   table, the same TTL, the same origin rule, the same mailer — and a second copy of any of
+   those is a copy that can drift. (auth.js already exports REGISTRATION_CITY to
+   routes/import-salon.js, so a route reaching into this one for a rule it owns is the
+   established direction, and there is no cycle.) */
+
+/**
+ * Retire whatever links `userId` still had outstanding and mint a new one, inside the
+ * CALLER's transaction, so the link and whatever else that transaction writes stand or
+ * fall together. Returns the token — which IS the secret, and must reach the account
+ * holder and nobody else.
+ */
+export async function mintResetIn(tx, userId) {
+  const token = randomBytes(32).toString('hex');
+  // Before the insert, never after: the new row must not retire itself.
+  await tx.run(RETIRE_USER_RESETS, userId);
+  await tx.run(
+    INSERT_PASSWORD_RESET,
+    token,
+    userId,
+    new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString(),
+  );
+  return token;
+}
+
+/**
+ * Put the link in front of the person who owns the account, and only them. Called AFTER
+ * the commit: a mail sent for a transaction that rolled back points at a token that does
+ * not exist. sendResetMail logs its own failures and never rejects.
+ *
+ * The address is read in here rather than passed in, so a caller with no business knowing
+ * a technician's email address never has to hold one.
+ */
+export async function deliverResetLink(req, userId, token) {
+  const account = await selectUserEmail.get(userId);
+  const url = account ? resetLinkUrl(req, token) : null;
+  if (!url) {
+    console.error('recovery link: nowhere to send it — no such account, or no declared origin');
+    return;
+  }
+
+  /* The one place this deliberately parts company with /forgot-password. There, a deploy
+     with no mail channel hands the link back in the reply, because the caller IS the
+     account holder. Here the caller is the salon owner, and an owner able to read this
+     link could set the password on their technician's account — which is the whole reason
+     this path mails a reset instead of minting a link of its own. So it goes to the server
+     log and nowhere near the response. */
+  if (!process.env.RESEND_API_KEY && process.env.NODE_ENV !== 'production') {
+    console.info(`recovery link for user ${userId}: ${url}`);
+    return;
+  }
+  await sendResetMail(account.email, url);
 }
 
 router.post('/forgot-password', async (req, res, next) => {
@@ -436,20 +644,16 @@ router.post('/forgot-password', async (req, res, next) => {
       return res.json({ success: true, data });
     }
 
-    // The link leaves the browser, so it has to be absolute — and what it carries is a live
-    // reset token, so the address must never come from anything the caller controls. Render
-    // publishes the service's own origin as RENDER_EXTERNAL_URL; PUBLIC_BASE_URL is the same
-    // declaration for a host that does not. A forged Host header would otherwise be enough to
-    // have OAK mail a victim a genuine link pointing at the attacker's server, so a production
-    // deploy that declared neither sends nothing at all rather than trusting the request.
-    const declaredOrigin = process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_BASE_URL;
-    if (!declaredOrigin && process.env.NODE_ENV === 'production') {
+    // Built before the reply, because a production deploy that declared no origin of its
+    // own must send nothing at all rather than trust the request's Host header — see
+    // resetLinkUrl for why that would be enough to mail a victim an attacker's link.
+    const url = resetLinkUrl(req, token);
+    if (!url) {
       console.error(
         'forgot-password: no RENDER_EXTERNAL_URL or PUBLIC_BASE_URL configured, not mailing',
       );
       return res.json({ success: true, data });
     }
-    const origin = (declaredOrigin || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
 
     // Reply first, work after: a known address would otherwise take two round trips
     // longer to answer than an unknown one, and response time would say what the message
@@ -459,7 +663,7 @@ router.post('/forgot-password', async (req, res, next) => {
     // logs its own failures and never rejects.
     res.json({ success: true, data });
     return mintReset(token, account.id, expiresAt)
-      .then(() => sendResetMail(normalised, `${origin}/dat-lai-mat-khau.html?token=${token}`))
+      .then(() => sendResetMail(normalised, url))
       .catch((error) => {
         console.error('forgot-password: could not store the reset token:', error);
       });

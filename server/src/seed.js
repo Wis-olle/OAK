@@ -8,6 +8,8 @@
  *   khach@oak.vn     Ngọc Anh          customer   (has bookings, reviews,
  *                                                  notifications, favorites)
  *   doitac@oak.vn    Thu Trang         partner    owns "Lala Nail Studio"
+ *   nhanvien@oak.vn  Lan Khuê          staff      holds the "Lan Khuê" roster row at
+ *                                                 Lala Nail Studio
  *
  * Filler accounts (same password), so the data set looks realistic:
  *
@@ -133,6 +135,19 @@ const USERS = [
     city: 'TP.HCM',
     district: 'Quận 3',
     created_at: '2026-02-24T01:35:00.000Z',
+  },
+  // Appended, never inserted in the middle: everything below keys off the ids these rows
+  // are given in this order. The demo's technician, holding the roster row of the same
+  // name at Lala Nail Studio — claimed a few lines further down.
+  {
+    name: 'Lan Khuê',
+    email: 'nhanvien@oak.vn',
+    phone: '0910 123 456',
+    role: 'staff',
+    avatar: IMG('img-2121254c08.jpg'),
+    city: 'TP.HCM',
+    district: 'Quận 1',
+    created_at: '2026-08-20T01:50:00.000Z',
   },
 ];
 
@@ -1154,6 +1169,15 @@ const INSERT_SERVICE =
   'INSERT INTO services (salon_id, category, subcategory, name, description, price, duration_min, image, featured, is_package, price_is_from, sort_order, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)';
 const INSERT_STAFF =
   'INSERT INTO staff (salon_id, name, title, specialty, bio, image, rating, years_experience, portfolio, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)';
+const CLAIM_STAFF = 'UPDATE staff SET user_id = ?, claimed_at = ? WHERE id = ?';
+// RETURNING spelled out: db.prepare appends ` RETURNING id` to an INSERT that lacks one,
+// and this table's primary key is the token.
+const INSERT_STAFF_INVITE =
+  'INSERT INTO staff_invites (token, staff_id, created_by, expires_at, used, created_at) VALUES (?, ?, ?, ?, 0, ?) RETURNING token';
+// DEMO DATA. A real invite token is 32 random bytes minted by the console; this one is a
+// constant so a fresh database always carries the same openable claim link.
+const DEMO_STAFF_INVITE_TOKEN =
+  '0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9';
 const INSERT_STAFF_SCHEDULE =
   'INSERT INTO staff_schedule (staff_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)';
 const INSERT_STAFF_SERVICE =
@@ -1277,6 +1301,28 @@ export async function seed(db) {
       );
       staffIds.set(member.name, Number(lastInsertRowid));
     }
+
+    // One roster row that a person already stands behind, so the technician's side of the
+    // product opens on something. In production these two columns are written by redeeming
+    // a claim link — POST /api/auth/staff/register, or /api/staff-me/claim for somebody who
+    // already had an account; here they are seeded.
+    await tx.run(
+      CLAIM_STAFF,
+      userIds.get('nhanvien@oak.vn'),
+      '2026-08-20T02:00:00.000Z',
+      staffIds.get('Lan Khuê'),
+    );
+    // And one link still waiting on the row next to it, so the claim screen can be opened
+    // without minting one from the console first. Demo data: see DEMO_STAFF_INVITE_TOKEN.
+    const invitedAt = new Date();
+    await tx.run(
+      INSERT_STAFF_INVITE,
+      DEMO_STAFF_INVITE_TOKEN,
+      staffIds.get('Phương Vy'),
+      userIds.get('doitac@oak.vn'),
+      new Date(invitedAt.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      invitedAt.toISOString(),
+    );
 
     for (const shift of STAFF_SCHEDULE) {
       for (let weekday = 1; weekday <= 6; weekday += 1) {

@@ -103,3 +103,14 @@ export function requirePartner(req, res, next) {
   }
   return next();
 }
+
+/** Allow only staff accounts. Expects requireAuth to have run first. */
+export function requireStaff(req, res, next) {
+  if (!req.user) {
+    return next(httpError(401, 'UNAUTHENTICATED', 'Bạn cần đăng nhập để tiếp tục.'));
+  }
+  if (req.user.role !== 'staff') {
+    return next(httpError(403, 'FORBIDDEN', 'Chức năng này chỉ dành cho tài khoản nhân viên.'));
+  }
+  return next();
+}

@@ -4583,6 +4583,714 @@ async function groupAccountLifecycle() {
 }
 
 /* ============================================================================
+ * 19 — the staff persona: the claim link a salon owner hands a technician, the
+ *      account behind it, and what that account may read
+ * ========================================================================= */
+
+async function groupStaffPersona() {
+  const partner = session('partnerA');
+  const partnerB = session('partnerB');
+  const stamp = Date.now();
+
+  /* The preview is throttled at ten per fifteen minutes per IP, and every group in this
+     file arrives from one IP. So every preview this group makes goes through here and is
+     counted, and whatever is left of the allowance is deliberately burnt at the very END
+     of the group. Nothing below that block may preview a link. */
+  let previewsSpent = 0;
+  const previewInvite = async (token) => {
+    previewsSpent += 1;
+    return new Session().fetch(`/api/auth/staff/invite/${token}`);
+  };
+  /** The token out of the link the console hands the owner. */
+  const tokenOf = (url) => url.split('invite=')[1];
+
+  /* -- the roster says who stands behind a row, and never who they are -------- */
+
+  const rosterResponse = await partner.fetch('/api/partner/staff');
+  const roster = ok(rosterResponse, 'GET /api/partner/staff (staff persona)');
+  const named = (name) => roster.find((member) => member.name === name);
+  const lanKhue = named('Lan Khuê');
+  const phuongVy = named('Phương Vy');
+  const minhHang = named('Minh Hằng');
+  const minhAnh = named('Minh Anh');
+  assert(
+    lanKhue && phuongVy && minhHang && minhAnh,
+    'staff persona: expected the seeded Lala roster',
+    rosterResponse,
+  );
+
+  assert(lanKhue.claimed === true, 'roster: the seeded claimed row must report claimed');
+  assert(lanKhue.invite_pending === false, 'roster: a claimed row has no link outstanding');
+  assert(phuongVy.claimed === false, 'roster: an unclaimed row must report claimed false');
+  assert(phuongVy.invite_pending === true, 'roster: the seeded live link must show as pending');
+  // The account behind a row is the technician's, and the token IS the secret: the console
+  // gets two booleans and neither of those two things.
+  assert(
+    !JSON.stringify(roster).includes('user_id'),
+    'roster: the account behind a row must never be named',
+    rosterResponse,
+  );
+
+  /* -- a row nobody works behind any more cannot be invited ------------------- */
+
+  const retired = ok(
+    await partner.fetch('/api/partner/staff', { method: 'POST', json: { name: 'KTV Đã Nghỉ' } }),
+    'POST /api/partner/staff (a row to retire)',
+  );
+  ok(
+    await partner.fetch(`/api/partner/staff/${retired.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/staff/:id (retire it)',
+  );
+  expectError(
+    await partner.fetch(`/api/partner/staff/${retired.id}/invite`, { method: 'POST' }),
+    409,
+    'STAFF_INACTIVE',
+    'POST invite on a retired roster row',
+  );
+
+  /* -- another salon's roster row is not addressable at all ------------------- */
+
+  expectError(
+    await partnerB.fetch(`/api/partner/staff/${minhAnh.id}/invite`, { method: 'POST' }),
+    404,
+    'NOT_FOUND',
+    "POST invite on another salon's technician",
+  );
+  expectError(
+    await partnerB.fetch(`/api/partner/staff/${minhAnh.id}/invite`, { method: 'DELETE' }),
+    404,
+    'NOT_FOUND',
+    "DELETE invite on another salon's technician",
+  );
+
+  /* -- minting rotates the old link out, revoking kills the live one ---------- */
+
+  const firstInvite = ok(
+    await partner.fetch(`/api/partner/staff/${minhAnh.id}/invite`, { method: 'POST' }),
+    'POST /api/partner/staff/:id/invite',
+  );
+  assert(
+    typeof firstInvite.url === 'string' && firstInvite.url.includes('invite='),
+    'invite: expected a link carrying the token',
+  );
+  assert(typeof firstInvite.expires_at === 'string', 'invite: expected expires_at');
+
+  const secondInvite = ok(
+    await partner.fetch(`/api/partner/staff/${minhAnh.id}/invite`, { method: 'POST' }),
+    'POST /api/partner/staff/:id/invite (mint again)',
+  );
+  assert(secondInvite.url !== firstInvite.url, 'invite: minting again must mint a new link');
+
+  const rotatedOut = await previewInvite(tokenOf(firstInvite.url));
+  expectError(rotatedOut, 404, 'NOT_FOUND', 'preview the rotated-out link');
+  const current = ok(await previewInvite(tokenOf(secondInvite.url)), 'preview the current link');
+  assert(current.staff_name === 'Minh Anh', 'preview: expected the technician name');
+  assert(current.salon_name === 'Lala Nail Studio', 'preview: expected the salon name');
+  assert(typeof current.expires_at === 'string', 'preview: expected expires_at');
+  // Three fields and no more: a claim link only ever exists for a row nobody holds, so
+  // there is nothing about the account behind one for a preview to give away.
+  assert(
+    Object.keys(current).sort().join(',') === 'expires_at,salon_name,staff_name',
+    'preview: expected exactly staff_name, salon_name and expires_at',
+    current,
+  );
+
+  ok(
+    await partner.fetch(`/api/partner/staff/${minhAnh.id}/invite`, { method: 'DELETE' }),
+    'DELETE /api/partner/staff/:id/invite',
+  );
+  const revoked = await previewInvite(tokenOf(secondInvite.url));
+  expectError(revoked, 404, 'NOT_FOUND', 'preview a revoked link');
+  const garbage = await previewInvite(`nosuchtoken${stamp}`);
+  expectError(garbage, 404, 'NOT_FOUND', 'preview a token that was never issued');
+
+  /* And a live token on a roster row that is no longer active, which findLiveInvite
+     refuses on the join rather than on the token. Parked with PATCH rather than DELETE on
+     purpose: the soft delete retires the row's links, so it kills this token a different
+     way — that path is staged further down. */
+  const parked = ok(
+    await partner.fetch('/api/partner/staff', { method: 'POST', json: { name: 'KTV Tạm Nghỉ' } }),
+    'POST /api/partner/staff (a row to park)',
+  );
+  const parkedInvite = ok(
+    await partner.fetch(`/api/partner/staff/${parked.id}/invite`, { method: 'POST' }),
+    'POST invite before the row is parked',
+  );
+  ok(
+    await partner.fetch(`/api/partner/staff/${parked.id}`, {
+      method: 'PATCH',
+      json: { active: 0 },
+    }),
+    'PATCH /api/partner/staff/:id inactive',
+  );
+  const parkedPreview = await previewInvite(tokenOf(parkedInvite.url));
+  expectError(parkedPreview, 404, 'NOT_FOUND', 'preview a link on a row that is not active');
+
+  /* Byte-identical, all four of them. A reply that told a rotated-out link from one that
+     never existed — or from one whose technician no longer works here — would say whether
+     a token is real, which is the whole thing a preview must not say. The expired case
+     cannot be staged from out here: this suite has no database handle inside a group and
+     nothing waits seven days, so findLiveInvite's expiry clause is pinned at source level
+     in test/staff-persona.test.mjs instead. */
+  for (const other of [revoked, garbage, parkedPreview]) {
+    assert(
+      other.body?.error?.code === rotatedOut.body?.error?.code,
+      'every dead link must answer with the same error code',
+      other,
+    );
+    assert(
+      other.body?.error?.message === rotatedOut.body?.error?.message,
+      'every dead link must answer with the same message',
+      other,
+    );
+  }
+
+  /* -- a technician with no account redeems the link and gets one ------------- */
+
+  const claimInvite = ok(
+    await partner.fetch(`/api/partner/staff/${minhHang.id}/invite`, { method: 'POST' }),
+    'POST invite for the first claim',
+  );
+  const claimToken = tokenOf(claimInvite.url);
+  const claimPreview = ok(await previewInvite(claimToken), 'preview the first-claim link');
+  assert(claimPreview.staff_name === 'Minh Hằng', 'preview: expected the technician name');
+
+  const technician = new Session();
+  const registered = ok(
+    await technician.fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        token: claimToken,
+        name: 'Kỹ Thuật Viên Mới',
+        email: `ktv${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/staff/register',
+  );
+  assert(registered.user.role === 'staff', 'staff register: expected role staff');
+
+  const technicianMe = ok(await technician.fetch('/api/auth/me'), 'GET /api/auth/me (technician)');
+  assert(
+    technicianMe.user.role === 'staff',
+    'staff register: the reply must have set a session cookie',
+  );
+
+  const profileResponse = await technician.fetch('/api/staff-me/profile');
+  const profile = ok(profileResponse, 'GET /api/staff-me/profile');
+  assert(profile.length === 1, 'staff profile: expected exactly the claimed row', profileResponse);
+  assert(profile[0].staff_id === minhHang.id, 'staff profile: expected the row that was claimed');
+  assert(profile[0].salon.slug === 'lala-nail-studio', 'staff profile: expected the salon');
+  assert(typeof profile[0].claimed_at === 'string', 'staff profile: expected claimed_at');
+
+  const afterClaimResponse = await partner.fetch('/api/partner/staff');
+  const afterClaim = ok(afterClaimResponse, 'GET /api/partner/staff after the claim');
+  const claimedRow = afterClaim.find((member) => member.id === minhHang.id);
+  assert(claimedRow.claimed === true, 'roster: the claimed row must report claimed');
+  assert(claimedRow.invite_pending === false, 'roster: the spent link is no longer outstanding');
+
+  expectError(await previewInvite(claimToken), 404, 'NOT_FOUND', 'preview a spent link');
+  expectError(
+    await new Session().fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        token: claimToken,
+        name: 'Ai Đó Khác',
+        email: `ktvlate${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    404,
+    'NOT_FOUND',
+    'redeem a spent link a second time',
+  );
+
+  /* -- two people, one profile: whoever holds it keeps it --------------------- */
+
+  /* A second person arriving with the link that has already been redeemed. The claim
+     endpoint refuses it with the same uniform 404 the preview gave, and the account it
+     refused is left exactly as it was.
+
+     The other two ways a token dies against a claimed row cannot be staged from out here:
+     a token minted while the row was free and then overtaken by /api/staff-me/claim would
+     have to be spent by that very claim, and nothing in this suite can reach the database
+     to arrange otherwise. That case falls out of findLiveInvite's `st.user_id IS NULL`
+     clause, pinned in test/staff-persona.test.mjs, and so does the in-transaction 409 that
+     settles two genuinely concurrent redemptions. */
+  const interloper = new Session();
+  ok(
+    await interloper.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Người Khác',
+        email: `interloper${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'register the second claimant',
+  );
+  const refusedClaim = await interloper.fetch('/api/staff-me/claim', {
+    method: 'POST',
+    json: { token: claimToken },
+  });
+  expectError(refusedClaim, 404, 'NOT_FOUND', 'claim a profile with a spent link');
+  assert(
+    refusedClaim.body?.error?.message === rotatedOut.body?.error?.message,
+    'the claim endpoint refuses a dead token in the same words the preview does',
+    refusedClaim,
+  );
+  const interloperMe = ok(
+    await interloper.fetch('/api/auth/me'),
+    'GET /api/auth/me after the refused claim',
+  );
+  assert(
+    interloperMe.user.role === 'customer',
+    'a refused claim leaves the account exactly as it was',
+  );
+
+  /* -- and the public register still cannot be asked for a staff account ------ */
+
+  expectError(
+    await new Session().fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Tự Phong',
+        email: `selfstaff${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+        role: 'staff',
+      },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'POST /api/auth/register with role staff',
+  );
+  const ordinary = ok(
+    await new Session().fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Khách Thường',
+        email: `ordinary${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/register (ordinary account)',
+  );
+  assert(ordinary.user.role === 'customer', 'the public register still mints customers');
+
+  /* -- a customer who steps behind the counter keeps what they already had ---- */
+
+  const services = ok(
+    await partner.fetch('/api/partner/services?limit=1'),
+    'a Lala service for the walk-ins',
+  );
+  const service = services[0];
+  const bookingDate = addDays(state.today, 3);
+
+  const upgradeRow = ok(
+    await partner.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: { name: 'KTV Nâng Cấp' },
+    }),
+    'POST /api/partner/staff (a row for the upgrade)',
+  );
+  const upgradingPhone = '0988 100 200';
+  const upgrading = new Session();
+  ok(
+    await upgrading.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Khách Lên Nhân Viên',
+        email: `upgrade${stamp}@oak.invalid`,
+        phone: upgradingPhone,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'register the customer who will claim a profile',
+  );
+  ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: minhAnh.id,
+        date: bookingDate,
+        time: '08:05',
+        customer_name: 'Khách Lên Nhân Viên',
+        customer_phone: upgradingPhone,
+      },
+    }),
+    'POST /api/partner/bookings (history for the upgrading account)',
+  );
+  const beforeUpgrade = ok(
+    await upgrading.fetch('/api/bookings/mine?status=upcoming'),
+    'GET /api/bookings/mine before the claim',
+  );
+  assert(beforeUpgrade.length >= 1, 'the walk-in must have landed in the customer list');
+
+  const upgradeInvite = ok(
+    await partner.fetch(`/api/partner/staff/${upgradeRow.id}/invite`, { method: 'POST' }),
+    'POST invite for the upgrading account',
+  );
+  ok(
+    await upgrading.fetch('/api/staff-me/claim', {
+      method: 'POST',
+      json: { token: tokenOf(upgradeInvite.url) },
+    }),
+    'POST /api/staff-me/claim (as a customer)',
+  );
+  const upgradedMe = ok(await upgrading.fetch('/api/auth/me'), 'GET /api/auth/me after the claim');
+  assert(upgradedMe.user.role === 'staff', 'claim: a customer becomes staff in place');
+  const afterUpgrade = ok(
+    await upgrading.fetch('/api/bookings/mine?status=upcoming'),
+    'GET /api/bookings/mine after the claim',
+  );
+  assert(
+    afterUpgrade.length === beforeUpgrade.length,
+    'claim: the history the account already had survives the upgrade',
+  );
+
+  /* -- a salon owner is not upgraded into their own technician ---------------- */
+
+  const partnerInvite = ok(
+    await partner.fetch(`/api/partner/staff/${phuongVy.id}/invite`, { method: 'POST' }),
+    'POST invite for the partner refusal',
+  );
+  expectError(
+    await partnerB.fetch('/api/staff-me/claim', {
+      method: 'POST',
+      json: { token: tokenOf(partnerInvite.url) },
+    }),
+    409,
+    'CONFLICT',
+    'a partner account claiming a technician profile',
+  );
+
+  /* -- the two reads are staff-only, and not reachable as a guest ------------- */
+
+  for (const pathname of ['/api/staff-me/profile', '/api/staff-me/bookings']) {
+    expectError(
+      await session('customer').fetch(pathname),
+      403,
+      'FORBIDDEN',
+      `GET ${pathname} as a customer`,
+    );
+    expectError(await partnerB.fetch(pathname), 403, 'FORBIDDEN', `GET ${pathname} as a partner`);
+    expectError(
+      await new Session().fetch(pathname),
+      401,
+      'UNAUTHENTICATED',
+      `GET ${pathname} as a guest`,
+    );
+  }
+
+  /* -- what a technician may read of their own day ---------------------------- */
+
+  const seeded = await login('nhanvien@oak.vn');
+  assert(seeded.user.role === 'staff', 'nhanvien@oak.vn must be a staff account');
+  const staffClient = seeded.client;
+
+  ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: lanKhue.id,
+        date: bookingDate,
+        time: '08:15',
+        customer_name: 'Trần Thị Bích Ngọc',
+        customer_phone: '0977 100 200',
+        note: 'Khách dặn làm nhẹ tay.',
+      },
+    }),
+    "POST /api/partner/bookings (on the technician's own row)",
+  );
+  ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: minhAnh.id,
+        date: bookingDate,
+        time: '08:25',
+        customer_name: 'Lê Văn Tuấn',
+        customer_phone: '0977 300 400',
+      },
+    }),
+    "POST /api/partner/bookings (on somebody else's row)",
+  );
+
+  const dayResponse = await staffClient.fetch(
+    `/api/staff-me/bookings?from=${bookingDate}&to=${bookingDate}`,
+  );
+  const day = ok(dayResponse, 'GET /api/staff-me/bookings');
+  assert(day.length === 1, "staff bookings: only the caller's own roster rows", dayResponse);
+  assert(day[0].date === bookingDate, 'staff bookings: expected the booked date');
+  assert(day[0].salon.name === 'Lala Nail Studio', 'staff bookings: expected the salon');
+  assert(day[0].service.id === service.id, 'staff bookings: expected the service');
+  // Vietnamese name order puts the given name last, and the given name is all a technician
+  // gets: the rest of it identifies somebody.
+  assert(day[0].customer.given_name === 'Ngọc', 'staff bookings: expected the given name only');
+  const payload = JSON.stringify(day);
+  for (const leak of ['customer_phone', '0977', 'note', 'Trần Thị Bích', 'Lê Văn']) {
+    assert(!payload.includes(leak), `staff bookings: "${leak}" must never reach a technician`, dayResponse);
+  }
+
+  const sameStatus = ok(
+    await staffClient.fetch(
+      `/api/staff-me/bookings?from=${bookingDate}&to=${bookingDate}&status=${day[0].status}`,
+    ),
+    'GET /api/staff-me/bookings filtered to the booking status',
+  );
+  assert(sameStatus.length === 1, 'staff bookings: the status filter keeps a matching row');
+  const otherStatus = day[0].status === 'completed' ? 'cancelled' : 'completed';
+  const filteredOut = ok(
+    await staffClient.fetch(
+      `/api/staff-me/bookings?from=${bookingDate}&to=${bookingDate}&status=${otherStatus}`,
+    ),
+    'GET /api/staff-me/bookings filtered to another status',
+  );
+  assert(filteredOut.length === 0, 'staff bookings: the status filter excludes the rest');
+
+  const outsideRange = ok(
+    await staffClient.fetch(
+      `/api/staff-me/bookings?from=${addDays(bookingDate, 1)}&to=${addDays(bookingDate, 2)}`,
+    ),
+    'GET /api/staff-me/bookings outside the booked day',
+  );
+  assert(
+    !outsideRange.some((booking) => booking.id === day[0].id),
+    'staff bookings: from/to must bound the list',
+  );
+  const defaulted = ok(
+    await staffClient.fetch('/api/staff-me/bookings'),
+    'GET /api/staff-me/bookings (default range)',
+  );
+  assert(
+    defaulted.some((booking) => booking.id === day[0].id),
+    'staff bookings: the default range covers the fortnight ahead',
+  );
+
+  expectError(
+    await staffClient.fetch('/api/staff-me/bookings?from=2026-13-40'),
+    400,
+    'VALIDATION_ERROR',
+    'GET /api/staff-me/bookings with a date that does not exist',
+  );
+  expectError(
+    await staffClient.fetch('/api/staff-me/bookings?status=whatever'),
+    400,
+    'VALIDATION_ERROR',
+    'GET /api/staff-me/bookings with an invented status',
+  );
+
+  /* -- the way back in when a technician has lost their password -------------- */
+
+  /* The same button on a row somebody already holds is not an invite: no claim link is
+     minted, and the technician gets an ordinary reset at their own email address. An
+     owner-held link that sets a password would be account takeover, so the owner is told
+     only that it went.
+
+     What is assertable from out here is the observable contract; the rest — that the write
+     lands in password_resets rather than staff_invites, and that a deploy with no mail key
+     logs the url instead of returning it — is pinned at source level in
+     test/staff-persona.test.mjs, this suite having no database handle and no mailbox. */
+  const bellBefore = ok(
+    await staffClient.fetch('/api/notifications'),
+    'GET /api/notifications before the recovery',
+  );
+  const recoveryResponse = await partner.fetch(`/api/partner/staff/${lanKhue.id}/invite`, {
+    method: 'POST',
+  });
+  const recovery = ok(recoveryResponse, 'POST invite on a claimed row (recovery)');
+  assert(
+    Object.keys(recovery).join(',') === 'recovery' && recovery.recovery === 'sent',
+    "recovery: the reply is exactly {recovery:'sent'}",
+    recoveryResponse,
+  );
+  // Nothing anywhere in the body may look like a link or a token: the owner must not be
+  // able to read one, whatever shape it arrived in.
+  const recoveryBody = JSON.stringify(recoveryResponse.body);
+  for (const leak of ['token', 'url', 'dat-lai-mat-khau', 'expires']) {
+    assert(!recoveryBody.includes(leak), `recovery: "${leak}" must never reach the owner`, recoveryResponse);
+  }
+  // No staff_invites row was written, which is what the roster reports by still showing
+  // nothing outstanding on that technician.
+  const afterRecovery = ok(
+    await partner.fetch('/api/partner/staff'),
+    'GET /api/partner/staff after the recovery',
+  );
+  assert(
+    afterRecovery.find((member) => member.id === lanKhue.id).invite_pending === false,
+    'recovery: a claimed row never gains a pending claim link',
+    afterRecovery,
+  );
+
+  const bellAfterResponse = await staffClient.fetch('/api/notifications');
+  const bellAfter = ok(bellAfterResponse, 'GET /api/notifications after the recovery');
+  assert(
+    bellAfter.length === bellBefore.length + 1,
+    'the account holder is told when their owner triggers a recovery',
+    bellAfterResponse,
+  );
+  assert(
+    bellAfter[0].body ===
+      'Chủ salon đã yêu cầu một liên kết đăng nhập lại cho bạn. Liên kết đã được gửi tới email của bạn.',
+    'expected the recovery notice, saying where the link went',
+    bellAfterResponse,
+  );
+
+  /* -- taking somebody off the roster ends their read of the calendar --------- */
+
+  const departingRow = ok(
+    await partner.fetch('/api/partner/staff', { method: 'POST', json: { name: 'KTV Sắp Nghỉ' } }),
+    'POST /api/partner/staff (a stint about to end)',
+  );
+  const departingInvite = ok(
+    await partner.fetch(`/api/partner/staff/${departingRow.id}/invite`, { method: 'POST' }),
+    'POST invite for the departing technician',
+  );
+  const departing = new Session();
+  ok(
+    await departing.fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        token: tokenOf(departingInvite.url),
+        name: 'KTV Sắp Nghỉ',
+        email: `departing${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/staff/register (the departing technician)',
+  );
+  ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: departingRow.id,
+        date: bookingDate,
+        time: '08:35',
+        customer_name: 'Phạm Thu Hà',
+        customer_phone: '0977 500 600',
+      },
+    }),
+    'POST /api/partner/bookings (on the departing row)',
+  );
+  const whileEmployed = ok(
+    await departing.fetch(`/api/staff-me/bookings?from=${bookingDate}&to=${bookingDate}`),
+    'GET /api/staff-me/bookings while the stint is open',
+  );
+  assert(whileEmployed.length === 1, 'the departing technician reads their own day');
+
+  ok(
+    await partner.fetch(`/api/partner/staff/${departingRow.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/staff/:id (end the stint)',
+  );
+
+  const afterDeparture = ok(
+    await departing.fetch(`/api/staff-me/bookings?from=${bookingDate}&to=${bookingDate}`),
+    'GET /api/staff-me/bookings after the stint ended',
+  );
+  assert(
+    afterDeparture.length === 0,
+    'a stint that has ended is not a licence to keep reading the salon calendar',
+    afterDeparture,
+  );
+  // The stint itself is still theirs to see, flagged inactive: their own history, not the
+  // salon's diary.
+  const departedProfile = ok(
+    await departing.fetch('/api/staff-me/profile'),
+    'GET /api/staff-me/profile after the stint ended',
+  );
+  assert(
+    departedProfile.some((row) => row.staff_id === departingRow.id && row.active === 0),
+    'the ended stint stays on the profile, flagged inactive',
+    departedProfile,
+  );
+
+  /* -- and ending a stint takes the link that was waiting on it -------------- */
+
+  /* A separate row, because the two halves cannot live on one: a claimed row can never
+     hold a live claim link (minting on one triggers the recovery above instead), so the
+     link that a departure has to kill is by definition on a row nobody claimed. Left
+     unclaimed here on purpose. */
+  const abandonedRow = ok(
+    await partner.fetch('/api/partner/staff', { method: 'POST', json: { name: 'KTV Chưa Nhận' } }),
+    'POST /api/partner/staff (a row whose link is never redeemed)',
+  );
+  ok(
+    await partner.fetch(`/api/partner/staff/${abandonedRow.id}/invite`, { method: 'POST' }),
+    'POST invite that will be outlived by the row',
+  );
+  const withPending = ok(
+    await partner.fetch('/api/partner/staff'),
+    'GET /api/partner/staff with a link outstanding',
+  );
+  assert(
+    withPending.find((member) => member.id === abandonedRow.id).invite_pending === true,
+    'roster: the outstanding link shows before the row is retired',
+    withPending,
+  );
+
+  ok(
+    await partner.fetch(`/api/partner/staff/${abandonedRow.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/staff/:id (with a link still outstanding)',
+  );
+  const afterRetiring = ok(
+    await partner.fetch('/api/partner/staff'),
+    'GET /api/partner/staff after retiring the row',
+  );
+  // used = 1, not merely unreachable: the row is patchable back to active, and a link that
+  // only died of the inactive flag would come back to life with it.
+  assert(
+    afterRetiring.find((member) => member.id === abandonedRow.id).invite_pending === false,
+    'retiring a row retires the claim link that was waiting on it',
+    afterRetiring,
+  );
+  ok(
+    await partner.fetch(`/api/partner/staff/${abandonedRow.id}`, {
+      method: 'PATCH',
+      json: { active: 1 },
+    }),
+    'PATCH the retired row back to active',
+  );
+  const afterRestoring = ok(
+    await partner.fetch('/api/partner/staff'),
+    'GET /api/partner/staff after restoring the row',
+  );
+  assert(
+    afterRestoring.find((member) => member.id === abandonedRow.id).invite_pending === false,
+    'restoring a row must not bring its old claim link back with it',
+    afterRestoring,
+  );
+
+  /* -- the preview allowance, spent deliberately and last --------------------- */
+
+  // Ten per fifteen minutes per IP, and seven of them are spent above: the rotated-out
+  // link, the current one, the revoked one, garbage, the parked row, and the first-claim
+  // link before and after it was redeemed. The loop burns whatever is left so the refusal
+  // lands on the eleventh wherever the count above ends up — the number in this sentence
+  // is a reader's aid, not the thing keeping the test honest.
+  // NO PREVIEW MAY FOLLOW THIS BLOCK.
+  while (previewsSpent < 10) {
+    await previewInvite(`spend${previewsSpent}${stamp}`);
+  }
+  expectError(
+    await previewInvite(`overflow${stamp}`),
+    429,
+    'TOO_MANY_ATTEMPTS',
+    'preview past the allowance',
+  );
+}
+
+/* ============================================================================
  * Runner
  * ========================================================================= */
 
@@ -4621,6 +5329,7 @@ async function main() {
   await group('16 one salon per partner', groupSalonOwnership);
   await group('17 booking lifecycle', groupBookingLifecycle);
   await group('18 account lifecycle', groupAccountLifecycle);
+  await group('19 staff persona', groupStaffPersona);
 }
 
 let child = null;

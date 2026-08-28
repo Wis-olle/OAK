@@ -1,8 +1,10 @@
 // Partner console: overview, bookings, services, staff, promotions, revenue, salon.
+import { randomBytes } from 'node:crypto';
 import express from 'express';
 import { db } from '../db.js';
 import { getServiceSlots, getStaffSlots, isSalonOpenFor } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
+import { recordEvent } from '../lib/events.js';
 import { notifyUser } from '../lib/notify.js';
 import { normalisePhone, normalisedPhoneSql } from '../lib/phone.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
@@ -11,6 +13,12 @@ import {
   SocialProfileError,
   validateSocialProfile,
 } from '../lib/social-profile.js';
+import {
+  INSERT_STAFF_INVITE,
+  INVITE_TTL_MS,
+  RETIRE_STAFF_INVITES,
+  inviteUrl,
+} from '../lib/staff-invite.js';
 import {
   addDaysISO,
   fromMinutes,
@@ -24,6 +32,9 @@ import {
 import { isSafeMediaUrl } from '../lib/urls.js';
 import { WELCOME_CODE_PREFIX } from '../lib/welcome-promotion.js';
 import { httpError, requireAuth, requirePartner } from '../middleware/auth.js';
+// The recovery hatch for a technician who has lost their password is auth.js's machinery —
+// its table, its TTL, its origin rule, its mailer — so it is imported rather than rebuilt.
+import { deliverResetLink, mintResetIn } from './auth.js';
 
 const router = express.Router();
 
@@ -1555,6 +1566,15 @@ const selectSalonStaffServices = db.prepare(`
   WHERE st.salon_id = ?
   ORDER BY ss.service_id
 `);
+// Which roster rows have a claim link outstanding, for the whole salon in one round trip.
+// Same shape as the two maps above and for the same reason: "is there a link waiting on
+// this row?" is a column of a list that is already on screen, not a query per row.
+const selectSalonPendingInvites = db.prepare(`
+  SELECT i.staff_id
+  FROM staff_invites i
+  JOIN staff st ON st.id = i.staff_id
+  WHERE st.salon_id = ? AND i.used = 0 AND i.expires_at > ?
+`);
 // rating > 0 so an unrated new hire (rating defaults to 0) does not drag the average
 // down: the roster figure should reflect technicians who actually have reviews.
 const selectActiveStaffRating = db.prepare(
@@ -1568,7 +1588,8 @@ const INSERT_STAFF_SCHEDULE =
 const DELETE_STAFF_SCHEDULE = 'DELETE FROM staff_schedule WHERE staff_id = ?';
 const INSERT_STAFF_SERVICE = 'INSERT INTO staff_services (staff_id, service_id) VALUES (?, ?)';
 const DELETE_STAFF_SERVICES = 'DELETE FROM staff_services WHERE staff_id = ?';
-const deactivateStaff = db.prepare('UPDATE staff SET active = 0 WHERE id = ? AND salon_id = ?');
+const DEACTIVATE_STAFF = 'UPDATE staff SET active = 0 WHERE id = ? AND salon_id = ?';
+const retireStaffInvites = db.prepare(RETIRE_STAFF_INVITES);
 
 const STAFF_COLUMNS = {
   name: (value) => requireText(value, 'tên kỹ thuật viên'),
@@ -1687,6 +1708,12 @@ router.get('/staff', async (req, res, next) => {
       serviceIds.get(row.staff_id).push(row.service_id);
     }
 
+    const pendingInvites = new Set(
+      (await selectSalonPendingInvites.all(salon.id, new Date().toISOString())).map(
+        (row) => row.staff_id,
+      ),
+    );
+
     let onShift = 0;
     const data = rows.map((member) => {
       const byWeekday = schedules.get(member.id) ?? new Map();
@@ -1710,6 +1737,11 @@ router.get('/staff', async (req, res, next) => {
         // What this technician actually does, so the booking form can stop offering a
         // nail artist for a haircut.
         service_ids: serviceIds.get(member.id) ?? [],
+        // Whether a person stands behind this row, and whether a link to become that
+        // person is still outstanding. Booleans and nothing else: user_id names an
+        // account and the token IS the secret, so neither leaves the server.
+        claimed: Boolean(member.user_id),
+        invite_pending: pendingInvites.has(member.id),
         ...staffState(windows.get(member.id), minutes),
       };
     });
@@ -1817,6 +1849,107 @@ router.put('/staff/:id/services', async (req, res, next) => {
   }
 });
 
+/*
+ * The claim link: how a roster row stops being a description of somebody and becomes an
+ * account they hold. The owner mints it here and hands it over in person or over Zalo —
+ * there is no address on a roster row to mail it to, and the person is standing in the
+ * salon anyway.
+ *
+ * On a row somebody ALREADY holds, this is a different act with the same button: the
+ * technician has lost their password, and what they get is an ordinary reset link at their
+ * own email address. Registered before /staff/:id so the literal sub-paths always win the
+ * match.
+ */
+router.post('/staff/:id/invite', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const staffId = requireId(req.params.id, 'Mã kỹ thuật viên không hợp lệ.');
+    const staff = await ownedRow(
+      selectOwnedStaff,
+      staffId,
+      salon.id,
+      'Không tìm thấy kỹ thuật viên này.',
+    );
+    // A row taken off the roster describes a stint that has ended, so there is nobody
+    // left to invite. 409 rather than 404: the row is the owner's and they can see it.
+    if (staff.active !== 1) {
+      throw httpError(
+        409,
+        'STAFF_INACTIVE',
+        'Kỹ thuật viên này đã ngừng hoạt động, không thể tạo liên kết.',
+      );
+    }
+
+    /* A row somebody already stands behind. No claim link is minted here, and deliberately
+       so: a link the OWNER holds that sets a password on their technician's account is
+       account takeover with a friendly name on it. What the technician gets instead is the
+       ordinary forgot-password link, at their own email address, and what the owner gets
+       back is the fact that it went out and nothing else — no token, no url, no expiry.
+
+       Nothing throttles this. The owner is authenticated and scoped to their own roster,
+       so there is no stranger to keep out; worth knowing anyway is that minting retires
+       whatever reset the account had outstanding, so an owner who spammed the button could
+       keep killing a reset the technician had asked for themselves.
+
+       On a production deploy with no mail key configured this sends nothing at all.
+       Configuring RESEND is a stated precondition of inviting real people. */
+    if (staff.user_id != null) {
+      let resetToken;
+      await db.withTransaction(async (tx) => {
+        resetToken = await mintResetIn(tx, staff.user_id);
+        await notifyUser(
+          tx,
+          staff.user_id,
+          'Liên kết đăng nhập lại',
+          'Chủ salon đã yêu cầu một liên kết đăng nhập lại cho bạn. Liên kết đã được gửi tới email của bạn.',
+          'general',
+        );
+      });
+      // After the commit, never inside it: a mail sent for a transaction that rolled back
+      // would point at a token that does not exist.
+      await deliverResetLink(req, staff.user_id, resetToken);
+      res.json({ success: true, data: { recovery: 'sent' } });
+      return;
+    }
+
+    // The same entropy the password reset in routes/auth.js mints, because the link does
+    // the same job: holding it is the whole proof.
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + INVITE_TTL_MS).toISOString();
+    await db.withTransaction(async (tx) => {
+      // Before the insert, never after: the new row must not retire itself.
+      await tx.run(RETIRE_STAFF_INVITES, staffId);
+      await tx.run(
+        INSERT_STAFF_INVITE,
+        token,
+        staffId,
+        req.user.id,
+        expiresAt,
+        new Date().toISOString(),
+      );
+    });
+
+    await recordEvent('staff_invite_created', '/api/partner/staff/:id/invite');
+    res.json({ success: true, data: { url: inviteUrl(token), expires_at: expiresAt } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The owner changed their mind, or the phone the link was shown on went missing.
+router.delete('/staff/:id/invite', async (req, res, next) => {
+  try {
+    const salon = await ownedSalon(req);
+    const staffId = requireId(req.params.id, 'Mã kỹ thuật viên không hợp lệ.');
+    await ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
+
+    await retireStaffInvites.run(staffId);
+    res.json({ success: true, data: { ok: true } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/staff/:id', async (req, res, next) => {
   try {
     const salon = await ownedSalon(req);
@@ -1858,8 +1991,16 @@ router.delete('/staff/:id', async (req, res, next) => {
     const staffId = requireId(req.params.id, 'Mã kỹ thuật viên không hợp lệ.');
     await ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
 
-    // Soft delete: past bookings and reviews still point at this row.
-    await deactivateStaff.run(staffId, salon.id);
+    // Soft delete: past bookings and reviews still point at this row. Whatever claim link
+    // was waiting on it goes in the same transaction, because an inactive row can no
+    // longer be invited — POST /staff/:id/invite refuses one — so a link left live would
+    // be one the owner has no way to replace. And `active` is patchable, so a row restored
+    // inside the seven days would otherwise come back with the old token still live: the
+    // link the owner thought ending the stint had killed.
+    await db.withTransaction(async (tx) => {
+      await tx.run(DEACTIVATE_STAFF, staffId, salon.id);
+      await tx.run(RETIRE_STAFF_INVITES, staffId);
+    });
     res.json({ success: true, data: { ok: true } });
   } catch (error) {
     next(error);

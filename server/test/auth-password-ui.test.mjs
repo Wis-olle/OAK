@@ -701,10 +701,11 @@ test('retiring is always scoped to one account and only ever touches live rows',
     authSource,
     /const RETIRE_USER_RESETS = 'UPDATE password_resets SET used = 1 WHERE user_id = \? AND used = 0';/,
   );
-  // One statement text behind all three callers — the declaration, the prepared handle
-  // the non-transactional caller uses, and the two tx.run sites — so no second spelling
-  // of the rule can drift from it.
-  assert.equal((authSource.match(/RETIRE_USER_RESETS/g) || []).length, 4);
+  // One statement text behind every caller — the declaration, the prepared handle the
+  // non-transactional caller uses, and the three tx.run sites: redeeming a reset, changing
+  // a password from a session, and mintResetIn, which a salon owner reaches when they
+  // trigger recovery for a technician. No second spelling of the rule can drift from it.
+  assert.equal((authSource.match(/RETIRE_USER_RESETS/g) || []).length, 5);
   assert.match(authSource, /const retireUserResets = db\.prepare\(RETIRE_USER_RESETS\);/);
   assert.equal((authSource.match(/UPDATE password_resets SET used = 1/g) || []).length, 2);
 });
@@ -929,20 +930,32 @@ test('the reset mail is the only thing this channel can send', () => {
 });
 
 test('the mailed link is absolute and prefers the origin Render publishes', () => {
-  const handler = authSource.slice(authSource.indexOf("router.post('/forgot-password'"));
-  const body = handler.slice(0, handler.indexOf("router.post('/reset-password'"));
-
-  // A forged Host header must not be able to point the mail at another server: the origin
-  // is declared by the deploy, and in production a deploy that declared none mails nothing
-  // rather than falling back to what the caller sent.
+  /* A forged Host header must not be able to point the mail at another server: the origin
+     is declared by the deploy, and in production a deploy that declared none builds no
+     link at all rather than falling back to what the caller sent. One function spells that
+     rule for both callers — /forgot-password and the recovery a salon owner triggers for a
+     technician — so it is asserted against the function rather than against one handler. */
+  const build = authSource.slice(
+    authSource.indexOf('function resetLinkUrl('),
+    authSource.indexOf('export async function mintResetIn('),
+  );
   assert.match(
-    body,
+    build,
     /const declaredOrigin = process\.env\.RENDER_EXTERNAL_URL \|\| process\.env\.PUBLIC_BASE_URL;/,
   );
-  assert.match(body, /if \(!declaredOrigin && process\.env\.NODE_ENV === 'production'\) \{/);
-  const guard = body.indexOf('!declaredOrigin');
-  assert.ok(guard !== -1 && guard < body.indexOf("req.get('host')"));
-  assert.match(body, /sendResetMail\(normalised, `\$\{origin\}\/dat-lai-mat-khau\.html\?token=\$\{token\}`\)/);
+  assert.match(build, /if \(!declaredOrigin && process\.env\.NODE_ENV === 'production'\) \{\s*return null;/);
+  const guard = build.indexOf('!declaredOrigin');
+  assert.ok(guard !== -1 && guard < build.indexOf("req.get('host')"));
+  assert.match(build, /return `\$\{origin\}\/dat-lai-mat-khau\.html\?token=\$\{token\}`;/);
+  // Nobody builds that address a second time.
+  assert.equal((authSource.match(/dat-lai-mat-khau\.html\?token=/g) || []).length, 2);
+
+  // And the mail path goes through it: no link, no mail.
+  const handler = authSource.slice(authSource.indexOf("router.post('/forgot-password'"));
+  const body = handler.slice(0, handler.indexOf("router.post('/reset-password'"));
+  assert.match(body, /const url = resetLinkUrl\(req, token\);/);
+  assert.ok(body.indexOf('if (!url) {') < body.indexOf('res.json({ success: true, data });\n    return mintReset('));
+  assert.match(body, /sendResetMail\(normalised, url\)/);
 });
 
 // -------------------------------------------------------- cai-dat: offers and deletion
