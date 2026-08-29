@@ -2268,33 +2268,22 @@ router.patch('/staff/:id', async (req, res, next) => {
       'Không tìm thấy kỹ thuật viên này.',
     );
 
-    /* The one column on a claimed row that stops being the owner's. A roster row is a shared
-       object: the salon runs the operational half — who this person is on the team, what they
-       do, what hours, whether the stint is open — and the technician owns how they appear,
-       which is the avatar, the bio and the portfolio. bio and portfolio were never in
-       STAFF_COLUMNS, so `image` is the only one that has to be taken back, and it is taken
-       back only once somebody actually stands behind the row: an unclaimed row is the salon's
-       own description of a chair and stays entirely theirs to edit.
+    /* Nothing here guards `image`, and something used to. A claimed roster row was read as a
+       shared object — the salon running the operational half, the technician owning how she
+       appeared — so an owner who changed the photo on a claimed row was answered with a 409
+       saying the avatar was hers to manage. That was true for exactly as long as she had a way
+       to manage it, and she has not had one since her own words and her own face moved onto the
+       table behind her own page: routes/staff-me.js writes that one, and nothing anywhere writes
+       staff.image on her behalf any more. So the guard stopped being a boundary and became a
+       freeze — the owner refused with a 409, the technician refused with a 400, and the team
+       strip and the booking picker serving a face for the whole life of the stint that nobody
+       left on either side could correct.
 
-       409 rather than a silent drop, for the same reason PATCH /api/staff-me/profile refuses
-       an unknown key: an owner who changed a photo and was told it saved would go on believing
-       they had. The row is read above anyway, so user_id costs no extra query.
-
-       What counts is that the value actually CHANGED, not that the form posted it — the same
-       rule the customer notices twenty lines up in this file are gated on, for the same
-       reason. quan-ly-nhan-vien.html sends name, title, specialty and image on every save and
-       awaits this PATCH before the schedule and service PUTs, so refusing on the presence of
-       the key would refuse the whole form: a claimed technician's title, hours and service
-       list would all become unsaveable, which is a frozen roster rather than a boundary.
-       Parsed through the column's own validator before comparing, so the '' the form sends for
-       an empty photo and the NULL the column holds are compared as the same thing. */
-    if (staff.user_id != null && Object.hasOwn(req.body ?? {}, 'image')) {
-      const wanted = STAFF_COLUMNS.image(req.body.image);
-      if (wanted !== (staff.image ?? null)) {
-        throw httpError(409, 'CONFLICT', 'Ảnh đại diện do kỹ thuật viên tự quản lý.');
-      }
-    }
-
+       The split is clean now rather than negotiated. Her photo is on her own page, and this
+       column is the salon's operational record of who sits in that chair, edited like the name
+       and the title beside it. Correcting it cannot reach her: routes/staff.js lays whatever
+       she has published over the row wherever she has written something, so an owner tidying
+       the roster changes the chair and never the person. */
     const { assignments, values, patch } = await buildPatch(req.body ?? {}, STAFF_COLUMNS);
     /* A new start date arrives unattested, whatever the old one had earned. Appended to the
        same statement rather than run beside it: a date that landed while its ✓ stayed would

@@ -249,6 +249,7 @@ function registerPartner() {
     `${[
       'EMAIL_PATTERN',
       'MIN_PASSWORD_LENGTH',
+      'NAME_MAX_LENGTH',
       'ROLES',
       'INSERT_USER',
       'INSERT_SALON',

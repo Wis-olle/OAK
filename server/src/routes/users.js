@@ -139,30 +139,27 @@ const ANONYMISE_BOOKING_CONTACT = `
 // idx_staff_user_salon is partial (WHERE user_id IS NOT NULL AND active = 1), so clearing
 // the column simply takes the row out of the index.
 //
-// And the personal half of the row goes with the person. bio, portfolio and image are what
-// routes/staff-me.js lets a technician write about themselves, and handing the row back with
-// those still on it is not handing back a chair — it is leaving somebody's page up with
-// nobody left who can take it down. Worse than left up: PUT BACK up. The public gates read
-// (user_id IS NULL OR COALESCE(profile_hidden, 0) = 0), so an unclaimed row is always
-// visible, and a technician who had WITHDRAWN their profile before erasing the account would
-// find it live again the moment they did — their own words and their own face, on a page no
-// account of theirs exists to reach any more. profile_hidden is reset for the same reason
-// rather than kept: it is a switch only a claim can reach, so leaving it thrown would be a
-// withdrawal she can no longer undo, sitting on the salon's row and waiting to darken the
+// What she WROTE is not in this statement at all, and that is the shape of the whole thing.
+// Her bio, her gallery and her face are on staff_profiles, and the DELETE a few lines below
+// takes that row away whole — so the personal page leaves with the person, completely, and
+// there is nothing of hers left on the chair for an UPDATE to have to reach. What the row's
+// own bio, portfolio and image columns hold is whatever a seed or an import put there; no
+// technician endpoint has written them since her words moved onto the person, so on any real
+// deploy they are the salon's description of a chair and nobody else's. This statement used
+// to blank all three, and that was the boundary running backwards: bao-mat.html §8 promises
+// you can withdraw what you wrote about yourself and not what the salon wrote about the job,
+// and a salon that had typed a bio onto a chair lost it for good, with no way to get it back,
+// because somebody who once sat in that chair closed their account.
+//
+// So the row goes on saying what the SALON says about it. The name the owner typed into the
+// roster, the title, the description, the rating its customers wrote — none of that was hers
+// to withdraw, so the chair comes back published exactly as the salon left it, waiting for
+// whoever sits in it next. The chair is handed back; it is not made anonymous.
+//
+// profile_hidden IS reset, and it is the one switch here that has to be, because it is the
+// one only a claim can reach. Left thrown, it would be a withdrawal she can no longer undo:
+// sitting on the salon's row with nobody able to sign in and lift it, waiting to darken the
 // page of whoever claims the chair next without their ever having thrown it.
-//
-// What is NOT cleared, and deliberately: the row goes on saying what the SALON says about
-// that chair. The name the owner typed into the roster, the title, the rating its customers
-// wrote — none of that was hers to withdraw, so the chair comes back published under the
-// same name, with the same reviews behind it, waiting for whoever sits in it next. This
-// statement takes back what the person wrote about herself, not what the salon wrote about
-// the job. The chair is handed back; it is not made anonymous.
-//
-// image is cleared knowing what it costs. Post-claim the photo in that column may be one the
-// salon supplied rather than one the technician uploaded — the two are indistinguishable once
-// stored — so an owner can lose a headshot that was theirs and have to put it back. That is
-// the accepted price: a face is the most identifying thing on the row, and re-uploading a
-// photo you own is a far smaller harm than leaving a departed person's face on a public page.
 //
 // The attestations go too, and they are the subtlest thing here. started_confirmed_at,
 // left_confirmed_at and tenure_disputed are one person's answers about two dates — "yes, that
@@ -175,8 +172,7 @@ const ANONYMISE_BOOKING_CONTACT = `
 // leaves with the person is only what the person said back.
 const RELEASE_STAFF_ROWS = `
   UPDATE staff
-  SET user_id = NULL, claimed_at = NULL,
-      bio = NULL, portfolio = NULL, image = NULL, profile_hidden = 0,
+  SET user_id = NULL, claimed_at = NULL, profile_hidden = 0,
       started_confirmed_at = NULL, left_confirmed_at = NULL, tenure_disputed = 0
   WHERE user_id = ?
 `;

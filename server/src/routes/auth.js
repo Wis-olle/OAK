@@ -53,6 +53,12 @@ const router = express.Router();
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
+/* Far past the longest name anybody answers to, so no real person ever meets it, and there
+   for a reason that is not tidiness: a technician's page is addressed by a slug built out of
+   this name, and the unique btree behind that slug refuses an entry over roughly 2700 bytes —
+   so a name long enough registered an account and then died on the INSERT after it with an
+   internal error. lib/staff-profile.js holds the same line from the other side. */
+const NAME_MAX_LENGTH = 120;
 const ROLES = ['customer', 'partner'];
 // Short on purpose: the link is the whole secret, so the window in which a leaked one is
 // worth anything stays small.
@@ -85,9 +91,21 @@ const loginAttempts = new Map();
 // the shop's one address and ten of those is an ordinary morning, not abuse.
 const INVITE_PREVIEW_MAX_ATTEMPTS = 10;
 const invitePreviewAttempts = new Map();
+// And five in the quarter of an hour for opening a technician page with no invitation behind
+// it, keyed on the caller alone for the same reason the preview is: there is nothing else to
+// key on until a body has been read. The calculus is not /register's, which is rationed
+// nowhere at all and can afford to be — a run of that mints hashes and customer rows nobody
+// but their holder ever sees, so what it costs is a little CPU. A SUCCESSFUL call on this path
+// mints a public page, published at birth and open to a search engine, under whatever name was
+// typed into the form. So what abuse buys here is pages carrying OAK's name, and five in a
+// quarter of an hour is far more than one person opening one career — and the tally is charged
+// on the pages actually minted rather than on the attempts, because an attempt refused for its
+// name or its missing tick published nothing at all.
+const STAFF_REGISTER_MAX_ATTEMPTS = 5;
+const staffRegisterAttempts = new Map();
 
-/** Record one attempt for `key` in `attempts`; true once `max` in the window is spent. */
-function rateLimited(attempts, key, max) {
+/** Record one attempt for `key` in `attempts`, and hand back what it has spent in the window. */
+function countAttempt(attempts, key) {
   const now = Date.now();
   // Swept here rather than on a timer: the Map is only ever walked on a call, so an idle
   // process holds nothing and there is no interval keeping it awake. Whatever survives the
@@ -101,10 +119,37 @@ function rateLimited(attempts, key, max) {
   const entry = attempts.get(key);
   if (!entry) {
     attempts.set(key, { count: 1, windowStart: now });
-    return false;
+    return 1;
   }
   entry.count += 1;
-  return entry.count > max;
+  return entry.count;
+}
+
+/** Record one attempt for `key` in `attempts`; true once `max` in the window is spent. */
+function rateLimited(attempts, key, max) {
+  return countAttempt(attempts, key) > max;
+}
+
+/* Give back one attempt recorded for `key`, for a caller that took the charge before it knew
+   what the call would cost. The free-registration allowance rations PUBLISHED PAGES, and it
+   cannot wait to find out whether one appeared before charging: fifty requests arriving
+   together would all read a ceiling none of them had charged yet and all be let through. So it
+   charges at the door, which is the only thing a single-threaded event loop can do atomically,
+   and puts the charge back the moment it is clear no page came of it.
+
+   The entry can be gone by now — the window closed under a slow request and countAttempt swept
+   it — and there is nothing to give back then; the tally it belonged to is over. Removed at
+   zero rather than left at it, so an address that only ever mistypes holds nothing here and
+   starts its next window fresh. */
+function refundAttempt(attempts, key) {
+  const entry = attempts.get(key);
+  if (!entry) {
+    return;
+  }
+  entry.count -= 1;
+  if (entry.count <= 0) {
+    attempts.delete(key);
+  }
 }
 
 // Comparing against this on the miss path keeps a failed login as slow as a
@@ -226,6 +271,23 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
     if (typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
       throw httpError(400, 'VALIDATION_ERROR', 'Họ tên, email và mật khẩu phải là chuỗi ký tự.');
     }
+    /* Measured after the spaces are taken off, because ' ' is a string and is truthy, so a
+       name of nothing but whitespace walked past both checks above and registered an account
+       that appeared under a blank name everywhere its holder was named. The trimmed length is
+       also what the cap is read against, for the same reason — and the trimmed STRING is what
+       is stored, because a cap read against one value and a column filled with another is not a
+       cap at all: 'Mai' followed by a hundred thousand spaces passes both readings below and
+       would land a hundred thousand characters in the row. Every value this function writes is
+       taken from this one, the salon a partner registration names after its owner included.
+       (POST /staff/register's own hook still hands createStaffProfile the name as it arrived,
+       and may: slugify strips whitespace, so the address it builds is the same either way.) */
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Vui lòng nhập họ tên.');
+    }
+    if (trimmedName.length > NAME_MAX_LENGTH) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Họ tên không được dài quá 120 ký tự.');
+    }
     if (phone != null && typeof phone !== 'string') {
       throw httpError(400, 'VALIDATION_ERROR', 'Số điện thoại phải là chuỗi ký tự.');
     }
@@ -293,7 +355,7 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
           (
             await tx.run(
               INSERT_USER,
-              name,
+              trimmedName,
               email.trim().toLowerCase(),
               // Stored folded, so the number is comparable to the one a console lookup or
               // a later profile edit brings in rather than only to itself.
@@ -335,14 +397,14 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
             userId,
             'Chào mừng bạn đến với OAK',
             promotion
-              ? `Chào mừng ${name}! Nhập mã ${promotion.code} khi đặt lịch để giảm ${promotion.discount_percent}% cho buổi hẹn đầu tiên.`
-              : `Chào mừng ${name} — đặt lịch đầu tiên của bạn tại OAK.`,
+              ? `Chào mừng ${trimmedName}! Nhập mã ${promotion.code} khi đặt lịch để giảm ${promotion.discount_percent}% cho buổi hẹn đầu tiên.`
+              : `Chào mừng ${trimmedName} — đặt lịch đầu tiên của bạn tại OAK.`,
             promotion ? 'promotion' : 'general',
           );
         }
 
         if (accountRole === 'partner') {
-          const partnerSalonName = salonName || `${name} Salon`;
+          const partnerSalonName = salonName || `${trimmedName} Salon`;
           const salonId = Number(
             (
               await tx.run(
@@ -451,6 +513,12 @@ router.get('/staff/invite/:token', async (req, res, next) => {
  * nothing in it belongs to a salon.
  */
 router.post('/staff/register', async (req, res, next) => {
+  /* The two halves of the free-registration allowance, read by the `finally` at the bottom.
+     `reserved` says this request took a charge at the door; `published` says a page came of it.
+     A charge with no page behind it is given back, so a refusal costs nothing while the ceiling
+     still holds against requests that arrive together. */
+  let reserved = false;
+  let published = false;
   try {
     const { token, name } = req.body ?? {};
     /* Read before anything else: an unusable link is refused before ~90ms of hashing is
@@ -465,13 +533,35 @@ router.post('/staff/register', async (req, res, next) => {
        explicit token that does not resolve is refused here, in the same uniform 404 as
        everywhere else, and nothing below this branch ever runs. Only a body that named no
        token at all — absent, or the empty string dang-nhap-nhan-vien.html posts on the free
-       path — is a free registration. */
+       path — is a free registration.
+
+       And it is the free registration alone that is rationed. What the allowance counts is
+       PAGES rather than attempts, and the two are reconciled by reserving here and refunding in
+       the `finally` at the bottom — not by waiting to charge until a page exists. Waiting is
+       what makes it useless: everything between this line and the page being written is
+       awaited, so fifty requests arriving together would every one of them read a ceiling none
+       of them had charged yet, and fifty published pages would come out the other side. This
+       increment is the last thing on the path that happens without an await in front of it, so
+       it is the only thing here that can hold a limit at all.
+       Reserved inside the else rather than ahead of the branch so that an invited technician
+       cannot even reach it: a salon whose whole team opens their links from the shop's one wifi
+       is the ordinary morning this route was built for, and being turned away from your own
+       invitation because five colleagues redeemed theirs first is a defence of nothing. */
     let invite = null;
     if (token != null && token !== '') {
       invite = await findLiveInvite(token);
       if (!invite) {
         throw inviteNotFound();
       }
+    } else if (rateLimited(staffRegisterAttempts, req.ip, STAFF_REGISTER_MAX_ATTEMPTS)) {
+      console.warn(`staff register: too many free registrations from ${req.ip}`);
+      throw httpError(
+        429,
+        'TOO_MANY_ATTEMPTS',
+        'Bạn đã tạo tài khoản quá nhiều lần. Vui lòng đợi 15 phút rồi thử lại.',
+      );
+    } else {
+      reserved = true;
     }
 
     /* An ordinary registration that takes a roster row over on its way through, or opens a
@@ -515,7 +605,14 @@ router.post('/staff/register', async (req, res, next) => {
          ticked describes exactly this public page and agreeing to it is the act of publishing
          it; a draft here would be an account that consented to a page nobody can read. The
          address comes back so the reply can name where she now lives. */
-      return { slug: await createStaffProfile(tx, userId, name, new Date().toISOString()) };
+      const slug = await createStaffProfile(tx, userId, name, new Date().toISOString());
+      /* The page the reservation was taken for now exists, so the refund below is off. Set
+         HERE, at the write, rather than off `created` after the reply: createAccount answers
+         with nothing whenever it took next(), and that includes a reply that failed on its way
+         out over a transaction that had already committed. Keyed on `created`, that case would
+         refund a charge for a page standing on the public internet. */
+      published = true;
+      return { slug };
     });
     /* createAccount hands back the account it created and nothing at all when it took the
        error path, so this is the transaction having committed and not an inference from
@@ -551,6 +648,18 @@ router.post('/staff/register', async (req, res, next) => {
     }
   } catch (error) {
     next(error);
+  } finally {
+    /* Nothing was published, so nothing was rationed, so the reservation goes back. This is the
+       half that keeps the allowance about pages: dang-nhap-nhan-vien.html checks no length, no
+       consent tick and no password of its own, so a technician correcting one refusal at a time
+       — a name too long, then a tick she forgot, then a typo in her address — would otherwise
+       arrive at her first correct attempt already locked out of a page she never opened.
+       In a `finally` rather than beside the 400s, because there is no one place those leave
+       from: every refusal in createAccount travels out through next() and comes back here as an
+       account that is simply not there. */
+    if (reserved && !published) {
+      refundAttempt(staffRegisterAttempts, req.ip);
+    }
   }
 });
 

@@ -5045,6 +5045,201 @@ async function groupStaffPersona() {
     'sign in as the account a dead token did not create',
   );
 
+  /* -- a name too long to be addressed, refused rather than crashed ----------- */
+
+  /* The address of a technician's page is built out of the name she registers under, and the
+     unique index behind it is a btree — which refuses an entry over roughly 2700 bytes outright.
+     So a long enough name got as far as minting the account and then died on the INSERT after
+     it, and what the caller saw was an internal error at the last statement with nothing in it
+     to act on. Two caps stand in front of that now, one at each end: 120 characters at this
+     door, and sixty of whatever gets through inside the slug. */
+  const longNameEmail = `tendai${stamp}@oak.invalid`;
+  const longName = await new Session().fetch('/api/auth/staff/register', {
+    method: 'POST',
+    json: {
+      name: 'A'.repeat(2700),
+      email: longNameEmail,
+      password: 'Oak@1234',
+      consent: true,
+    },
+  });
+  expectError(longName, 400, 'VALIDATION_ERROR', 'register with a 2700-character name');
+  assert(
+    longName.body?.error?.message === 'Họ tên không được dài quá 120 ký tự.',
+    'the refusal has to say what is wrong with the name, in the words the form will show',
+    longName,
+  );
+  // And nothing was minted on the way to it: the cap is ahead of the hash and ahead of the
+  // transaction, so the credentials it was handed sign in to nothing at all.
+  expectError(
+    await new Session().fetch('/api/auth/login', {
+      method: 'POST',
+      json: { email: longNameEmail, password: 'Oak@1234' },
+    }),
+    401,
+    'INVALID_CREDENTIALS',
+    'sign in as the account a 2700-character name did not create',
+  );
+
+  /* The same rule from the other end. ' ' is a string and is truthy, so a name of nothing but
+     spaces walked past the presence check above and registered an account that appeared under a
+     blank name everywhere its holder was named. */
+  const blankNameEmail = `tenrong${stamp}@oak.invalid`;
+  const blankName = await new Session().fetch('/api/auth/staff/register', {
+    method: 'POST',
+    json: { name: '   ', email: blankNameEmail, password: 'Oak@1234', consent: true },
+  });
+  expectError(blankName, 400, 'VALIDATION_ERROR', 'register with a name of nothing but spaces');
+  assert(
+    blankName.body?.error?.message === 'Vui lòng nhập họ tên.',
+    'a blank name is asked for again rather than stored',
+    blankName,
+  );
+
+  /* -- a refusal is not a page, and must not spend the allowance ------------- */
+
+  /* Four refusals in a row and then the correct fifth attempt, which is the shape of somebody
+     filling in a form rather than the shape of abuse. dang-nhap-nhan-vien.html checks no length,
+     no consent tick and no password of its own, so every one of these comes back from the
+     server; and none of the four published anything, which is the only thing the allowance
+     below rations. Charged per ATTEMPT rather than per page, this run met a 429 on the try that
+     was finally correct and locked a technician out for a quarter of an hour having created
+     nothing at all. */
+  const correcting = [
+    [{ name: 'B'.repeat(200), email: `sua${stamp}@oak.invalid`, password: 'Oak@1234', consent: true },
+      'a name over the cap'],
+    [{ name: 'KTV Sửa Dần', email: `sua${stamp}@oak.invalid`, password: 'Oak@1234' },
+      'the consent she forgot to tick'],
+    [{ name: 'KTV Sửa Dần', email: `sua${stamp}`, password: 'Oak@1234', consent: true },
+      'the address she mistyped'],
+    [{ name: 'KTV Sửa Dần', email: `sua${stamp}@oak.invalid`, password: 'Oak@1', consent: true },
+      'a password under eight characters'],
+  ];
+  for (const [json, label] of correcting) {
+    const refused = await new Session().fetch('/api/auth/staff/register', { method: 'POST', json });
+    assert(
+      refused.status === 400,
+      `a tokenless registration refused for ${label} answers 400 and never 429`,
+      refused,
+    );
+  }
+  const corrected = ok(
+    await new Session().fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        name: 'KTV Sửa Dần',
+        email: `sua${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/staff/register (the correct attempt, after four refusals from one address)',
+  );
+  assert(
+    corrected.user.role === 'staff',
+    'four refusals must leave the allowance exactly where they found it',
+    corrected,
+  );
+
+  /* -- the free-registration allowance, spent deliberately and last ----------- */
+
+  /* Five tokenless PAGES per address per fifteen minutes, and the calculus behind that number
+     is not /register's: a call there leaves a hash and a customer row nobody but its holder
+     ever sees, and a call here leaves a PUBLISHED page open to a search engine under whatever
+     name was typed. What abuse buys is public pages carrying OAK's name.
+     Two of the five stand already — the free registration far above and the corrected one just
+     now — and every other tokenless call in this run was refused before it published anything,
+     so exactly three are left. That arithmetic is asserted rather than skirted: it is the whole
+     difference between rationing pages and rationing attempts.
+
+     And fired ALL AT ONCE rather than one after another, which is the other half of the same
+     limit and the half a sequential loop cannot see. Everything between the ceiling and the
+     page being written is awaited, so a route that read the ceiling and charged it afterwards
+     let a burst through en masse — twelve requests each reading a tally none of them had
+     charged yet, twelve published, indexable pages from one address, while the same twelve sent
+     one at a time gave three. So the tally is charged at the door, before the first await, and
+     given back when no page came of it.
+
+     This is the last tokenless call in the file, deliberately: after this block the address is
+     over its limit for the rest of the run, so anything tokenless appended below would fail on
+     the allowance rather than on itself. */
+  const burst = await Promise.all(
+    Array.from({ length: 12 }, (unused, index) => new Session().fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        name: `KTV Dồn Dập ${index + 1}`,
+        email: `dondap${index + 1}${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    })),
+  );
+  const minted = burst.filter((response) => response.status === 200).length;
+  const flooded = burst.find((response) => response.status !== 200);
+  assert(flooded !== undefined, 'twelve tokenless registrations at once must not all go through');
+  assert(
+    minted === 3,
+    `only what was left of the allowance may be minted, however the calls arrive (${minted} went through)`,
+    flooded,
+  );
+  // Which is the sequential contract too, read off the same numbers: two pages stood before
+  // this, three more were allowed, and every attempt after the fifth was refused.
+  assert(
+    burst.filter((response) => response.status === 429).length === 9,
+    'the sixth PAGE from one address is refused, and so is everything after it',
+    flooded,
+  );
+  expectError(flooded, 429, 'TOO_MANY_ATTEMPTS', 'the tokenless registration that went over');
+  assert(
+    flooded.body?.error?.message ===
+      'Bạn đã tạo tài khoản quá nhiều lần. Vui lòng đợi 15 phút rồi thử lại.',
+    'the refusal says how long to wait, in the words the page will show',
+    flooded,
+  );
+
+  /* And an invited technician walks straight past it, from the same address, while it is still
+     over the limit. That is the whole shape of this throttle: a body carrying a live link is
+     somebody a salon asked for by name, and a salon whose team redeems its links from the shop's
+     one wifi must never be locked out by whatever else came from that address. */
+  const invitedRow = ok(
+    await partner.fetch('/api/partner/staff', { method: 'POST', json: { name: 'KTV Có Lời Mời' } }),
+    'POST /api/partner/staff (a row invited while the address is over its limit)',
+  );
+  const invitedLink = ok(
+    await partner.fetch(`/api/partner/staff/${invitedRow.id}/invite`, { method: 'POST' }),
+    'POST invite while the address is over its limit',
+  );
+  const invited = ok(
+    await new Session().fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        token: tokenOf(invitedLink.url),
+        name: 'KTV Có Lời Mời',
+        email: `coloimoi${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/staff/register with a live token while the address is over its limit',
+  );
+  assert(invited.user.role === 'staff', 'a link redeemed is never a registration rationed', invited);
+  // And the token path spent nothing of the tally on its way through: the next tokenless
+  // attempt is refused exactly as the one before it was.
+  expectError(
+    await new Session().fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        name: 'KTV Dồn Dập Nữa',
+        email: `dondapnua${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    429,
+    'TOO_MANY_ATTEMPTS',
+    'a tokenless attempt after the token path is refused all the same',
+  );
+
   /* A free account joining a salon later, which is the ordinary way round now: she opens a page
      first and a salon invites her afterwards. The stint is added and her PAGE IS UNTOUCHED —
      same address, same publication date, still standing. Joining a salon is not a
@@ -5724,8 +5919,10 @@ async function groupStaffPersona() {
      nobody has withdrawn anything from it. What comes back is the CHAIR, not the person: the
      name the owner typed into the roster is still on it, and so are the reviews its customers
      wrote, because none of that was hers to take away. What she wrote about herself is what
-     goes with her — and her PAGE is destroyed rather than released, so the chair comes back
-     naming nobody's career at all. */
+     goes with her, and all of it was on her own PAGE — which is destroyed rather than released,
+     so the chair comes back carrying nothing of hers and naming nobody's career at all. The
+     row's own bio, face and gallery are not touched by the erasure and were never filled here:
+     the salon opened this chair with a name and nothing else. */
   const handedBackChair = ok(
     await session('guest').fetch(`/api/staff/${partingRow.id}`),
     'GET /api/staff/:id after its holder erased their account',
@@ -5805,6 +6002,97 @@ async function groupStaffPersona() {
     'and with nobody else’s words or face already on it',
     nextProfileResponse,
   );
+
+  /* -- and what the SALON wrote about the chair stays on the chair ------------ */
+
+  /* The other half of an erasure, and the half it used to get backwards. bio, portfolio and
+     image on a ROSTER row have no technician write path at all any more — her words are on her
+     own page, and only a seed or an import fills those three — so on any real deploy they are
+     the salon's description of a chair and nobody else's. The erasure blanked all three, which
+     ran bao-mat.html §8's own boundary in reverse: a salon that had written a bio for a chair
+     lost it permanently, with no way to get it back, because somebody who once sat in that
+     chair closed an account. Staged with SQL because there is no route that writes those
+     columns, which is the very fact the finding turns on. */
+  if (!EXTERNAL_URL) {
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      const describedRow = ok(
+        await partner.fetch('/api/partner/staff', {
+          method: 'POST',
+          json: { name: 'KTV Ghế Có Mô Tả' },
+        }),
+        'POST /api/partner/staff (a chair the salon has written about)',
+      );
+      const SALON_BIO = 'Ghế này chuyên làm móng bột, do salon tự mô tả.';
+      const SALON_IMAGE = 'assets/img/ghe-salon-mo-ta.webp';
+      const SALON_PORTFOLIO = '["assets/img/ghe-mo-ta-1.webp"]';
+      await directClient.query(
+        'UPDATE staff SET bio = $1, image = $2, portfolio = $3 WHERE id = $4',
+        [SALON_BIO, SALON_IMAGE, SALON_PORTFOLIO, describedRow.id],
+      );
+      const describedInvite = ok(
+        await partner.fetch(`/api/partner/staff/${describedRow.id}/invite`, { method: 'POST' }),
+        'POST invite for the chair the salon has written about',
+      );
+      const sitter = new Session();
+      const seated = ok(
+        await sitter.fetch('/api/auth/staff/register', {
+          method: 'POST',
+          json: {
+            token: tokenOf(describedInvite.url),
+            name: 'KTV Ngồi Ghế Mô Tả',
+            email: `ghemota${stamp}@oak.invalid`,
+            password: 'Oak@1234',
+            consent: true,
+          },
+        }),
+        'POST /api/auth/staff/register (the technician who takes the described chair)',
+      );
+      ok(
+        await sitter.fetch('/api/users/me', { method: 'DELETE', json: { password: 'Oak@1234' } }),
+        'DELETE /api/users/me (a technician whose chair the salon had written about)',
+      );
+
+      const released = await directClient.query(
+        `SELECT bio, image, portfolio, user_id, claimed_at, profile_hidden
+         FROM staff WHERE id = $1`,
+        [describedRow.id],
+      );
+      assert(
+        released.rows[0].bio === SALON_BIO && released.rows[0].image === SALON_IMAGE,
+        'the salon’s own description of its chair outlives whoever sat in it',
+        released.rows,
+      );
+      assert(
+        released.rows[0].portfolio === SALON_PORTFOLIO,
+        'and so does the gallery the salon put on that chair',
+        released.rows,
+      );
+      /* While everything that really was hers is cleared from the row all the same. The switch
+         especially: only a claim can reach profile_hidden, so left thrown it would be a
+         withdrawal she can no longer undo, waiting to darken the next claimant's page. */
+      assert(
+        released.rows[0].user_id === null
+          && released.rows[0].claimed_at === null
+          && Number(released.rows[0].profile_hidden) === 0,
+        'the chair is handed back unclaimed, with no withdrawal of hers left standing on it',
+        released.rows,
+      );
+      /* And her own page went the other way entirely: DELETED, in the same transaction, where
+         the chair beside it was merely handed back. That is what makes the row's three columns
+         safe to leave alone — nothing of hers is on the chair, because all of it was there. */
+      const page = await directClient.query(
+        'SELECT 1 FROM staff_profiles WHERE user_id = $1',
+        [seated.user.id],
+      );
+      assert(page.rowCount === 0, 'the personal page leaves with the person, whole', page.rows);
+    } finally {
+      await directClient.end();
+    }
+  } else {
+    skip('a salon-entered bio on a roster row can only be staged with SQL');
+  }
 
   /* -- taking somebody off the roster ends their read of the calendar --------- */
 
@@ -7050,12 +7338,10 @@ async function groupStaffPersona() {
      every one of those is something the groups around it would read differently. The row gets
      a full week and the service attached so the operational surfaces further down have
      something to answer with. */
-  /* The salon's own headshot on the chair, supplied BEFORE anybody claims the row — which is
-     now the only way a claimed row's image column is ever written. What a technician says about
-     herself, her face included, lives on her own page (PATCH /api/staff-me/portfolio), and
-     routes/partner.js goes on refusing an owner the photo on a row somebody stands behind. So
-     this one is the salon's, frozen at the claim, and the owner-side block below is about
-     exactly that. */
+  /* The salon's own headshot on the chair. What a technician says about herself, her face
+     included, lives on her own page (PATCH /api/staff-me/portfolio); this column is the salon's
+     record of who sits in that chair, and it stays the salon's after the row is claimed — the
+     owner-side block below is about exactly that. */
   const AVATAR = 'assets/img/ktv-tu-quan.webp';
   const personaRow = ok(
     await partner.fetch('/api/partner/staff', {
@@ -7519,51 +7805,70 @@ async function groupStaffPersona() {
 
   /* -- and the owner's side of the same row ----------------------------------- */
 
-  const refusedPhoto = await partner.fetch(`/api/partner/staff/${personaRow.id}`, {
-    method: 'PATCH',
-    json: { name: 'Tên Chủ Salon Đặt Lại', image: 'assets/img/chu-salon-doi.webp' },
-  });
-  expectError(refusedPhoto, 409, 'CONFLICT', 'PATCH image on a claimed roster row');
-  // Pinned: the console shows the server's own sentence, so this string is the whole of what
-  // an owner is told about why the save did not go through.
-  assert(
-    refusedPhoto.body?.error?.message === 'Ảnh đại diện do kỹ thuật viên tự quản lý.',
-    'the refusal must name whose the avatar is, in the words the console will show',
-    refusedPhoto,
-  );
-  // Refused before the patch is built, so a body carrying the photo AND the name writes
-  // neither half rather than half of it.
-  const untouched = ok(
-    await partner.fetch(`/api/partner/staff/${personaRow.id}`),
-    'GET /api/partner/staff/:id after the refused photo',
+  /* The photo on a roster row is the salon's, on a claimed row exactly as on an empty chair.
+     This used to answer 409 — the avatar read as the half of the row the technician owned —
+     and that reading died the day her face moved onto her own page. Nothing on her side writes
+     this column any more, so the refusal held no line: it froze the picture for the life of
+     the stint, with the owner refused a 409, the technician a 400, and the team strip and the
+     booking picker serving a face that neither of them could correct. */
+  const OWNER_PHOTO = 'assets/img/chu-salon-doi.webp';
+  const ownerPhoto = ok(
+    await partner.fetch(`/api/partner/staff/${personaRow.id}`, {
+      method: 'PATCH',
+      json: { name: 'KTV Tự Quản Hồ Sơ', title: 'Chuyên viên nail', image: OWNER_PHOTO },
+    }),
+    'PATCH image on a claimed roster row',
   );
   assert(
-    untouched.name === 'KTV Tự Quản Hồ Sơ' && untouched.image === AVATAR,
-    'a refused save must leave the whole row exactly as it was',
-    untouched,
+    ownerPhoto.image === OWNER_PHOTO && ownerPhoto.title === 'Chuyên viên nail',
+    'the owner writes the photo on their own roster row, beside the name and the title',
+    ownerPhoto,
+  );
+  /* And it reaches the surface the freeze was visible on. The team strip reads the roster row
+     and nothing else, so a photo the console could not change was a face a customer went on
+     being shown with nobody left able to fix it. */
+  const stripAfterPhoto = await session('guest').fetch(`/api/salons/${state.lalaId}/staff`);
+  const stripEntry = ok(
+    stripAfterPhoto,
+    'GET /api/salons/:id/staff after the owner corrected the photo',
+  ).find((member) => member.id === personaRow.id);
+  assert(
+    stripEntry?.image === OWNER_PHOTO,
+    'the team strip serves the photo the salon just corrected',
+    stripAfterPhoto,
   );
 
-  /* The rest of the row is still the salon's, and the save that carries it looks exactly like
-     the one above bar one field: quan-ly-nhan-vien.html posts name, title, specialty AND image
-     on every save, and awaits this PATCH before the schedule and service PUTs. So the ordinary
-     console save echoes the photo it was shown, unchanged, and must go through — refusing it
-     would leave a claimed technician's title, hours and service list unsaveable. */
-  const renamed = ok(
+  /* What the same save cannot reach is her own page, which is the whole point of the split
+     being clean rather than negotiated. Her face is on the profile, that PATCH went nowhere
+     near it, and the stint page goes on speaking in her voice over the row underneath. */
+  const herPageAfterPhoto = ok(
+    await persona.fetch('/api/staff-me/portfolio'),
+    'GET /api/staff-me/portfolio after the owner changed the roster photo',
+  );
+  assert(
+    herPageAfterPhoto.image === AVATAR,
+    'the owner correcting the roster changes the chair and never the person',
+    herPageAfterPhoto,
+  );
+
+  /* Put back before anything follows, the way every staged flag in this suite is: the rows
+     below read this photo off the picker and off the stint page, and a value left standing
+     would point at the wrong code when one of them failed. */
+  const restoredPhoto = ok(
     await partner.fetch(`/api/partner/staff/${personaRow.id}`, {
       method: 'PATCH',
       json: { name: 'KTV Tự Quản Hồ Sơ', title: 'Chuyên viên nail', image: AVATAR },
     }),
-    'PATCH name and title on a claimed roster row, echoing the photo unchanged',
+    'PATCH the roster photo back to the one the salon supplied',
   );
-  assert(renamed.title === 'Chuyên viên nail', 'the owner still writes the operational half');
-  assert(renamed.image === AVATAR, 'and the photo it echoed is still the technician’s own');
+  assert(restoredPhoto.image === AVATAR, 'and back again, because it is theirs to set');
 
   /* The same save on a claimed row that has no photo at all: the column holds NULL and the form
      sends null — or '', which is the same absence spelled the way a text input spells it. Both
-     have to read as unchanged, or an empty photo field would freeze the row just as surely as a
-     filled one. Staged on the chair further up, which was handed on to a second technician with
-     its image cleared by the erasure, because on a CLAIMED row nothing can write that column
-     any more: the owner is refused it and the technician's own face is on her page instead. */
+     have to come back as an unset photo rather than as an error or a string. Staged on the chair
+     further up, which was handed on to a second technician and has never carried a photo: the
+     salon opened it with a name and nothing else, and the face its first holder published was
+     on her own page, which her erasure destroyed. */
   for (const [spelling, value] of [
     ['null', null],
     ['an empty string', ''],

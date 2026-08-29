@@ -775,7 +775,8 @@ test('the throttle refuses the work but never changes the answer', () => {
 test('the window is a fixed 15 minutes at three attempts, swept without a timer', () => {
   assert.match(authSource, /const RATE_WINDOW_MS = 15 \* 60 \* 1000;/);
   assert.match(authSource, /const FORGOT_MAX_ATTEMPTS = 3;/);
-  assert.match(authSource, /entry\.count > max/);
+  // Spent, not exceeded: the attempt is recorded and the ceiling read off what it now holds.
+  assert.match(authSource, /return countAttempt\(attempts, key\) > max;/);
   // Pruned inside the call, so an idle process keeps nothing alive.
   assert.match(authSource, /attempts\.delete\(seen\)/);
   assert.doesNotMatch(authSource, /setInterval|setTimeout/);

@@ -184,7 +184,9 @@ test('the claim runs inside the transaction that creates the account', () => {
   const minted = calls(hook, 'createStaffProfile');
   assert.equal(minted.length, 1, 'only the free registration mints a page inside the tx');
   assert.match(minted[0], /^createStaffProfile\(tx, userId, name, new Date\(\)\.toISOString\(\)\)$/);
-  assert.match(hook, /return \{ slug: await createStaffProfile\(/);
+  // The address goes back in the reply, and the write is what marks the free-registration
+  // allowance as having been spent on something real (the refund in this route's `finally`).
+  assert.match(hook, /const slug = await createStaffProfile\([\s\S]*published = true;\s*\n\s*return \{ slug \};/);
   // …and the claim branch is where it must not be, said plainly rather than left to the count.
   assert.doesNotMatch(claiming, /StaffProfile/);
 
@@ -375,12 +377,20 @@ test('only a dead token spends the preview allowance', () => {
 });
 
 test('erasing an account gives its roster rows back to the salon', () => {
-  /* The chair goes back to the salon and the personal half goes with the person. Clearing
-     user_id alone would not merely leave a bio and a face behind — it would PUT THEM BACK UP:
-     the public gates pass any row with user_id IS NULL, so a profile its holder had withdrawn
-     returns to the public side the moment they erase the account, with nobody left who can
-     sign in and take it down. And profile_hidden is reset so the next person to claim the
-     chair does not inherit somebody else's withdrawal.
+  /* The chair goes back to the salon whole. It used to go back stripped — bio, portfolio and
+     image blanked on the way out, on the reading that those were the personal half of the row
+     — and that reading outlived the thing it described. Her words are on staff_profiles now,
+     and the DELETE below takes that table's row away entirely, so the personal page leaves
+     with the person and there is nothing of hers on the chair to clear. What those three
+     columns hold on a roster row is whatever a seed or an import put there; no technician
+     endpoint writes them any more. Clearing them ran bao-mat.html §8's own boundary backwards
+     — you withdraw what you wrote about yourself, not what the salon wrote about the job —
+     and a salon that had entered a bio for a chair lost it permanently, with no restore path,
+     because somebody who once sat in that chair closed an account.
+
+     profile_hidden IS still reset, and it is the one switch that has to be: only a claim can
+     reach it, so left thrown it would be a withdrawal she can no longer undo, waiting on the
+     salon's row to darken the page of whoever claims the chair next.
 
      The attestations go with her too, and for the sharpest version of the same reason: a ✓ is
      one person's answer about one date, so leaving started_confirmed_at, left_confirmed_at or
@@ -396,7 +406,7 @@ test('erasing an account gives its roster rows back to the salon', () => {
   assert.equal(
     release,
     'const RELEASE_STAFF_ROWS = ` UPDATE staff SET user_id = NULL, claimed_at = NULL, ' +
-      'bio = NULL, portfolio = NULL, image = NULL, profile_hidden = 0, ' +
+      'profile_hidden = 0, ' +
       'started_confirmed_at = NULL, left_confirmed_at = NULL, tenure_disputed = 0 ' +
       'WHERE user_id = ?',
   );
@@ -404,6 +414,10 @@ test('erasing an account gives its roster rows back to the salon', () => {
   // out of the expectation together still fails something.
   for (const column of ['started_confirmed_at', 'left_confirmed_at', 'tenure_disputed']) {
     assert.match(release, new RegExp(`${column} = (?:NULL|0)`), column);
+  }
+  // And the salon's own three are named as absent for the same reason, from the other side.
+  for (const column of ['bio', 'portfolio', 'image']) {
+    assert.doesNotMatch(release, new RegExp(`\\b${column} = NULL`), column);
   }
   // And the dates themselves are not in it: they are the salon's statement, not hers.
   assert.doesNotMatch(release, /started_at = NULL|left_at = NULL|left_by = NULL/);
@@ -1149,10 +1163,18 @@ test('the panel says what registering freely gets you, and what it does not', ()
     loginHtml,
     /x-show="token">Hồ sơ công khai gồm tên, ảnh, chuyên môn, đánh giá của khách và số liệu làm việc tổng hợp của tôi\.<\/span>/,
   );
+  /* The enumeration is checked against the route rather than against taste: GET /api/technicians
+     serves title, specialty, bio, image, portfolio, years_experience and the name, and a consent
+     that named four of those was asking her to agree to a page smaller than the one this
+     registration publishes. Her job title and her gallery of work are exactly the two a reader
+     would notice on the page and not find in the sentence. */
   assert.match(
     loginHtml,
-    /x-show="!token">Trang hồ sơ nghề nghiệp công khai gồm tên và nội dung bạn tự viết — giới thiệu, ảnh, chuyên môn, số năm kinh nghiệm — được ghi rõ là tự khai\. Lịch sử làm việc đã xác thực chỉ hiển thị khi bạn nhận hồ sơ tại salon\.<\/span>/,
+    /x-show="!token">Trang hồ sơ nghề nghiệp công khai gồm tên và nội dung bạn tự viết — giới thiệu, chức danh, chuyên môn, ảnh, ảnh tác phẩm, số năm kinh nghiệm — được ghi rõ là tự khai\. Lịch sử làm việc đã xác thực chỉ hiển thị khi bạn nhận hồ sơ tại salon\.<\/span>/,
   );
+  for (const field of ['chức danh', 'ảnh tác phẩm']) {
+    assert.match(loginHtml, new RegExp(`x-show="!token">[^<]*${field}`), field);
+  }
   /* The withdrawal line, on BOTH paths and pointing at the editor. It used to send a technician
      to Cài đặt, which was true until slice 1 moved both switches to ho-so-nhan-vien.html — and
      bao-mat.html §8 has named the editor all along, so the page was contradicting the privacy
@@ -1211,6 +1233,116 @@ test('the terms and the privacy policy describe the account this page can now cr
   assert.match(privacyHtml, /sự đồng ý bạn đưa ra khi tạo tài khoản và khi tự điền phần hồ sơ cá nhân/);
   assert.match(privacyHtml, /sự đồng ý đó là cơ sở duy nhất/);
   assert.doesNotMatch(privacyHtml, /sự đồng ý bạn đưa ra khi nhận lời mời/);
+});
+
+test('§8 describes both hide switches, because they reach different pages', () => {
+  /* There are two of them and there always were two of them since her page moved onto the
+     person: staff_profiles.hidden takes the career page down, staff.profile_hidden takes one
+     stint down. §8 described one switch in words that were half one and half the other, so a
+     technician reading it to decide which one to throw was told what neither of them does.
+
+     The career page: its own address answers 404 (routes/technicians.js gates on hidden = 0),
+     and on every stint page the cross-link to it disappears along with her own words —
+     personalHalf in routes/staff.js asks the same hidden = 0 question, and a page that fails
+     it leaves the salon's record of the chair standing on its own. Nothing else moves: the
+     team strip in routes/salons.js and the booking picker in routes/services.js read the
+     roster row and have never read this table. */
+  assert.match(privacyHtml, /<strong class="text-primary">Ẩn trang hồ sơ nghề nghiệp:<\/strong>/);
+  assert.match(privacyHtml, /Khi trang đang ẩn, đường dẫn công khai của trang trả về không tìm thấy; trên hồ sơ của bạn tại từng salon, liên kết dẫn sang trang nghề nghiệp biến mất/);
+  assert.match(privacyHtml, /Hồ sơ của bạn tại từng salon vẫn mở, thẻ trên trang salon và thẻ trong luồng đặt lịch không đổi\./);
+
+  /* And the stint: VISIBLE_PROFILE takes the page at that salon to 404 and the row off the
+     team strip, and pickerCard reduces the wizard's card to the id, the name and the ✓ — the
+     photo, title, speciality, years and rating all withheld. The years were missing from the
+     old sentence, which listed four of the five things that stop being sent. */
+  assert.match(privacyHtml, /<strong class="text-primary">Ẩn hồ sơ tại từng salon:<\/strong>/);
+  assert.match(privacyHtml, /trang hồ sơ của bạn tại salon đó trả về không tìm thấy, thẻ của bạn không còn trên trang salon, và thẻ chuyên viên trong luồng đặt lịch chỉ còn lại cái tên để khách chọn — ảnh, chức danh, chuyên môn, số năm kinh nghiệm và điểm đánh giá đều không được gửi đi\./);
+  // The reassurance survives the split, on the half that is about a salon: operations are
+  // what a reader is frightened of losing, and neither switch touches them.
+  assert.match(privacyHtml, /nó gỡ một trang xuống, không phải báo nghỉ\./);
+  // Three tools under the list now, not two, or the sentence over it counts the bullets wrong.
+  assert.match(privacyHtml, /thêm ba công cụ riêng cho hồ sơ chuyên viên:/);
+
+  // Both new sentences are in the dictionary, and the one they replaced is out of the part —
+  // a key nothing can resolve is a translation nobody notices has gone stale. "Ẩn hồ sơ:" is
+  // not asserted gone: dieu-khoan.json defines it too, for its own §9 bullet.
+  const dictionary = JSON.parse(
+    fs.readFileSync(path.join(root, '..', 'tools', 'i18n', 'parts', 'bao-mat.json'), 'utf8'),
+  );
+  for (const key of ['Ẩn trang hồ sơ nghề nghiệp:', 'Ẩn hồ sơ tại từng salon:']) {
+    assert.ok(dictionary[key], key);
+  }
+  assert.equal(
+    dictionary['Bạn có đầy đủ các quyền nêu ở mục 5, và thêm hai công cụ riêng cho hồ sơ chuyên viên:'],
+    undefined,
+  );
+});
+
+test('§9 draws the boundary the code keeps, field for field', () => {
+  /* A terms document is binding, so every line of it has to be a promise the server actually
+     keeps. Three of them were not.
+
+     The portrait. §9 called the roster row's photo part of "phần cá nhân" and promised the
+     salon could not edit it — and PATCH /api/partner/staff/:id edits it, like the name beside
+     it, because her own face lives on staff_profiles and routes/partner.js guards that column
+     no longer. So the two photos are named apart: the one on the roster row is the salon's
+     record of a chair and is what routes/salons.js and routes/services.js serve, and hers is on
+     her own page, written through routes/staff-me.js alone, and takes the place of the salon's
+     on her stint page (personalHalf in routes/staff.js). */
+  assert.match(termsHtml, /nằm trên trang hồ sơ nghề nghiệp của riêng bạn, không nằm trên dòng nhân sự của salon/);
+  assert.match(termsHtml, /lời giới thiệu, ảnh chân dung, bộ ảnh tác phẩm và số năm kinh nghiệm bạn đã đăng hiển thị thay cho nội dung salon nhập cho vị trí ấy\./);
+  assert.match(termsHtml, /ảnh trên bảng nhân sự, chức danh, chuyên môn, lịch làm việc, danh sách dịch vụ bạn đảm nhận và điểm đánh giá khách của salon để lại đều do salon nhập và sửa/);
+  assert.match(termsHtml, /salon không sửa được trang hồ sơ nghề nghiệp của bạn\./);
+  // And the sentence that said the opposite is gone rather than merely outnumbered.
+  assert.doesNotMatch(termsHtml, /salon không sửa được phần cá nhân của bạn/);
+
+  /* The hide switch. §9 described one, in words half of one and half of the other, one
+     cross-reference away from the §8 that describes both — and §8 says the career-page switch
+     leaves the booking picker untouched where §9 said hiding reduces the picker to a name. A
+     terms document points at the policy rather than restating a mechanism it cannot keep up
+     with, so §9 names the two switches, sends the reader to §8 for what each reaches, and
+     keeps only the reassurance that is its own to give. */
+  assert.match(termsHtml, /bạn có hai công tắc ẩn riêng biệt và tự bật tắt bất cứ lúc nào: một cho trang hồ sơ nghề nghiệp, một cho hồ sơ của bạn tại từng salon\./);
+  assert.match(termsHtml, /phạm vi của từng cái được nêu ở mục 8 Chính sách bảo mật\./);
+  assert.doesNotMatch(termsHtml, /thẻ chuyên viên trong luồng đặt lịch rút lại chỉ còn cái tên/);
+
+  /* And the deletion, on both pages, where the outcome was right and the mechanism was not.
+     RELEASE_STAFF_ROWS stopped blanking bio, portfolio and image: what she wrote is on
+     staff_profiles and the DELETE beside it takes that row away whole, so the space on every
+     stint page reverts to what the salon entered — the same model §8's career-page bullet
+     already teaches in the same words, one bullet up. */
+  for (const html of [termsHtml, privacyHtml]) {
+    assert.match(html, /chỗ những nội dung ấy quay về đúng nội dung salon đã nhập cho vị trí ấy\./);
+    assert.doesNotMatch(html, /gỡ khỏi mọi dòng nhân sự|khỏi mọi dòng nhân sự bạn từng liên kết/);
+  }
+
+  // Every sentence just written resolves in the dictionary, and the ones they replaced are out
+  // of the parts: a key nothing can reach is a translation nobody notices has gone stale.
+  const partsDir = path.join(root, '..', 'tools', 'i18n', 'parts');
+  const part = (name) => JSON.parse(fs.readFileSync(path.join(partsDir, name), 'utf8'));
+  const terms = part('dieu-khoan.json');
+  const privacy = part('bao-mat.json');
+  // Merged the way build.js merges them, because a shared word like "không" is defined once in
+  // whichever part first needed it and read by every page.
+  const merged = Object.assign({}, ...fs.readdirSync(partsDir).sort().map(part));
+  /* Read as the browser reads them — every text node of the bullet, whitespace collapsed, which
+     is exactly the key oak-i18n.js builds — rather than as a list of strings restated here that
+     an edit to the markup would leave behind. Anchored on wording unique to the bullet, because
+     "Xóa tài khoản:" labels a bullet in §5 of the privacy policy as well. */
+  const collapse = (value) => value.replace(/\s+/g, ' ').trim();
+  const nodes = (html, open) => [...`${handler(html, open, '</li>')}</li>`
+    .matchAll(/>([^<>]+)</g)].map((hit) => collapse(hit[1])).filter(Boolean);
+  for (const key of [
+    ...nodes(termsHtml, '<li><strong class="text-primary">Phần bạn giữ:</strong>'),
+    ...nodes(termsHtml, '<li><strong class="text-primary">Phần salon giữ:</strong>'),
+    ...nodes(termsHtml, '<li><strong class="text-primary">Ẩn hồ sơ:</strong>'),
+    ...nodes(termsHtml, '<li><strong class="text-primary">Xóa tài khoản:</strong> khi bạn xóa'),
+    ...nodes(privacyHtml, '<li><strong class="text-primary">Xóa tài khoản:</strong> thực hiện như mục 5. Với chuyên viên'),
+  ]) {
+    assert.ok(merged[key], key);
+  }
+  assert.equal(terms['sau khi liên kết, bạn tự viết và tự sửa phần cá nhân của dòng nhân sự — lời giới thiệu, ảnh chân dung và bộ ảnh tác phẩm — tại trang'], undefined);
+  assert.equal(privacy['thực hiện như mục 5. Với chuyên viên, việc xóa gỡ phần cá nhân — lời giới thiệu, bộ ảnh tác phẩm và ảnh chân dung — khỏi mọi dòng nhân sự bạn từng liên kết, và bỏ liên kết giữa tài khoản với những dòng đó.'], undefined);
 });
 
 test('an empty diary does not tell a technician with no salon about her next 14 days', async () => {
@@ -1760,6 +1892,114 @@ test('a page is one per person, at an address under a constraint that has a name
   assert.doesNotMatch(dbSource, /ALTER TABLE staff_profiles|UPDATE staff_profiles|INSERT INTO staff_profiles/);
 });
 
+test('a name too long to be addressed is refused at the door, and trimmed before it is measured', () => {
+  /* Two halves of one failure, fixed on both sides. staff_profiles_slug_key is a btree, a btree
+     entry over roughly 2700 bytes is refused outright, and the slug is built out of the name the
+     account registered under — so a registration carrying a name that long minted the account
+     and then died on the INSERT after it with an internal error the caller could do nothing
+     with. The name is capped where it arrives and the slug takes only the head of whatever gets
+     through, so neither half is relying on the other to have held. */
+  assert.match(authSource, /const NAME_MAX_LENGTH = 120;/);
+  const create = declaration(authSource, 'async function createAccount(');
+  assert.match(create, /const trimmedName = name\.trim\(\);/);
+  assert.match(
+    create,
+    /if \(!trimmedName\) \{\s*throw httpError\(400, 'VALIDATION_ERROR', 'Vui lòng nhập họ tên\.'\);/,
+  );
+  assert.match(create, /if \(trimmedName\.length > NAME_MAX_LENGTH\) \{/);
+  assert.match(create, /'VALIDATION_ERROR', 'Họ tên không được dài quá 120 ký tự\.'/);
+  /* Measured after the spaces come off, because ' ' is truthy and walked straight past the
+     presence check above it — a name of nothing but whitespace registered an account that
+     appeared under a blank name everywhere its holder was named. */
+  assert.ok(create.indexOf('const trimmedName') < create.indexOf('EMAIL_PATTERN'));
+  // Ahead of the hash and the transaction both: a name that cannot be stored must not cost
+  // ~90ms of bcrypt, and must certainly not leave half an account standing.
+  assert.ok(create.indexOf('const trimmedName') < create.indexOf('bcrypt.hash'));
+  /* And the trimmed STRING is what is stored, not merely what is measured. A cap read against
+     one value over a column filled with another is not a cap: 'Mai' followed by a hundred
+     thousand spaces passes the presence check and the length check and would still land a
+     hundred thousand characters in the row. Everything downstream reads the same value —
+     including the salon a partner registration names after its owner, which would otherwise
+     carry the untrimmed name into salons.name by the back door. */
+  assert.match(create, /INSERT_USER,\s*trimmedName,/);
+  assert.doesNotMatch(create, /\$\{name\}/);
+
+  assert.match(staffProfileSource, /const SLUG_BASE_MAX = 60;/);
+  assert.match(staffProfileSource, /slugify\(name\)\.slice\(0, SLUG_BASE_MAX\) \|\| FALLBACK_BASE/);
+  /* Off the BASE and never off the finished slug. The four random characters are the whole
+     reason two people with one name get two addresses, so a trim applied after they were
+     appended would cut them off and hand the longest names all the same string. */
+  const slug = declaration(staffProfileSource, 'export function makeSlug(');
+  assert.ok(slug.indexOf('SLUG_BASE_MAX') < slug.indexOf('${suffix}'));
+});
+
+test('opening a page with no invitation behind it is rationed; redeeming a link is not', () => {
+  /* Its own tally and its own ceiling, beside the others in this file, because the calculus is
+     not theirs. /register is throttled nowhere at all and can afford to be — a run of it leaves
+     hashes and customer rows nobody but their holder ever sees. A successful call on the free
+     staff path leaves a PUBLISHED page, open to a search engine, under whatever name was typed.
+     So what abuse buys here is public pages carrying OAK's name rather than guesses at a
+     password, and five in the quarter of an hour is far more than one person opening one
+     career. */
+  assert.match(authSource, /const STAFF_REGISTER_MAX_ATTEMPTS = 5;/);
+  assert.match(authSource, /const staffRegisterAttempts = new Map\(\);/);
+  // The same fixed window as the rest, so there is one number to reason about.
+  assert.match(authSource, /const RATE_WINDOW_MS = 15 \* 60 \* 1000;/);
+
+  /* The counting half lifted out and a refund beside it, with the three callers that came
+     before untouched: rateLimited still counts and tests in one call, because a bad login and a
+     reset request are worth exactly what they cost whether or not they succeed. */
+  assert.match(authSource, /function rateLimited\(attempts, key, max\) \{\s*\n\s*return countAttempt\(attempts, key\) > max;\s*\n\}/);
+  const refund = declaration(authSource, 'function refundAttempt(');
+  assert.match(refund, /entry\.count -= 1;/);
+  // A window that closed under a slow request leaves nothing to give back, and the entry is
+  // removed at zero rather than left sitting at it.
+  assert.match(refund, /if \(!entry\) \{\s*\n\s*return;/);
+  assert.match(refund, /if \(entry\.count <= 0\) \{\s*\n\s*attempts\.delete\(key\);/);
+
+  const register = handler(authSource, "router.post('/staff/register'", "router.post('/login'");
+  /* Charged in the ELSE, which is the part that matters. A body carrying a live token never
+     reaches the tally at all, so an invited technician can neither be refused by this nor spend
+     an allowance on somebody else's behalf — a salon whose whole team redeems its links from
+     the shop's one address is the ordinary morning this route was built for. */
+  assert.match(
+    register,
+    /\} else if \(rateLimited\(staffRegisterAttempts, req\.ip, STAFF_REGISTER_MAX_ATTEMPTS\)\) \{/,
+  );
+  assert.match(
+    register,
+    /429,\s*'TOO_MANY_ATTEMPTS',\s*'Bạn đã tạo tài khoản quá nhiều lần\. Vui lòng đợi 15 phút rồi thử lại\.',/,
+  );
+
+  /* AT THE DOOR, and this is the whole of why. Everything between the ceiling and the page
+     being written is awaited, so a route that read the ceiling here and charged it after
+     createAccount would let a burst through en masse: each of fifty concurrent requests reads a
+     tally none of them has charged yet, and fifty published pages come out. The increment is
+     the last thing on this path that happens with no await in front of it, which on one event
+     loop is the only thing that can hold a limit at all. */
+  assert.ok(register.indexOf('rateLimited(staffRegisterAttempts') < register.indexOf('await createAccount('));
+  assert.match(register, /\} else \{\s*\n\s*reserved = true;\s*\n\s*\}/);
+
+  /* And the page is what it was charged FOR, so a call that published none gives it back. The
+     flag is set at the write inside the transaction rather than off `created` afterwards:
+     createAccount answers with nothing whenever it took next(), a reply that failed over a
+     committed transaction included, and that case must not refund a charge for a live page. */
+  assert.match(register, /const slug = await createStaffProfile\(tx, userId, name, new Date\(\)\.toISOString\(\)\);[\s\S]*?published = true;\s*\n\s*return \{ slug \};/);
+  assert.match(register, /\} finally \{[\s\S]*if \(reserved && !published\) \{\s*\n\s*refundAttempt\(staffRegisterAttempts, req\.ip\);/);
+
+  // One charge and one refund in the whole route, and nothing else: a second of either anywhere
+  // in here is one the token path could reach, which is the single thing this must never do.
+  assert.equal((register.match(/rateLimited\(/g) || []).length, 1);
+  assert.equal((register.match(/refundAttempt\(/g) || []).length, 1);
+  assert.doesNotMatch(register, /countAttempt\(/);
+  // Keyed on the caller and nothing else — there is no address to key on until createAccount
+  // below has read the body, and what is being rationed is not a guess at any one account.
+  assert.match(register, /rateLimited\(staffRegisterAttempts, req\.ip,/);
+  // The peek this replaced is gone from the file, not merely from the route: a helper that
+  // reads a ceiling without charging it is the exact shape the burst walked through.
+  assert.doesNotMatch(authSource, /overRateLimit/);
+});
+
 test('the verified numbers cannot be reached from the self-declared table', () => {
   /* The invariant the whole slice exists to hold. staff rows carry what a salon says and what
      OAK counted; staff_profiles carries what a person says about herself. Nothing may be able
@@ -2055,32 +2295,27 @@ test('a first draft is filled in once, and nothing ever writes over it', () => {
   assert.doesNotMatch(ensure, /\(tx[,)]|tx\.run/);
 });
 
-test("the avatar on a claimed row stops being the owner's, in exactly these words", () => {
+test('the photo on a roster row is the salon’s, and nothing in this PATCH refuses it', () => {
   const patch = handler(partnerSource, "router.patch('/staff/:id'", "router.delete('/staff/:id'");
-  // Pinned byte for byte: the console puts the server's own sentence in front of the caret,
-  // so this string is the whole of what an owner is told about why the save was refused.
-  assert.match(
-    patch,
-    /throw httpError\(409, 'CONFLICT', 'Ảnh đại diện do kỹ thuật viên tự quản lý\.'\);/,
-  );
-  // Only on a row somebody stands behind, and only for `image`. An unclaimed row is the
-  // salon's own description of a chair and stays entirely theirs.
-  assert.match(
-    patch,
-    /if \(staff\.user_id != null && Object\.hasOwn\(req\.body \?\? \{\}, 'image'\)\)/,
-  );
+  /* This used to answer 409 on a claimed row, on the reading that the avatar was the half of
+     the row the technician owned. That reading died when her face moved onto staff_profiles:
+     routes/staff-me.js writes that table and nothing writes staff.image on her behalf, so the
+     guard was not holding a boundary any more, it was holding the picture still. The owner was
+     refused with a 409 and the technician with a 400, and the team strip and the booking picker
+     went on serving a face for the life of the stint that nobody could correct. */
+  assert.doesNotMatch(patch, /Ảnh đại diện do kỹ thuật viên tự quản lý/);
+  assert.doesNotMatch(patch, /Object\.hasOwn\(req\.body \?\? \{\}, 'image'\)/);
+  assert.doesNotMatch(patch, /STAFF_COLUMNS\.image\(/);
+  // And the sentence is gone from the whole file, not merely from this handler: a message left
+  // in the source is one an edit can reach for again.
+  assert.doesNotMatch(partnerSource, /Ảnh đại diện do kỹ thuật viên/);
 
-  /* And only when the value actually CHANGED — the same rule this file's customer notices are
-     gated on, because quan-ly-nhan-vien.html posts name, title, specialty and image on every
-     save and awaits this PATCH before the schedule and services PUTs. Refusing on the presence
-     of the key would make a claimed technician's title, hours and service list unsaveable, so
-     the boundary would read as a frozen roster. Compared through the column's own parser, so
-     the '' an empty photo field sends and the NULL the column holds are the same value. */
-  assert.match(patch, /const wanted = STAFF_COLUMNS\.image\(req\.body\.image\);/);
-  assert.match(patch, /if \(wanted !== \(staff\.image \?\? null\)\) \{/);
-  // Refused before the patch is built, so a body carrying `image` alongside `name` writes
-  // neither half rather than half of it.
-  assert.ok(patch.indexOf('Ảnh đại diện do kỹ thuật viên') < patch.indexOf('buildPatch'));
+  /* Nothing on her side of the wall writes this column either, which is what makes the split
+     clean rather than a handover: staff-me.js writes staff_profiles.image and touches the
+     roster row's photo nowhere at all. That half is held by "every write this page sends is one
+     roster column, or a key off its own whitelist" below, which parses PROFILE_COLUMNS out of
+     the route and asserts it is ['profile_hidden'] — the only pin that can see it, since the
+     UPDATE there builds its column list out of that map and names no column literally. */
 
   /* The other two personal columns need no guard because they were never on the owner's map
      to begin with — asserting their absence is what keeps a later edit from adding them back

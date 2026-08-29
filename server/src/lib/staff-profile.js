@@ -21,6 +21,15 @@ const SUFFIX_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
    or an empty one — comes back empty, and 'ky-thuat-vien-8f2a' is a readable address where
    '-8f2a' would be a broken one. */
 const FALLBACK_BASE = 'ky-thuat-vien';
+/* And how much of the name is allowed into the address at all. staff_profiles_slug_key is a
+   btree, and a btree refuses an entry over roughly 2700 bytes outright — so a registration
+   carrying a name long enough to slugify past that died on this INSERT with an internal error,
+   at the last statement, after the account had already been shaped. Sixty characters is longer
+   than any name a person actually answers to and short enough to read out loud. Taken off the
+   BASE and not off the finished slug, because the four random characters are the whole reason
+   two people with one name get two addresses: trimmed after the suffix was appended, the
+   longest names would all come back as the same string. */
+const SLUG_BASE_MAX = 60;
 /* Three tries at a free slug. Each one is four random characters over a name that already
    narrows the field, so a second collision means something is wrong that a fourth attempt
    would not fix either — and an unbounded loop against a unique index is a way for one
@@ -32,7 +41,7 @@ export function makeSlug(name) {
   const suffix = [...randomBytes(SUFFIX_LENGTH)]
     .map((byte) => SUFFIX_ALPHABET[byte % SUFFIX_ALPHABET.length])
     .join('');
-  return `${slugify(name) || FALLBACK_BASE}-${suffix}`;
+  return `${slugify(name).slice(0, SLUG_BASE_MAX) || FALLBACK_BASE}-${suffix}`;
 }
 
 /* What a first draft is filled in with: whatever the person's newest working row already says

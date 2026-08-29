@@ -115,11 +115,16 @@ test('the permission can be withdrawn, and only ever as a boolean', () => {
 // ------------------------------------------------------------------ login throttle
 
 /* The throttle itself, lifted out of auth.js and driven: what matters is what it counts,
-   not how it is spelled. It closes over one constant, which comes with it. */
-const { rateLimited, RATE_WINDOW_MS } = vm.runInNewContext(
+   not how it is spelled. It closes over one constant, which comes with it — and it is three
+   functions now rather than one: countAttempt does the recording, rateLimited is the record-
+   and-test the login and reset paths have always called, and refundAttempt gives one back for
+   the caller that has to charge before it knows what the call will cost. */
+const { rateLimited, refundAttempt, RATE_WINDOW_MS } = vm.runInNewContext(
   `${authSource.match(/const RATE_WINDOW_MS = .*;/)[0]}
+   ${declaration(authSource, 'function countAttempt(')}
    ${declaration(authSource, 'function rateLimited(')}
-   ({ rateLimited, RATE_WINDOW_MS });`,
+   ${declaration(authSource, 'function refundAttempt(')}
+   ({ rateLimited, refundAttempt, RATE_WINDOW_MS });`,
 );
 
 test('the allowance is spent, not exceeded: max tries pass, the next one is refused', () => {
@@ -163,6 +168,82 @@ test('the window reopens, and stale keys are swept by the call that reopens it',
   assert.equal(attempts.has('idle|9.9.9.9'), false);
   assert.equal(attempts.size, 1);
   assert.doesNotMatch(authSource, /setInterval|setTimeout/);
+});
+
+/* POST /api/auth/staff/register's tokenless path, reduced to its throttle and driven on the
+   real helpers: reserve at the door, do the awaited work, refund unless a page came of it. The
+   `await` in the middle is the whole subject — it stands for findLiveInvite, ~90ms of bcrypt
+   and a transaction, and it is where every other request in a burst gets to run. That the route
+   really has this shape is pinned in test/staff-persona.test.mjs, which reads the source; what
+   is driven here is what the shape DOES.
+
+   `mint` says whether this call publishes a page: false is the technician who mistyped, whose
+   attempt must cost her nothing. */
+const tokenlessRegister = async (attempts, ip, max, mint) => {
+  let reserved = false;
+  let published = false;
+  try {
+    if (rateLimited(attempts, ip, max)) {
+      return 429;
+    }
+    reserved = true;
+    await new Promise((resolve) => setImmediate(resolve));
+    if (!mint) {
+      return 400;
+    }
+    published = true;
+    return 200;
+  } finally {
+    if (reserved && !published) {
+      refundAttempt(attempts, ip);
+    }
+  }
+};
+
+test('a burst arriving together cannot mint more pages than the allowance', async () => {
+  /* The failure this test exists for. Read the ceiling first and charge it after the page
+     exists, and the charge lands on the far side of an await: fifty concurrent requests every
+     one of them read a tally none of them had charged yet, all fifty passed, and one script
+     minted fifty published, indexable pages under arbitrary names from one address. Sent one at
+     a time the same fifty gave five and forty-five refusals, so nothing sequential could see
+     it. Charging at the door is what closes it — on one event loop an increment with no await
+     in front of it is the only thing that can hold a limit. */
+  const attempts = new Map();
+  const answers = await Promise.all(
+    Array.from({ length: 50 }, () => tokenlessRegister(attempts, '1.1.1.1', 5, true)),
+  );
+  assert.equal(answers.filter((code) => code === 200).length, 5, 'pages minted by the burst');
+  assert.equal(answers.filter((code) => code === 429).length, 45);
+
+  // And a burst that mints nothing spends nothing: the same fifty, all refused for their own
+  // reasons, leave the allowance whole behind them.
+  const mistyped = new Map();
+  const refused = await Promise.all(
+    Array.from({ length: 50 }, () => tokenlessRegister(mistyped, '2.2.2.2', 5, false)),
+  );
+  assert.equal(refused.filter((code) => code === 400).length, 5);
+  assert.equal(refused.filter((code) => code === 429).length, 45);
+  assert.equal(mistyped.get('2.2.2.2').count, 45, 'the five refusals were given back');
+});
+
+test('a refusal leaves the tally where it found it, and five pages still go through', async () => {
+  /* The technician at the form, who is the reason the refund exists at all:
+     dang-nhap-nhan-vien.html checks no length, no consent tick and no password of its own, so
+     she corrects one refusal at a time. Charged per attempt, her fifth and correct try met a
+     429 and she was locked out for a quarter of an hour having created nothing. */
+  const attempts = new Map();
+  for (let mistake = 0; mistake < 20; mistake += 1) {
+    assert.equal(await tokenlessRegister(attempts, '1.1.1.1', 5, false), 400);
+  }
+  // Nothing held at all: the entry is dropped at zero rather than left sitting on the address.
+  assert.equal(attempts.has('1.1.1.1'), false);
+
+  for (let page = 1; page <= 5; page += 1) {
+    assert.equal(await tokenlessRegister(attempts, '1.1.1.1', 5, true), 200, `page ${page}`);
+  }
+  assert.equal(await tokenlessRegister(attempts, '1.1.1.1', 5, true), 429);
+  // A refusal after the ceiling is reached is refused for the ceiling, not for itself.
+  assert.equal(await tokenlessRegister(attempts, '1.1.1.1', 5, false), 429);
 });
 
 test('the throttle is spent before the hash, and cleared by proving the password', () => {
