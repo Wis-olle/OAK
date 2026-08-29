@@ -2326,20 +2326,38 @@ router.patch('/staff/:id', async (req, res, next) => {
     }
 
     const update = `UPDATE staff SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`;
-    await db.withTransaction(async (tx) => {
-      await tx.run(update, ...values, staffId, salon.id);
-      /* She was told the day her stint was closed, so she is told the day it is opened again:
-         a page that went from "đã nghỉ" back to a working stint without a word would leave
-         her to find it out from her own profile. */
-      if (reopening) {
-        await notifyStaff(
-          tx,
-          staffId,
-          'Ghi nhận nghỉ việc đã được hủy',
-          `${salon.name} đã hủy ghi nhận nghỉ việc của bạn. Hồ sơ của bạn trở lại trạng thái đang làm việc.`,
+    try {
+      await db.withTransaction(async (tx) => {
+        await tx.run(update, ...values, staffId, salon.id);
+        /* She was told the day her stint was closed, so she is told the day it is opened again:
+           a page that went from "đã nghỉ" back to a working stint without a word would leave
+           her to find it out from her own profile. */
+        if (reopening) {
+          await notifyStaff(
+            tx,
+            staffId,
+            'Ghi nhận nghỉ việc đã được hủy',
+            `${salon.name} đã hủy ghi nhận nghỉ việc của bạn. Hồ sơ của bạn trở lại trạng thái đang làm việc.`,
+          );
+        }
+      });
+    } catch (error) {
+      /* idx_staff_user_salon: one live claimed row per person per salon. The undo above is the
+         only thing here that can ask for a second one, and the console leaves its button on
+         every claimed card that carries a leaving date — including one the salon has already
+         moved past by re-hiring the same technician onto a new row. Pressed there it is asking
+         to re-open a stint the next stint replaced, which is a roster that is already right:
+         the person is back, and an undo that is genuinely needed belongs on the row still open.
+         Said plainly, because an owner reading INTERNAL_ERROR has no way to learn any of it. */
+      if (error.code === '23505' && error.constraint === 'idx_staff_user_salon') {
+        throw httpError(
+          409,
+          'CONFLICT',
+          'Kỹ thuật viên này đã có hồ sơ đang làm việc tại salon — không thể hủy ghi nhận trên hồ sơ cũ.',
         );
       }
-    });
+      throw error;
+    }
 
     res.json({
       success: true,

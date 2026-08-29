@@ -8092,6 +8092,58 @@ async function groupStaffDeparture() {
     'POST /api/staff-me/claim (the same person, the same salon, a second stint)',
   );
 
+  /* The console keeps "Hủy ghi nhận nghỉ việc" on any card that is claimed and carries a
+     leaving date, and the closed one above is still both — so the undo stays pressable on a
+     stint the re-hire has already replaced. Granting it would put a second live claimed row
+     against the same person at the same salon, which is what idx_staff_user_salon exists to
+     refuse, and a bare 500 would tell the owner nothing about a roster that is in fact
+     correct. The refusal has to say so: this old card needs nothing done to it, and an undo
+     that is really needed belongs on the row that is still open. */
+  const supersededNoticesBefore = (
+    await notificationsOf(leaver, 'the technician before the undo on the superseded card')
+  ).length;
+  const supersededUndo = await leaverSalon.owner.fetch(`/api/partner/staff/${leaverRow.id}`, {
+    method: 'PATCH',
+    json: { active: 1 },
+  });
+  expectError(
+    supersededUndo,
+    409,
+    'CONFLICT',
+    'PATCH /api/partner/staff/:id {active: 1} on a stint the re-hire superseded',
+  );
+  assert(
+    supersededUndo.body?.error?.message ===
+      'Kỹ thuật viên này đã có hồ sơ đang làm việc tại salon — không thể hủy ghi nhận trên hồ sơ cũ.',
+    'the refusal names what the owner is looking at instead of failing as an internal error',
+    supersededUndo,
+  );
+  const staleAfterRefusal = ok(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${leaverRow.id}`),
+    'GET /api/partner/staff/:id (the superseded card after the refusal)',
+  );
+  assert(
+    staleAfterRefusal.active === 0 &&
+      staleAfterRefusal.left_at === state.today &&
+      staleAfterRefusal.left_by === 'partner',
+    'a refused undo leaves the closed stint exactly as it was',
+    staleAfterRefusal,
+  );
+  const liveAfterRefusal = ok(
+    await leaverSalon.owner.fetch(`/api/partner/staff/${rehiredRow.id}`),
+    'GET /api/partner/staff/:id (the live stint after the refusal)',
+  );
+  assert(
+    liveAfterRefusal.active === 1 && liveAfterRefusal.left_at === null,
+    'and the stint she is actually working is untouched by it',
+    liveAfterRefusal,
+  );
+  assert(
+    (await notificationsOf(leaver, 'the technician after the refused undo')).length ===
+      supersededNoticesBefore,
+    'nothing happened to her stints, so she hears nothing about them',
+  );
+
   /* -- a second salon, and a stint the technician ends herself ---------------- */
 
   const secondSalon = await openSalon('Chủ Salon Thứ Hai', `Salon Thứ Hai ${stamp}`, `secondowner${stamp}@oak.invalid`);
