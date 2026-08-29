@@ -4896,6 +4896,286 @@ async function groupStaffPersona() {
   );
   assert(ordinary.user.role === 'customer', 'the public register still mints customers');
 
+  /* -- …while registering as a technician needs no invitation at all ---------- */
+
+  /* The other door into the same endpoint: no token, no salon, no roster row. What she gets is
+     a career page and nothing else — which is the point, because nothing on that page belongs
+     to a salon and there is nobody who could reasonably be asked for permission to write it. */
+  const freeSession = new Session();
+  const freeEmail = `tudo${stamp}@oak.invalid`;
+  const freeRegistered = ok(
+    await freeSession.fetch('/api/auth/staff/register', {
+      method: 'POST',
+      json: {
+        name: 'KTV Tự Đăng Ký',
+        email: freeEmail,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/staff/register (no token at all)',
+  );
+  assert(freeRegistered.user.role === 'staff', 'a free registration is still a staff account');
+  /* The address her page is now published at, carried in the reply. This is the one thing the
+     tokenless path adds to the body, and the reason it adds it: the account has just been given
+     a public page, and the reply that created it is the first place that can say where. */
+  assert(
+    typeof freeRegistered.slug === 'string' && freeRegistered.slug.startsWith('ktv-tu-dang-ky-'),
+    'a tokenless registration answers with the address of the page it just published',
+    freeRegistered,
+  );
+  const freeMe = ok(await freeSession.fetch('/api/auth/me'), 'GET /api/auth/me (free registration)');
+  assert(
+    freeMe.user.role === 'staff',
+    'the reply must have set a session cookie, exactly as the token path does',
+  );
+
+  /* Published at birth, and that is the whole difference. The consent she ticked on
+     dang-nhap-nhan-vien.html describes this public page and nothing else, so agreeing to it IS
+     the act of publishing — a draft here would be an account that consented to a page nobody
+     can read, waiting on a second press that would mean nothing. */
+  const freePage = ok(
+    await freeSession.fetch('/api/staff-me/portfolio'),
+    'GET /api/staff-me/portfolio (the free registration)',
+  );
+  assert(freePage.slug === freeRegistered.slug, 'and the editor opens on that same address', freePage);
+  assert(
+    typeof freePage.published_at === 'string' && freePage.published_at.length > 0,
+    'a tokenless registration is published the moment it exists',
+    freePage,
+  );
+  assert(freePage.hidden === 0, 'and it is not withdrawn: it has never been taken down', freePage);
+  /* Nothing was prefilled, because there is nothing to prefill FROM: no salon has written a
+     word about her. She starts with blanks and the years at zero, and writes her own page. */
+  assert(
+    freePage.bio === null && freePage.image === null && freePage.title === null,
+    'a page with no roster row behind it starts empty rather than borrowing somebody’s words',
+    freePage,
+  );
+  assert(freePage.years_experience === 0, 'and at zero years', freePage);
+
+  // And no roster row anywhere: she claimed nothing, so there is nothing to claim to have.
+  const freeStints = ok(
+    await freeSession.fetch('/api/staff-me/profile'),
+    'GET /api/staff-me/profile (the free registration)',
+  );
+  assert(freeStints.length === 0, 'a free registration holds no stint at any salon', freeStints);
+  // The public page stands on its own all the same, to a reader who is not signed in.
+  const freePublic = ok(
+    await session('guest').fetch(`/api/technicians/${freeRegistered.slug}`),
+    'GET /api/technicians/:slug (a page with no salon behind it)',
+  );
+  assert(
+    freePublic.name === 'KTV Tự Đăng Ký' && freePublic.career.length === 0,
+    'her page is her name and an empty career, readable by anybody',
+    freePublic,
+  );
+
+  /* Both consents still hold. createAccount owns that gate and neither path may reach around
+     it: a registration nobody agreed to is not consent, whichever door it came through. The
+     token case needs a LIVE link, because a dead one is refused before the consent gate is ever
+     reached — which is the rule the block below this one exists for. */
+  const consentRow = ok(
+    await partner.fetch('/api/partner/staff', { method: 'POST', json: { name: 'KTV Chưa Đồng Ý' } }),
+    'POST /api/partner/staff (a row for the consent refusals)',
+  );
+  const consentInvite = ok(
+    await partner.fetch(`/api/partner/staff/${consentRow.id}/invite`, { method: 'POST' }),
+    'POST invite for the consent refusals',
+  );
+  for (const [label, json] of [
+    ['tokenless', { name: 'Không Đồng Ý', email: `noconsent${stamp}@oak.invalid`, password: 'Oak@1234' }],
+    ['with a live token', {
+      token: tokenOf(consentInvite.url),
+      name: 'Không Đồng Ý',
+      email: `noconsent2${stamp}@oak.invalid`,
+      password: 'Oak@1234',
+    }],
+  ]) {
+    expectError(
+      await new Session().fetch('/api/auth/staff/register', { method: 'POST', json }),
+      400,
+      'CONSENT_REQUIRED',
+      `POST /api/auth/staff/register without consent, ${label}`,
+    );
+  }
+  // And the refusal spent nothing: the link is still outstanding, so the technician it was
+  // handed to can still use it after ticking the box.
+  const afterRefusal = ok(
+    await partner.fetch('/api/partner/staff'),
+    'GET /api/partner/staff after the consent refusals',
+  );
+  assert(
+    afterRefusal.find((member) => member.id === consentRow.id).invite_pending === true,
+    'a registration refused for consent must not have spent the link it was holding',
+    afterRefusal,
+  );
+
+  /* And the sharpest rule of the slice: a DEAD token does not degrade into a free
+     registration. A body carrying a token is somebody saying "I am the person this link was
+     handed to" — answering that with a portfolio-only account and a 200 would leave her
+     believing she had claimed a roster row she has not. Same uniform 404, and NO ACCOUNT. */
+  const deadTokenEmail = `deadtoken${stamp}@oak.invalid`;
+  const deadTokenRegister = await new Session().fetch('/api/auth/staff/register', {
+    method: 'POST',
+    json: {
+      token: `khongtontai${stamp}`,
+      name: 'KTV Liên Kết Hỏng',
+      email: deadTokenEmail,
+      password: 'Oak@1234',
+      consent: true,
+    },
+  });
+  expectError(deadTokenRegister, 404, 'NOT_FOUND', 'register with a token that resolves to nothing');
+  assert(
+    deadTokenRegister.body?.error?.message === rotatedOut.body?.error?.message,
+    'a dead token at the register endpoint refuses in the same words as everywhere else',
+    deadTokenRegister,
+  );
+  // No account was minted on the way to that 404, which is what stops the refusal from being
+  // a formality: the credentials it was handed do not sign in, because there is nothing to
+  // sign in to.
+  expectError(
+    await new Session().fetch('/api/auth/login', {
+      method: 'POST',
+      json: { email: deadTokenEmail, password: 'Oak@1234' },
+    }),
+    401,
+    'INVALID_CREDENTIALS',
+    'sign in as the account a dead token did not create',
+  );
+
+  /* A free account joining a salon later, which is the ordinary way round now: she opens a page
+     first and a salon invites her afterwards. The stint is added and her PAGE IS UNTOUCHED —
+     same address, same publication date, still standing. Joining a salon is not a
+     republication, and ensureStaffProfile's ON CONFLICT DO NOTHING is what guarantees it. */
+  const FREE_CHAIR_PHOTO = 'assets/img/ghe-ktv-tu-dang-ky.webp';
+  const freeRow = ok(
+    await partner.fetch('/api/partner/staff', {
+      method: 'POST',
+      // With a photo, because she has never opened her editor: what the salon enters here is
+      // the only picture of that chair there is, and the assertion below is that it survives.
+      json: { name: 'KTV Tự Đăng Ký', image: FREE_CHAIR_PHOTO },
+    }),
+    'POST /api/partner/staff (a chair for the freely-registered technician)',
+  );
+  const freeRowInvite = ok(
+    await partner.fetch(`/api/partner/staff/${freeRow.id}/invite`, { method: 'POST' }),
+    'POST invite for the freely-registered technician',
+  );
+  ok(
+    await freeSession.fetch('/api/staff-me/claim', {
+      method: 'POST',
+      json: { token: tokenOf(freeRowInvite.url) },
+    }),
+    'POST /api/staff-me/claim (a free registration joining its first salon)',
+  );
+  const joinedStints = ok(
+    await freeSession.fetch('/api/staff-me/profile'),
+    'GET /api/staff-me/profile after joining a salon',
+  );
+  assert(
+    joinedStints.length === 1 && joinedStints[0].staff_id === freeRow.id,
+    'the stint she was invited to is hers now',
+    joinedStints,
+  );
+  const joinedPage = ok(
+    await freeSession.fetch('/api/staff-me/portfolio'),
+    'GET /api/staff-me/portfolio after joining a salon',
+  );
+  assert(
+    joinedPage.slug === freePage.slug && joinedPage.published_at === freePage.published_at,
+    'her page keeps the address and the date it was published at: joining is not republishing',
+    joinedPage,
+  );
+  assert(joinedPage.hidden === 0, 'and it is still standing', joinedPage);
+
+  /* And the other direction, which is the half that regressed: her page is published and every
+     field of it is empty — she has never opened the editor — so it must not blank the salon's
+     record of the chair off the stint page. An all-or-nothing override did exactly that: the
+     photo vanished from GET /api/staff/:id the instant she claimed the chair, while the salon's
+     own team strip went on showing it. The override is field-wise, so a page that says nothing
+     overrides nothing. */
+  const claimedChair = ok(
+    await session('guest').fetch(`/api/staff/${freeRow.id}`),
+    'GET /api/staff/:id after a published-but-empty page claimed the chair',
+  );
+  assert(
+    claimedChair.image === FREE_CHAIR_PHOTO,
+    'a published page with nothing written on it must not erase the salon’s own photo',
+    claimedChair,
+  );
+  // While the address of her career page rides along regardless — that is a fact about there
+  // being a published page at all, not about whether she has filled any of it in.
+  assert(
+    claimedChair.technician?.slug === freePage.slug,
+    'and the chair still names the career behind it',
+    claimedChair,
+  );
+  /* Her own page stays empty, which is the point: nothing was copied INTO it. Filling a
+     published page from the roster record would put the salon's photo on her public career page
+     under her own byline, without her ever pressing anything — a worse defect than the one the
+     field-wise fallback fixes. */
+  const untouchedPage = ok(
+    await session('guest').fetch(`/api/technicians/${freePage.slug}`),
+    'GET /api/technicians/:slug after she claimed a chair with a photo on it',
+  );
+  assert(
+    untouchedPage.image === null && untouchedPage.bio === null,
+    'the salon’s photo and words must never appear on her page as hers',
+    untouchedPage,
+  );
+
+  /* -- what the token path answers with, unchanged ---------------------------- */
+
+  /* The reply on the token path must be byte for byte what it was before any of this: the
+     hook returns nothing there, and `...undefined` in the object literal adds no key. So the
+     body carries `user` and `welcome_code` and NOT the slug the free path adds — a client
+     reading `slug` to decide anything would otherwise start seeing it on both. */
+  assert(
+    JSON.stringify(Object.keys(registered).sort()) === JSON.stringify(['user', 'welcome_code']),
+    'a registration redeeming a token answers with exactly the body it always did',
+    registered,
+  );
+  // And she does have a page now — an UNPUBLISHED one, because what she agreed to on that path
+  // was a profile at one salon. Publishing the person page stays her own press in the editor.
+  const claimedPage = ok(
+    await technician.fetch('/api/staff-me/portfolio'),
+    'GET /api/staff-me/portfolio (the technician who redeemed a token)',
+  );
+  assert(
+    claimedPage.published_at === null,
+    'a registration that redeemed a token is given a draft, never a published page',
+    claimedPage,
+  );
+
+  /* The two names in the funnel, which is the only place the difference is counted. Read
+     straight out of the table: the events table is deliberately unreadable through any
+     endpoint, because it is the one table that must never be able to name a person. */
+  if (!EXTERNAL_URL) {
+    const eventsClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await eventsClient.connect();
+    try {
+      const counted = await eventsClient.query(
+        `SELECT name, COUNT(*) AS count FROM events
+         WHERE page = '/api/auth/staff/register' GROUP BY name ORDER BY name`,
+      );
+      const byName = Object.fromEntries(counted.rows.map((row) => [row.name, Number(row.count)]));
+      assert(
+        byName.staff_registered >= 1,
+        'a free registration writes a staff_registered row',
+        counted.rows,
+      );
+      assert(
+        byName.staff_claimed >= 1,
+        'and redeeming a token still writes staff_claimed, under its own name',
+        counted.rows,
+      );
+    } finally {
+      await eventsClient.end();
+    }
+  }
+
   /* -- a customer who steps behind the counter keeps what they already had ---- */
 
   const services = ok(

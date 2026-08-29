@@ -20,6 +20,11 @@ import {
   findLiveInvite,
   inviteNotFound,
 } from '../lib/staff-invite.js';
+/* The person's own page, in the two shapes this route needs it. createStaffProfile writes it
+   inside the account's own transaction, for the tokenless registration whose whole point is
+   that page; ensureStaffProfile is the lazy, prefilled draft every other path in the codebase
+   gives a technician, and the register-with-token path takes that one after its commit. */
+import { createStaffProfile, ensureStaffProfile } from '../lib/staff-profile.js';
 import { slugify } from '../lib/text.js';
 import { todayISO } from '../lib/time.js';
 // The one offer OAK runs, spelled once for the seed, this route and the db.js backfill.
@@ -195,7 +200,8 @@ function epochSeconds() {
  * `afterInsert` is an optional async (tx, userId) run inside the same transaction, right
  * after the user row exists. It is how a role brings something of its own along — the
  * staff alias uses it to take the roster row over — without this function having to know
- * what that something is.
+ * what that something is. Whatever it RETURNS is spread into the reply's `data`, which is
+ * how the same role tells the caller about a thing only it knows the name of.
  *
  * Returns the created user, or undefined when nothing was created: every failure leaves
  * here through next(), so a caller with work of its own to do afterwards has one thing to
@@ -252,8 +258,8 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
     // The list gates what a CALLER may name, which is why the check is skipped when
     // forcedRole decided it: forcedRole is a literal written in this file's own routes and
     // is not request input. 'staff' deliberately stays out of ROLES — a staff account is
-    // only ever created by redeeming a claim link, never by asking the public register for
-    // one.
+    // created only by this file's own POST /staff/register, with a claim link or without
+    // one, and never because a request asked the public register for that role.
     if (forcedRole == null && !ROLES.includes(accountRole)) {
       throw httpError(400, 'VALIDATION_ERROR', 'Loại tài khoản không hợp lệ.');
     }
@@ -264,6 +270,13 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
     let userId;
     // Reported back so dang-ky.html only promises a code when one was actually written.
     let welcomeCode = null;
+    // Whatever the role's own hook wants the reply to carry, and undefined for every role
+    // that wants nothing. `...undefined` in an object literal is legal and adds no key at
+    // all, so /register, /partner/register and a staff registration redeeming a token all
+    // answer with the byte-identical body they answered with before this existed. It is
+    // spread FIRST below, so a hook can add to this reply and can never quietly replace
+    // `user` or `welcome_code` with something of its own.
+    let extra;
     try {
       await db.withTransaction(async (tx) => {
         // A number a live account already answers to is refused here rather than stored
@@ -298,7 +311,7 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
         // transaction: a claim that could not be recorded takes the account down with it
         // rather than leaving somebody holding an account attached to nothing.
         if (afterInsert) {
-          await afterInsert(tx, userId);
+          extra = await afterInsert(tx, userId);
         }
 
         // Whatever was booked over the counter under this number is this person's history,
@@ -370,7 +383,7 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
 
     const user = await selectPublicUser.get(userId);
     issueCookie(res, user);
-    res.json({ success: true, data: { user, welcome_code: welcomeCode } });
+    res.json({ success: true, data: { ...extra, user, welcome_code: welcomeCode } });
     return user;
   } catch (error) {
     next(error);
@@ -430,38 +443,111 @@ router.get('/staff/invite/:token', async (req, res, next) => {
   }
 });
 
+/* Two registrations through one door, and the token is what tells them apart.
+ *
+ * With one, this is what it has always been: the account a claim link was minted for, taking
+ * its roster row over on the way in. Without one, it is a technician who has been invited
+ * nowhere opening a career page of her own — which needs no salon's permission, because
+ * nothing in it belongs to a salon.
+ */
 router.post('/staff/register', async (req, res, next) => {
   try {
-    // Read before anything else: an unusable link is refused before ~90ms of hashing is
-    // spent on it. A link whose row was claimed in the meantime is not live any more, so
-    // that case arrives here as the same 404 as any other dead token.
-    const invite = await findLiveInvite((req.body ?? {}).token);
-    if (!invite) {
-      throw inviteNotFound();
+    const { token, name } = req.body ?? {};
+    /* Read before anything else: an unusable link is refused before ~90ms of hashing is
+       spent on it. A link whose row was claimed in the meantime is not live any more, so
+       that case arrives here as the same 404 as any other dead token.
+
+       And a DEAD token must never fall through into a free registration, which is the single
+       most important line in this route. A body carrying a token is somebody saying "I am the
+       person this link was handed to"; answering that with a portfolio-only account and a 200
+       would leave her believing she had claimed a roster row she has not — reading her own
+       calendar for a shift that was never hers, at a salon that never heard of her. So an
+       explicit token that does not resolve is refused here, in the same uniform 404 as
+       everywhere else, and nothing below this branch ever runs. Only a body that named no
+       token at all — absent, or the empty string dang-nhap-nhan-vien.html posts on the free
+       path — is a free registration. */
+    let invite = null;
+    if (token != null && token !== '') {
+      invite = await findLiveInvite(token);
+      if (!invite) {
+        throw inviteNotFound();
+      }
     }
 
-    // An ordinary registration that takes a roster row over on its way through.
-    // createAccount owns the validation, the consent gate, the hashing and the cookie; all
-    // this adds is what happens inside its transaction.
-    const claimedAt = new Date().toISOString();
+    /* An ordinary registration that takes a roster row over on its way through, or opens a
+       page and nothing else. createAccount owns the validation, the consent gate, the hashing
+       and the cookie; all this adds is what happens inside its transaction.
+
+       And the two paths put the person's page in at DIFFERENT moments, which is the one thing
+       worth reading this route slowly for.
+
+       With a token, the page is an unpublished draft prefilled from the roster row this very
+       request is claiming — so it has to be written after that claim is COMMITTED, or the
+       prefill would read a row the transaction cannot see yet and copy nothing. Nothing is lost
+       by its being outside: a draft nobody has published is invisible either way, and one that
+       failed to appear is created on the first visit to the editor by the same lazy call. That
+       is exactly the contract POST /api/staff-me/claim keeps, and it is the same situation —
+       somebody joining a salon, being given a draft off the row they just took over.
+
+       Without a token there is no such row and no such laziness: the page IS the account, and
+       the date on it is the consent that was ticked to create it. An account that came into
+       being while its published page did not would be a consent recorded against nothing, so
+       that one is written inside the transaction and stands or falls with the account. */
     const created = await createAccount(req, res, next, 'staff', async (tx, userId) => {
-      // Re-checked here rather than trusted from above: the read straddles the hash, so
-      // two people opening one link can both get past it. Both updates are guarded, and
-      // whoever actually changes the rows is the one who claimed the profile.
-      const claimed = await tx.run(CLAIM_STAFF_ROW, userId, claimedAt, invite.staff_id);
-      if (claimed.changes !== 1) {
-        throw httpError(409, 'CONFLICT', 'Hồ sơ này đã có người nhận.');
+      if (invite) {
+        // Re-checked here rather than trusted from above: the read straddles the hash, so
+        // two people opening one link can both get past it. Both updates are guarded, and
+        // whoever actually changes the rows is the one who claimed the profile.
+        const claimedAt = new Date().toISOString();
+        const claimed = await tx.run(CLAIM_STAFF_ROW, userId, claimedAt, invite.staff_id);
+        if (claimed.changes !== 1) {
+          throw httpError(409, 'CONFLICT', 'Hồ sơ này đã có người nhận.');
+        }
+        const spent = await tx.run(SPEND_STAFF_INVITE, invite.token);
+        if (spent.changes !== 1) {
+          throw httpError(409, 'CONFLICT', 'Hồ sơ này đã có người nhận.');
+        }
+        return undefined;
       }
-      const spent = await tx.run(SPEND_STAFF_INVITE, invite.token);
-      if (spent.changes !== 1) {
-        throw httpError(409, 'CONFLICT', 'Hồ sơ này đã có người nhận.');
-      }
+
+      /* With no link there is no roster row to claim — no salon has said anything about her at
+         all — so the page IS the registration. Published at birth, because the consent she
+         ticked describes exactly this public page and agreeing to it is the act of publishing
+         it; a draft here would be an account that consented to a page nobody can read. The
+         address comes back so the reply can name where she now lives. */
+      return { slug: await createStaffProfile(tx, userId, name, new Date().toISOString()) };
     });
-    // createAccount hands back the account it created and nothing at all when it took the
-    // error path, so this is the transaction having committed and not an inference from
-    // the state of the response.
+    /* createAccount hands back the account it created and nothing at all when it took the
+       error path, so this is the transaction having committed and not an inference from
+       the state of the response.
+
+       Two literal recordEvent call sites rather than one with the name chosen above them: this
+       table is the one that must never be able to name a person, and the way that is held is
+       that every recordEvent in this file reads as a constant pair a scan can check without
+       running it (test/staff-persona.test.mjs). A ternary inside the call would be the first
+       argument that is not a literal. */
     if (created) {
-      await recordEvent('staff_claimed', '/api/auth/staff/register');
+      if (invite) {
+        /* The draft, now that the claim it copies from is on disk. Named off the ACCOUNT rather
+           than off the roster row, like every other call to this: the page belongs to the person
+           and outlives whatever the salon typed onto a chair. ON CONFLICT DO NOTHING, so this is
+           the same idempotent call the editor makes and cannot write over anything.
+
+           And it cannot decide this request's outcome, for the reason recordEvent below gives
+           about itself: the whole contract of this row is that it is created lazily on first
+           need, so a draft that failed to appear here is created by the next visit to the editor
+           and nobody ever knows. Worse, this runs AFTER res.json — the reply is already on the
+           wire, and app.js's error handler does not check whether one has been sent before it
+           answers, so a throw here would end in a destroyed socket racing the flushed body and a
+           page reporting a network failure over an account that exists and is signed in already.
+           The failure goes to the log, where it belongs, and the request stands. */
+        await ensureStaffProfile(created.id, created.name).catch((error) => {
+          console.error('staff-profile: could not seed the draft for', created.id, error);
+        });
+        await recordEvent('staff_claimed', '/api/auth/staff/register');
+      } else {
+        await recordEvent('staff_registered', '/api/auth/staff/register');
+      }
     }
   } catch (error) {
     next(error);

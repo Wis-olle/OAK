@@ -195,10 +195,16 @@ Thông báo
 </template>
 </div>
 <!-- OAK-EMPTY -->
+<!-- An empty diary means two entirely different things. A technician who works somewhere has
+     nothing booked for a fortnight; a technician who has claimed no roster row at all has no
+     salon calendar to be empty of — telling her there is nothing in the next 14 days would be
+     answering a question she never asked, on the one page she was sent to. -->
 <template x-if="!loading &amp;&amp; !error &amp;&amp; !bookings.length">
 <div class="bg-surface-container-low rounded-lg py-16 px-6 text-center mt-4">
 <span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="event_available">event_available</span>
-<p class="font-body-md text-body-md text-on-surface-variant">Chưa có lịch hẹn nào trong 14 ngày tới</p>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!noStints()">Chưa có lịch hẹn nào trong 14 ngày tới</p>
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="noStints()">Bạn chưa làm việc tại salon nào trên OAK — hồ sơ nghề nghiệp của bạn vẫn hoạt động</p>
+<a class="block mt-4 font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" href="ho-so-nhan-vien.html" x-show="noStints()">Mở hồ sơ nghề nghiệp của tôi</a>
 </div>
 </template>
 <!-- Read-only: this list is the shift as the salon booked it, and every decision about a
@@ -314,6 +320,11 @@ Thông báo
         return {
             user: null,
             profiles: [],
+            /* Whether the line above is an ANSWER. init() empties profiles on a failed read
+               too, so `profiles.length` alone cannot tell "you work nowhere" from "the read
+               did not come back" — and somebody who works at three salons must never be told
+               they work at none because a request timed out. Set in the success branch only. */
+            profilesRead: false,
             bookings: [],
             unread: 0,
             loading: true,
@@ -323,6 +334,7 @@ Thông báo
                 this.user = await OAK.requireStaff();
                 try {
                     this.profiles = await OAK.api('/api/staff-me/profile');
+                    this.profilesRead = true;
                 } catch (error) {
                     // The rail and the numbers card are drawn from these rows, and the shift
                     // below still renders without them: a toast says so without taking the
@@ -384,6 +396,14 @@ Thông báo
 
             salonUrl(row) {
                 return 'salon-profile.html?salon=' + encodeURIComponent(row.salon.slug);
+            },
+
+            /** True only once the roster read came back AND came back empty: this account
+                holds no stint anywhere, which is an ordinary state now that registering
+                needs no invitation. A failed read answers false and leaves the diary's own
+                wording standing, because it knows nothing either way. */
+            noStints() {
+                return this.profilesRead && this.profiles.length === 0;
             },
 
             /* The claimed rows there is something to say about. A row with no numbers behind

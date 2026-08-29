@@ -103,6 +103,31 @@ router.post('/claim', async (req, res, next) => {
       throw error;
     }
 
+    /* Every staff-role account ends up with a page of its own, this one included: a customer
+       who has just been upgraded had no reason to have one, and the three portfolio endpoints
+       below would otherwise be her only way to acquire it.
+
+       Post-commit and deliberately not inside the transaction above, unlike the one
+       POST /api/auth/staff/register mints: this is the lazy contract those three endpoints
+       already rest on, and ensureStaffProfile owns no transaction and may be handed none — its
+       retry has to be able to run, and a failed statement aborts the transaction it sat in.
+       Which is safe here because the claim is already committed, and because ON CONFLICT DO
+       NOTHING means an account that already has a page keeps it exactly as it stands: a free
+       registration's PUBLISHED page is not re-drafted, re-addressed or taken back down by the
+       act of joining a salon.
+
+       Its failure is swallowed, the way lib/events.js swallows its own and for a sharper version
+       of the same reason. The claim above has COMMITTED by the time this runs: the roster row is
+       hers and the link is spent. A throw from here would be reported as this endpoint failing,
+       and the caller's only sensible response — open the link again — now answers 404, because
+       findLiveInvite requires `used = 0 AND st.user_id IS NULL` and her own successful claim
+       cleared both. So she would be told to go and ask her owner for a new link, for a chair she
+       already holds and that he can no longer mint one for. A draft nobody could write is created
+       by her first visit to the editor instead, which is the whole point of it being lazy. */
+    await ensureStaffProfile(req.user.id, req.user.name).catch((error) => {
+      console.error('staff-profile: could not seed the draft for', req.user.id, error);
+    });
+
     await recordEvent('staff_claimed', '/api/staff-me/claim');
     res.json({ success: true, data: { ok: true } });
   } catch (error) {

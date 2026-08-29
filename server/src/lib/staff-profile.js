@@ -115,3 +115,56 @@ export async function ensureStaffProfile(userId, name) {
     }
   }
 }
+
+/* The same row, minted the other way: alongside the account itself, inside the transaction that
+   creates it, at a moment when there is nothing to fill it in from.
+
+   Plain SQL strings rather than db.prepare handles, the way CLAIM_STAFF_ROW in lib/staff-invite.js
+   is a string: a prepared statement is bound to the pool and would run on a connection of its own,
+   outside the caller's transaction — so an account that rolled back would leave a page behind it.
+   The explicit RETURNING is here for the reason INSERT_PROFILE spells its own: db.js appends
+   ` RETURNING id` to any INSERT that lacks one, and this table is keyed by user_id and has no id. */
+const SELECT_SLUG_TAKEN = 'SELECT 1 FROM staff_profiles WHERE slug = ?';
+/* No prefill, and there is nothing that could be prefilled: a brand-new account has claimed no
+   roster row, so the two reads above would find nothing to copy. bio, portfolio and image are born
+   NULL and years_experience 0, and everything the page says she writes herself in the editor. */
+const INSERT_NEW_PROFILE = `
+  INSERT INTO staff_profiles
+    (user_id, slug, years_experience, hidden, published_at, created_at)
+  VALUES (?, ?, 0, 0, ?, ?)
+  RETURNING user_id
+`;
+
+/**
+ * Mint `userId`'s profile row inside the CALLER's transaction, and hand back the slug it will be
+ * reachable at. An account whose page could not be written is not an account: both go or neither.
+ *
+ * `publishedAt` is a parameter rather than the NULL its sibling above hard-codes, because only the
+ * caller knows which consent was given. INSERT_PROFILE's comment — "NULL is the value it has to be
+ * born with" — stays true of that statement and of every lazy draft it writes: a page becomes
+ * public because somebody pressed publish. A registration carrying a claim token is the same story
+ * and passes null, since what she agreed to there was a profile at one salon. A TOKENLESS
+ * registration is the one case where it is not: the consent copy on dang-nhap-nhan-vien.html
+ * describes that public page and nothing else, so agreeing to it IS the act of publishing, and the
+ * date it happened is written here rather than waiting for a second press that would mean nothing.
+ */
+export async function createStaffProfile(tx, userId, name, publishedAt) {
+  /* Where this parts company with ensureStaffProfile above, which catches the unique violation and
+     retries with a fresh suffix. That cannot be done in here: a failed statement aborts the whole
+     Postgres transaction it sat in, so the second attempt would run on a connection that can do
+     nothing but roll back — and it would take the account down with it. So the retry happens BEFORE
+     the INSERT — pick a slug, ask whether anybody holds it, write when it is free — and the last of
+     the SLUG_ATTEMPTS goes in unasked, letting the unique index have the final word. That raises
+     exactly the error the function above rethrows on its own last attempt, rather than inventing a
+     second kind of failure for the same collision. */
+  let slug = makeSlug(name);
+  for (let attempt = 1; attempt < SLUG_ATTEMPTS; attempt += 1) {
+    if (!(await tx.get(SELECT_SLUG_TAKEN, slug))) {
+      break;
+    }
+    slug = makeSlug(name);
+  }
+
+  await tx.run(INSERT_NEW_PROFILE, userId, slug, publishedAt, new Date().toISOString());
+  return slug;
+}

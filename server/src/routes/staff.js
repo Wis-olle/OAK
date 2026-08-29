@@ -250,20 +250,48 @@ const selectPublishedProfile = db.prepare(`
   WHERE user_id = ? AND published_at IS NOT NULL AND COALESCE(hidden, 0) = 0
 `);
 
+/** Whether a self-declared text column actually carries a declaration. '' is a cleared field. */
+function declared(value) {
+  return value !== null && value !== undefined && value !== '';
+}
+
 /**
  * Which of the two voices this stint page speaks the personal half in.
  *
  * A roster row's bio, face and gallery are what the salon's own record of that chair carries.
- * A published profile is what the PERSON says about herself, and where one exists it wins — she
- * wrote it, it is one page across every salon she has worked at, and the address it lives at
- * (`technician.slug`) rides along so a reader can go from the stint to the career.
+ * A published profile is what the PERSON says about herself, and the override exists so that HER
+ * words win: she wrote them, they are one page across every salon she has worked at, and the
+ * address they live at (`technician.slug`) rides along so a reader can go from the stint to the
+ * career.
+ *
+ * Which is why the override is FIELD-WISE and not wholesale. A page that says nothing has no
+ * words to win with, so the salon's record of that chair stands until she writes over it. That
+ * is not a corner case any more: registering needs no invitation, so a technician can hold a
+ * PUBLISHED page with every field empty — one is created that way, published, the moment she
+ * signs up — and be rostered afterwards by a salon that enters a photo and eight years. An
+ * all-or-nothing override would take that photo and those years off her stint page the instant
+ * she claimed the chair, while the salon's own team strip went on showing both.
+ *
+ * "Says nothing" is emptiness of every kind the two writers can produce: null and '' for the bio
+ * and the face, an empty list for the gallery, and null OR ZERO for the years — createStaffProfile
+ * inserts 0 rather than NULL, so a plain COALESCE would read "she declared zero years" out of a
+ * column nobody has touched.
+ *
+ * The other direction — seeding the existing row from the roster record when she claims — was
+ * considered and refused. Her page is already PUBLISHED at that moment, so filling it would put
+ * the salon's bio and photograph on her public career page, under her name and her byline,
+ * without her ever having pressed anything. That is a worse defect than the one it fixes: this
+ * fallback shows the salon's record on the SALON's own stint page, where it has always been and
+ * where nothing is labelled as hers.
  *
  * Where there is no published profile the answer is exactly the row — and exactly the reply
  * this endpoint sent before this table existed, down to the last key. That covers a chair
  * nobody stands behind, a technician who never opened the editor, a draft she never published,
  * and a page she has taken back down: four different situations that must all look the same
  * from out here, because telling them apart would leak the existence of a page somebody chose
- * not to show.
+ * not to show. The gate itself is untouched by the field-wise rule above: an unpublished or
+ * hidden page still returns the row wholesale, because the question there is not whose words
+ * these are but whether there is a page at all.
  *
  * Which is why `link` is a whole key that is spread in rather than a `technician` field set to
  * null. A page nobody has published has nothing to say about a person, and saying null about
@@ -304,11 +332,16 @@ async function personalHalf(row) {
       link: {},
     };
   }
+  /* Field by field: hers wherever she said something, the salon's record of the chair wherever
+     she did not. The address rides along regardless — it is a fact about there BEING a published
+     page, which is settled by the gate above and not by whether she has filled any of it in. */
+  const gallery = parseJsonArray(person.portfolio);
   return {
-    bio: person.bio,
-    image: person.image,
-    portfolio: parseJsonArray(person.portfolio),
-    years_experience: person.years_experience,
+    bio: declared(person.bio) ? person.bio : row.bio,
+    image: declared(person.image) ? person.image : row.image,
+    portfolio: gallery.length > 0 ? gallery : parseJsonArray(row.portfolio),
+    // Truthiness rather than a null test, and that is the whole point: the column is born 0.
+    years_experience: person.years_experience ? person.years_experience : row.years_experience,
     link: { technician: { slug: person.slug } },
   };
 }

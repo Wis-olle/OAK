@@ -20,13 +20,18 @@
   "Xác nhận để thêm hồ sơ này vào tài khoản bạn đang đăng nhập:": "Confirm to add this profile to the account you are signed in with:",
   "Dùng tài khoản hiện tại": "Use my current account",
 
-  "Hồ sơ kỹ thuật viên chỉ mở được bằng liên kết mời của salon bạn đang làm. Hãy hỏi chủ salon liên kết đó.": "A technician profile can only be opened with an invitation link from the salon you work at. Ask your salon owner for one.",
+  "Bạn có thể tạo hồ sơ nghề nghiệp của riêng mình mà không cần salon mời. Nếu salon bạn đang làm đã gửi liên kết mời, hãy mở liên kết đó để nhận thêm hồ sơ kỹ thuật viên tại salon.": "You can build a professional profile of your own without any salon invitation. If the salon you work at has sent you an invitation link, open that link to take over your technician profile there as well.",
+  "Tạo hồ sơ nghề nghiệp miễn phí": "Create a free professional profile",
+  "Tạo hồ sơ nghề nghiệp của riêng bạn trên OAK Beauty — không cần salon mời.": "Build a professional profile of your own on OAK Beauty — no salon invitation needed.",
 
   "Tôi đồng ý mở hồ sơ kỹ thuật viên công khai trên OAK Beauty.": "I agree to open a public technician profile on OAK Beauty.",
   "Hồ sơ công khai gồm tên, ảnh, chuyên môn, đánh giá của khách và số liệu làm việc tổng hợp của tôi.": "The public profile carries my name, my photo, my specialty, the reviews customers leave me and my aggregate work figures.",
   "Số liệu tổng hợp sau này có thể gộp cả công việc của tôi ở các salon khác.": "Those aggregate figures may later include my work at other salons as well.",
-  "Bạn có thể ẩn hồ sơ công khai trong phần Cài đặt bất cứ lúc nào.": "You can hide the public profile from Settings at any time.",
+  "Trang hồ sơ nghề nghiệp công khai gồm tên và nội dung bạn tự viết — giới thiệu, ảnh, chuyên môn, số năm kinh nghiệm — được ghi rõ là tự khai. Lịch sử làm việc đã xác thực chỉ hiển thị khi bạn nhận hồ sơ tại salon.": "The public professional profile page carries your name and what you write yourself — an introduction, photos, your specialty, your years of experience — each marked as self-declared. Verified work history only appears once you take over a profile at a salon.",
+  "Bạn có thể ẩn hoặc gỡ trang hồ sơ nghề nghiệp bất cứ lúc nào trong trang Hồ sơ của tôi.": "You can hide or take down your professional profile page at any time from My profile.",
   "Tạo tài khoản kỹ thuật viên": "Create technician account",
+  "Đã có tài khoản?": "Already have an account?",
+  "Đăng nhập": "Sign in",
 
   "Vui lòng đồng ý mở hồ sơ công khai để tiếp tục.": "Please agree to open the public profile to continue.",
 

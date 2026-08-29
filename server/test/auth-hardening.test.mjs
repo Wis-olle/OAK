@@ -92,7 +92,12 @@ test('every new customer is greeted, and with a code that can actually be spent'
   // raises names a code: without this it would promise one on a database where no
   // platform-wide promotion is live, pointing at a notification that has none.
   assert.match(create, /welcomeCode = promotion \? promotion\.code : null;/);
-  assert.match(create, /data: \{ user, welcome_code: welcomeCode \}/);
+  /* The key is spelled out here and cannot be displaced: `...extra` is whatever a role's own
+     afterInsert hook wanted the reply to carry, and it is spread FIRST, so a hook can add to
+     this body and a hook that one day returns a `welcome_code` of its own loses to the real
+     one rather than silently replacing it. For a customer registration there is no hook at all
+     and `...undefined` adds nothing. */
+  assert.match(create, /data: \{ \.\.\.extra, user, welcome_code: welcomeCode \}/);
 });
 
 test('the permission can be withdrawn, and only ever as a boolean', () => {

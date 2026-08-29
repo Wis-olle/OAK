@@ -61,7 +61,15 @@ function handler(text, from, to) {
 function declaration(text, from) {
   const start = text.indexOf(from);
   assert.notEqual(start, -1, `no declaration matching ${from}`);
-  return text.slice(start, text.indexOf('\n}', start) + 2);
+  /* Guarded the same way, because the failure is silent otherwise: a missing '\n}' gives -1,
+     -1 + 2 is 1, and slice(start, 1) is the EMPTY STRING — on which every assert.match in this
+     file would fail loudly but every assert.doesNotMatch would pass for nothing at all. Several
+     of the contracts pinned below are doesNotMatch. */
+  const end = text.indexOf('\n}', start);
+  assert.notEqual(end, -1, `declaration ${from} has no closing brace in column 1`);
+  const found = text.slice(start, end + 2);
+  assert.ok(found.length > 0, `declaration ${from} came back empty`);
+  return found;
 }
 
 /**
@@ -135,10 +143,11 @@ test("'staff' is not a role the public register can be asked for", () => {
 
 test('the claim runs inside the transaction that creates the account', () => {
   // The hook is awaited inside db.withTransaction, so a claim that could not be written
-  // takes the account down with it rather than leaving somebody holding nothing.
+  // takes the account down with it rather than leaving somebody holding nothing. What it
+  // returns is carried out to the reply, which is how a role names a thing only it knows of.
   const create = handler(authSource, 'async function createAccount(', "router.post('/register'");
   const transaction = create.slice(create.indexOf('db.withTransaction'));
-  assert.match(transaction, /if \(afterInsert\) \{\s*await afterInsert\(tx, userId\);/);
+  assert.match(transaction, /if \(afterInsert\) \{\s*extra = await afterInsert\(tx, userId\);/);
 
   const register = handler(authSource, "router.post('/staff/register'", "router.post('/login'");
   assert.match(register, /await tx\.run\(CLAIM_STAFF_ROW, userId, claimedAt, invite\.staff_id\)/);
@@ -147,14 +156,131 @@ test('the claim runs inside the transaction that creates the account', () => {
   // only the one whose UPDATE actually changed a row comes out with the profile. This is
   // the race findLiveInvite cannot close, because its read straddles the password hash.
   assert.equal((register.match(/changes !== 1/g) || []).length, 2);
+
+  /* And both of them are inside the branch that has a token to redeem, because registering
+     needs no invitation any more. The whole claim — the two UPDATEs and the two guards —
+     sits under `if (invite)`, and a body that named no token reaches none of it: there is no
+     roster row in the story at all, so a claim that ran anyway would have nothing to point at
+     and the old code's `invite.staff_id` would simply throw. Nothing else is in that branch:
+     it is the block this route has always had, and it hands nothing back, which is what keeps
+     the reply on the token path byte for byte the one it always was. */
+  const hook = register.slice(
+    register.indexOf("createAccount(req, res, next, 'staff'"),
+    register.indexOf('if (created) {'),
+  );
+  const claiming = hook.slice(hook.indexOf('if (invite) {'), hook.indexOf('return undefined;'));
+  assert.ok(claiming.length > 0, 'the claim is no longer a branch of its own');
+  for (const inside of ['CLAIM_STAFF_ROW', 'SPEND_STAFF_INVITE']) {
+    assert.match(claiming, new RegExp(inside), inside);
+  }
+  assert.equal((claiming.match(/changes !== 1/g) || []).length, 2);
+
+  /* THE guard against the regression this route already shipped once: exactly ONE page is
+     minted inside the transaction, it is the tokenless one, and it carries a published_at.
+     A second call appearing in here would be the token path going back in-tx — where its
+     prefill read cannot see the claim it is meant to copy, and a technician arriving by
+     invitation opens an empty editor and blanks her salon's photo off her own stint page the
+     moment she publishes. The count is what holds that, so it is asserted as a count. */
+  const minted = calls(hook, 'createStaffProfile');
+  assert.equal(minted.length, 1, 'only the free registration mints a page inside the tx');
+  assert.match(minted[0], /^createStaffProfile\(tx, userId, name, new Date\(\)\.toISOString\(\)\)$/);
+  assert.match(hook, /return \{ slug: await createStaffProfile\(/);
+  // …and the claim branch is where it must not be, said plainly rather than left to the count.
+  assert.doesNotMatch(claiming, /StaffProfile/);
+
+  /* The token path's page is written AFTER the commit instead, and through the lazy call every
+     other path uses — because it is a draft PREFILLED from the roster row this same request is
+     claiming, and a prefill read inside that transaction cannot see the claim it is meant to
+     copy. Nothing is risked by its being outside: an unpublished draft is invisible either way,
+     and one that failed to appear is created on the first visit to the editor by this very
+     call. It is the same act, in the same position, as POST /api/staff-me/claim.
+
+     Its failure is swallowed, for the reason recordEvent gives about its own: this runs after
+     res.json, and app.js's handler does not ask whether a reply has gone before it writes one,
+     so a throw would destroy the socket under a body already on the wire. Swallowing is also
+     what keeps the assertion below true — there is nothing here that needs to ask. */
+  const afterCommit = register.slice(register.indexOf('if (created) {'));
+  assert.equal((register.match(/ensureStaffProfile\(/g) || []).length, 1);
+  assert.match(
+    afterCommit,
+    /await ensureStaffProfile\(created\.id, created\.name\)\.catch\(\(error\) => \{\s*console\.error\(/,
+  );
+
+  /* And it is the ONLY thing standing between the commit check and the event. The assertion
+     this replaces compared two indexOf results, which is worthless when either is missing:
+     -1 is less than every real offset, so a call that had been deleted outright would have
+     satisfied it. This reads the slot itself — everything between `if (invite) {` and the
+     recordEvent under it — and requires it to be exactly the seeding call and nothing else. */
+  const slot = afterCommit.slice(
+    afterCommit.indexOf('if (invite) {'),
+    afterCommit.indexOf("await recordEvent('staff_claimed'"),
+  );
+  assert.ok(slot.startsWith('if (invite) {'), 'the token branch after the commit has moved');
+  assert.ok(slot.includes("recordEvent('staff_claimed'") === false);
+  assert.equal(
+    slot.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ').trim(),
+    'if (invite) { await ensureStaffProfile(created.id, created.name).catch((error) => { '
+      + "console.error('staff-profile: could not seed the draft for', created.id, error); });",
+  );
+  // Named off the ACCOUNT and never off the invite: the page belongs to the person, and the
+  // name a salon typed onto a chair is not hers to be addressed by.
+  assert.doesNotMatch(afterCommit, /invite\.staff_name/);
+
   // The event is gated on what createAccount returned, not on the state of the response:
   // res.headersSent is true on the failure path too, one microtask later.
   assert.match(register, /const created = await createAccount\(req, res, next, 'staff',/);
-  assert.match(register, /if \(created\) \{\s*await recordEvent\('staff_claimed'/);
+  assert.match(register, /if \(created\) \{\s*if \(invite\) \{/);
+  assert.match(afterCommit, /await recordEvent\('staff_claimed', '\/api\/auth\/staff\/register'\);\s*\} else \{\s*await recordEvent\('staff_registered'/);
   assert.doesNotMatch(authSource, /headersSent/);
-  // createAccount hands the account back, and hands back nothing when it took next().
-  assert.match(create, /res\.json\(\{ success: true, data: \{ user, welcome_code: welcomeCode \} \}\);\s*return user;/);
+
+  /* createAccount hands the account back, and hands back nothing when it took next(). The
+     hook's own return value is spread in, and `...undefined` adds no key whatsoever — which is
+     what keeps /register, /partner/register and a staff registration REDEEMING A TOKEN
+     answering with the byte-identical body they answered with before any of this existed.
+     Only the tokenless path returns anything, and all it returns is the address of the page
+     it just published. */
+  assert.match(create, /res\.json\(\{ success: true, data: \{ \.\.\.extra, user, welcome_code: welcomeCode \} \}\);\s*return user;/);
   assert.match(create, /catch \(error\) \{\s*next\(error\);\s*return undefined;/);
+});
+
+test('a dead token is refused, never quietly downgraded into a free registration', () => {
+  /* The sharpest edge of making the token optional. An explicit token is somebody saying "I am
+     the person this link was handed to"; answering that with a portfolio-only account and a 200
+     would leave her believing she had claimed a roster row she has not — reading a calendar for
+     a shift that was never hers, at a salon that never heard of her. Only a body that named no
+     token at all is a free registration. */
+  const register = handler(authSource, "router.post('/staff/register'", "router.post('/login'");
+
+  // The lookup and its refusal are inside the branch that HAS a token, and the refusal is the
+  // same uniform 404 every other path gives a dead link.
+  const branch = register.slice(
+    register.indexOf("if (token != null && token !== '')"),
+    register.indexOf('createAccount(req, res, next'),
+  );
+  assert.ok(branch.length > 0, 'the token branch has moved');
+  assert.match(branch, /invite = await findLiveInvite\(token\);/);
+  assert.match(branch, /if \(!invite\) \{\s*throw inviteNotFound\(\);/);
+  // Exactly one lookup in the whole route, so there is no second, unguarded reading of a token.
+  assert.equal((register.match(/findLiveInvite\(/g) || []).length, 1);
+
+  /* And no path leads from that lookup to an account. createAccount is reached only after the
+     branch above has either resolved the token or thrown, so `invite` at the hook is either a
+     live link or the null a body with no token started with — never a token that failed. */
+  assert.ok(register.indexOf('throw inviteNotFound()') < register.indexOf('createAccount('));
+  assert.match(register, /let invite = null;/);
+  /* One catch BLOCK in the route, and it is the outer one that hands everything to next(). A
+     second would be the shape this test exists to forbid: a failed lookup swallowed and carried
+     on from. The `.catch(` on the post-commit seeding call is a different thing and is counted
+     separately — it swallows a draft that could not be written, long after the token was
+     resolved, and it is nowhere near this branch. */
+  assert.equal((register.match(/\}\s*catch \(error\) \{/g) || []).length, 1);
+  assert.equal((register.match(/\.catch\(/g) || []).length, 1);
+  assert.ok(register.indexOf('.catch(') > register.indexOf('if (created) {'));
+
+  // The empty string counts as absent, because that is what the form posts on the free path:
+  // dang-nhap-nhan-vien.html always sends the field, and sends '' when there is no link.
+  assert.match(register, /token != null && token !== ''/);
+  assert.match(loginHtml, /token: this\.token,/);
 });
 
 test('the register endpoint only ever performs a first claim', () => {
@@ -304,6 +430,19 @@ test('erasing an account gives its roster rows back to the salon', () => {
   assert.ok(
     transaction.indexOf('DELETE FROM staff_profiles') < transaction.indexOf('ANONYMISE_USER'),
   );
+
+  /* And neither statement is gated on the account holding a roster row anywhere, which is what
+     covers the account this slice invents: a technician who registered without an invitation has
+     a published page and no chair at all. The release then touches nothing — there is nothing to
+     release — and the DELETE is the whole of what her erasure has to do. Both run unconditionally
+     inside the same transaction as the anonymise, so an account with zero stints leaves no page
+     standing at an address whose owner no longer exists. */
+  const staffStatements = transaction.slice(
+    transaction.indexOf('RELEASE_STAFF_ROWS'),
+    transaction.indexOf('ANONYMISE_USER'),
+  );
+  assert.doesNotMatch(staffStatements, /\bif\s*\(/);
+  assert.doesNotMatch(usersSource, /DELETE FROM staff_profiles WHERE user_id = \? AND/);
 });
 
 test('requireStaff is requirePartner with the other role', () => {
@@ -486,6 +625,107 @@ test('a customer is upgraded in place, keeping the row their history hangs off',
   // One live claimed row per person per salon, enforced by the index rather than by a
   // check that a second request could slip past.
   assert.match(claim, /error\.constraint === 'idx_staff_user_salon'/);
+});
+
+test('joining a salon gives an account a page, and can never rewrite the one it has', () => {
+  /* Every staff-role account ends up with a page, this route included: a customer upgraded here
+     had no reason to hold one, and the three portfolio endpoints would otherwise be the only way
+     she could ever acquire it.
+
+     Through ensureStaffProfile and NOT the tx-aware mint the register route uses, which is the
+     whole safety of it: that INSERT is ON CONFLICT (user_id) DO NOTHING, so an account that
+     registered freely and already has a PUBLISHED page at an address of its own keeps it exactly
+     as it stands — same slug, same date, same withdrawal. Joining a salon is not a republication
+     and must not be able to become one. */
+  const claim = handler(staffMeSource, "router.post('/claim'", 'const selectClaimedStaff');
+  assert.doesNotMatch(claim, /createStaffProfile/);
+  assert.match(staffProfileSource, /ON CONFLICT \(user_id\) DO NOTHING/);
+
+  /* And it cannot decide this request's outcome. By the time it runs the claim has COMMITTED —
+     the roster row is hers and the link is spent — so a throw would report the endpoint as
+     having failed at the thing it has already done. Worse, the only retry available to her is
+     dead: findLiveInvite requires `used = 0 AND st.user_id IS NULL`, and her own successful
+     claim cleared both, so the refusal would be a 404 telling her to go and ask her owner for a
+     new link he can no longer mint, for a chair she already holds. Swallowed and logged, the way
+     lib/events.js swallows its own, and the draft arrives on her first visit to the editor. */
+  assert.match(
+    claim,
+    /await ensureStaffProfile\(req\.user\.id, req\.user\.name\)\.catch\(\(error\) => \{\s*console\.error\(/,
+  );
+
+  // Which is also why it is called AFTER the commit rather than inside the transaction above:
+  // ensureStaffProfile owns no transaction and may be handed none — its retry has to be able to
+  // run, and a failed statement aborts the transaction it sat in. Same lazy contract the editor
+  // endpoints already rest on. Asserted as membership of the slot rather than by comparing two
+  // indexOf results, which -1 satisfies whenever one of the two has been deleted outright.
+  const settled = claim.slice(
+    claim.indexOf('await ensureStaffProfile('),
+    claim.indexOf("await recordEvent('staff_claimed'"),
+  );
+  assert.ok(claim.includes('await ensureStaffProfile('), 'the seeding call has gone');
+  assert.ok(claim.includes("await recordEvent('staff_claimed'"), 'the event has gone');
+  assert.ok(settled.length > 0, 'the seeding call has moved after the event');
+  assert.ok(claim.indexOf('db.withTransaction') < claim.indexOf('await ensureStaffProfile('));
+  assert.doesNotMatch(settled, /db\.withTransaction|tx\.run/);
+  // And nothing on this path stamps a consent: publishing stays POST /portfolio/publish.
+  assert.doesNotMatch(claim, /published_at|PUBLISH_PROFILE/);
+});
+
+test('a page is minted inside the account transaction, without a prefill and without a catch', () => {
+  const create = declaration(staffProfileSource, 'export async function createStaffProfile(');
+
+  /* Plain SQL strings through the caller's tx, the way CLAIM_STAFF_ROW is a string in
+     lib/staff-invite.js: a db.prepare handle is bound to the pool and would run on a connection
+     of its own, OUTSIDE the transaction — so an account that rolled back would leave a page
+     standing at an address nobody can sign in to. */
+  assert.match(create, /await tx\.run\(INSERT_NEW_PROFILE, userId, slug, publishedAt, /);
+  assert.match(create, /await tx\.get\(SELECT_SLUG_TAKEN, slug\)/);
+  for (const statement of ['SELECT_SLUG_TAKEN', 'INSERT_NEW_PROFILE']) {
+    assert.doesNotMatch(
+      staffProfileSource,
+      new RegExp(`const ${statement} = db\\.prepare`),
+      statement,
+    );
+  }
+
+  /* The retry is a READ, and that is the one place this deliberately parts company with
+     ensureStaffProfile above. That one lets the unique index refuse a slug collision and retries
+     in the catch, which cannot work in here: a failed statement aborts the whole Postgres
+     transaction it sat in, so the second attempt would run on a connection that can do nothing
+     but roll back — and it would take the account down with it. So the collision is asked about
+     BEFORE the INSERT, and the last of SLUG_ATTEMPTS goes in unasked so the index has the final
+     word rather than a new kind of error being invented for the same collision. */
+  assert.doesNotMatch(create, /\bcatch\b|23505|staff_profiles_slug_key/);
+  assert.match(create, /attempt < SLUG_ATTEMPTS/);
+  assert.ok(create.indexOf('SELECT_SLUG_TAKEN') < create.indexOf('INSERT_NEW_PROFILE'));
+
+  /* No prefill, and none is possible: a brand-new account has claimed no roster row, so the two
+     prefill reads would find nothing to copy. bio, portfolio and image are absent from the column
+     list — born NULL — and years_experience is the literal 0. */
+  const insert = handler(staffProfileSource, 'const INSERT_NEW_PROFILE = `', '`;')
+    .replace(/\s+/g, ' ')
+    .trim();
+  assert.equal(
+    insert,
+    'const INSERT_NEW_PROFILE = ` INSERT INTO staff_profiles ' +
+      '(user_id, slug, years_experience, hidden, published_at, created_at) ' +
+      'VALUES (?, ?, 0, 0, ?, ?) RETURNING user_id',
+  );
+  assert.doesNotMatch(insert, /\bbio\b|\bportfolio\b|\bimage\b|\btitle\b|\bspecialty\b/);
+  assert.doesNotMatch(create, /selectPrefillRow|selectPrefillYears/);
+  // RETURNING spelled out for the reason its neighbour spells its own: db.js appends
+  // ` RETURNING id` to an INSERT that lacks one, and this table is keyed by user_id.
+  assert.match(insert, /RETURNING user_id/);
+
+  /* published_at is a PARAMETER and never a literal, because only the caller knows which consent
+     was given. A registration redeeming a token passes null; a tokenless one passes now. The
+     lazy insert beside it still hard-codes neither — it names no such column at all. */
+  assert.match(create, /export async function createStaffProfile\(tx, userId, name, publishedAt\)/);
+  assert.doesNotMatch(insert, /published_at = |NOW\(\)/);
+
+  // And the function above it is untouched: it still owns no transaction and is handed none.
+  const ensure = declaration(staffProfileSource, 'export async function ensureStaffProfile(');
+  assert.doesNotMatch(ensure, /\(tx[,)]|tx\.run|tx\.get/);
 });
 
 // ------------------------------------------------------------ what the numbers rest on
@@ -739,11 +979,15 @@ test('the unread mark is hung on the row that is actually on screen', async () =
 function staffLoginPage({ user = null, invite = null, loginAs = null, query = {} } = {}) {
   const tail = loginHtml.slice(loginHtml.indexOf('function oakStaffNext('));
   const script = tail.slice(0, tail.indexOf('</script>'));
+  /* Every body the page posts to the register endpoint, so a test can ask what it actually
+     sent rather than only where it ended up. The token is the whole of what the server reads
+     to tell a claim from a free registration, and it is written by this factory alone. */
+  const posted = [];
   const context = {
     location: { href: '' },
     OAK: {
       me: async () => user,
-      api: async (endpoint) => {
+      api: async (endpoint, options) => {
         if (endpoint.startsWith('/api/auth/staff/invite/')) {
           if (!invite) {
             throw new Error('Liên kết không hợp lệ hoặc đã hết hạn.');
@@ -753,6 +997,17 @@ function staffLoginPage({ user = null, invite = null, loginAs = null, query = {}
         if (endpoint === '/api/auth/login') {
           return { user: { role: loginAs } };
         }
+        if (endpoint === '/api/auth/staff/register') {
+          const body = (options ?? {}).body ?? {};
+          posted.push(body);
+          // The shape the server answers with: the same reply as ever when a token was
+          // redeemed, and that reply plus the address of the page it just published when
+          // none was. Nothing on the page reads the slug — the editor asks for its own — so
+          // it is here to keep the stand-in honest about the contract, not to be used.
+          return body.token
+            ? { user: { role: 'staff' }, welcome_code: null }
+            : { user: { role: 'staff' }, welcome_code: null, slug: 'ky-thuat-vien-8f2a' };
+        }
         return assert.fail(`unexpected call: ${endpoint}`);
       },
       fmtDate: (value) => String(value),
@@ -761,7 +1016,18 @@ function staffLoginPage({ user = null, invite = null, loginAs = null, query = {}
   };
   vm.runInNewContext(`${script}\nresult = oakStaffAuth();`, context);
   context.result.location = context.location;
+  context.result.posted = posted;
   return context.result;
+}
+
+/** Fill the register form in the way a reader would, then submit it. */
+async function submitRegistration(state) {
+  state.form.name = 'Nguyễn Mai Chi';
+  state.form.email = 'maichi@oak.invalid';
+  state.form.password = 'Oak@1234';
+  state.form.confirm = 'Oak@1234';
+  state.form.consent = true;
+  await state.register();
 }
 
 const liveInvite = {
@@ -823,6 +1089,162 @@ test('only a technician is sent on by ?next=', async () => {
   assert.equal(owner.location.href, 'tong-quan-doi-tac.html');
 });
 
+test('somebody with no link at all can register from the sign-in panel', async () => {
+  const state = staffLoginPage();
+  await state.init();
+
+  // The panel a reader with nothing in the address bar lands on, and the way on from it. This
+  // is also where somebody who opened a DEAD link arrives: `dead`'s button sends them here and
+  // init() cleared this.token to '' on the way, so the registration they may now choose really
+  // is a tokenless one — two deliberate choices, not a dead link becoming an account by itself.
+  assert.equal(state.mode, 'login');
+  assert.equal(state.token, '');
+  state.show('register');
+  assert.equal(state.mode, 'register');
+  assert.equal(state.token, '');
+
+  await submitRegistration(state);
+
+  // Posted, and posted empty. The field is always sent — the server reads '' as "no token"
+  // exactly as it reads an absent one — so what must never happen is a stale token riding
+  // along and turning a free registration into a claim on somebody's roster row.
+  assert.equal(state.posted.length, 1);
+  assert.equal(state.posted[0].token, '');
+  assert.equal(state.posted[0].consent, true);
+  // And she lands in the editor, which is where a portfolio-only account lives: her calendar
+  // would be a page about a salon she does not work at, and the editor is where the address
+  // her page was just published at is shown.
+  assert.equal(state.location.href, 'ho-so-nhan-vien.html');
+});
+
+test('registering through a claim link still lands on the calendar', async () => {
+  const state = staffLoginPage({ invite: liveInvite, query: { invite: 'tok-first-claim' } });
+  await state.init();
+
+  assert.equal(state.mode, 'register');
+  assert.equal(state.token, 'tok-first-claim');
+  // The name the salon put on the roster row is offered as hers, as it always was.
+  assert.equal(state.form.name, 'Phương Vy');
+
+  await submitRegistration(state);
+
+  assert.equal(state.posted[0].token, 'tok-first-claim');
+  // A salon, a chair and a shift: her calendar is home, and ?next= is still honoured.
+  assert.equal(state.location.href, 'lich-cua-toi.html');
+});
+
+test('the panel says what registering freely gets you, and what it does not', () => {
+  /* The sentence that has to go. "Hồ sơ kỹ thuật viên chỉ mở được bằng liên kết mời" was true
+     for exactly as long as an invitation was the only door, and leaving it up would be the page
+     telling a reader to go and ask for something she no longer needs. */
+  assert.doesNotMatch(loginHtml, /chỉ mở được bằng liên kết mời/);
+  assert.match(loginHtml, /@click="show\('register'\)"[\s\S]{0,400}?Tạo hồ sơ nghề nghiệp miễn phí/);
+
+  /* Two consents, because the two paths publish different things, and both spelled out on the
+     page rather than folded into a link to the terms. With a link she agrees to a profile at the
+     salon that invited her and her own page stays a draft; without one the page IS what she is
+     agreeing to, so the copy has to name which half of it is her own word — and say where the
+     switch that takes it back down lives, which is the editor and not Cài đặt. */
+  assert.match(
+    loginHtml,
+    /x-show="token">Hồ sơ công khai gồm tên, ảnh, chuyên môn, đánh giá của khách và số liệu làm việc tổng hợp của tôi\.<\/span>/,
+  );
+  assert.match(
+    loginHtml,
+    /x-show="!token">Trang hồ sơ nghề nghiệp công khai gồm tên và nội dung bạn tự viết — giới thiệu, ảnh, chuyên môn, số năm kinh nghiệm — được ghi rõ là tự khai\. Lịch sử làm việc đã xác thực chỉ hiển thị khi bạn nhận hồ sơ tại salon\.<\/span>/,
+  );
+  /* The withdrawal line, on BOTH paths and pointing at the editor. It used to send a technician
+     to Cài đặt, which was true until slice 1 moved both switches to ho-so-nhan-vien.html — and
+     bao-mat.html §8 has named the editor all along, so the page was contradicting the privacy
+     policy about where a person goes to take her own page down. */
+  assert.match(loginHtml, /Bạn có thể ẩn hoặc gỡ trang hồ sơ nghề nghiệp bất cứ lúc nào trong trang Hồ sơ của tôi\./);
+  assert.doesNotMatch(loginHtml, /ẩn hồ sơ công khai trong phần Cài đặt/);
+  // The invite banner names a salon, so it only stands when there is a salon to name.
+  assert.match(loginHtml, /<div class="p-6 bg-tertiary rounded-xl" x-cloak="" x-show="token">/);
+
+  /* And the way back out of the form, on the free path only: somebody who arrived on a claim
+     link was PUT here by the link, and the panel they would be sent to cannot redeem it. A
+     one-way door into a sign-up form is how somebody who already has an account ends up trying
+     to register a second one and meeting EMAIL_TAKEN instead of a password box. */
+  assert.match(
+    loginHtml,
+    /x-show="!token">\s*<span>Đã có tài khoản\?<\/span> <button @click="show\('login'\)"/,
+  );
+
+  // Both new sentences are in the dictionary, or an English reader gets the Vietnamese ones.
+  const dictionary = JSON.parse(
+    fs.readFileSync(path.join(root, '..', 'tools', 'i18n', 'parts', 'dang-nhap-nhan-vien.json'), 'utf8'),
+  );
+  for (const key of [
+    'Tạo hồ sơ nghề nghiệp miễn phí',
+    'Bạn có thể ẩn hoặc gỡ trang hồ sơ nghề nghiệp bất cứ lúc nào trong trang Hồ sơ của tôi.',
+    'Đã có tài khoản?',
+    'Đăng nhập',
+  ]) {
+    assert.ok(dictionary[key], key);
+  }
+  // And the retired one is gone from the part as well as from the page: a key that can never
+  // resolve is a translation nobody will notice has gone stale.
+  assert.equal(dictionary['Bạn có thể ẩn hồ sơ công khai trong phần Cài đặt bất cứ lúc nào.'], undefined);
+});
+
+test('the terms and the privacy policy describe the account this page can now create', () => {
+  /* createAccount refuses without consent to "Điều khoản sử dụng và Chính sách bảo mật", so those
+     two documents are the thing being consented to. Both of them said, in as many words, that the
+     account this slice creates cannot exist — which would have made the consent gate ask a
+     technician to agree to a description of something else. */
+  assert.doesNotMatch(termsHtml, /Chỉ tạo được bằng lời mời/);
+  assert.doesNotMatch(termsHtml, /không có đăng ký công khai cho tài khoản chuyên viên/);
+  assert.doesNotMatch(privacyHtml, /Tài khoản chuyên viên chỉ tạo được bằng lời mời/);
+  // §9 no longer scopes itself to somebody who already works at a partner salon…
+  assert.match(termsHtml, /Mục này áp dụng cho chuyên viên có tài khoản riêng trên OAK Beauty, dù bạn đang làm việc tại salon đối tác hay chưa\./);
+  // …and names both doors, saying which clauses wait for the second one.
+  assert.match(termsHtml, /Hai cách mở tài khoản:/);
+  assert.match(termsHtml, /bạn có thể tự đăng ký miễn phí, không cần lời mời của salon/);
+  assert.match(termsHtml, /chỉ áp dụng sau khi bạn đã nhận một hồ sơ tại salon\./);
+  assert.match(privacyHtml, /Bạn có thể tự đăng ký tài khoản chuyên viên mà không cần lời mời của salon/);
+
+  /* The legal basis is the sharpest of the three: it named "thực hiện thỏa thuận giữa bạn và
+     salon" as a basis for processing, and a technician who has been invited nowhere has no such
+     agreement with anybody. Her consent at registration has to stand alone, and the salon
+     agreement has to be named as what the STINT history rests on once there is one. */
+  assert.match(privacyHtml, /sự đồng ý bạn đưa ra khi tạo tài khoản và khi tự điền phần hồ sơ cá nhân/);
+  assert.match(privacyHtml, /sự đồng ý đó là cơ sở duy nhất/);
+  assert.doesNotMatch(privacyHtml, /sự đồng ý bạn đưa ra khi nhận lời mời/);
+});
+
+test('an empty diary does not tell a technician with no salon about her next 14 days', async () => {
+  /* Two different silences under one heading. Somebody who works at a salon has nothing booked
+     for a fortnight; somebody who registered freely has no salon calendar to be empty of, and
+     answering her with "no appointments in the next 14 days" would be the page replying to a
+     question she never asked, on the page she was sent to. */
+  const empty = schedulePage([]);
+  await empty.init();
+  assert.equal(empty.noStints(), true);
+
+  const working = schedulePage([{ staff_id: 1, salon: { name: 'Lala', slug: 'lala' }, stats: null }]);
+  await working.init();
+  assert.equal(working.noStints(), false);
+
+  /* And the trap underneath it. init() empties `profiles` on a FAILED read as well, so
+     `!profiles.length` alone would tell somebody who works at three salons that she works at
+     none — on a network blip, on the one page she opens every morning. The flag is set in the
+     success branch only, so a read that never came back answers false and leaves the diary's
+     own wording standing, which is the reading that claims nothing. */
+  const blind = schedulePage([], { profileError: 'Mất kết nối.' });
+  await blind.init();
+  assert.equal(blind.profiles.length, 0);
+  assert.equal(blind.profilesRead, false);
+  assert.equal(blind.noStints(), false);
+  assert.equal(blind.toasts.length, 1);
+
+  // One empty-state marker on the page: other suites count these, and the fork is inside it.
+  assert.equal((scheduleHtml.match(/<!-- OAK-EMPTY -->/g) || []).length, 1);
+  assert.match(scheduleHtml, /x-show="noStints\(\)">Bạn chưa làm việc tại salon nào trên OAK/);
+  assert.match(scheduleHtml, /x-show="!noStints\(\)">Chưa có lịch hẹn nào trong 14 ngày tới/);
+  assert.match(scheduleHtml, /href="ho-so-nhan-vien\.html" x-show="noStints\(\)"/);
+});
+
 // ------------------------------------------------------------------ measurement
 
 test('the events the server writes itself can never name a person', () => {
@@ -840,7 +1262,7 @@ test('the events the server writes itself can never name a person', () => {
     ...(partnerSource.match(/recordEvent\([^)]*\)/g) ?? []),
     ...(staffMeSource.match(/recordEvent\([^)]*\)/g) ?? []),
   ];
-  assert.equal(callSites.length, 5);
+  assert.equal(callSites.length, 6);
   for (const call of callSites) {
     const shape = call.match(/^recordEvent\('[a-z_]+', '(\/api\/[a-z:/-]+)'\)$/);
     assert.ok(shape, `not a literal route shape: ${call}`);
@@ -849,6 +1271,12 @@ test('the events the server writes itself can never name a person', () => {
   assert.match(partnerSource, /recordEvent\('staff_invite_created', '\/api\/partner\/staff\/:id\/invite'\)/);
   assert.match(authSource, /recordEvent\('staff_invite_opened', '\/api\/auth\/staff\/invite\/:token'\)/);
   assert.match(staffMeSource, /recordEvent\('staff_claimed', '\/api\/staff-me\/claim'\)/);
+  /* Two names on one endpoint, at two literal call sites rather than one with the name chosen
+     above it. Taking a roster row over and opening a page of one's own are different things and
+     the funnel has to be able to count them apart — but a ternary inside the call would be the
+     first argument in this file that a scan cannot read without running the server. */
+  assert.match(authSource, /recordEvent\('staff_registered', '\/api\/auth\/staff\/register'\)/);
+  assert.match(authSource, /recordEvent\('staff_claimed', '\/api\/auth\/staff\/register'\)/);
   // Logged on every staff sign-in, because "first" cannot be derived without either a
   // column for it or an account id in this table, and the second is not on the table.
   assert.match(authSource, /recordEvent\('staff_login', '\/api\/auth\/login'\)/);
@@ -1434,12 +1862,19 @@ test('nothing she wrote is public until she published it and left it standing', 
   assert.match(half, /link: \{ technician: \{ slug: person\.slug \} \},/);
   assert.doesNotMatch(half, /technician: null/);
   assert.doesNotMatch(staffSource, /technician: null/);
+  // The fall-through branch is still EXACTLY the row, field for field and key for key.
+  const fallThrough = half.slice(half.indexOf('if (!person) {'), half.indexOf('/* Field by field'));
+  assert.ok(fallThrough.length > 0, 'the fall-through branch has moved');
   for (const column of ['bio', 'image', 'years_experience']) {
-    assert.match(half, new RegExp(`${column}: row\\.${column},`), `${column} from the row`);
-    assert.match(half, new RegExp(`${column}: person\\.${column},`), `${column} from the page`);
+    assert.match(fallThrough, new RegExp(`${column}: row\\.${column},`), `${column} from the row`);
   }
-  assert.match(half, /portfolio: parseJsonArray\(row\.portfolio\),/);
-  assert.match(half, /portfolio: parseJsonArray\(person\.portfolio\),/);
+  assert.match(fallThrough, /portfolio: parseJsonArray\(row\.portfolio\),/);
+  /* The override half reaches for the row too, because it is field-wise: hers where she said
+     something, the salon's record of the chair where she did not. What that means in practice is
+     driven rather than matched — 'a page that says nothing overrides nothing' below runs it. */
+  for (const column of ['bio', 'image', 'years_experience']) {
+    assert.match(half, new RegExp(`person\\.${column} : row\\.${column}`), `${column} falls back`);
+  }
   // The account column is asked about and never answered with, as everywhere else on this side.
   assert.doesNotMatch(half, /user_id:/);
   const detail = handler(staffSource, "router.get('/:id',", 'export default router');
@@ -1454,6 +1889,119 @@ test('nothing she wrote is public until she published it and left it standing', 
   for (const salons of ['title: row.title', 'specialty: row.specialty', 'name: row.name']) {
     assert.ok(detail.includes(salons), salons);
   }
+});
+
+/**
+ * personalHalf() lifted out of routes/staff.js and RUN, over a stand-in profile read.
+ *
+ * Driven rather than matched, because what has to hold here is a truth table and not a spelling:
+ * every combination of "she said something" and "she did not" against a roster row that does.
+ * parseJsonArray is a faithful stand-in for lib/query.js's — the only thing this needs of it is
+ * that a NULL column and a bad one both come back as an empty list.
+ */
+async function stintHalf(row, person) {
+  const context = {
+    parseJsonArray: (value) => {
+      if (typeof value !== 'string' || value === '') {
+        return [];
+      }
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    },
+    selectPublishedProfile: { get: async () => person },
+    row,
+  };
+  vm.runInNewContext(
+    `${declaration(staffSource, 'function declared(')}
+     ${declaration(staffSource, 'async function personalHalf(')}
+     result = personalHalf(row);`,
+    context,
+  );
+  return context.result;
+}
+
+test('a page that says nothing overrides nothing', async () => {
+  /* The chair as the salon keeps it: a photo, a bio, a gallery and eight years, all of it the
+     salon's own record of that seat and none of it hers. */
+  const chair = {
+    user_id: 7,
+    bio: 'Salon viết: làm móng gel, 8 năm tại tiệm.',
+    image: 'assets/img/salon-chup.webp',
+    portfolio: JSON.stringify(['assets/img/salon-1.webp']),
+    years_experience: 8,
+  };
+
+  // Nobody behind the chair, or nobody with a published page: exactly the row, and no address.
+  for (const nobody of [undefined, null]) {
+    const bare = await stintHalf(chair, nobody);
+    assert.equal(bare.bio, chair.bio);
+    assert.equal(bare.image, chair.image);
+    assert.equal(bare.years_experience, 8);
+    // Key count rather than deepEqual: the object was built in the vm's realm, so a structural
+    // comparison against one of ours fails on identity alone.
+    assert.equal(Object.keys(bare.link).length, 0);
+  }
+
+  /* The whole reason this is field-wise. Registering needs no invitation, so an account can hold
+     a page that is PUBLISHED and completely empty — one is created exactly that way the moment
+     somebody signs up — and be rostered afterwards by a salon that enters a photo and eight
+     years. Overriding wholesale would take both off her stint page the instant she claimed the
+     chair, while the salon's own team strip went on showing them. `years_experience: 0` is the
+     sharp one: createStaffProfile writes 0, not NULL, so COALESCE would read it as a claim. */
+  const emptyPage = {
+    slug: 'ktv-moi-8f2a',
+    bio: null,
+    image: null,
+    portfolio: null,
+    years_experience: 0,
+  };
+  const stillTheSalons = await stintHalf(chair, emptyPage);
+  assert.equal(stillTheSalons.bio, chair.bio);
+  assert.equal(stillTheSalons.image, chair.image);
+  assert.equal(stillTheSalons.years_experience, 8);
+  assert.equal(stillTheSalons.portfolio.join(), 'assets/img/salon-1.webp');
+  // And the address rides along all the same: that is a fact about there BEING a published page,
+  // which the gate settled, not about whether she has filled any of it in yet.
+  assert.equal(stillTheSalons.link.technician.slug, 'ktv-moi-8f2a');
+  assert.equal(Object.keys(stillTheSalons.link).length, 1);
+
+  // '' is a cleared field, which is the same as never having written one.
+  const cleared = await stintHalf(chair, { ...emptyPage, bio: '', image: '' });
+  assert.equal(cleared.bio, chair.bio);
+  assert.equal(cleared.image, chair.image);
+
+  // And wherever she HAS written something, it wins outright — that is what the override is for.
+  const hers = await stintHalf(chair, {
+    slug: 'ktv-moi-8f2a',
+    bio: 'Tôi làm nail từ 2019.',
+    image: 'assets/img/tu-chup.webp',
+    portfolio: JSON.stringify(['assets/img/cua-toi.webp']),
+    years_experience: 3,
+  });
+  assert.equal(hers.bio, 'Tôi làm nail từ 2019.');
+  assert.equal(hers.image, 'assets/img/tu-chup.webp');
+  assert.equal(hers.years_experience, 3);
+  assert.equal(hers.portfolio.join(), 'assets/img/cua-toi.webp');
+
+  // One field at a time, in both directions: this is a per-field rule, not an all-or-nothing one
+  // with a second threshold hidden in it.
+  const halfWritten = await stintHalf(chair, { ...emptyPage, bio: 'Chỉ mới viết lời giới thiệu.' });
+  assert.equal(halfWritten.bio, 'Chỉ mới viết lời giới thiệu.');
+  assert.equal(halfWritten.image, chair.image);
+  assert.equal(halfWritten.years_experience, 8);
+
+  /* A chair the salon left blank and a page she left blank come out blank, rather than one of
+     them inventing a value for the other. Nothing here may manufacture content. */
+  const bareChair = { user_id: 7, bio: null, image: null, portfolio: null, years_experience: 0 };
+  const nothingAnywhere = await stintHalf(bareChair, emptyPage);
+  assert.equal(nothingAnywhere.bio, null);
+  assert.equal(nothingAnywhere.image, null);
+  assert.equal(nothingAnywhere.years_experience, 0);
+  assert.equal(nothingAnywhere.portfolio.length, 0);
 });
 
 test('a first draft is filled in once, and nothing ever writes over it', () => {
