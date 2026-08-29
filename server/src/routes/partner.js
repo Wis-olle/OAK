@@ -1792,7 +1792,34 @@ const DEACTIVATE_STAFF = 'UPDATE staff SET active = 0 WHERE id = ? AND salon_id 
    confirmed was a date, not the idea of one, so the ✓ does not survive the salon replacing
    it — and neither does a dispute, which was about the value that has just gone. */
 const RESET_STARTED_ATTESTATION = 'started_confirmed_at = NULL, tenure_disputed = 0';
+/* Cleared alongside left_at when a recorded departure is undone below: both ✓ on the stint
+   were answers about a pair of dates, and one of them has just stopped existing. */
+const RESET_DEPARTURE = 'left_at = NULL, left_by = NULL, left_confirmed_at = NULL';
 const retireStaffInvites = db.prepare(RETIRE_STAFF_INVITES);
+
+/**
+ * How far ahead a start date may be entered.
+ *
+ * Unlike a departure, a hire ahead of time is real and harmless: the row is created active
+ * either way, so a date next week says when the stint began and takes nothing away in the
+ * meantime. It is bounded all the same, because past that horizon the value is a typo — 2027
+ * for 2026 — far more often than a plan, and a typo here sits on somebody's public profile as
+ * the day they joined and as the ✓ they are asked to sign.
+ */
+const START_MAX_LEAD_DAYS = 30;
+
+/** The salon's own date for the start of a stint: any past day, or a hire soon to come. */
+function startDateOrNull(value) {
+  const date = optionalDate(value, 'Ngày bắt đầu');
+  if (date !== null && date > addDaysISO(todayISO(), START_MAX_LEAD_DAYS)) {
+    throw httpError(
+      400,
+      'VALIDATION_ERROR',
+      `Ngày bắt đầu không được quá ${START_MAX_LEAD_DAYS} ngày kể từ hôm nay.`,
+    );
+  }
+  return date;
+}
 
 const STAFF_COLUMNS = {
   name: (value) => requireText(value, 'tên kỹ thuật viên'),
@@ -1802,8 +1829,10 @@ const STAFF_COLUMNS = {
   /* The day this stint began, as the salon knows it and no query can. It outranks the
      earliest completed booking wherever it is set (lib/staff-stats.js), which is why it is
      the salon's to enter and the technician's to confirm rather than either one's alone. */
-  started_at: (value) => optionalDate(value, 'Ngày bắt đầu'),
-  // Patchable so a soft-deleted technician (DELETE sets active = 0) can be restored.
+  started_at: (value) => startDateOrNull(value),
+  /* Patchable so a soft-deleted technician (DELETE sets active = 0) can be restored — and,
+     on a CLAIMED row that carries a leaving date, so a departure recorded on the wrong day
+     can be UNDONE. See the PATCH itself: that is the only correction there is. */
   active: (value) => requireFlag(value, 'Trạng thái hoạt động'),
 };
 
@@ -1855,6 +1884,28 @@ async function parseStaffServiceIds(value, salonId) {
   return ids;
 }
 
+/**
+ * The stint half of a roster row: the two dates, who ended it, and what the technician has
+ * answered about them.
+ *
+ * Shared by the grid and the editor rather than served only by staffDetail below, because the
+ * console draws the "đã nghỉ" state and the ✓ on the LIST — and a list that had to fan out one
+ * detail request per row to know them would ask the server thirty questions to draw thirty
+ * chips. tenure_verified is the badge rule computed server-side in lib/staff-stats.js and
+ * never re-derived from these columns by a page: a console, a grid and a public profile
+ * disagreeing about whether a date is attested to is exactly the argument one rule in one
+ * place exists to prevent.
+ */
+function stintFields(staff) {
+  return {
+    started_at: staff.started_at ?? null,
+    left_at: staff.left_at ?? null,
+    left_by: staff.left_by ?? null,
+    tenure_disputed: staff.tenure_disputed ?? 0,
+    tenure_verified: tenureVerified(staff),
+  };
+}
+
 async function staffDetail(staff) {
   return {
     id: staff.id,
@@ -1867,16 +1918,9 @@ async function staffDetail(staff) {
     years_experience: staff.years_experience,
     portfolio: parseJsonArray(staff.portfolio),
     active: staff.active,
-    /* The stint itself, so the console can read back the date it just entered and show what
-       the technician has answered about it. tenure_verified is the badge rule, computed
-       server-side in lib/staff-stats.js and never re-derived from these columns by a page: a
-       console and a public profile disagreeing about whether a date is attested to is exactly
-       the argument one rule in one place exists to prevent. */
-    started_at: staff.started_at ?? null,
-    left_at: staff.left_at ?? null,
-    left_by: staff.left_by ?? null,
-    tenure_disputed: staff.tenure_disputed ?? 0,
-    tenure_verified: tenureVerified(staff),
+    // The stint itself, so the console can read back the date it just entered and show what
+    // the technician has answered about it — the same block the grid is served.
+    ...stintFields(staff),
     schedule: await selectStaffSchedule.all(staff.id),
     service_ids: (await selectStaffServiceIds.all(staff.id)).map((row) => row.service_id),
   };
@@ -1959,6 +2003,9 @@ router.get('/staff', async (req, res, next) => {
         // account and the token IS the secret, so neither leaves the server.
         claimed: Boolean(member.user_id),
         invite_pending: pendingInvites.has(member.id),
+        // Every row already carries its stint, so the grid can say "đã nghỉ từ ngày" and
+        // draw its ✓ without asking a second question per row.
+        ...stintFields(member),
         ...staffState(windows.get(member.id), minutes),
       };
     });
@@ -2255,9 +2302,44 @@ router.patch('/staff/:id', async (req, res, next) => {
     if (Object.hasOwn(patch, 'started_at')) {
       assignments.push(RESET_STARTED_ATTESTATION);
     }
-    await db
-      .prepare(`UPDATE staff SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`)
-      .run(...values, staffId, salon.id);
+
+    /* Putting a departed technician back on the roster is the ONE correction there is for a
+       departure recorded on the wrong day: undo it, then record it again with the right date.
+       There is no PATCH for left_at, deliberately — a leaving date is a dated event both sides
+       answer for, and letting an owner quietly re-write it would make the ✓ beside it a mark
+       on whatever the owner last typed.
+
+       So active = 1 on a claimed row that carries a leaving date clears the whole departure in
+       the same statement. It has to: left_at and active = 0 are written together and are only
+       ever true together — idx_staff_user_salon's "open stint" predicate is active = 1 — and a
+       row re-opened with a date still on it would be bookable, public and closed at once, and
+       would block the re-hire the date says already happened. The ✓ on the leaving date goes
+       with the date; a DISPUTE does not, because the flag covers the whole stint and the date
+       under argument is as often started_at, which nothing here touches.
+
+       What does not come back is the calendar: the appointments the departure handed to
+       colleagues stay handed on. Re-opening a row says the person is working here again, not
+       that the last hour was never given away. */
+    const reopening = staff.user_id != null && staff.left_at != null && patch.active === 1;
+    if (reopening) {
+      assignments.push(RESET_DEPARTURE);
+    }
+
+    const update = `UPDATE staff SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`;
+    await db.withTransaction(async (tx) => {
+      await tx.run(update, ...values, staffId, salon.id);
+      /* She was told the day her stint was closed, so she is told the day it is opened again:
+         a page that went from "đã nghỉ" back to a working stint without a word would leave
+         her to find it out from her own profile. */
+      if (reopening) {
+        await notifyStaff(
+          tx,
+          staffId,
+          'Ghi nhận nghỉ việc đã được hủy',
+          `${salon.name} đã hủy ghi nhận nghỉ việc của bạn. Hồ sơ của bạn trở lại trạng thái đang làm việc.`,
+        );
+      }
+    });
 
     res.json({
       success: true,

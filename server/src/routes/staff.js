@@ -22,6 +22,19 @@ const MAX_DAYS = 14;
    own roster entry off the site. */
 const VISIBLE_PROFILE = '(st.user_id IS NULL OR COALESCE(st.profile_hidden, 0) = 0)';
 
+/* The other half of the page gate, and deliberately not a plain active = 1.
+ *
+ * A row off the roster is two entirely different things depending on whether anybody stands
+ * behind it. Unclaimed, it is a chair the salon has taken out of service and nothing more, so
+ * the page describing it goes with it. Claimed, it is a person whose stint has ENDED — and
+ * this page is her CV, the thing the whole persona feature exists to give her. A technician
+ * between salons holds no open row anywhere, and answering 404 to the one page that carries
+ * her work would delete her working life on the day she left. So she keeps her page, and what
+ * it stops being is bookable: the booking wizard's picker, the day strip and the service list
+ * are all gated on active = 1 separately, and none of them is touched by this.
+ */
+const CLAIMED_OR_ON_ROSTER = '(st.user_id IS NOT NULL OR st.active = 1)';
+
 // THIS IS the public profile page, so the withdrawal lands here first: a hidden row answers
 // 404 in the same words as an id that names nobody. Not "no longer exists" and not "hidden" —
 // a reply that told those apart would put the page back up in the negative.
@@ -31,7 +44,7 @@ const selectStaffProfile = db.prepare(`
          s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name
   FROM staff st
   JOIN salons s ON s.id = st.salon_id
-  WHERE st.id = ? AND st.active = 1 AND ${VISIBLE_PROFILE}
+  WHERE st.id = ? AND ${CLAIMED_OR_ON_ROSTER} AND ${VISIBLE_PROFILE}
 `);
 
 /* Deliberately NOT gated on the withdrawal: this is what /:id/availability and /:id/services
@@ -43,7 +56,7 @@ const selectStaffProfile = db.prepare(`
 const selectStaffExists = db.prepare('SELECT 1 FROM staff WHERE id = ? AND active = 1');
 
 const selectVisibleStaffExists = db.prepare(
-  `SELECT 1 FROM staff st WHERE st.id = ? AND st.active = 1 AND ${VISIBLE_PROFILE}`,
+  `SELECT 1 FROM staff st WHERE st.id = ? AND ${CLAIMED_OR_ON_ROSTER} AND ${VISIBLE_PROFILE}`,
 );
 
 const selectStaffSalon = db.prepare('SELECT salon_id FROM staff WHERE id = ?');
@@ -165,9 +178,11 @@ router.get('/:id/services', async (req, res, next) => {
   }
 });
 
-/* Hidden with the page, because it IS the page: this is the review list the public profile
-   renders under itself, and leaving it open would serve the contents of a page that is no
-   longer there — the same words, the same faces, one endpoint further in.
+/* Gated with the page, because it IS the page: this is the review list the public profile
+   renders under itself, so it stands or falls on exactly the same question — leaving it open
+   would serve the contents of a page that is no longer there, the same words, the same faces,
+   one endpoint further in, and closing it a stint early would strip the reviews off a CV whose
+   profile is still standing.
 
    What is deliberately NOT touched is the salon's own list. GET /api/salons/:id/reviews joins
    staff_name and goes on naming this technician in the reviews of visits they worked: that is
@@ -198,12 +213,14 @@ router.get('/:id/reviews', async (req, res, next) => {
 
 /* The CV: every stint the person behind this row has held on OAK, newest first.
  *
- * Deliberately NOT gated on active = 1, and it is the only read in this file that is not: a
- * stint that ended is exactly what a career is made of, and the row it is being asked about
- * may itself be a closed one — a technician between salons has no open row anywhere, and
- * answering 404 would delete her working life the day she left. The withdrawal is honoured
- * as it is on the profile itself: claimed AND hidden is 404, in the same words, and a stint
- * whose page is down is left out of the list rather than reappearing inside another one.
+ * Gated on the withdrawal alone, and on nothing about the roster: a stint that ended is
+ * exactly what a career is made of, and the row it is being asked about may itself be a
+ * closed one — a technician between salons has no open row anywhere, and answering 404 would
+ * delete her working life the day she left. The profile above now says the same for the same
+ * reason; this list is looser still, because a chair the salon has retired is one line of a
+ * career that stays true. The withdrawal is honoured as it is on the profile: claimed AND
+ * hidden is 404, in the same words, and a stint whose page is down is left out of the list
+ * rather than reappearing inside another one.
  *
  * By staff id in DESCENDING order, which is the order the stints were opened, newest first:
  * a row is opened when somebody joins a salon, so the ids ARE the sequence. Sorting by

@@ -362,7 +362,7 @@ router.patch('/profile', requireStaff, async (req, res, next) => {
    owner_id is what a departure is announced to: an owner reads their bell as anybody else
    does, so there is no partner-only channel to reach and none is invented. */
 const selectMyStint = db.prepare(`
-  SELECT st.id, st.name, st.active, st.started_at, st.left_at,
+  SELECT st.id, st.name, st.active, st.started_at, st.left_at, st.left_by,
          s.id AS salon_id, s.name AS salon_name, s.owner_id
   FROM staff st
   JOIN salons s ON s.id = st.salon_id
@@ -444,6 +444,23 @@ async function tenureTarget(req) {
   }
   if (!stint[field.date]) {
     throw httpError(409, 'CONFLICT', `Salon chưa nhập ${field.label} cho hồ sơ này.`);
+  }
+  /* A date this technician entered herself is not a date she can answer for. POST /leave
+     writes left_at with left_by = 'staff', and the ✓ the public profile draws from
+     left_confirmed_at is meant to say two sides named the same day — minting it from one
+     side would make the badge a claim about nobody but its own author. Disputing it is
+     refused in the same breath and for the same reason: objecting to your own entry says
+     nothing, and the door for a date typed wrong is to have the owner change it.
+     ho-so-nhan-vien.html already withholds both buttons; this is the rule underneath them,
+     because a hidden button is not a closed door.
+     There is no mirror to write for started_at: it is only ever written by the owner
+     (POST/PATCH /api/partner/staff), so her ✓ on it really is the second signature. */
+  if (requested === 'left' && stint.left_by === 'staff') {
+    throw httpError(
+      409,
+      'CONFLICT',
+      'Ngày kết thúc này do bạn tự ghi nên không cần xác nhận hay báo sai.',
+    );
   }
   return { staffId, stint, field };
 }

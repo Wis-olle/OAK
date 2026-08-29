@@ -11,38 +11,29 @@
 import { httpError } from '../middleware/auth.js';
 import { pickAvailableStaff } from './availability.js';
 import { notifyStaff, notifyUser } from './notify.js';
-import { addDaysISO, formatDateVN, isISODate, todayISO } from './time.js';
-
-/**
- * How far ahead a departure date may be entered.
- *
- * Not "today or earlier": a salon and a technician agree an end date and then work out the
- * notice period, and a console that could only record a departure on the day it happened
- * would be a console nobody uses until the person has already gone — which is exactly when
- * the future bookings below stop being fixable. A month is the longest notice period
- * anybody here serves; beyond that the date is a typo (2027 for 2026) far more often than
- * it is a plan, and a stint closed by a typo takes a technician off the roster today.
- */
-export const DEPARTURE_MAX_LEAD_DAYS = 30;
+import { formatDateVN, isISODate, todayISO } from './time.js';
 
 /**
  * The day a stint ended, as either side enters it, refused in one set of words for both.
  *
  * The past is wide open: a salon writing down a departure weeks after the fact is the
  * ordinary case, and refusing it would only teach owners to enter today's date instead,
- * which puts a wrong day on somebody's public record forever. ISO strings compare in the
- * order the days happened, so the ceiling is a plain string comparison.
+ * which puts a wrong day on somebody's public record forever.
+ *
+ * The future is closed, and today is the ceiling. Recording a departure is not scheduling
+ * one: active = 0 is written the moment the button is pressed, and nothing in this codebase
+ * runs later to do it on the day. A date a month out would therefore take a technician off
+ * the roster, out of the picker and off the salon's page for the whole notice period she is
+ * still working. A notice period is served by recording the departure on the last day
+ * actually worked — which is also the day both sides can finally agree it was. ISO strings
+ * compare in the order the days happened, so the ceiling is a plain string comparison.
  */
 export function departureDateOrThrow(value) {
   if (!isISODate(value)) {
     throw httpError(400, 'VALIDATION_ERROR', 'Ngày kết thúc phải theo định dạng YYYY-MM-DD.');
   }
-  if (value > addDaysISO(todayISO(), DEPARTURE_MAX_LEAD_DAYS)) {
-    throw httpError(
-      400,
-      'VALIDATION_ERROR',
-      `Ngày kết thúc không được quá ${DEPARTURE_MAX_LEAD_DAYS} ngày kể từ hôm nay.`,
-    );
+  if (value > todayISO()) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Ngày kết thúc không được ở tương lai.');
   }
   return value;
 }
@@ -53,14 +44,21 @@ export function departureDateOrThrow(value) {
  *
  * left_at and active = 0 are set together and only ever together — see idx_staff_user_salon
  * in db.js, whose "open stint" predicate is active = 1 and is only true to its name while
- * that pairing holds. The confirmation of the old date goes with the new one, because a
- * technician confirmed a date rather than the idea of a date; disputes clear for the same
- * reason. Guarded on active = 1 so a second departure changes no row and the caller finds
- * out rather than silently re-dating a stint that already ended.
+ * that pairing holds. The confirmation of the old leaving date goes with the new one,
+ * because a technician confirmed a date rather than the idea of a date.
+ *
+ * tenure_disputed is deliberately NOT cleared. It is one flag over the whole stint and the
+ * date most often under dispute is started_at, which nothing here touches: clearing it would
+ * let a salon answer "this start date is wrong" by recording a departure, and the ✓ the
+ * technician had refused would come back on a date she never agreed to. A dispute outlives
+ * the stint it was raised on, and only the owner changing the date settles it.
+ *
+ * Guarded on active = 1 so a second departure changes no row and the caller finds out rather
+ * than silently re-dating a stint that already ended.
  */
 export const END_STINT = `
   UPDATE staff
-  SET left_at = ?, left_by = ?, active = 0, left_confirmed_at = NULL, tenure_disputed = 0
+  SET left_at = ?, left_by = ?, active = 0, left_confirmed_at = NULL
   WHERE id = ? AND user_id IS NOT NULL AND active = 1
 `;
 
@@ -103,7 +101,14 @@ const FUTURE_BOOKINGS_SQL = `
   ORDER BY b.date, b.time, b.id
 `;
 
-const MOVE_BOOKING_STAFF = 'UPDATE bookings SET staff_id = ? WHERE id = ?';
+/* The same two statuses the read above selects on, asked again at the moment of writing: the
+   sweep reads its list once and then moves the rows one at a time, and on READ COMMITTED a
+   customer cancelling their appointment halfway through that loop is a row the list still
+   names and the calendar no longer holds. Re-stating the predicate here is what makes the
+   move refuse it instead of quietly re-staffing a cancelled hour. */
+const MOVE_BOOKING_STAFF = `
+  UPDATE bookings SET staff_id = ? WHERE id = ? AND status IN ('pending','confirmed')
+`;
 
 /**
  * Hand on what the departing technician cannot work any more, and count what nobody can.
@@ -140,7 +145,13 @@ export async function sweepFutureBookings(tx, { staffId, salon, leftAt, actorUse
       continue;
     }
 
-    await tx.run(MOVE_BOOKING_STAFF, replacement, booking.id);
+    const moved = await tx.run(MOVE_BOOKING_STAFF, replacement, booking.id);
+    /* Nothing changed hands, so nobody is told and nothing is audited: the appointment was
+       cancelled between the read and this write. Not counted as needing attention either —
+       an hour nobody is coming to is not an hour the owner has to find cover for. */
+    if (moved.changes !== 1) {
+      continue;
+    }
     /* Written for every one of these, pending rows included — unlike the console's own PATCH,
        which leaves pending swaps out as corrections to a plan. This is not a correction: a
        whole calendar changed hands because somebody left, and "why is this appointment on my

@@ -246,7 +246,14 @@ test('erasing an account gives its roster rows back to the salon', () => {
      the public gates pass any row with user_id IS NULL, so a profile its holder had withdrawn
      returns to the public side the moment they erase the account, with nobody left who can
      sign in and take it down. And profile_hidden is reset so the next person to claim the
-     chair does not inherit somebody else's withdrawal. */
+     chair does not inherit somebody else's withdrawal.
+
+     The attestations go with her too, and for the sharpest version of the same reason: a ✓ is
+     one person's answer about one date, so leaving started_confirmed_at, left_confirmed_at or
+     a dispute on the released row would hand the next claimant a stint already attested to —
+     a badge for days she has never seen, or an argument she never started. The DATES stay:
+     started_at and left_at are the salon's own record of when that chair was worked. What
+     leaves is only what the person said back about them. */
   /* The whole statement, not three substrings of it: this UPDATE decides what survives an
      erasure, and a scope or a column slipped into the gaps between substring matches — an
      `active = 0`, an `AND salon_id = ?` — would change who it touches without failing a
@@ -255,8 +262,17 @@ test('erasing an account gives its roster rows back to the salon', () => {
   assert.equal(
     release,
     'const RELEASE_STAFF_ROWS = ` UPDATE staff SET user_id = NULL, claimed_at = NULL, ' +
-      'bio = NULL, portfolio = NULL, image = NULL, profile_hidden = 0 WHERE user_id = ?',
+      'bio = NULL, portfolio = NULL, image = NULL, profile_hidden = 0, ' +
+      'started_confirmed_at = NULL, left_confirmed_at = NULL, tenure_disputed = 0 ' +
+      'WHERE user_id = ?',
   );
+  // Named here as well as inside that string, so a column dropped out of the SET clause and
+  // out of the expectation together still fails something.
+  for (const column of ['started_confirmed_at', 'left_confirmed_at', 'tenure_disputed']) {
+    assert.match(release, new RegExp(`${column} = (?:NULL|0)`), column);
+  }
+  // And the dates themselves are not in it: they are the salon's statement, not hers.
+  assert.doesNotMatch(release, /started_at = NULL|left_at = NULL|left_by = NULL/);
   // In the same transaction as the anonymise, and before it: a row still pointing at an
   // account whose address is now deleted+id@oak.invalid reads as claimed forever, and
   // every recovery the owner triggers from it mails into nothing.
@@ -1101,11 +1117,24 @@ test('the withdrawal hides the page and never the working day', () => {
   /* The public profile and its own review list are the page; both refuse a hidden row, and
      both refuse it in the words an id naming nobody already got. Two statements rather than
      one shared resolver, because the other two reads in this file resolve through the same
-     path and must NOT ask the question. */
-  assert.match(staffSource, /WHERE st\.id = \? AND st\.active = 1 AND \$\{VISIBLE_PROFILE\}/);
+     path and must NOT ask the question.
+
+     The roster half of the gate is CLAIMED_OR_ON_ROSTER, not active = 1: a chair the salon
+     retired takes its page with it, while a CLAIMED row that has been closed is a technician
+     between salons, and 404 on the one page carrying her work would delete her working life
+     on the day she left. Both statements ask it, so the reviews cannot outlive the profile or
+     fall off one that is still standing. */
   assert.match(
     staffSource,
-    /const selectVisibleStaffExists = db\.prepare\(\s*`SELECT 1 FROM staff st WHERE st\.id = \? AND st\.active = 1 AND \$\{VISIBLE_PROFILE\}`,/,
+    /const CLAIMED_OR_ON_ROSTER = '\(st\.user_id IS NOT NULL OR st\.active = 1\)';/,
+  );
+  assert.match(
+    staffSource,
+    /WHERE st\.id = \? AND \$\{CLAIMED_OR_ON_ROSTER\} AND \$\{VISIBLE_PROFILE\}/,
+  );
+  assert.match(
+    staffSource,
+    /const selectVisibleStaffExists = db\.prepare\(\s*`SELECT 1 FROM staff st WHERE st\.id = \? AND \$\{CLAIMED_OR_ON_ROSTER\} AND \$\{VISIBLE_PROFILE\}`,/,
   );
   assert.match(
     staffSource,
@@ -1160,6 +1189,11 @@ test('the withdrawal hides the page and never the working day', () => {
   assert.match(card, /^ {4}id: row\.id,\s*\n\s*name: row\.name,/m);
   // The account column is asked about and never answered with.
   assert.doesNotMatch(card, /user_id:/);
+  /* What every card does carry, withdrawn or not: whether a real account stands behind the
+     chair. It is the one fact the reduction must NOT take away — the ✓ chip marks a person
+     who signed in and claimed the row, and hiding a page is not ceasing to be that person. */
+  assert.match(card, /claimed: row\.user_id !== null,/);
+  assert.doesNotMatch(card, /claimed: withdrawn/);
 
   /* The console is the salon's own operational view of its roster, so a withdrawn technician
      is still on it — the owner has a day to run and a person to run it with. Unchanged, and
@@ -1216,17 +1250,18 @@ test("a 'staff' notification can only be written by notifyStaff", () => {
   }
 });
 
-test('the eight things a technician is told about, each written once and in a transaction', () => {
+test('the nine things a technician is told about, each written once and in a transaction', () => {
   /* Every notice rides the transaction that made the change it announces, so a booking that
      rolled back cannot leave a technician looking at an appointment nobody has. The count per
-     file is the "exactly once per event" half: a second call anywhere is a second bell. Ten
-     call sites for eight triggers, because the reassignment is two events in one save — one
-     technician loses the hour and another gains it. The two newest are the departure itself,
-     told to the technician whose stint the console just closed, and the hour a colleague
-     inherits from it. */
+     file is the "exactly once per event" half: a second call anywhere is a second bell. Eleven
+     call sites for nine triggers, because the reassignment is two events in one save — one
+     technician loses the hour and another gains it. The three newest are the departure itself,
+     told to the technician whose stint the console just closed, the hour a colleague inherits
+     from it, and the departure being taken back: a row that went from "đã nghỉ" to working
+     again without a word would leave her to find it out from her own profile. */
   const sites = [
     ['routes/bookings.js', bookingsSource, 2],
-    ['routes/partner.js', partnerSource, 6],
+    ['routes/partner.js', partnerSource, 7],
     ['routes/reviews.js', reviewsSource, 1],
     ['lib/staff-departure.js', departureSource, 1],
   ];
@@ -1836,9 +1871,15 @@ test('an open stint is active = 1 AND left_at NULL, and one statement writes bot
   assert.equal(
     stint,
     'export const END_STINT = ` UPDATE staff SET left_at = ?, left_by = ?, active = 0, ' +
-      'left_confirmed_at = NULL, tenure_disputed = 0 ' +
+      'left_confirmed_at = NULL ' +
       'WHERE id = ? AND user_id IS NOT NULL AND active = 1',
   );
+  /* And what it deliberately does NOT write. tenure_disputed is one flag over the whole
+     stint, and the date most often under argument is started_at, which a departure does not
+     touch: clearing it here would let a salon answer "that start date is wrong" by recording
+     a departure, and the ✓ the technician had refused would come back on a date she never
+     agreed to. A dispute outlives the stint it was raised on. */
+  assert.doesNotMatch(stint, /tenure_disputed/);
   /* Both callers append their own ownership clause to that one statement rather than writing
      one of their own, and both are scoped in the UPDATE itself: there is no window between
      proving the row is theirs and closing it. */
@@ -2051,15 +2092,20 @@ test('a departure tells the other side, and an owner hears it as an owner', () =
   assert.ok(departure.indexOf('notifyStaff') < departure.indexOf('sweepFutureBookings'));
 });
 
-test('a departure date may run a notice period ahead, and no further', () => {
+test('a departure date reaches back as far as it likes and never past today', () => {
   const bound = declaration(departureSource, 'export function departureDateOrThrow(');
-  assert.match(departureSource, /export const DEPARTURE_MAX_LEAD_DAYS = 30;/);
   assert.match(bound, /if \(!isISODate\(value\)\) \{/);
   /* The past is wide open on purpose: a salon writing a departure down weeks after the fact
      is the ordinary case, and refusing it only teaches owners to enter today's date, which
      puts a wrong day on somebody's record forever. */
   assert.doesNotMatch(bound, /value < /);
-  assert.match(bound, /if \(value > addDaysISO\(todayISO\(\), DEPARTURE_MAX_LEAD_DAYS\)\) \{/);
+  /* And the future is shut, with today as the ceiling. Recording a departure is not
+     scheduling one — active = 0 is written on the press and nothing runs later to do it on
+     the day — so a date a month out takes a technician off the roster, out of the picker and
+     off the salon's page for the whole notice period she is still working. There is no lead
+     allowance left to read, and no constant naming one. */
+  assert.match(bound, /if \(value > todayISO\(\)\) \{/);
+  assert.doesNotMatch(departureSource, /MAX_LEAD_DAYS/);
   // One validator for both doors, so the two sides cannot disagree about which dates exist.
   for (const [name, text] of [
     ['routes/partner.js', partnerSource],
@@ -2625,11 +2671,11 @@ test('the departure panel shuts only once the reload it triggers is done', async
   assert.deepEqual(page.toasts, [['1 lịch đã chuyển, 0 lịch cần salon xử lý', undefined]]);
 });
 
-test('the leave picker stops exactly where the server starts refusing', async () => {
-  /* Read out of lib/staff-departure.js rather than written here: two copies of "30" is
-     exactly how a picker comes to offer a date the save then answers with a 400. */
-  const lead = Number(departureSource.match(/DEPARTURE_MAX_LEAD_DAYS = (\d+);/)[1]);
-  assert.equal(lead, 30, 'the notice period has moved; both pickers need it too');
+test('the leave picker builds its ceiling out of local date parts', async () => {
+  /* The ceiling itself is a month ahead of the server's, which now refuses anything after
+     today (departureDateOrThrow). That gap is the UI round's to close — the arithmetic below
+     is what has to survive it, so it is pinned here against the number the page carries
+     today rather than against a server constant that no longer exists. */
   assert.match(profileMeHtml, /day\.setDate\(day\.getDate\(\) \+ 30\);/);
 
   const on = async (today) => {
@@ -3020,13 +3066,13 @@ test('the departure posts the day, closes both dialogs and reads the sweep back'
   assert.equal(page.confirmMessage, 'Kết thúc hợp tác với "Phương Vy"?');
   assert.match(page.departureDate, /^\d{4}-\d{2}-\d{2}$/);
 
-  /* The picker's ceiling is the server's rule computed again, so a mistyped year is refused
-     by the picker instead of coming back as a 400 after the press. Asserted as the distance
-     from the day the dialog opened on rather than as a literal, so the month and the year
-     carry themselves. The past is left open on purpose — departureDateOrThrow() has no lower
-     bound, because writing a departure down weeks later is the ordinary case. */
-  const lead = Number(departureSource.match(/DEPARTURE_MAX_LEAD_DAYS = (\d+);/)[1]);
-  assert.match(rosterHtml, new RegExp(`var OAK_DEPARTURE_MAX_LEAD_DAYS = ${lead};`));
+  /* The picker has a ceiling and computes it from the day the dialog opened, so the month and
+     the year carry themselves rather than being arithmetic on a day number. The past is left
+     open on purpose — departureDateOrThrow() has no lower bound, because writing a departure
+     down weeks later is the ordinary case. The ceiling's DISTANCE is a month ahead of what the
+     server now accepts (today and no further), and closing that gap is the UI round's: pinned
+     here against the page's own constant so the arithmetic is still guarded meanwhile. */
+  const lead = Number(rosterHtml.match(/var OAK_DEPARTURE_MAX_LEAD_DAYS = (\d+);/)[1]);
   assert.equal(
     Date.parse(page.departureMax()) - Date.parse(page.departureDate),
     lead * 24 * 60 * 60 * 1000,
@@ -3325,13 +3371,17 @@ test('an hour whose technician is off the roster is flagged, and only while some
   assert.equal((consoleHtml.match(/KTV đã nghỉ/g) || []).length, 2);
 });
 
-test('an hour inside the notice period still has the technician it was sold with', () => {
-  /* active = 0 is written the moment a departure is RECORDED, and left_at may be up to
-     DEPARTURE_MAX_LEAD_DAYS further on. The sweep moves only b.date > left_at — "an
-     appointment ON the leaving date is one they are still there for" — so the bookings it
-     deliberately leaves on her calendar are ones she is still contracted to work. Branding
-     those sends the owner off to reassign an hour that never needed touching, or to cancel
-     on a customer. */
+test('an hour up to the last day worked still has the technician it was sold with', () => {
+  /* The sweep moves only b.date > left_at — "an appointment ON the leaving date is one they
+     are still there for" — so an hour up to and including the last day worked stays on her
+     calendar on purpose. Branding those sends the owner off to reassign an hour that never
+     needed touching, or to cancel on a customer.
+
+     The rows below are dated ahead of the leaving date the console can now record (today at
+     the latest, departureDateOrThrow): the console reads whatever left_at the row carries and
+     compares it to whatever date the booking has, and a departure entered weeks after the
+     fact leaves exactly this shape behind — a closed stint with bookings on both sides of
+     its date. */
   assert.match(departureSource, /AND b\.status IN \('pending','confirmed'\) AND b\.date > \?/);
 
   const page = bookingsPage([
@@ -3347,7 +3397,7 @@ test('an hour inside the notice period still has the technician it was sold with
 
   assert.deepEqual(
     [
-      on(3, '2026-09-05'), // inside the notice period
+      on(3, '2026-09-05'), // before the last day worked
       on(3, '2026-09-15'), // the last day worked itself
       on(3, '2026-09-16'), // after it, where the sweep did reach
       on(2, '2026-09-16'), // still on the roster

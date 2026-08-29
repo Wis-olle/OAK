@@ -163,10 +163,21 @@ const ANONYMISE_BOOKING_CONTACT = `
 // stored — so an owner can lose a headshot that was theirs and have to put it back. That is
 // the accepted price: a face is the most identifying thing on the row, and re-uploading a
 // photo you own is a far smaller harm than leaving a departed person's face on a public page.
+//
+// The attestations go too, and they are the subtlest thing here. started_confirmed_at,
+// left_confirmed_at and tenure_disputed are one person's answers about two dates — "yes, that
+// is the day I started" and "no, that one is wrong" — and the ✓ they earn is the platform
+// saying two sides named the same day. Left on the released row they would be inherited: the
+// next technician to claim the chair would find her stint already attested to, wearing a mark
+// for dates she has never seen, and a dispute she never raised sitting on the owner's console.
+// The dates THEMSELVES stay, because started_at and left_at are the salon's own record of when
+// that chair was worked — the owner typed them, and they are still what the owner says. What
+// leaves with the person is only what the person said back.
 const RELEASE_STAFF_ROWS = `
   UPDATE staff
   SET user_id = NULL, claimed_at = NULL,
-      bio = NULL, portfolio = NULL, image = NULL, profile_hidden = 0
+      bio = NULL, portfolio = NULL, image = NULL, profile_hidden = 0,
+      started_confirmed_at = NULL, left_confirmed_at = NULL, tenure_disputed = 0
   WHERE user_id = ?
 `;
 const ANONYMISE_USER = `

@@ -100,6 +100,13 @@ function pickerCard(row) {
   return {
     id: row.id,
     name: row.name,
+    /* Whether a real account stands behind this chair, which is what the picker's ✓ chip
+       marks: a name the salon typed into its roster and a technician who signed in and
+       claimed it are not the same promise to a customer choosing between them. A boolean and
+       never the id — user_id names an account and does not leave the server. True on a
+       withdrawn row too, and that is consistent rather than a leak: the reduction below takes
+       away the showcase, not the fact that somebody is there. */
+    claimed: row.user_id !== null,
     title: withdrawn ? null : row.title,
     specialty: withdrawn ? null : row.specialty,
     image: withdrawn ? null : row.image,
