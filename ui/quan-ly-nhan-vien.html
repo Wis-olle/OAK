@@ -198,8 +198,9 @@
 </div>
 </template>
 <!-- Nothing about today for somebody who has gone: a shift badge on that card would be
-     answering a question nobody asked of it. Gone, though, and not merely working out a
-     notice period — the badge is the owner's read on who is here right now. -->
+     answering a question nobody asked of it. Gone, though, and not merely closed — a
+     departure recorded on the last day worked leaves her here for that day, and the badge
+     is the owner's read on who is here right now. -->
 <div :class="onShift(member) ? 'text-primary' : 'text-on-surface-variant'" class="absolute top-4 right-4 bg-surface-container-lowest px-3 py-1 font-label-md text-caption uppercase tracking-wider border border-outline-variant/20" x-show="stillWorking(member)" x-text="onShift(member) ? 'Đang làm ca' : 'Nghỉ hôm nay'"></div>
 </div>
 <div class="p-6 flex flex-col flex-grow">
@@ -240,11 +241,25 @@
 <span class="font-label-md text-caption text-secondary" x-text="member.rating"></span>
 </div>
 </div>
-<div class="mt-auto pt-6 border-t border-outline-variant/20 flex justify-between items-center gap-3">
+<div class="mt-auto pt-6 border-t border-outline-variant/20 flex flex-wrap justify-between items-center gap-3">
 <div class="flex flex-col" x-show="stillWorking(member)">
 <span class="font-caption text-caption text-on-surface-variant mb-1" x-text="onShift(member) ? 'Ca hôm nay' : 'Ca kế tiếp'"></span>
 <span class="font-body-md text-label-md text-primary" x-text="shiftLabel(member)"></span>
 </div>
+<!-- The way back from a departure recorded on the wrong day, and the only one there is: no
+     route rewrites left_at, so PATCH {active: 1} clears the whole record and the owner ends
+     the stint again with the right day. A restore and not a deletion, so it wears the same
+     tone as "Sửa" beside it and never the error colour. The gate is the server's `reopening`
+     predicate word for word — claimed AND a date on the row — and NOT hasLeft(), which also
+     answers true for a row deactivated before departures existed. On that row the PATCH would
+     still go through and still put the chair back, but it would clear nothing and notify
+     nobody, and every line of this dialog would be describing a departure that was never
+     recorded. The footer wraps rather than squeezes: this label is a sentence and a narrow
+     card would otherwise crush both buttons. -->
+<button @click.stop="reopenStint(member)" class="text-secondary font-label-md text-label-md uppercase tracking-wider hover:text-primary transition-colors flex items-center gap-1 shrink-0" type="button" x-show="member.claimed &amp;&amp; member.left_at">
+<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="how_to_reg">how_to_reg</span>
+                                Hủy ghi nhận nghỉ việc
+                            </button>
 <button @click.stop="openStaff(member)" class="text-secondary font-label-md text-label-md uppercase tracking-wider hover:text-primary transition-colors flex items-center gap-1 shrink-0">
                                 Sửa <span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span>
 </button>
@@ -335,8 +350,10 @@
      no start date on it still says the thing the card chip already announced.
 
      The leaving date is named here because this modal has no field for it and cannot get
-     one: left_at is not in STAFF_COLUMNS, so PATCH /staff/:id has no way to carry it. Said
-     plainly rather than left to be discovered, and said beside the one warning that matters
+     one: left_at is not in STAFF_COLUMNS, so PATCH /staff/:id has no way to carry it. What it
+     can do is point at the correction that does exist — the undo on the card, then the
+     departure dialog again — said plainly rather than left to be discovered, and said beside
+     the one warning that matters
      — editing the start date fires RESET_STARTED_ATTESTATION, which sets tenure_disputed
      back to 0 whatever the objection was about. -->
 <div class="space-y-1 mt-6" x-cloak="" x-show="form.id &amp;&amp; form.tenure_disputed === 1">
@@ -347,7 +364,7 @@
 <p class="flex flex-wrap items-center gap-1 font-caption text-caption text-on-surface-variant" x-show="form.left_at">
 <span>Ngày kết thúc đang ghi nhận:</span>
 <span x-text="OAK.fmtDate(form.left_at, 'short')"></span>
-<span>Ngày này chưa sửa được ở đây.</span>
+<span>Sửa ngày này bằng cách hủy ghi nhận nghỉ việc trên thẻ nhân viên, rồi ghi nhận lại.</span>
 </p>
 <p class="font-caption text-caption text-on-surface-variant">Đổi ngày vào làm sẽ gỡ khiếu nại, kể cả khi kỹ thuật viên đang nói về ngày kết thúc.</p>
 </div>
@@ -488,37 +505,52 @@
 </div>
 </div>
 </div>
-<!-- Confirm Delete Modal. It carries the departure too rather than standing beside a second
-     dialog of its own: the two ask the same question about the same row, and one dialog is
-     one escape key, one backdrop and one z-index to keep straight above the edit modal. -->
+<!-- Confirm Delete Modal. It carries the departure and its undo too rather than standing beside
+     two more dialogs of its own: all three ask the same question about the same row, and one
+     dialog is one escape key, one backdrop and one z-index to keep straight above the edit
+     modal. confirmMode says which of the three, and decides the title, the block in the middle
+     and both buttons. -->
 <div @keydown.escape.window="confirmOpen = false" aria-labelledby="confirm-title" aria-modal="true" class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" role="dialog" x-cloak="" x-show="confirmOpen">
 <div @click="confirmOpen = false" class="fixed inset-0 bg-primary/40 backdrop-blur-sm transition-opacity" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100" x-transition:enter-start="opacity-0" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0" x-transition:leave-start="opacity-100"></div>
 <div class="oak-dialog transform overflow-hidden transition-all sm:w-full sm:max-w-md flex flex-col" x-show="confirmOpen" x-transition:enter="ease-out duration-300" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave="ease-in duration-200" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100">
 <div class="px-6 py-6 border-b border-outline-variant/20">
-<h3 class="font-headline-sm text-headline-sm text-primary" id="confirm-title" x-text="confirmMode === 'departure' ? 'Kết thúc hợp tác' : 'Xác nhận xóa'"></h3>
+<h3 class="font-headline-sm text-headline-sm text-primary" id="confirm-title" x-text="confirmMode === 'departure' ? 'Kết thúc hợp tác' : confirmMode === 'reopen' ? 'Hủy ghi nhận nghỉ việc' : 'Xác nhận xóa'"></h3>
 </div>
 <div class="px-6 py-6 space-y-4">
 <p class="font-body-md text-body-md text-on-surface-variant" x-text="confirmMessage"></p>
 <div class="space-y-1" x-cloak="" x-show="confirmMode === 'departure'">
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-left-at">Ngày kết thúc</label>
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-left-at">Ngày làm việc cuối cùng</label>
 <!-- The ceiling is the server's, computed again here so a mistyped year is refused by the
      picker instead of coming back as a 400 after the press. The past is left open: writing
      a departure down weeks later is the ordinary case. -->
 <input :max="departureMax()" class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-left-at" type="date" x-model="departureDate"/>
 <p class="font-caption text-caption text-on-surface-variant">Lịch hẹn sau ngày này sẽ được chuyển sang kỹ thuật viên còn trống. Lịch không ai nhận được sẽ giữ nguyên và chờ bạn xử lý.</p>
-<!-- Said before the press, because afterwards there is nowhere to say it: the red button
-     goes once hasLeft(form) is true, POST /departure answers a second one with a 409, and
-     left_at is not in STAFF_COLUMNS for a PATCH to carry. A date typed wrong here is a date
-     that stands on the technician's public CV. -->
-<p class="font-caption text-caption text-error">Sau khi xác nhận, ngày kết thúc không đổi được nữa.</p>
+<!-- Said before the press, because the correction is not in this field: left_at is not in
+     STAFF_COLUMNS and no route rewrites it, so the only way back to a wrong day is the undo
+     on the card — PATCH {active: 1} clears the whole departure — and then this dialog again.
+     A date typed wrong here is a date that stands on the technician's public CV meanwhile. -->
+<p class="font-caption text-caption text-error">Sau khi xác nhận, muốn sửa ngày thì phải hủy ghi nhận nghỉ việc rồi ghi nhận lại.</p>
+</div>
+<!-- No date field here, and none is wanted: PATCH {active: 1} clears the whole record, and
+     the day is entered again through "Kết thúc hợp tác" afterwards. The calendar is the one
+     thing the undo cannot take back, so it is said plainly rather than discovered. -->
+<div class="space-y-2" x-cloak="" x-show="confirmMode === 'reopen'">
+<p class="font-caption text-caption text-on-surface-variant">Hồ sơ trở lại trạng thái đang làm việc và kỹ thuật viên sẽ nhận được thông báo.</p>
+<p class="font-caption text-caption text-on-surface-variant">Ghi nhận nhầm ngày thì đi đường này: hủy ghi nhận, rồi kết thúc hợp tác lại với ngày đúng.</p>
+<p class="font-caption text-caption text-error">Lịch hẹn đã chuyển sang đồng nghiệp sẽ không tự quay lại.</p>
 </div>
 <p class="font-body-md text-body-md text-error" role="alert" x-show="confirmError" x-text="confirmError"></p>
 </div>
 <div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-end gap-4">
+<!-- One dismiss for all three modes. "Giữ lại" answered the deletion and the departure but
+     had nothing to keep in front of an undo, so the label says what the button actually does
+     to the row behind the dialog: nothing. -->
 <button @click="confirmOpen = false" class="btn-secondary" type="button">
-                    Giữ lại
+                    Để nguyên
                 </button>
-<button @click="confirmMode === 'departure' ? submitDeparture() : deleteStaff()" class="btn-danger" type="button" x-text="confirmMode === 'departure' ? 'Kết thúc' : 'Xóa'"></button>
+<!-- Two of the three end something and wear the red; putting a row back on the roster is not
+     a destructive act and must not be dressed as one. -->
+<button :class="confirmMode === 'reopen' ? 'btn-primary' : 'btn-danger'" :disabled="confirmBusy" @click="confirmMode === 'departure' ? submitDeparture() : confirmMode === 'reopen' ? submitReopen() : deleteStaff()" type="button" x-text="confirmMode === 'departure' ? 'Kết thúc' : confirmMode === 'reopen' ? 'Hủy ghi nhận' : 'Xóa'"></button>
 </div>
 </div>
 </div>
@@ -555,16 +587,12 @@
     var OAK_WEEKDAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     var OAK_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
     var OAK_DEFAULT_SHIFT = { start: '09:00', end: '18:00' };
-    /* The furthest ahead a departure may be dated. The same number as DEPARTURE_MAX_LEAD_DAYS
-       in server/src/lib/staff-departure.js, kept in step by hand: the picker is the polite
-       half of a rule the server enforces either way. */
-    var OAK_DEPARTURE_MAX_LEAD_DAYS = 30;
 
-    /* Today, or today plus a number of days, as 'YYYY-MM-DD' in the reader's own clock —
-       which is the clock the salon closes its day by. */
-    function oakDateISO(offsetDays) {
+    /* Today as 'YYYY-MM-DD' in the reader's own clock — which is the clock the salon closes
+       its day by. It took an offset while a departure could be dated ahead; nothing on this
+       page asks about any day but today any more. */
+    function oakDateISO() {
         var date = new Date();
-        date.setDate(date.getDate() + (offsetDays || 0));
         return (
             date.getFullYear() +
             '-' +
@@ -658,10 +686,14 @@
             inviteBusy: false,
             confirmOpen: false,
             confirmMessage: '',
-            /* 'delete' or 'departure': one dialog asks both questions, and this is which. */
+            /* 'delete', 'departure' or 'reopen': one dialog asks all three, and this is which. */
             confirmMode: 'delete',
             confirmError: '',
+            confirmBusy: false,
             departureDate: '',
+            /* The row the undo is about. The other two modes are opened from inside the editor
+               and act on form.id; this one is opened from a card, which the editor never saw. */
+            reopenId: null,
 
             async init() {
                 await OAK.requirePartner();
@@ -691,40 +723,12 @@
                     var result = await OAK.api(path);
                     this.staff = result;
                     this.stats = result.meta;
-                    await this.loadStints();
                 } catch (error) {
                     this.staff = [];
                     OAK.toast(error.message, 'error');
                 } finally {
                     this.loading = false;
                 }
-            },
-
-            /* The stint — when somebody started, whether they have left, whether they say the
-               date is wrong — lives on GET /staff/:id and NOT on the list this grid is built
-               from, so the rows that have it are re-read one at a time to fetch it. Claiming
-               is new, so that is a handful of requests and not the roster; the fix is to widen
-               the list endpoint, and this fan-out should go the day it is widened.
-
-               Soft-failing per row on purpose: a detail read that fails costs that one card
-               its stint chips, and must never cost the page its roster. */
-            async loadStints() {
-                var claimed = this.staff.filter(function (member) {
-                    return member.claimed;
-                });
-                await Promise.all(
-                    claimed.map(async function (member) {
-                        try {
-                            var detail = await OAK.api('/api/partner/staff/' + member.id);
-                            member.started_at = detail.started_at;
-                            member.left_at = detail.left_at;
-                            member.tenure_disputed = detail.tenure_disputed;
-                            member.tenure_verified = detail.tenure_verified;
-                        } catch (error) {
-                            // The list row stands as it came. No chips, but a card.
-                        }
-                    }),
-                );
             },
 
             /* Removal is a soft delete, so the roster shows only the people still working —
@@ -750,17 +754,18 @@
             },
 
             /* Whether she is still working here TODAY, which is a different question from
-               whether the stint has closed. A departure may be recorded a month of notice
-               before the last day worked, and for that month she keeps her hours and keeps
-               the appointments the sweep deliberately left on her — lib/staff-departure.js
-               moves only b.date > left_at, so the last day worked is a day worked.
+               whether the stint has closed. The gap between the two is one day wide and no
+               wider: left_at can never be past today, so the only closed row that answers yes
+               here is one whose departure was recorded FOR today. For that day she keeps her
+               hours and keeps the appointments the sweep deliberately left on her —
+               lib/staff-departure.js moves only b.date > left_at, so the last day worked is a
+               day worked.
 
-               What she does not keep is a place in the console's own pickers: the booking
-               form and the staff select on quan-ly-lich-hen.html both read activeStaff(),
-               active === 1, so through the notice period she cannot be booked and cannot be
-               picked out of that select. A gap and not a rule — pickAvailableStaff in the
-               server reads st.active = 1 too, so offering her there would offer an hour the
-               availability endpoint then refuses.
+               What she does not keep, even on that day, is a place in the console's own
+               pickers: the booking form and the staff select on quan-ly-lich-hen.html both
+               read activeStaff(), active === 1, and END_STINT writes active = 0 on the press.
+               A gap and not a rule — pickAvailableStaff in the server reads st.active = 1 too,
+               so offering her there would offer an hour the availability endpoint refuses.
 
                Only the shift lines and the count above ask this: everything else on the card
                is about the stint, not about today. */
@@ -768,7 +773,7 @@
                 if (!this.hasLeft(member)) {
                     return true;
                 }
-                return Boolean(member.left_at) && member.left_at >= oakDateISO(0);
+                return Boolean(member.left_at) && member.left_at >= oakDateISO();
             },
 
             onShift(member) {
@@ -778,7 +783,7 @@
             /* The "Đang làm ca hôm nay" tile, counted out of the same two readings the badge
                on each card is drawn from and over the same rows the grid renders. meta.on_shift
                answers a third question — active = 1 with a shift today — and a technician
-               inside her notice period is on the cards and not in that number. */
+               whose departure was recorded for today is on the cards and not in that number. */
             onShiftToday() {
                 var self = this;
                 return this.roster().filter(function (member) {
@@ -1191,19 +1196,28 @@
             endStint() {
                 this.confirmMode = 'departure';
                 this.confirmError = '';
-                this.departureDate = oakDateISO(0);
+                this.departureDate = oakDateISO();
                 this.confirmMessage = 'Kết thúc hợp tác với "' + this.form.name + '"?';
                 this.confirmOpen = true;
             },
 
+            /* Today, and no further: recording a departure is not scheduling one — active = 0
+               is written on the press and nothing runs later to do it on the day — so a date
+               ahead of today would take a technician off the roster while she is still working.
+               The past is deliberately left open, because writing a departure down weeks after
+               the fact is the ordinary case. Same ceiling departureDateOrThrow() enforces, said
+               in the picker so a mistyped year is refused before the press rather than after. */
             departureMax() {
-                return oakDateISO(OAK_DEPARTURE_MAX_LEAD_DAYS);
+                return oakDateISO();
             },
 
             /* The error stays inside the dialog rather than closing it: every refusal here is
-               about the date in the field, and closing would take the field away with it. */
+               about the date in the field, and closing would take the field away with it —
+               and because the dialog stays up across the await, the press has to be held shut
+               behind confirmBusy or a second one posts a second departure. */
             async submitDeparture() {
                 this.confirmError = '';
+                this.confirmBusy = true;
                 try {
                     var result = await OAK.api(
                         '/api/partner/staff/' + this.form.id + '/departure',
@@ -1222,6 +1236,45 @@
                     await this.load();
                 } catch (error) {
                     this.confirmError = error.message;
+                } finally {
+                    this.confirmBusy = false;
+                }
+            },
+
+            /* The one correction there is for a departure written down on the wrong day. There
+               is no PATCH for left_at — a leaving date is a dated event both sides answer for,
+               and an owner quietly rewriting it would make the ✓ beside it a mark on whatever
+               was last typed — so the server takes active = 1 on a claimed row that carries a
+               date as the undo, and clears left_at, left_by and the ✓ with it in one statement
+               (routes/partner.js). Offered on the card rather than in the editor: the editor's
+               own red button is gone by then, and this is a decision about the row and not
+               about the profile inside it. */
+            reopenStint(member) {
+                this.confirmMode = 'reopen';
+                this.confirmError = '';
+                this.reopenId = member.id;
+                this.confirmMessage = 'Hủy ghi nhận nghỉ việc của "' + member.name + '"?';
+                this.confirmOpen = true;
+            },
+
+            /* Same shape as submitDeparture(): the refusal stays inside the dialog, and the
+               whole grid is read again rather than the one card patched — active, left_at and
+               the "Đã nghỉ" chip all move together, and the sweep's leftovers do not. */
+            async submitReopen() {
+                this.confirmError = '';
+                this.confirmBusy = true;
+                try {
+                    await OAK.api('/api/partner/staff/' + this.reopenId, {
+                        method: 'PATCH',
+                        body: { active: 1 },
+                    });
+                    this.confirmOpen = false;
+                    OAK.toast('Đã hủy ghi nhận nghỉ việc.');
+                    await this.load();
+                } catch (error) {
+                    this.confirmError = error.message;
+                } finally {
+                    this.confirmBusy = false;
                 }
             },
 

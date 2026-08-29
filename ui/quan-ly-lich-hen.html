@@ -799,7 +799,6 @@
                     this.salon = await OAK.api('/api/partner/salon');
                     this.staff = await OAK.api('/api/partner/staff');
                     this.services = await OAK.api('/api/partner/services');
-                    await this.loadStints();
                 } catch (error) {
                     OAK.toast(error.message, 'error');
                 }
@@ -830,31 +829,6 @@
                 oakWatchPending(function () {
                     self.refreshPending();
                 });
-            },
-
-            /* left_at lives on GET /staff/:id and NOT on the roster list this page is built
-               from, and staffLeft() below cannot tell a notice period from a departure
-               without it. So the rows that could carry one are re-read one at a time to fetch
-               it: claimed AND already off the roster, which on an ordinary salon is nought to
-               two rows. Same shape and same soft-fail as loadStints() in
-               quan-ly-nhan-vien.html — a detail read that fails costs that one row its date
-               and never the page its roster. It exists only because the list endpoint does
-               not carry the stint; the fix is to widen that endpoint, and this fan-out should
-               go the day it is widened. */
-            async loadStints() {
-                var closed = this.staff.filter(function (member) {
-                    return member.claimed && member.active !== 1;
-                });
-                await Promise.all(
-                    closed.map(async function (member) {
-                        try {
-                            var detail = await OAK.api('/api/partner/staff/' + member.id);
-                            member.left_at = detail.left_at;
-                        } catch (error) {
-                            // The list row stands as it came, and the flag alone answers.
-                        }
-                    }),
-                );
             },
 
             /* The bell count, with the tab title kept in step. */
@@ -1542,11 +1516,12 @@
                 });
                 /* A booking left behind by a technician who is off the roster still belongs on
                    the day: give it a column of its own instead of dropping the card. Off the
-                   roster is not yet gone, though — activeStaff() above drops her the moment a
-                   departure is RECORDED, and staffGone() is the one place that knows a notice
-                   period from a departure. The header is a claim about the day this column is
-                   being drawn for, so it asks that same question about that same day rather
-                   than branding every row activeStaff() would not have. */
+                   roster is not yet gone from every day, though — activeStaff() above drops her
+                   the moment a departure is RECORDED, and staffGone() is the one place that
+                   knows the days she worked from the days after them. The header is a claim
+                   about the day this column is being drawn for, so it asks that same question
+                   about that same day rather than branding every row activeStaff() would not
+                   have. */
                 this.bookings.forEach(function (booking) {
                     if (!booking.staff) {
                         return;
@@ -1780,13 +1755,13 @@
                list the columns are drawn from; a row missing from it entirely counts too.
 
                active is not the whole answer. It goes to 0 the moment a departure is
-               RECORDED, and left_at may be a month of notice further on, so the sweep in
-               lib/staff-departure.js deliberately moves only the bookings after that day and
-               leaves the ones up to and including it where they are. Those are appointments
-               she is still contracted to work, and branding them would send the owner off to
-               reassign hours that never needed touching. Without a date to compare against —
-               a row that predates this feature, or one whose stint read failed — the flag
-               alone stands, which is where this started.
+               RECORDED, and left_at is the last day WORKED — today at the newest, weeks back
+               when the salon wrote it down late — so the sweep in lib/staff-departure.js
+               deliberately moves only the bookings after that day and leaves the ones up to
+               and including it where they are. Those are appointments she was there for, and
+               branding them would send the owner off to reassign hours that never needed
+               touching. Without a date to compare against — a row that predates this feature —
+               the flag alone stands, which is where this started.
 
                One predicate for the chips and for the day column's own header: a page that
                asked this twice could tell the owner she has gone on the calendar and that she

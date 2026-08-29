@@ -56,7 +56,8 @@
 
   "Kết thúc làm việc tại salon": "Leaving this salon",
   "Chọn ngày làm việc cuối cùng của bạn. Chủ salon sẽ nhận được thông báo.": "Choose your last working day. The salon owner will be notified.",
+  "Ngày làm việc cuối cùng": "Last day worked",
   "Lịch hẹn sau ngày này sẽ được chuyển cho đồng nghiệp phù hợp, hoặc chuyển chủ salon xử lý nếu không có ai nhận. Hồ sơ và lịch sử làm việc của bạn tại salon vẫn được giữ nguyên.": "Appointments after this date move to a suitable colleague, or to the salon owner to handle if nobody can take them. Your profile and your work history at this salon are kept as they are.",
-  "Sau khi xác nhận, ngày kết thúc không đổi được nữa.": "Once confirmed, the end date can no longer be changed.",
+  "Sau khi xác nhận, bạn không tự sửa được ngày này nữa — chỉ chủ salon mới hủy ghi nhận để bạn ghi lại.": "Once confirmed, you can no longer change this date yourself — only the salon owner can cancel the record so you can enter it again.",
   "Xác nhận nghỉ việc": "Confirm departure"
 }

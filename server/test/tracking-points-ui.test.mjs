@@ -1,4 +1,4 @@
-/* The eight things OAK measures are only worth the endpoint behind them if they fire at
+/* The nine things OAK measures are only worth the endpoint behind them if they fire at
    the moment they claim to, carry nothing that could name a person, and — above all —
    never cost the visitor the thing they came to do. dat-lich-ui.test.mjs and
    search-results-ui.test.mjs cover the wizard and the results page; this covers the rest
@@ -147,6 +147,50 @@ test('a contact page whose oak-api.js has no track() still composes', () => {
 
   assert.doesNotThrow(() => state.compose());
   assert.match(context.location.href, /^mailto:hello@oakbeauty\.vn\?subject=/);
+});
+
+/* The service page's team strip, one of the two places a technician is chosen. Every card
+   carries `claimed` — whether a real OAK account stands behind the chair — and the ✓ chip
+   that marks it is what this counts having been chosen by. The wizard's own picker fires the
+   same event and is driven in dat-lich-ui.test.mjs, beside the rest of its points. */
+const PICKER_STAFF = [
+  { id: 7, name: 'Mai Chi', claimed: true, title: 'KTV', rating: 4.8 },
+  { id: 8, name: 'Chị Hoa', claimed: false, title: 'KTV', rating: 4.6 },
+];
+
+/** oakServiceDetail() with the reads a pick fans out to stubbed away. */
+function servicePagePicker(options) {
+  const lifted = page('chi-tiet-dich-vu.html', 'oakServiceDetail', {
+    extras: { oakTodayISO: () => '2026-08-29' },
+    ...options,
+  });
+  lifted.state.loadSlots = () => {};
+  lifted.state.loadDayChips = () => {};
+  lifted.state.staff = PICKER_STAFF;
+  return lifted;
+}
+
+test('a technician chosen off the service page is counted only where the chip is', () => {
+  const { state, events } = servicePagePicker();
+
+  state.pickStaff(7);
+  assert.deepEqual(events, [['staff_verified_pick', undefined]]);
+
+  /* Pressing the same card again widens the hours back out to everyone who performs the
+     service, and a row nobody claimed carries no chip: neither is a choice made on one. */
+  state.pickStaff(7);
+  state.pickStaff(8);
+  assert.equal(events.length, 1);
+  // And nothing about the person travels with it — track() sends the page, and that is all
+  // that is needed to tell this picker from the wizard's.
+  assert.equal(events[0][1], undefined);
+});
+
+test('a service page whose oak-api.js has no track() still picks a technician', () => {
+  const { state } = servicePagePicker({ tracking: false });
+
+  assert.doesNotThrow(() => state.pickStaff(7));
+  assert.equal(state.staffId, 7);
 });
 
 /**

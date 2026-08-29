@@ -238,6 +238,17 @@
 <span>
 <span :class="staffId === member.id ? 'text-primary' : 'text-on-surface-variant'" class="block font-label-md text-label-md" x-text="member.name"></span>
 <span class="block font-caption text-caption text-on-surface-variant" x-text="staffMeta(member)"></span>
+<!-- A name the salon typed into its roster and a technician who signed in and claimed
+     that chair are not the same promise to somebody choosing between two strangers, so
+     the picker says which is which. `claimed` and nothing else: it stays true for a
+     technician who has taken her public page down, and this chip is about who is there
+     rather than about what she shows. -->
+<template x-if="member.claimed">
+<span class="mt-1 inline-flex items-center gap-1 rounded-full bg-tertiary-fixed px-2 py-1 font-caption text-caption text-on-tertiary-fixed-variant">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]">verified</span>
+<span>Hồ sơ OAK</span>
+</span>
+</template>
 </span>
 </button>
 </template>
@@ -1002,6 +1013,14 @@
 
             setStaff(id) {
                 this.staffId = id;
+                /* Whether the ✓ chip is what the choice was made on. Counted for a claimed
+                   pick and never for "Bất kỳ", and it carries nothing: track() already sends
+                   the page, so the same event tells the two pickers apart by itself. Guarded
+                   because a page served from cache can meet an oak-api.js without track(). */
+                const picked = this.staffList.find((member) => member.id === id);
+                if (picked && picked.claimed && typeof OAK.track === 'function') {
+                    OAK.track('staff_verified_pick');
+                }
                 this.loadSlots();
                 this.loadDayChips();
                 this.loadQuote();

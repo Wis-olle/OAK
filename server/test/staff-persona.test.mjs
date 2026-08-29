@@ -2671,12 +2671,13 @@ test('the departure panel shuts only once the reload it triggers is done', async
   assert.deepEqual(page.toasts, [['1 lịch đã chuyển, 0 lịch cần salon xử lý', undefined]]);
 });
 
-test('the leave picker builds its ceiling out of local date parts', async () => {
-  /* The ceiling itself is a month ahead of the server's, which now refuses anything after
-     today (departureDateOrThrow). That gap is the UI round's to close — the arithmetic below
-     is what has to survive it, so it is pinned here against the number the page carries
-     today rather than against a server constant that no longer exists. */
-  assert.match(profileMeHtml, /day\.setDate\(day\.getDate\(\) \+ 30\);/);
+test('the leave picker stops where the server stops, on the day the dialog opened', async () => {
+  /* The gap is closed: departureDateOrThrow() refuses anything after today, and so does the
+     picker. Recording a departure is not scheduling one — the row goes off the roster on the
+     press — so a month of lead was a month in which the page offered a date that took a
+     working technician off her own salon. The arithmetic that built it is gone with it. */
+  assert.doesNotMatch(profileMeHtml, /\+ 30\)/);
+  assert.doesNotMatch(profileMeHtml, /MAX_LEAD_DAYS/);
 
   const on = async (today) => {
     const page = profilePage({ profiles: [CLAIMED_ROW], today });
@@ -2684,13 +2685,15 @@ test('the leave picker builds its ceiling out of local date parts', async () => 
     return page.leaveMax();
   };
 
-  assert.equal(await on('2026-08-28'), '2026-09-27');
-  /* Built out of local date parts and stepped with setDate, so the month and the year carry
-     themselves rather than being arithmetic on a day number. toISOString() would read the
-     day in UTC and hand a technician in Hanoi yesterday's ceiling for seven hours a day. */
-  assert.equal(await on('2026-01-31'), '2026-03-02');
-  assert.equal(await on('2026-12-20'), '2027-01-19');
+  /* Today itself, whatever today is — a month end and a year end included, which is where a
+     ceiling built by arithmetic on a day number used to go wrong. OAK.todayISO() still reads
+     the day out of local getFullYear/getMonth/getDate parts, never toISOString(), which would
+     hand a technician in Hanoi yesterday's ceiling for seven hours a day. */
+  assert.equal(await on('2026-08-28'), '2026-08-28');
+  assert.equal(await on('2026-01-31'), '2026-01-31');
+  assert.equal(await on('2026-12-31'), '2026-12-31');
   assert.match(profileMeHtml, /:max="leaveMax\(\)"/);
+  assert.match(profileMeHtml, /return OAK\.todayISO\(\);/);
 });
 
 test('only an open stint can be ended, and a closed one says when it ran', async () => {
@@ -2814,49 +2817,40 @@ const detailOf = (id, extra = {}) => ({
   ...extra,
 });
 
-test('the console asks for a stint only where somebody holds one, and one refusal costs one card', async () => {
+test('the console draws its stint chips off the list row, without a request per card', async () => {
   const list = rosterList([
-    { ...CHAIR, id: 1, claimed: true },
-    CHAIR,
-    { ...CHAIR, id: 3, claimed: true, active: 0 },
+    { ...CHAIR, id: 1, claimed: true, started_at: '2024-01-05', left_at: null, left_by: null,
+      tenure_disputed: 0, tenure_verified: { started: true, left: false } },
+    { ...CHAIR, started_at: null, left_at: null, left_by: null, tenure_disputed: 0,
+      tenure_verified: { started: false, left: false } },
+    { ...CHAIR, id: 3, claimed: true, active: 0, started_at: '2023-03-01', left_at: '2026-08-01',
+      left_by: 'salon', tenure_disputed: 1, tenure_verified: { started: false, left: false } },
   ]);
   const page = rosterPage(async (endpoint) => {
     if (endpoint === '/api/partner/staff') {
       return list;
-    }
-    if (endpoint === '/api/partner/staff/1') {
-      return detailOf(1, { tenure_verified: { started: true, left: false } });
-    }
-    if (endpoint === '/api/partner/staff/3') {
-      throw new Error('Không tải được.');
     }
     return assert.fail(`unexpected call: ${endpoint}`);
   });
 
   await page.load();
 
-  /* The stint lives on GET /staff/:id and NOT on the list this grid is built from, so the
-     rows that have one are re-read to fetch it. An unclaimed chair has no stint and nobody
-     to answer for one, so it is never asked about — this fan-out stays a handful of requests
-     rather than the whole roster exactly because "claimed" is the filter. */
-  assert.deepEqual(page.asked, [
-    '/api/partner/staff',
-    '/api/partner/staff/1',
-    '/api/partner/staff/3',
-  ]);
+  /* One request for the whole grid. GET /api/partner/staff spreads stintFields() onto every
+     row — the identical block staffDetail() is built from, so the two cannot drift — and the
+     fan-out that used to fetch it, one GET /staff/:id per claimed row, is gone with the reason
+     for it. Thirty chips off thirty questions was a page that got slower the better the salon
+     did, and every one of those reads could fail on its own. */
+  assert.deepEqual(page.asked, ['/api/partner/staff']);
+  assert.doesNotMatch(rosterHtml, /loadStints/);
+  const listRoute = handler(partnerSource, "router.get('/staff',", "router.post('/staff',");
+  assert.match(listRoute, /\.\.\.stintFields\(member\),/);
 
-  // Merged onto the list row, all four fields.
-  assert.equal(page.staff[0].started_at, '2024-01-05');
-  assert.equal(page.staff[0].left_at, null);
-  assert.equal(page.staff[0].tenure_disputed, 0);
-  assert.equal(page.staff[0].tenure_verified.started, true);
-  assert.ok(!('started_at' in page.staff[1]), 'a chair nobody holds was asked about anyway');
-
-  /* Soft-failing per row on purpose: a detail read that fails costs that one card its stint
-     chips, and must never cost the page its roster — which is what one rejection out of a
-     bare Promise.all would do, since load()'s own catch empties this.staff. */
+  // The two the card actually reads, straight off the row the list handed over.
+  assert.equal(page.staff[2].left_at, '2026-08-01');
+  assert.equal(page.staff[2].tenure_disputed, 1);
+  assert.equal(page.hasLeft(page.staff[2]), true);
+  assert.equal(page.hasLeft(page.staff[0]), false);
   assert.equal(page.staff.length, 3);
-  assert.ok(!('started_at' in page.staff[2]));
   assert.deepEqual(page.toasts, []);
   assert.equal(page.loading, false);
 });
@@ -2890,10 +2884,10 @@ test('the roster keeps a closed stint on the page and still drops a chair nobody
   );
 });
 
-test('a notice period is a closed stint that is still working today', () => {
+test('a stint that has closed can still be working today, and the grid asks both', () => {
   const page = rosterPage(async () => assert.fail('this is a reading of the grid, not a read'));
   /* Relative to the real clock, like the departure test below: the page reads today through
-     its own oakDateISO(0) and there is no seam to hold it still. */
+     its own oakDateISO() and there is no seam to hold it still. */
   const now = new Date();
   const iso = (offset) => {
     const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
@@ -2903,10 +2897,14 @@ test('a notice period is a closed stint that is still working today', () => {
   const rows = [
     // Open: on the roster, no date on it.
     { ...CHAIR, id: 1, claimed: true },
-    /* A departure recorded today for a date a notice period away. END_STINT sets active = 0
-       at once, but she is on shift all month and the owner runs the day off this grid. */
+    /* A date ahead of today, which departureDateOrThrow() now refuses on both doors — but
+       rows written before that ceiling landed still carry one, and this is a reading of
+       whatever the row says rather than of what the API would accept for it today. She is
+       not gone until the day she is dated for, and the owner runs the day off this grid. */
     { ...CHAIR, id: 2, claimed: true, active: 0, left_at: iso(18) },
-    // The last day worked is a day worked — the sweep leaves that day's bookings on her.
+    /* The case this actually answers now: a departure recorded FOR today. END_STINT sets
+       active = 0 on the press, but the last day worked is a day worked — the sweep leaves
+       that day's bookings on her, and the card has to agree with the calendar. */
     { ...CHAIR, id: 3, claimed: true, active: 0, left_at: iso(0) },
     { ...CHAIR, id: 4, claimed: true, active: 0, left_at: iso(-1) },
     // Deactivated before departures existed: no date to read, and she is not here.
@@ -3066,17 +3064,14 @@ test('the departure posts the day, closes both dialogs and reads the sweep back'
   assert.equal(page.confirmMessage, 'Kết thúc hợp tác với "Phương Vy"?');
   assert.match(page.departureDate, /^\d{4}-\d{2}-\d{2}$/);
 
-  /* The picker has a ceiling and computes it from the day the dialog opened, so the month and
-     the year carry themselves rather than being arithmetic on a day number. The past is left
-     open on purpose — departureDateOrThrow() has no lower bound, because writing a departure
-     down weeks later is the ordinary case. The ceiling's DISTANCE is a month ahead of what the
-     server now accepts (today and no further), and closing that gap is the UI round's: pinned
-     here against the page's own constant so the arithmetic is still guarded meanwhile. */
-  const lead = Number(rosterHtml.match(/var OAK_DEPARTURE_MAX_LEAD_DAYS = (\d+);/)[1]);
-  assert.equal(
-    Date.parse(page.departureMax()) - Date.parse(page.departureDate),
-    lead * 24 * 60 * 60 * 1000,
-  );
+  /* The picker's ceiling is the server's, and both are today: departureDateOrThrow() refuses
+     anything past it, because recording a departure is not scheduling one and active = 0 is
+     written on the press. The dialog opens on today too, so the two are the same string. The
+     past is left open on purpose — there is no lower bound, since writing a departure down
+     weeks later is the ordinary case — and there is no lead allowance left on either side to
+     keep in step, which is why the page carries no constant naming one. */
+  assert.equal(page.departureMax(), page.departureDate);
+  assert.doesNotMatch(rosterHtml, /MAX_LEAD_DAYS/);
 
   page.departureDate = '2026-09-01';
   await page.submitDeparture();
@@ -3122,6 +3117,133 @@ test('a refused departure stays inside the dialog, beside the date it is about',
   assert.match(rosterHtml, /x-show="confirmError" x-text="confirmError"/);
 });
 
+test('the undo puts the row back with one flag, and says what it cannot give back', async () => {
+  const list = rosterList([{ ...CHAIR, id: 5, name: 'Phương Vy', claimed: true, active: 0, left_at: '2026-08-01' }]);
+  const page = rosterPage(async (endpoint, options) => {
+    // The reply is the whole staffDetail row, which this page does not read: it re-reads.
+    if (endpoint === '/api/partner/staff/5' && options) {
+      return detailOf(5);
+    }
+    if (endpoint === '/api/partner/staff') {
+      return list;
+    }
+    return assert.fail(`unexpected call: ${endpoint}`);
+  });
+  await page.load();
+
+  // Opened off the card, so it carries the row's own id: the editor never saw this one.
+  page.reopenStint(page.staff[0]);
+  assert.equal(page.confirmMode, 'reopen');
+  assert.equal(page.reopenId, 5);
+  assert.equal(page.confirmMessage, 'Hủy ghi nhận nghỉ việc của "Phương Vy"?');
+  assert.equal(page.confirmOpen, true);
+  assert.equal(page.staffModalOpen, false);
+
+  await page.submitReopen();
+
+  /* One flag and nothing else. active = 1 on a claimed row that carries a leaving date IS the
+     undo (routes/partner.js): the server clears left_at, left_by and the ✓ in the same
+     statement and notifies the technician, and there is no left_at here to send because no
+     route accepts one. */
+  const patched = page.sent.filter((call) => call.method === 'PATCH');
+  assert.equal(patched.length, 1);
+  assert.equal(patched[0].endpoint, '/api/partner/staff/5');
+  assert.equal(JSON.stringify(patched[0].body), '{"active":1}');
+
+  assert.equal(page.confirmOpen, false);
+  assert.equal(page.confirmBusy, false);
+  assert.deepEqual(page.toasts, [['Đã hủy ghi nhận nghỉ việc.', undefined]]);
+  // The whole grid is read again: active, left_at and the "Đã nghỉ" chip all moved together.
+  assert.equal(page.asked.filter((endpoint) => endpoint === '/api/partner/staff').length, 2);
+
+  // No date is asked for and none could be used — the date block is the departure's alone.
+  const dialog = handler(rosterHtml, '<!-- Confirm Delete Modal.', '<!-- BottomNavBar');
+  assert.equal((dialog.match(/type="date"/g) || []).length, 1);
+  assert.match(dialog, /<div class="space-y-1" x-cloak="" x-show="confirmMode === 'departure'">/);
+  const reopenBlock = handler(dialog, `<div class="space-y-2" x-cloak="" x-show="confirmMode === 'reopen'">`, '</div>');
+  assert.doesNotMatch(reopenBlock, /<input/);
+  // Honest about the half of it that does not come back: the sweep handed those hours on.
+  assert.match(reopenBlock, /Lịch hẹn đã chuyển sang đồng nghiệp sẽ không tự quay lại\./);
+  assert.match(reopenBlock, /kỹ thuật viên sẽ nhận được thông báo/);
+
+  /* Putting somebody back on the roster is not a destructive act and is not dressed as one,
+     and the dismiss says what it does to the row rather than "keep" — which had nothing to
+     keep in front of an undo. */
+  assert.match(rosterHtml, /:class="confirmMode === 'reopen' \? 'btn-primary' : 'btn-danger'"/);
+  assert.match(
+    rosterHtml,
+    /x-text="confirmMode === 'departure' \? 'Kết thúc' : confirmMode === 'reopen' \? 'Hủy ghi nhận' : 'Xóa'"/,
+  );
+  assert.doesNotMatch(dialog, /Giữ lại\s*<\/button>/);
+  assert.match(dialog, /Để nguyên\s*<\/button>/);
+});
+
+test('the undo is offered on the rows the server would accept it for, and nowhere else', () => {
+  const page = rosterPage(async () => assert.fail('this is a reading of the grid, not a read'));
+
+  /* Claimed AND a date on the row — the server's own `reopening` predicate, word for word,
+     and NOT hasLeft(). An unclaimed row was never a collaboration and its whole deletion is
+     the list; a claimed row still working has nothing to undo. */
+  assert.match(
+    rosterHtml,
+    /@click\.stop="reopenStint\(member\)"[^>]*x-show="member\.claimed &amp;&amp; member\.left_at"/,
+  );
+  assert.match(
+    partnerSource,
+    /const reopening = staff\.user_id != null && staff\.left_at != null && patch\.active === 1;/,
+  );
+  const rows = [
+    { ...CHAIR, id: 1, claimed: true },
+    { ...CHAIR, id: 2, claimed: true, active: 0, left_at: '2026-08-01' },
+    /* Deactivated before departures existed — hasLeft() says closed, and the button used to
+       follow it here. It must not: `reopening` needs left_at, so on this row the PATCH puts
+       the chair back and clears nothing, notifies nobody, and every word of the dialog over
+       it — the title, "kỹ thuật viên sẽ nhận được thông báo", the toast — would be describing
+       a departure that was never recorded. Out of scope on purpose. */
+    { ...CHAIR, id: 3, claimed: true, active: 0 },
+    { ...CHAIR, id: 4, active: 0, left_at: '2026-08-01' },
+    CHAIR,
+  ];
+  assert.deepEqual(
+    rows.map((member) => Boolean(member.claimed) && Boolean(member.left_at)),
+    [false, true, false, false, false],
+  );
+  // And the gate really is a different question from the one the dim and the chip ask.
+  assert.equal(page.hasLeft(rows[2]), true);
+
+  /* It sits beside "Sửa" in the same footer and wears the same tone: the footer wraps rather
+     than squeezing, because this label is a sentence and the shift block may be beside it. */
+  assert.match(rosterHtml, /<div class="mt-auto pt-6 border-t border-outline-variant\/20 flex flex-wrap justify-between items-center gap-3">/);
+  const footer = handler(rosterHtml, '<div class="mt-auto pt-6 border-t', '</template>');
+  assert.doesNotMatch(footer, /text-error/);
+});
+
+test('a refused undo stays in the dialog and leaves the card exactly as it was', async () => {
+  const list = rosterList([{ ...CHAIR, id: 5, claimed: true, active: 0, left_at: '2026-08-01' }]);
+  const page = rosterPage(async (endpoint, options) => {
+    if (endpoint === '/api/partner/staff/5' && options) {
+      throw new Error('Không tìm thấy kỹ thuật viên này.');
+    }
+    if (endpoint === '/api/partner/staff') {
+      return list;
+    }
+    return assert.fail(`unexpected call: ${endpoint}`);
+  });
+  await page.load();
+  page.reopenStint(page.staff[0]);
+
+  await page.submitReopen();
+
+  // The dialog is the only place this refusal can be read, so it stays open holding it.
+  assert.equal(page.confirmOpen, true);
+  assert.equal(page.confirmError, 'Không tìm thấy kỹ thuật viên này.');
+  assert.equal(page.confirmBusy, false);
+  assert.deepEqual(page.toasts, []);
+  // And nothing was re-read: the roster on screen is still the truth.
+  assert.equal(page.asked.filter((endpoint) => endpoint === '/api/partner/staff').length, 1);
+  assert.equal(page.staff[0].left_at, '2026-08-01');
+});
+
 test('the one red button under the editor asks whichever question the row deserves', () => {
   /* A chair nobody has claimed is a line in the salon's own list and deleting it is all it
      ever was; a row somebody holds is a collaboration, which ends on a day both sides can
@@ -3148,10 +3270,11 @@ test('the one red button under the editor asks whichever question the row deserv
   // to keep straight above the edit modal.
   assert.match(
     rosterHtml,
-    /@click="confirmMode === 'departure' \? submitDeparture\(\) : deleteStaff\(\)"/,
+    /@click="confirmMode === 'departure' \? submitDeparture\(\) : confirmMode === 'reopen' \? submitReopen\(\) : deleteStaff\(\)"/,
   );
   assert.equal((rosterHtml.match(/id="confirm-title"/g) || []).length, 1);
   assert.match(rosterHtml, /x-show="confirmMode === 'departure'"/);
+  assert.match(rosterHtml, /x-show="confirmMode === 'reopen'"/);
 
   /* The notes beside the start date are decided in one method rather than in two x-show
      expressions, so they cannot both appear and cannot both vanish. */
@@ -3220,13 +3343,19 @@ test('a dispute is one flag over the stint, so the console never hangs it on the
     /Kỹ thuật viên đang khiếu nại ngày làm việc của cả quá trình này, không riêng một mốc ngày\./,
   );
 
-  /* And it does not pretend the console can fix the day she is probably objecting to. left_at
-     is not in STAFF_COLUMNS, so PATCH /staff/:id cannot carry it and the modal has no field
-     for it: the date is named read-only, and the one edit the form CAN make is labelled with
-     what it does to the dispute — RESET_STARTED_ATTESTATION sets the flag back to 0. */
+  /* And it does not pretend the modal can fix the day she is probably objecting to — left_at
+     is not in STAFF_COLUMNS, so PATCH /staff/:id cannot carry it and this form has no field
+     for it — but it no longer says the date is unfixable either. It names the one correction
+     there is: the undo on the card, then the departure dialog again. Beside it, the one edit
+     the form CAN make is labelled with what it does to the dispute, since
+     RESET_STARTED_ATTESTATION sets the flag back to 0 whatever the objection was about. */
   const columns = handler(partnerSource, 'const STAFF_COLUMNS = {', '\n};');
   assert.doesNotMatch(columns, /left_at/);
-  assert.match(rosterHtml, /Ngày này chưa sửa được ở đây\./);
+  assert.doesNotMatch(rosterHtml, /chưa sửa được ở đây/);
+  assert.match(
+    rosterHtml,
+    /Sửa ngày này bằng cách hủy ghi nhận nghỉ việc trên thẻ nhân viên, rồi ghi nhận lại\./,
+  );
   assert.match(rosterHtml, /x-text="OAK\.fmtDate\(form\.left_at, 'short'\)"/);
   assert.match(rosterHtml, /Đổi ngày vào làm sẽ gỡ khiếu nại/);
   assert.match(partnerSource, /RESET_STARTED_ATTESTATION = 'started_confirmed_at = NULL, tenure_disputed = 0'/);
@@ -3243,8 +3372,9 @@ test('the "đang làm ca" tile counts the cards the badges are on, not meta.on_s
 
   page.staff = [
     { ...CHAIR, id: 1, shift: working },
-    // Recorded a notice period ago. active = 0 and so out of meta.on_shift, but she is here
-    // today: the badge on her card says "Đang làm ca" and the tile has to agree with it.
+    // Dated ahead of today, which only a row written before the ceiling can be. active = 0
+    // and so out of meta.on_shift, but she is here today: the badge on her card says "Đang
+    // làm ca" and the tile has to agree with it.
     { ...CHAIR, id: 2, claimed: true, active: 0, left_at: iso(12), shift: working },
     // The last day worked is a day worked.
     { ...CHAIR, id: 3, claimed: true, active: 0, left_at: iso(0), shift: working },
@@ -3279,10 +3409,11 @@ test('the "đang làm ca" tile counts the cards the badges are on, not meta.on_s
 /**
  * oakPartnerBookings() over a stand-in browser, standing on a roster already in hand.
  *
- * `api` is null for the readings, which must not need one; loadStints() is the one thing
- * here that reads, and the tests that drive it pass a stub and check `asked`.
+ * Nothing below reads: every question these tests ask is a reading of the roster the page was
+ * handed, the stint on each row included. A call is recorded on `asked` and then fails, so a
+ * test can both assert the emptiness and see what broke it.
  */
-function bookingsPage(staff, api = null) {
+function bookingsPage(staff) {
   const tail = consoleHtml.slice(consoleHtml.indexOf('var OAK_BOOKING_CLASSES'));
   const script = tail.slice(0, tail.lastIndexOf('oakPartnerChrome();'));
   const asked = [];
@@ -3300,11 +3431,8 @@ function bookingsPage(staff, api = null) {
     setInterval: () => {},
     OAK: {
       api: async (endpoint) => {
-        if (!api) {
-          return assert.fail('staffLeft is a reading of the roster, not a read of it');
-        }
         asked.push(endpoint);
-        return api(endpoint);
+        return assert.fail(`staffLeft is a reading of the roster, not a read of it: ${endpoint}`);
       },
       toast: () => {},
       fmtDate: (value) => value,
@@ -3387,8 +3515,8 @@ test('an hour up to the last day worked still has the technician it was sold wit
   const page = bookingsPage([
     { id: 2, name: 'Lan Khuê', active: 1, claimed: true },
     { id: 3, name: 'Phương Vy', active: 0, claimed: true, left_at: '2026-09-15' },
-    // Off the roster with no date to compare against — a row that predates the feature, or
-    // one whose stint read failed. The flag alone answers, which is where this started.
+    // Off the roster with no date to compare against — a row that predates the feature. The
+    // flag alone answers, which is where this started.
     { id: 4, name: 'Mai Lan', active: 0, claimed: true },
   ]);
   const on = (staffId, date) => page.staffLeft({
@@ -3409,12 +3537,13 @@ test('an hour up to the last day worked still has the technician it was sold wit
 });
 
 test('the day grid brands a leftover column by the day it is drawn for, not by the flag', () => {
-  /* The column list is activeStaff(), active === 1, so a technician inside her notice period
-     is not in it and her bookings land in the leftover column below — which used to name
-     itself "<name> (đã nghỉ)" on the strength of that same flag. On 05/09, with a departure
-     recorded for 11/09, the list view showed her booking with no chip, the detail panel
-     showed no chip, and the day view the owner runs that morning from headed her column "đã
-     nghỉ": one page, one booking, both answers. */
+  /* The column list is activeStaff(), active === 1, so a technician whose stint has closed is
+     not in it and her bookings land in the leftover column below — which used to name itself
+     "<name> (đã nghỉ)" on the strength of that same flag. The owner writes the departure down
+     on 11/09, the last day Nguyệt actually worked, and then pages the day grid back to 05/09
+     to look at a day she did work: the list view showed her booking with no chip, the detail
+     panel showed no chip, and the grid headed her column "đã nghỉ". One page, one booking,
+     both answers. */
   const page = bookingsPage([
     { id: 2, name: 'Lan Khuê', active: 1, claimed: true },
     { id: 3, name: 'Nguyệt', active: 0, claimed: true, left_at: '2026-09-11' },
@@ -3431,7 +3560,7 @@ test('the day grid brands a leftover column by the day it is drawn for, not by t
     return page.columns.map((column) => column.name);
   };
 
-  // Inside the notice period. She is still contracted to work this hour — the sweep in
+  // A day before the last one she worked. She was there for this hour — the sweep in
   // lib/staff-departure.js left it on her on purpose — so the column carries her name plainly.
   assert.deepEqual(
     named('2026-09-05', booking(1, 3, '2026-09-05')),
@@ -3467,44 +3596,46 @@ test('the day grid brands a leftover column by the day it is drawn for, not by t
   assert.equal((consoleHtml.match(/\(đã nghỉ\)/g) || []).length, 1);
 });
 
-test('the calendar fetches a stint only for the rows whose flag it cannot read alone', async () => {
-  const page = bookingsPage(
-    [
-      { id: 1, active: 1, claimed: true },
-      { id: 2, active: 0, claimed: true },
-      { id: 3, active: 0, claimed: false },
-      { id: 4, active: 0, claimed: true },
-    ],
-    async (endpoint) => {
-      if (endpoint === '/api/partner/staff/2') {
-        return { id: 2, left_at: '2026-09-15' };
-      }
-      if (endpoint === '/api/partner/staff/4') {
-        throw new Error('Không tải được.');
-      }
-      return assert.fail(`unexpected call: ${endpoint}`);
-    },
-  );
-
-  await page.loadStints();
-
-  /* Claimed AND already off the roster, and nothing else: a row still working has no
-     departure to read and an unclaimed chair has no stint at all. Nought to two requests on
-     an ordinary salon, which is the whole reason this fan-out is tolerable — it exists only
-     because GET /api/partner/staff does not carry the stint, and goes the day it does. */
-  assert.deepEqual(page.asked, ['/api/partner/staff/2', '/api/partner/staff/4']);
-  assert.equal(page.staff[1].left_at, '2026-09-15');
-  /* Soft-failing per row, exactly as loadStints() in quan-ly-nhan-vien.html does: a detail
-     read that failed costs that one row its date and never the page its roster, which is
-     what one rejection out of a bare Promise.all would do. */
-  assert.ok(!('left_at' in page.staff[3]));
-  assert.equal(page.staff.length, 4);
-
-  // Run once, off the back of the roster read, inside init()'s own try.
+test('the calendar reads the stint off the roster it was handed, and asks nothing more', () => {
+  /* Every list row carries left_at now — stintFields() is spread onto the list and onto
+     staffDetail alike — so the fan-out that ran off the back of the roster read is gone: it
+     fetched one GET /staff/:id per claimed, inactive row for the single field the list was
+     missing. Nothing follows the roster read inside init()'s try any more. */
+  assert.doesNotMatch(consoleHtml, /loadStints/);
   assert.match(
     consoleHtml,
-    /this\.services = await OAK\.api\('\/api\/partner\/services'\);\s*\n\s*await this\.loadStints\(\);/,
+    /this\.services = await OAK\.api\('\/api\/partner\/services'\);\s*\n\s*\} catch \(error\) \{/,
   );
+
+  const page = bookingsPage([
+    { id: 1, name: 'Lan Khuê', active: 1, claimed: true, left_at: null },
+    { id: 2, name: 'Phương Vy', active: 0, claimed: true, left_at: '2026-08-01' },
+    // An unclaimed chair the salon deleted, and a row off the roster with no date behind it:
+    // neither ever had a detail worth fetching, and the flag alone still answers for both.
+    { id: 3, name: 'Ghế trống', active: 0, claimed: false, left_at: null },
+    { id: 4, name: 'Mai Lan', active: 0, claimed: true, left_at: null },
+  ]);
+  const on = (staffId, date) => page.staffLeft({
+    id: 7, status: 'confirmed', date, staff: { id: staffId, name: 'x' },
+  });
+
+  // The date the list supplied still decides it, exactly as it did when a second request
+  // fetched that date: up to and including the last day worked is hers, after it is not.
+  assert.deepEqual(
+    [
+      on(1, '2026-08-05'),
+      on(2, '2026-07-20'),
+      on(2, '2026-08-01'),
+      on(2, '2026-08-02'),
+      on(3, '2026-08-05'),
+      on(4, '2026-08-05'),
+    ],
+    [false, false, false, true, true, true],
+  );
+  assert.equal(page.staffGone(2, '2026-08-01'), false);
+  assert.equal(page.staffGone(2, '2026-08-02'), true);
+  // And not one request went out for any of it.
+  assert.deepEqual(page.asked, []);
 });
 
 // -------------------------------------------------------------- what the two legal pages say
@@ -3552,4 +3683,407 @@ test('each legal page gained one section at the end, and nothing above it moved'
   // Each names the other's number in prose too, which is the half a chip href cannot check.
   assert.match(termsHtml, /xem mục 8 trang/);
   assert.match(privacyHtml, /có tại mục 9 trang/);
+});
+
+// ------------------------------------------- the page a stint outlives, once the stint ends
+
+const wizardHtml = ui('dat-lich.html');
+const serviceHtml = ui('chi-tiet-dich-vu.html');
+
+/**
+ * oakStaffProfile() over a server answering the way the real one answers once a stint has
+ * ENDED: the profile and the reviews still come back — the CV is the whole reason this page
+ * outlives the job — while /availability and /services resolve through `staffIdOrThrow`,
+ * which is `active = 1`, and both 404.
+ *
+ * `fails` overrides any single read with an error of its own, which is how the difference
+ * between "she has left" and "the connection dropped" is put to the page. Every request is
+ * recorded, because the other half of the contract is that the page does not go back for
+ * more hours it cannot sell.
+ */
+function formerPage({ history = [], onRoster = true, fails = {} } = {}) {
+  const tail = profileHtml.slice(profileHtml.indexOf('function oakTodayISO('));
+  const calls = [];
+  const gone = () => {
+    const error = new Error('Không tìm thấy kỹ thuật viên này.');
+    error.code = 'NOT_FOUND';
+    return error;
+  };
+  const reviews = Object.assign(
+    [{ id: 3, rating: 5, comment: 'Rất khéo tay.', user: { name: 'Ngọc Anh' } }],
+    { meta: { total: 1, average: 5 } },
+  );
+  const answer = (name, value) => {
+    if (fails[name]) {
+      throw fails[name];
+    }
+    if (!onRoster && (name === 'availability' || name === 'services')) {
+      throw gone();
+    }
+    return value;
+  };
+  const context = {
+    URLSearchParams,
+    location: { href: 'https://oak.test/ho-so-chuyen-gia.html?id=7' },
+    navigator: {},
+    window: {},
+    OAK: {
+      qs: (name) => (name === 'id' ? '7' : null),
+      meta: () => {},
+      fmtDate: (value) => value,
+      toast: () => {},
+      api: async (url) => {
+        calls.push(url);
+        if (url.includes('/availability')) {
+          return answer('availability', {
+            week: [{ date: '2026-08-29', slots: [{ time: '09:00', available: true }] }],
+          });
+        }
+        if (url.endsWith('/services')) {
+          return answer('services', [{ id: 9, name: 'Sơn Gel Cơ Bản' }]);
+        }
+        if (url.includes('/reviews')) {
+          return answer('reviews', reviews);
+        }
+        if (url.endsWith('/history')) {
+          return answer('history', history);
+        }
+        return answer('profile', {
+          id: 7, name: 'Mai Chi', title: 'KTV', specialty: 'Vẽ móng', bio: 'Mười năm nghề.',
+          image: 'a.webp', rating: 4.8, years_experience: 10, portfolio: [],
+          salon: { id: 4, slug: 'lala', name: 'Lala Nail Studio' }, stats: COUNTED,
+        });
+      },
+    },
+  };
+  vm.runInNewContext(
+    `${tail.slice(0, tail.indexOf('</script>'))}\nresult = oakStaffProfile();`,
+    context,
+  );
+  context.result.calls = calls;
+  return context.result;
+}
+
+/** The two stints above, belonging to the row this page is about. */
+const LEFT_STINT = { ...CLOSED_STINT, staff_id: 7 };
+const OPEN_STINT = { ...STINT, staff_id: 7 };
+
+test('a technician who has left keeps her page, and it stops selling hours', async () => {
+  const page = formerPage({ history: [LEFT_STINT], onRoster: false });
+  await page.init();
+
+  /* The headline case: two of the five reads 404 for a closed row, and before the catches
+     went on they took the whole Promise.all down with them — leaving "Không tải được hồ sơ
+     chuyên gia." where the CV was meant to be, which is the one thing this feature exists
+     to put on screen. */
+  assert.equal(page.loadError, '');
+  assert.equal(page.loading, false);
+  assert.equal(page.staff.name, 'Mai Chi');
+  assert.equal(page.history.length, 1);
+  assert.equal(page.completedTotal(), 10);
+
+  // What the 404s cost, and all they cost: the week grid and the service chips.
+  assert.equal([...page.week].length, 0);
+  assert.equal([...page.services].length, 0);
+  assert.equal(page.workingDays().length, 0);
+  // The reviews stand behind the profile's own gate, so they answer for her and are read.
+  assert.equal([...page.reviews].length, 1);
+  assert.equal(page.reviewMeta.total, 1);
+
+  assert.equal(page.departed(), true);
+  /* And nothing asks for the week a second time. loadWeek() has two ways in — a service chip
+     and the retry beside a failed read — and a closed row has neither: the chips are gated on
+     a service list that came back empty, and no read failed loudly enough to raise a retry. */
+  assert.equal(page.calls.filter((url) => url.includes('/availability')).length, 1);
+  assert.equal(page.weekError, '');
+  assert.match(profileHtml, /<div class="mb-6 flex flex-col gap-3" x-show="services\.length">/);
+  assert.match(profileHtml, /x-show="weekError"[\s\S]{0,400}?@click="loadWeek\(\)"/);
+});
+
+test('the availability 404 costs the page its grid, and the profile read still speaks for itself', async () => {
+  /* The soft reads carry their own catch so no one of them can blank a page that otherwise
+     arrived. The reviews do NOT: GET /:id/reviews is gated on visibleStaffIdOrThrow, the same
+     gate as the profile beside it, so it cannot 404 for a departed row and has no failure of
+     its own to survive — and a catch there would render "chưa có đánh giá" over forty of them
+     and drop the star average with it. */
+  assert.match(profileHtml, /'\/availability\?from=' \+ oakTodayISO\(\) \+ '&days=7'\)\r?\n\s*\.catch\(\(\) => null\)/);
+  assert.match(profileHtml, /OAK\.api\('\/api\/staff\/' \+ id \+ '\/reviews'\),/);
+  assert.doesNotMatch(profileHtml, /'\/reviews'\)\.catch/);
+  /* And that really is one gate and not two that happen to agree today: the profile resolves
+     through selectStaffProfile and the reviews through visibleStaffIdOrThrow's own existence
+     query, and both are the same predicate pair. Whatever 404s one 404s the other. */
+  assert.match(handler(staffSource, "router.get('/:id/reviews'", '\n});'), /visibleStaffIdOrThrow\(/);
+  for (const [name, from] of [
+    ['profile', 'const selectStaffProfile = db.prepare('],
+    ['reviews', 'const selectVisibleStaffExists = db.prepare('],
+  ]) {
+    assert.match(
+      handler(staffSource, from, ');'),
+      /\$\{CLAIMED_OR_ON_ROSTER\} AND \$\{VISIBLE_PROFILE\}/,
+      name,
+    );
+  }
+
+  /* A caught availability read hands back null, and the assignment site keeps the shape the
+     markup binds to: `week` an array to filter. But null is NOT an empty week — for a
+     technician who is still working it is a dropped connection, and rendering "Chưa có lịch
+     trống trong tuần này." over it shows a fully free technician as fully booked with no way
+     back. She gets the error line and the "Thử lại" beside it instead. */
+  const broken = formerPage({
+    history: [OPEN_STINT],
+    fails: { availability: new Error('Mất kết nối.') },
+  });
+  await broken.init();
+  assert.equal(broken.loadError, '');
+  assert.equal(broken.staff.name, 'Mai Chi');
+  assert.equal(broken.departed(), false);
+  assert.equal([...broken.week].length, 0);
+  assert.equal(broken.weekError, 'Không tải được lịch trống.');
+  // The reads that did answer are untouched by it.
+  assert.equal([...broken.reviews].length, 1);
+  assert.equal(broken.reviewMeta.total, 1);
+
+  /* And the same null, on a row whose stint has closed, stays silent: there the 404 is the
+     expected answer and the line over the grid has already explained it. An error block there
+     would be the page telling a visitor something went wrong with a page that is working. */
+  const departed = formerPage({ history: [LEFT_STINT], onRoster: false });
+  await departed.init();
+  assert.equal(departed.departed(), true);
+  assert.equal([...departed.week].length, 0);
+  assert.equal(departed.weekError, '');
+
+  /* The reviews now stand or fall with the profile, which is what the server already decided.
+     A transport failure there is a failure of the page, said once by the outer catch, rather
+     than forty reviews quietly becoming none. */
+  const noReviews = formerPage({
+    history: [OPEN_STINT],
+    fails: { reviews: new Error('Mất kết nối.') },
+  });
+  await noReviews.init();
+  assert.equal(noReviews.staff, null);
+  assert.equal(noReviews.loadError, 'Không tải được hồ sơ chuyên gia.');
+
+  /* The profile read deliberately keeps no catch of its own. There is no page without it, and
+     the outer catch is already the right handler: it tells a 404 — no such specialist, its own
+     quiet panel — from a cold server, which gets the error line and a way back in. A
+     `.catch(() => null)` here would hand both the same blank page and lose that distinction. */
+  const profileRead = handler(profileHtml, "OAK.api('/api/staff/' + id)", ',');
+  assert.doesNotMatch(profileRead, /catch/);
+
+  const missing = formerPage({
+    fails: { profile: Object.assign(new Error('Không tìm thấy chuyên gia này.'), { code: 'NOT_FOUND' }) },
+  });
+  await missing.init();
+  assert.equal(missing.staff, null);
+  assert.equal(missing.loadError, '');
+
+  const cold = formerPage({ fails: { profile: new Error('Máy chủ chưa sẵn sàng.') } });
+  await cold.init();
+  assert.equal(cold.staff, null);
+  assert.equal(cold.loadError, 'Không tải được hồ sơ chuyên gia.');
+});
+
+test('a technician still at work is untouched by any of it', async () => {
+  const page = formerPage({ history: [OPEN_STINT] });
+  await page.init();
+
+  assert.equal(page.departed(), false);
+  assert.equal(page.workingDays().length, 1);
+  assert.equal([...page.services].length, 1);
+  assert.equal(page.bookingUrl(), 'dat-lich.html?salon_id=4&staff_id=7');
+
+  // And a profile with no CV at all is nobody's departure either: the page cannot say a stint
+  // has ended on the strength of a list that never arrived.
+  const noHistory = formerPage({ fails: { history: new Error('Không tải được quá trình.') } });
+  await noHistory.init();
+  assert.equal(noHistory.history.length, 0);
+  assert.equal(noHistory.departed(), false);
+});
+
+test('departure is read off the CV, and never off a request that failed', async () => {
+  /* The lie this page must not tell. /availability 404s for a technician who has left — and
+     it also fails on a dropped connection, a cold server and a phone in a lift. A page that
+     read one as the other would tell visitors a technician still at work had gone, on the
+     strength of a request that would have succeeded a second later. */
+  const flaky = formerPage({
+    history: [OPEN_STINT],
+    fails: { availability: new Error('Mất kết nối.') },
+  });
+  await flaky.init();
+  assert.equal(flaky.departed(), false);
+
+  const helper = handler(profileHtml, '            departed() {', '            },');
+  assert.match(helper, /this\.history\.find\(\(entry\) => entry\.staff_id === this\.staff\.id\)/);
+  assert.match(helper, /!stint\.is_current/);
+  // Nothing about the week, the failed read or the service list gets a vote.
+  assert.doesNotMatch(helper, /week|weekError|services|left_at/);
+
+  /* is_current is the server's own answer to the same question — left_at IS NULL AND
+     active = 1 — so the page never works it out from two columns of its own. */
+  assert.match(
+    declaration(staffSource, 'async function stintShape('),
+    /is_current: row\.left_at === null && row\.active === 1,/,
+  );
+  // And GET /api/staff/:id carries no roster flag at all, which is why the CV is the signal.
+  const detail = handler(staffSource, "router.get('/:id',", 'export default router');
+  assert.doesNotMatch(detail, /active|left_at|is_current/);
+});
+
+test('what a departure takes off the page is the booking, and nothing else', () => {
+  // One quiet line where the week grid was: no error colour, no retry, nothing failed.
+  assert.match(
+    profileHtml,
+    /<p class="font-body-md text-body-md text-on-surface-variant" x-show="departed\(\)">Kỹ thuật viên hiện không nhận lịch mới qua OAK\.<\/p>/,
+  );
+  assert.match(profileHtml, /pb-4" x-show="!departed\(\)">Lịch trống tuần này<\/h3>/);
+  // "Chưa có lịch trống" is a week that happens to be full, which this is not.
+  assert.match(profileHtml, /x-show="!departed\(\)">Chưa có lịch trống trong tuần này\.<\/p>/);
+
+  // Both booking buttons go; "Xem đánh giá" stays, because the reviews are still there.
+  assert.match(profileHtml, /<template x-if="!departed\(\)">\s*<a :href="bookingUrl\(\)" style="display:contents/);
+  assert.match(profileHtml, /<template x-if="!departed\(\)">\s*<div class="fixed bottom-0[^"]*" data-oak-sticky-cta>/);
+  const cta = handler(profileHtml, '<div class="mt-8 flex gap-4">', '</div>');
+  assert.equal((cta.match(/departed\(\)/g) || []).length, 1, 'the reviews button was gated too');
+  assert.match(cta, /<a href="#danh-gia"/);
+
+  // The salon line stops claiming she is there, which is the other thing that would be false.
+  assert.match(
+    profileHtml,
+    /<span x-show="!departed\(\)">Làm việc tại<\/span>\s*<span x-show="departed\(\)">Từng làm việc tại<\/span>/,
+  );
+
+  /* And the CV and its legend carry no departure gate of any kind: they are what the page is
+     for once the stint has ended, and they are the sections that must render. */
+  const cv = handler(profileHtml, '>Quá trình làm việc</h2>', '</section>');
+  assert.doesNotMatch(cv, /departed\(\)/);
+  const legend = handler(profileHtml, '>Chú giải</span>', '</section>');
+  assert.doesNotMatch(legend, /departed\(\)/);
+  assert.match(profileHtml, /<section class="mt-section-gap" x-show="history\.length">/);
+});
+
+// --------------------------------------- the chip in the picker, on both pages that draw one
+
+/**
+ * One of the two technician pickers, lifted out of its page and driven. Everything a pick
+ * fans out to — the slot read, the day strip, the quote — is stubbed away, so what is left is
+ * the single decision these tests are about.
+ *
+ * `tracking` describes the browser rather than the page: one served from cache can meet an
+ * oak-api.js from before any of this was measured, and must still be able to pick.
+ */
+function pickerPage(html, factory, { tracking = true } = {}) {
+  const tail = html.slice(html.indexOf(`function ${factory}(`));
+  const events = [];
+  const context = {
+    URLSearchParams,
+    location: { search: '', href: '' },
+    oakToday: () => '2026-08-29',
+    oakTodayISO: () => '2026-08-29',
+    OAK: { toast: () => {} },
+  };
+  if (tracking) {
+    context.OAK.track = (name, meta) => events.push([name, meta]);
+  }
+  vm.runInNewContext(
+    `${tail.slice(0, tail.indexOf('</script>'))}\nresult = ${factory}();`,
+    context,
+  );
+  const page = context.result;
+  for (const method of ['loadSlots', 'loadDayChips', 'loadQuote']) {
+    page[method] = () => {};
+  }
+  page.events = events;
+  return page;
+}
+
+/** A card the way GET /api/services/:id/staff sends one: always these seven keys. */
+const CARD = {
+  id: 7, name: 'Mai Chi', claimed: true, title: 'KTV', specialty: 'Vẽ móng',
+  image: 'a.webp', rating: 4.8, years_experience: 10,
+};
+const UNCLAIMED_CARD = { ...CARD, id: 8, name: 'Chị Hoa', claimed: false };
+/* A claimed technician who has taken her public page down: the showcase is gone and the name
+   and the chip are not, because hiding a page is not ceasing to be the person in the chair. */
+const REDUCED_CARD = {
+  id: 9, name: 'Thu Hà', claimed: true, title: null, specialty: null,
+  image: null, rating: null, years_experience: null,
+};
+
+test('the picker says which chair has an OAK account behind it', () => {
+  for (const [name, html] of [['dat-lich.html', wizardHtml], ['chi-tiet-dich-vu.html', serviceHtml]]) {
+    /* Two card designs over the same seven keys, so the chip is written twice — but gated on
+       `claimed` and on nothing else in both, and drawn in the house pill these pages already
+       use for a ✓ elsewhere. */
+    assert.match(html, /<template x-if="member\.claimed">/, name);
+    assert.match(
+      html,
+      /rounded-full bg-tertiary-fixed[^"]*text-on-tertiary-fixed-variant[^>]*>\s*<span aria-hidden="true" class="material-symbols-outlined text-\[14px\]">verified<\/span>\s*<span>Hồ sơ OAK<\/span>/,
+      name,
+    );
+    // Said once per page, and never conditioned on any of the showcase a reduced card lacks.
+    assert.equal((html.match(/Hồ sơ OAK/g) || []).length, 1, name);
+    assert.deepEqual(html.match(/x-if="[^"]*claimed[^"]*"/g), ['x-if="member.claimed"'], name);
+  }
+
+  // The name is ungated on both cards, so a reduced card is a name plus the chip and no more.
+  assert.match(wizardHtml, /class="block font-label-md text-label-md" x-text="member\.name"/);
+  assert.match(serviceHtml, /<h4 class="font-label-md[^"]*" x-text="member\.name"><\/h4>/);
+  const wizard = pickerPage(wizardHtml, 'oakBookingForm');
+  assert.equal(wizard.staffMeta(REDUCED_CARD), '');
+  assert.equal(wizard.staffMeta(CARD), 'KTV · 4.8');
+});
+
+test('a technician picked with the chip beside her name is counted, and nobody else is', () => {
+  /* One event name for both pickers: track() sends the page it fired on, so the same name
+     tells the wizard's step 3 from the service page's team strip by itself. */
+  const wizard = pickerPage(wizardHtml, 'oakBookingForm');
+  wizard.staffList = [CARD, UNCLAIMED_CARD, REDUCED_CARD];
+
+  wizard.setStaff(CARD.id);
+  assert.deepEqual(wizard.events, [['staff_verified_pick', undefined]]);
+  // A row the salon typed in carries no chip, so there was nothing to choose by.
+  wizard.setStaff(UNCLAIMED_CARD.id);
+  assert.equal(wizard.events.length, 1);
+  // "Bất kỳ" is not a person and not a pick.
+  wizard.setStaff(null);
+  assert.equal(wizard.events.length, 1);
+  // A withdrawn profile keeps the chip, so choosing her is still a choice made on it.
+  wizard.setStaff(REDUCED_CARD.id);
+  assert.equal(wizard.events.length, 2);
+
+  const service = pickerPage(serviceHtml, 'oakServiceDetail');
+  service.staff = [CARD, UNCLAIMED_CARD];
+
+  service.pickStaff(CARD.id);
+  assert.deepEqual(service.events, [['staff_verified_pick', undefined]]);
+  /* The same button again is an un-pick — the hours widen back out to everyone who performs
+     the service — and hours offered by everyone were chosen on nobody's chip. */
+  service.pickStaff(CARD.id);
+  assert.equal(service.staffId, null);
+  assert.equal(service.events.length, 1);
+  service.pickStaff(UNCLAIMED_CARD.id);
+  assert.equal(service.events.length, 1);
+
+  // Nothing about a person rides along: the event carries no meta at all, on either page.
+  for (const [, meta] of [...wizard.events, ...service.events]) {
+    assert.equal(meta, undefined);
+  }
+});
+
+test('a picker whose oak-api.js has no track() still picks', () => {
+  /* The case a bare OAK.track(...) turns into a dead button: a page served from cache meeting
+     a script from before any of this was measured. Both pages, since both now call it. */
+  const wizard = pickerPage(wizardHtml, 'oakBookingForm', { tracking: false });
+  wizard.staffList = [CARD];
+  assert.doesNotThrow(() => wizard.setStaff(CARD.id));
+  assert.equal(wizard.staffId, CARD.id);
+
+  const service = pickerPage(serviceHtml, 'oakServiceDetail', { tracking: false });
+  service.staff = [CARD];
+  assert.doesNotThrow(() => service.pickStaff(CARD.id));
+  assert.equal(service.staffId, CARD.id);
+
+  for (const html of [wizardHtml, serviceHtml]) {
+    assert.match(html, /typeof OAK\.track === 'function'\) \{\s*OAK\.track\('staff_verified_pick'\);/);
+  }
 });

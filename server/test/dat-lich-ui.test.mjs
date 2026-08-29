@@ -487,6 +487,36 @@ test('a browser whose oak-api.js has no track() still books', async () => {
   assert.equal(state.location.href, 'xac-nhan-dat-lich.html?id=91');
 });
 
+test('a technician chosen with the chip on her card is counted, and "Bất kỳ" is not', () => {
+  /* Every picker card carries `claimed` — whether a real OAK account stands behind the chair
+     — and the ✓ chip that marks it is what this counts having been chosen by. The service
+     page's own picker fires the same event; track() sends the page, so one name serves both. */
+  const state = bookingForm(async () => Object.assign([], { meta: { total: 0 } }));
+  const events = [];
+  state.oak.track = (name, meta) => events.push([name, meta]);
+  state.staffList = [
+    { id: 7, name: 'Mai Chi', claimed: true, title: 'KTV', rating: 4.8 },
+    { id: 8, name: 'Chị Hoa', claimed: false, title: 'KTV', rating: 4.6 },
+  ];
+
+  state.setStaff(7);
+  assert.deepEqual(events, [['staff_verified_pick', undefined]]);
+
+  // A row the salon typed into its roster carries no chip, and "Bất kỳ" is not a person.
+  state.setStaff(8);
+  state.setStaff(null);
+  assert.equal(events.length, 1);
+});
+
+test('a wizard whose oak-api.js has no track() still picks a technician', () => {
+  const state = bookingForm(async () => []);
+  assert.equal(state.oak.track, undefined);
+  state.staffList = [{ id: 7, name: 'Mai Chi', claimed: true }];
+
+  assert.doesNotThrow(() => state.setStaff(7));
+  assert.equal(state.staffId, 7);
+});
+
 test('"Bất kỳ" says what it will do, and every technician is a card with a face', () => {
   /* A booking that names nobody now reserves somebody, so the chip has to stop reading as
      "no technician" — and the people it is chosen against need more than a name. */

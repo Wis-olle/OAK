@@ -277,6 +277,17 @@
 <span aria-hidden="true" x-show="member.years_experience">·</span>
 <span x-show="member.years_experience" x-text="member.years_experience + ' năm kinh nghiệm'"></span>
 </p>
+<!-- A name the salon typed into its roster and a technician who signed in and claimed that
+     chair are not the same promise to somebody choosing between two strangers, so the
+     picker says which is which. `claimed` and nothing else: it stays true for a technician
+     who has taken her public page down, and this chip is about who is there rather than
+     about what she shows — which is why it can be the only thing under such a name. -->
+<template x-if="member.claimed">
+<span class="inline-flex items-center gap-1 rounded-full bg-tertiary-fixed px-3 py-1 font-caption text-caption text-on-tertiary-fixed-variant mt-2">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]">verified</span>
+<span>Hồ sơ OAK</span>
+</span>
+</template>
 </button>
 <a :href="'ho-so-chuyen-gia.html?id=' + member.id" class="font-caption text-caption text-primary hover:text-secondary transition-colors mt-2">Xem hồ sơ</a>
 </div>
@@ -682,6 +693,15 @@
                 picking them again widens it out to everyone who performs the service. */
             pickStaff(id) {
                 this.staffId = this.staffId === id ? null : id;
+                /* Whether the ✓ chip is what the choice was made on — counted on the pick and
+                   not on the un-pick, which is why it reads the id that was just settled on.
+                   It carries nothing: track() already sends the page, so the same event tells
+                   this picker and the wizard's apart by itself. Guarded because a page served
+                   from cache can meet an oak-api.js without track(). */
+                const picked = this.staff.find((member) => member.id === this.staffId);
+                if (picked && picked.claimed && typeof OAK.track === 'function') {
+                    OAK.track('staff_verified_pick');
+                }
                 this.loadSlots();
                 this.loadDayChips();
             },

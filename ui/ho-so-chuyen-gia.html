@@ -109,7 +109,10 @@
      could not tell where this person works. -->
 <p class="flex items-center gap-2 font-body-md text-body-md text-on-surface-variant">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">storefront</span>
-<span>Làm việc tại</span>
+<!-- The present tense belongs to an open stint. This page outlives the job, and the salon
+     it names is where the work was done rather than where to go looking for her. -->
+<span x-show="!departed()">Làm việc tại</span>
+<span x-show="departed()">Từng làm việc tại</span>
 <a :href="'salon-profile.html?salon=' + encodeURIComponent(staff.salon.slug)" class="text-primary hover:underline" x-text="staff.salon.name"></a>
 </p>
 <!-- What this person has actually done here, as the server counted it: the completed total,
@@ -167,7 +170,11 @@
 </template>
 </div>
 <div class="mt-8 flex gap-4">
+<!-- The booking button goes with the job; the reviews stay. They are what this page is
+     still for once the stint has ended, and they are still worth reading. -->
+<template x-if="!departed()">
 <a :href="bookingUrl()" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary hover:bg-primary transition-colors px-8 py-3 rounded-full font-label-md text-label-md uppercase tracking-wider">Đặt lịch ngay</button></a>
+</template>
 <a href="#danh-gia" style="display:contents;color:inherit;text-decoration:none"><button class="border border-outline text-on-surface hover:bg-surface-variant transition-colors px-8 py-3 rounded-full font-label-md text-label-md uppercase tracking-[0.05em]">Xem đánh giá</button></a>
 </div>
 </div>
@@ -280,7 +287,10 @@
 <section class="mt-section-gap grid grid-cols-1 md:grid-cols-2 gap-gutter items-start">
 <!-- Booking Calendar -->
 <div class="bg-surface-container-low p-8 rounded-xl border border-outline-variant/20 shadow-sm">
-<h3 class="font-headline-md text-headline-md mb-6 border-b border-outline-variant/30 pb-4">Lịch trống tuần này</h3>
+<h3 class="font-headline-md text-headline-md mb-6 border-b border-outline-variant/30 pb-4" x-show="!departed()">Lịch trống tuần này</h3>
+<!-- A stint that has ended, said once and plainly. Not an error and not a retry: nothing
+     failed here, there is simply no hour of hers left to sell. -->
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="departed()">Kỹ thuật viên hiện không nhận lịch mới qua OAK.</p>
 <!-- Without a service the grid is sized by this technician's longest one, so an hour picked
      here can turn out not to fit the service chosen later in the wizard. Choosing it here
      resizes the grid and carries the choice through. -->
@@ -304,7 +314,9 @@
 <button :disabled="weekLoading" @click="loadWeek()" class="border border-outline-variant text-on-surface font-label-md text-label-md uppercase tracking-wider px-5 py-2 rounded-full disabled:opacity-60" type="button">Thử lại</button>
 </div>
 <template x-if="!weekLoading &amp;&amp; !weekError &amp;&amp; !workingDays().length">
-<p class="font-body-md text-body-md text-on-surface-variant">Chưa có lịch trống trong tuần này.</p>
+<!-- "Chưa có lịch trống" is a week that happens to be full; a stint that has ended is not
+     that, and the line above the grid has already said so. -->
+<p class="font-body-md text-body-md text-on-surface-variant" x-show="!departed()">Chưa có lịch trống trong tuần này.</p>
 </template>
 <template :key="day.date" x-for="day in workingDays()">
 <div>
@@ -348,12 +360,17 @@
 </section>
 <!-- The two other pages of this path carry one; this page's only button sat above a
      portfolio and a week grid, out of reach by the time either had been read. -->
+<!-- The bar is the button, so a technician who is not taking bookings has no bar. Removed
+     rather than emptied: oak-utils.css keeps the page's scroll clear of it by asking
+     whether the element is there at all. -->
+<template x-if="!departed()">
 <div class="fixed bottom-0 inset-x-0 z-40 md:hidden flex items-center justify-between gap-4 border-t border-outline-variant/30 bg-surface-container-low px-margin-mobile py-3" data-oak-sticky-cta>
 <span class="font-caption text-caption text-on-surface-variant truncate" x-text="staff.salon.name"></span>
 <a :href="bookingUrl()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 px-6 min-h-[44px] ml-auto flex items-center justify-center" style="text-decoration:none">
 <span>Đặt lịch với</span> <span x-text="staff.name"></span>
 </a>
 </div>
+</template>
 </div>
 </template>
 </main>
@@ -464,7 +481,21 @@
                     const id = await this.resolveId();
                     const [profile, availability, reviews, services, history] = await Promise.all([
                         OAK.api('/api/staff/' + id),
-                        OAK.api('/api/staff/' + id + '/availability?from=' + oakTodayISO() + '&days=7'),
+                        /* Availability resolves through the roster (staffIdOrThrow), so it is
+                           404 for a technician who has left — and this page is exactly the one
+                           that has to survive that: her CV is the whole reason it still
+                           answers. Null here is the ONLY thing this catch produces and a
+                           successful read is always an object, so the two are told apart
+                           below: an ordinary 404 on a departed row is silent, and any other
+                           failure on a row still working is said out loud with a way back. */
+                        OAK.api('/api/staff/' + id + '/availability?from=' + oakTodayISO() + '&days=7')
+                            .catch(() => null),
+                        /* No catch on the reviews, deliberately. GET /:id/reviews is gated on
+                           visibleStaffIdOrThrow — the SAME gate as the profile read beside it —
+                           so it cannot 404 for a departed row and has no failure of its own to
+                           survive. Swallowing one would render "chưa có đánh giá" over forty of
+                           them and drop the star average with it; the two reads stand or fall
+                           together by the server's own design, and the outer catch says so. */
                         OAK.api('/api/staff/' + id + '/reviews'),
                         /* The service chips are an extra: a slow or failing read hides the
                            row, it must never replace a profile that loaded with an error. */
@@ -486,7 +517,18 @@
                         description: profile.bio,
                         image: profile.image,
                     });
-                    this.week = availability.week;
+                    /* A week that failed to load is not a week without room in it — the same
+                       rule loadWeek() keeps, kept here too, because this is the read that
+                       draws the grid the first time. departed() answers off this.history,
+                       assigned above: for a stint that has ended the 404 is the expected
+                       answer and the line over the grid has already explained it, so the page
+                       stays quiet. For anybody still working it is a transport failure, and
+                       an empty grid would show a fully free technician as fully booked with
+                       no way back — so the error block and its "Thử lại" take the space. */
+                    this.week = availability ? availability.week : [];
+                    if (!availability && !this.departed()) {
+                        this.weekError = 'Không tải được lịch trống.';
+                    }
                     this.reviews = reviews;
                     this.reviewMeta = { total: reviews.meta.total, average: reviews.meta.average };
                 } catch (error) {
@@ -568,7 +610,8 @@
                         return;
                     }
                     // A week that failed to load is not a week without room in it, so the
-                    // grid says the read failed and offers it again.
+                    // grid says the read failed and offers it again. Same rule as init()'s
+                    // own first read of it, which reaches the same two lines by hand.
                     this.week = [];
                     this.weekError = 'Không tải được lịch trống.';
                 } finally {
@@ -670,6 +713,23 @@
             stepLightbox(step) {
                 const count = this.staff.portfolio.length || 1;
                 this.lightboxIndex = (this.lightboxIndex + step + count) % count;
+            },
+
+            /**
+             * Whether the stint this page is about has ended — the one thing that decides
+             * whether anything here can still be booked.
+             *
+             * Read off the CV, because GET /api/staff/:id carries no roster flag at all:
+             * the profile answers for a technician who has left on purpose, and the entry
+             * for THIS row in the history list is the only public signal that she has.
+             *
+             * Never inferred from the availability read having failed. That read 404s for a
+             * departed technician, but it also fails on a dropped connection, and a page that
+             * read one as the other would tell visitors a working technician had left.
+             */
+            departed() {
+                const stint = this.history.find((entry) => entry.staff_id === this.staff.id);
+                return Boolean(stint) && !stint.is_current;
             },
 
             /** Days off come back with an empty slot list and are not worth a heading. */
