@@ -242,6 +242,13 @@ router.delete('/me', requireAuth, async (req, res, next) => {
       // the profile without erasing these would leave the number on every card.
       await tx.run(ANONYMISE_BOOKING_CONTACT, req.user.id);
       await tx.run(RELEASE_STAFF_ROWS, req.user.id);
+      /* And the person's own page is DELETED, where the chair beside it was merely handed
+         back. There is nothing here that belonged to a salon: every column of staff_profiles
+         is something this person wrote about herself, so there is no next claimant who could
+         inherit any of it and nothing to release it to. The slug goes with it, freeing the
+         address rather than leaving a dead page standing at it. The row a technician sat in
+         outlives her at OAK because it is the salon's; her page does not, because it is hers. */
+      await tx.run('DELETE FROM staff_profiles WHERE user_id = ?', req.user.id);
       await tx.run(
         ANONYMISE_USER,
         `deleted+${req.user.id}@oak.invalid`,

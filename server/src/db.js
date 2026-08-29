@@ -350,6 +350,43 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_user_salon ON staff(user_id, salon_id)
   WHERE user_id IS NOT NULL AND active = 1;
 
+-- A technician's own page, and the only place on OAK that holds one. Keyed by the PERSON and
+-- not by any chair they sit in: what somebody says about themselves does not change when they
+-- move salons, and a technician holding rows at two shops is not two people with two
+-- biographies. The staff rows beside it go on being what they always were — the salon's record
+-- of a chair, the numbers OAK counted off the calendar, and the two sides' answers about the
+-- dates on a stint.
+--
+-- Everything in here is SELF-DECLARED and none of it is checked by anybody. That is the whole
+-- reason it is a table of its own rather than more columns on staff: a verified count and a
+-- sentence a person typed about themselves must not be reachable by one query, or a page will
+-- sooner or later show the second wearing the first one's authority.
+--
+-- published_at NULL is the consent gate, and it is what a row is born with. The row itself
+-- appears the moment a technician opens the editor, because a draft has to live somewhere, and
+-- NOTHING in it is public until she presses publish and this column is stamped. So an account
+-- that never opened the editor and one that filled the whole form in and walked away are the
+-- same thing to every public read: absent.
+--
+-- The unique constraint on slug is named here rather than left to whatever Postgres would have
+-- called it, because the insert catches this exact name and retries with a fresh suffix
+-- (lib/staff-profile.js). A constraint named by the server is one the retry cannot recognise.
+CREATE TABLE IF NOT EXISTS staff_profiles (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id),
+  slug TEXT NOT NULL,
+  title TEXT,
+  specialty TEXT,
+  bio TEXT,
+  image TEXT,
+  portfolio TEXT,
+  years_experience INTEGER DEFAULT 0,
+  hidden INTEGER DEFAULT 0,
+  published_at TEXT,
+  created_at TEXT,
+  updated_at TEXT,
+  CONSTRAINT staff_profiles_slug_key UNIQUE (slug)
+);
+
 -- weekday: 0 = Sunday .. 6 = Saturday. "start"/"end" quoted because they are reserved
 -- words in Postgres, like "read".
 CREATE TABLE IF NOT EXISTS staff_schedule (

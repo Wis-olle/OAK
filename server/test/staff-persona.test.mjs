@@ -43,6 +43,8 @@ const servicesSource = source('routes', 'services.js');
 const bookingsSource = source('routes', 'bookings.js');
 const reviewsSource = source('routes', 'reviews.js');
 const notifySource = source('lib', 'notify.js');
+const staffProfileSource = source('lib', 'staff-profile.js');
+const staffStatsSource = source('lib', 'staff-stats.js');
 
 /** The handler of one route, up to whatever comes after it. */
 function handler(text, from, to) {
@@ -280,6 +282,22 @@ test('erasing an account gives its roster rows back to the salon', () => {
   const transaction = erase.slice(erase.indexOf('db.withTransaction'));
   assert.match(transaction, /await tx\.run\(RELEASE_STAFF_ROWS, req\.user\.id\);/);
   assert.ok(transaction.indexOf('RELEASE_STAFF_ROWS') < transaction.indexOf('ANONYMISE_USER'));
+
+  /* And her own page goes the other way entirely: DELETED, in the same transaction, where the
+     chair beside it was handed back. The distinction is the whole point of the pair. A roster
+     row is the salon's record of a chair, so it survives its holder and waits for whoever sits
+     in it next; staff_profiles is nothing but what one person wrote about herself, so there is
+     no next claimant it could be released to and nothing in it a salon could inherit. An UPDATE
+     here — blanking the columns and leaving the row — would keep her slug reserved forever and
+     leave an empty page standing at her address. */
+  assert.match(
+    transaction,
+    /await tx\.run\('DELETE FROM staff_profiles WHERE user_id = \?', req\.user\.id\);/,
+  );
+  assert.doesNotMatch(usersSource, /UPDATE staff_profiles/);
+  assert.ok(
+    transaction.indexOf('DELETE FROM staff_profiles') < transaction.indexOf('ANONYMISE_USER'),
+  );
 });
 
 test('requireStaff is requirePartner with the other role', () => {
@@ -404,13 +422,44 @@ test('the given name is the last token of a Vietnamese name', () => {
   assert.equal(givenName(undefined), null);
 });
 
-test('/claim is reachable by a customer, and only the two reads are staff-only', () => {
+test('/claim is reachable by a customer, and every other route on it is staff-only', () => {
   // A global requireStaff would lock out exactly the accounts /claim exists to upgrade.
   assert.match(staffMeSource, /router\.use\(requireAuth\);/);
   assert.doesNotMatch(staffMeSource, /router\.use\([^)]*requireStaff/);
-  assert.match(staffMeSource, /router\.get\('\/profile', requireStaff,/);
-  assert.match(staffMeSource, /router\.get\('\/bookings', requireStaff,/);
   assert.match(staffMeSource, /router\.post\('\/claim', async/);
+
+  /* Which makes the guard a per-route one, and a per-route guard is only as good as the list
+     of routes somebody remembered to put it on. So the list is DERIVED: every route this file
+     declares is swept out of the source, /claim is the one exception, and each of the rest has
+     to carry requireStaff. A route added without it — or one whose guard is deleted — fails
+     here whatever it is called, which a list written out by hand could never do.
+
+     The page endpoints are why this had to widen. PATCH /portfolio and POST /portfolio/publish
+     both call ensureStaffProfile, which INSERTs a staff_profiles row keyed by the caller with
+     a unique slug on it. Unguarded, any signed-in customer could mint one and sit on an
+     address on the technician side of OAK, having claimed nothing. */
+  const routes = [...staffMeSource.matchAll(/^router\.(get|post|patch)\('([^']+)',\s*(\w+)?/gm)]
+    .map((hit) => ({ method: hit[1], path: hit[2], guard: hit[3] }));
+  assert.ok(routes.length >= 9, 'the route scan stopped seeing this file');
+  for (const route of routes) {
+    const label = `${route.method.toUpperCase()} ${route.path}`;
+    if (route.path === '/claim') {
+      assert.notEqual(route.guard, 'requireStaff', `${label} must stay open to a customer`);
+      continue;
+    }
+    assert.equal(route.guard, 'requireStaff', `${label} is not staff-only`);
+  }
+  // …and the three the page this slice built depends on are genuinely among them, named, so
+  // a scan that silently matched nothing could not pass this test on an empty list.
+  for (const named of [
+    /router\.get\('\/portfolio', requireStaff,/,
+    /router\.patch\('\/portfolio', requireStaff,/,
+    /router\.post\('\/portfolio\/publish', requireStaff,/,
+    /router\.get\('\/profile', requireStaff,/,
+    /router\.get\('\/bookings', requireStaff,/,
+  ]) {
+    assert.match(staffMeSource, named);
+  }
 
   // Scoped through the claim, never through an id in the path: there is no roster row a
   // technician can name that is not one they hold.
@@ -1154,31 +1203,69 @@ test('the console hands a refusal on in the words the server refused it in', () 
 
 // -------------------------------------------------- who owns which half of a roster row
 
-test('the technician writes exactly four columns, and an unknown key is refused', () => {
-  /* The four are the personal half of the row. Everything a salon runs on — the name on the
-     roster, the title, the specialty, whether the stint is open — is deliberately absent, and
-     asserting the map is exactly these four is what keeps it that way as the form grows. */
+test('a roster row keeps one switch, and the page it used to carry has moved off it', () => {
+  /* One column, and it is a switch rather than content: whether THIS stint's page is on the
+     public side. Everything a salon runs on — the name on the roster, the title, the specialty,
+     whether the stint is open — was always deliberately absent, and now the personal half is
+     absent too, because what a person says about herself lives in staff_profiles, keyed by the
+     person. A roster row has stopped being a place where two voices are stored side by side,
+     and asserting this map is exactly one key is what keeps it that way as the form grows. */
   const columns = handler(staffMeSource, 'const PROFILE_COLUMNS = {', '};');
   const named = [...columns.matchAll(/^ {2}([a-z_]+): /gm)].map((match) => match[1]);
-  assert.deepEqual(named.sort(), ['bio', 'image', 'portfolio', 'profile_hidden']);
-  for (const owned of ['name', 'title', 'specialty', 'active']) {
+  assert.deepEqual(named.sort(), ['profile_hidden']);
+  for (const owned of ['name', 'title', 'specialty', 'active', 'bio', 'image', 'portfolio']) {
     assert.doesNotMatch(columns, new RegExp(`\\b${owned}:`), owned);
   }
 
-  /* And an unrecognised key is a 400 rather than a silent drop, which is the one place this
-     endpoint deliberately parts company with buildPatch in routes/partner.js: that one walks
+  /* And the personal half, parsed the same way out of the endpoint that owns it now. Seven
+     keys, every one of them something a person says about herself — and never `slug`, which is
+     minted once and is an address rather than a field, nor `published_at`, which is the consent
+     stamp and is an act with an endpoint of its own. */
+  const portfolioColumns = handler(staffMeSource, 'const PORTFOLIO_COLUMNS = {', '};');
+  const portfolioNamed = [...portfolioColumns.matchAll(/^ {2}([a-z_]+): /gm)].map((hit) => hit[1]);
+  assert.deepEqual(portfolioNamed.sort(), [
+    'bio',
+    'hidden',
+    'image',
+    'portfolio',
+    'specialty',
+    'title',
+    'years_experience',
+  ]);
+  assert.doesNotMatch(portfolioColumns, /\bslug:|\bpublished_at:/);
+
+  /* And an unrecognised key is a 400 rather than a silent drop, which is the one place these
+     endpoints deliberately part company with buildPatch in routes/partner.js: that one walks
      its whitelist and ignores the rest, and a technician who posted `name`, got a 200 and
      believed they had renamed themselves would be left arguing with their own page. */
-  const patch = handler(staffMeSource, "router.patch('/profile'", 'const selectMyStaffReviews');
+  const patch = handler(staffMeSource, "router.patch('/profile'", 'const TITLE_MAX');
   assert.match(
     patch,
     /if \(!Object\.hasOwn\(PROFILE_COLUMNS, key\)\) \{\s*throw httpError\(400, 'VALIDATION_ERROR', NOT_YOURS\);/,
   );
+  const portfolioPatch = handler(
+    staffMeSource,
+    "router.patch('/portfolio'",
+    "router.post('/portfolio/publish'",
+  );
+  assert.match(
+    portfolioPatch,
+    /if \(!Object\.hasOwn\(PORTFOLIO_COLUMNS, key\)\) \{\s*throw httpError\(400, 'VALIDATION_ERROR', NOT_YOUR_PAGE\);/,
+  );
   assert.doesNotMatch(staffMeSource, /buildPatch\(/);
-  // The refusal says who owns the rest, rather than only that the caller may not have it.
+  // The refusal says who owns the rest, rather than only that the caller may not have it —
+  // and now it also says WHERE the half it no longer takes went, by the name the technician
+  // sees on the page that took it. A cutover that only refused would read as a lost feature.
   assert.match(staffMeSource, /Tên, chức danh, chuyên môn và lịch làm việc do salon quản lý\./);
-  // An empty body is the house's own words for it, not a fifth wording of the same thing.
+  assert.match(staffMeSource, /nay nằm ở hồ sơ nghề nghiệp của bạn/);
+  // An empty body is the house's own words for it on both endpoints, not a new wording each.
   assert.match(patch, /'VALIDATION_ERROR', 'Không có thông tin nào để cập nhật\.'/);
+  assert.match(portfolioPatch, /'VALIDATION_ERROR', 'Không có thông tin nào để cập nhật\.'/);
+  // Neither the address nor the consent stamp is ever handed to an UPDATE built from a body.
+  assert.match(
+    portfolioPatch,
+    /UPDATE staff_profiles SET \$\{assignments\.join\(', '\)\}, updated_at = \? WHERE user_id = \?/,
+  );
 
   /* Scoped by user_id in the UPDATE itself and not merely by the read above it: between
      proving the row is theirs and writing to it there is no window at all. The read answers
@@ -1206,6 +1293,195 @@ test('the technician writes exactly four columns, and an unknown key is refused'
   assert.match(portfolio, /\.filter\(\(url\) => url !== ''\)/);
   assert.match(portfolio, /if \(urls\.length > PORTFOLIO_MAX\)/);
   assert.ok(portfolio.indexOf(".filter((url) => url !== '')") < portfolio.indexOf('urls.length > PORTFOLIO_MAX'));
+});
+
+test('a page is one per person, at an address under a constraint that has a name', () => {
+  /* The whole statement rather than three substrings of it. This table is the only home of
+     everything a technician says about herself, so a column slipped in or out between substring
+     matches — a `verified` flag, a `salon_id`, a NOT NULL on published_at — would change what
+     the table is for without failing anything. Whitespace-normalised so the DDL can be
+     re-wrapped, never re-worded. */
+  const table = handler(dbSource, 'CREATE TABLE IF NOT EXISTS staff_profiles (', ');')
+    .replace(/\s+/g, ' ')
+    .trim();
+  assert.equal(
+    table,
+    'CREATE TABLE IF NOT EXISTS staff_profiles ( user_id INTEGER PRIMARY KEY REFERENCES users(id), ' +
+      'slug TEXT NOT NULL, title TEXT, specialty TEXT, bio TEXT, image TEXT, portfolio TEXT, ' +
+      'years_experience INTEGER DEFAULT 0, hidden INTEGER DEFAULT 0, published_at TEXT, ' +
+      'created_at TEXT, updated_at TEXT, CONSTRAINT staff_profiles_slug_key UNIQUE (slug)',
+  );
+  /* Named again outside that string, so a change made in the DDL and in the expectation
+     together still fails something. user_id IS the primary key, which is how "one page per
+     person" is enforced for free rather than by a rule somebody has to remember; and the slug's
+     unique constraint carries an explicit name because lib/staff-profile.js catches it BY that
+     name and retries with a fresh suffix. */
+  assert.match(table, /user_id INTEGER PRIMARY KEY REFERENCES users\(id\)/);
+  assert.match(table, /CONSTRAINT staff_profiles_slug_key UNIQUE \(slug\)/);
+  assert.match(table, /published_at TEXT/);
+
+  // Created once, and nothing at boot sweeps a value into it: a page becomes public because a
+  // person pressed publish, never because a migration decided she had.
+  assert.equal((dbSource.match(/CREATE TABLE IF NOT EXISTS staff_profiles/g) || []).length, 1);
+  assert.doesNotMatch(dbSource, /ALTER TABLE staff_profiles|UPDATE staff_profiles|INSERT INTO staff_profiles/);
+});
+
+test('the verified numbers cannot be reached from the self-declared table', () => {
+  /* The invariant the whole slice exists to hold. staff rows carry what a salon says and what
+     OAK counted; staff_profiles carries what a person says about herself. Nothing may be able
+     to blend the two by accident, and the way that is guaranteed is that the file computing the
+     numbers has never heard of the other table. */
+  assert.doesNotMatch(staffStatsSource, /staff_profiles/);
+
+  /* Swept rather than listed: the allowed set is DERIVED from which files actually name the
+     table, so a sixth file reaching into it fails here whatever it is called. The two files
+     added to the sweep are the ones this slice introduced to the question — the library that
+     writes the row and the erasure that deletes it — plus the stats file, which is the one that
+     must come back clean. */
+  const reaching = [
+    ...STAFF_READERS,
+    ['routes/users.js', usersSource],
+    ['lib/staff-profile.js', staffProfileSource],
+    ['lib/staff-stats.js', staffStatsSource],
+  ]
+    .filter(([, text]) => text.includes('staff_profiles'))
+    .map(([name]) => name)
+    .sort();
+  assert.deepEqual(reaching, [
+    'db.js',
+    'lib/staff-profile.js',
+    'routes/staff-me.js',
+    'routes/staff.js',
+    'routes/users.js',
+  ]);
+
+  /* And the other direction: no self-declared field name appears in what staffStats hands
+     back. A figure and a claim travelling in one object is how a page ends up rendering the
+     second under the first one's authority. */
+  const stats = declaration(staffStatsSource, 'export async function staffStats(');
+  const shape = stats.slice(stats.indexOf('return {'));
+  for (const declared of [
+    'bio',
+    'portfolio',
+    'image',
+    'slug',
+    'title',
+    'specialty',
+    'years_experience',
+    'published_at',
+    'hidden',
+  ]) {
+    assert.doesNotMatch(shape, new RegExp(`\\b${declared}\\b`), declared);
+  }
+});
+
+test('nothing she wrote is public until she published it and left it standing', () => {
+  /* Both halves of the gate, in the statement itself and pinned whole. published_at IS NOT NULL
+     is the consent — a draft nobody agreed to publish is not a page — and the hidden test is the
+     withdrawal, the same question VISIBLE_PROFILE asks of a roster row, asked again about the
+     person because taking a page down has to reach every surface it was on. Split across two
+     statements, or moved into the route as a branch, either half could go missing on its own. */
+  const gate = handler(staffSource, 'const selectPublishedProfile = db.prepare(', '`);')
+    .replace(/\s+/g, ' ')
+    .trim();
+  assert.equal(
+    gate,
+    'const selectPublishedProfile = db.prepare(` SELECT slug, bio, image, portfolio, ' +
+      'years_experience FROM staff_profiles WHERE user_id = ? AND published_at IS NOT NULL ' +
+      'AND COALESCE(hidden, 0) = 0',
+  );
+  // And it is the only reach into the table in the file, so there is no ungated second read.
+  assert.equal((staffSource.match(/staff_profiles/g) || []).length, 1);
+
+  /* The fall-through is EXACTLY the roster row, and it is what an unclaimed chair, a technician
+     who never opened the editor, a draft she never published and a page she took back down all
+     get — four different situations that must look identical from outside, because telling them
+     apart would announce the existence of a page somebody chose not to show.
+
+     Which is why the key is SPREAD IN rather than set to null. `technician: null` on every
+     chair on OAK would be this endpoint saying, of everybody, that there is a person-shaped
+     hole here and a table somewhere that fills it — and a reply that gained a key is no longer
+     the reply it was before this table existed. An empty object adds nothing, which is the
+     truth. The address is the sharpest case of the same rule: a slug nobody may follow is not
+     published in the negative either. */
+  const half = declaration(staffSource, 'async function personalHalf(');
+  assert.match(half, /const person = row\.user_id === null \? undefined : await selectPublishedProfile\.get\(row\.user_id\);/);
+  assert.match(half, /if \(!person\) \{/);
+  assert.match(half, /link: \{\},/);
+  assert.match(half, /link: \{ technician: \{ slug: person\.slug \} \},/);
+  assert.doesNotMatch(half, /technician: null/);
+  assert.doesNotMatch(staffSource, /technician: null/);
+  for (const column of ['bio', 'image', 'years_experience']) {
+    assert.match(half, new RegExp(`${column}: row\\.${column},`), `${column} from the row`);
+    assert.match(half, new RegExp(`${column}: person\\.${column},`), `${column} from the page`);
+  }
+  assert.match(half, /portfolio: parseJsonArray\(row\.portfolio\),/);
+  assert.match(half, /portfolio: parseJsonArray\(person\.portfolio\),/);
+  // The account column is asked about and never answered with, as everywhere else on this side.
+  assert.doesNotMatch(half, /user_id:/);
+  const detail = handler(staffSource, "router.get('/:id',", 'export default router');
+  assert.doesNotMatch(detail, /user_id/);
+  assert.match(detail, /\.\.\.person\.link,/);
+  // Spread between the salon and the numbers, so a reply that gains the key gains it in one
+  // place and every other key keeps the position it has had since before this table existed.
+  assert.ok(detail.indexOf('salon: {') < detail.indexOf('...person.link,'));
+  assert.ok(detail.indexOf('...person.link,') < detail.indexOf('stats: await staffStats'));
+  /* The salon's own words about the job are NOT overridden: a stint page goes on saying what
+     the roster says, whoever else has a page of their own. */
+  for (const salons of ['title: row.title', 'specialty: row.specialty', 'name: row.name']) {
+    assert.ok(detail.includes(salons), salons);
+  }
+});
+
+test('a first draft is filled in once, and nothing ever writes over it', () => {
+  /* ON CONFLICT DO NOTHING is the withdrawal guarantee this whole library rests on. Every
+     endpoint that touches a profile calls ensureStaffProfile first, so DO UPDATE would copy the
+     roster row back over the person's own words once per request — a bio she rewrote replaced by
+     the one the salon page still carries, on every page load. */
+  const insert = handler(staffProfileSource, 'const INSERT_PROFILE = db.prepare(', '`);')
+    .replace(/\s+/g, ' ')
+    .trim();
+  assert.equal(
+    insert,
+    'const INSERT_PROFILE = db.prepare(` INSERT INTO staff_profiles ' +
+      '(user_id, slug, bio, portfolio, image, years_experience, hidden, created_at) ' +
+      'VALUES (?, ?, ?, ?, ?, ?, 0, ?) ON CONFLICT (user_id) DO NOTHING RETURNING user_id',
+  );
+  /* title and specialty are on the roster row and are deliberately NOT carried up. They are the
+     SALON's words about a job — the owner typed them into the console — and prefilling a
+     self-declared field with them would put the salon's voice inside the technician's own
+     sentence with nothing afterwards able to tell the two apart. published_at is absent for a
+     different reason: NULL is what a row has to be born with, and naming it would invite a
+     caller to pass one. */
+  assert.doesNotMatch(insert, /\btitle\b|\bspecialty\b|\bpublished_at\b/);
+
+  // Nothing in the library updates a profile at all; the only two UPDATEs on this table
+  // anywhere are the technician's own PATCH and her publish, both in routes/staff-me.js.
+  assert.doesNotMatch(staffProfileSource, /UPDATE staff_profiles/);
+  assert.equal((staffMeSource.match(/UPDATE staff_profiles/g) || []).length, 2);
+  assert.match(
+    staffMeSource,
+    /UPDATE staff_profiles SET published_at = \?, updated_at = \?\s*WHERE user_id = \? AND published_at IS NULL/,
+  );
+
+  /* The retry, caught by the constraint's own NAME rather than by 23505 alone: the user_id
+     collision is swallowed by the ON CONFLICT clause and never surfaces, so a bare code test
+     would one day retry something a fresh suffix cannot fix. Bounded, because an unbounded loop
+     against a unique index is one request holding a connection open forever. */
+  const ensure = declaration(staffProfileSource, 'export async function ensureStaffProfile(');
+  assert.match(
+    ensure,
+    /error\.code === '23505' && error\.constraint === 'staff_profiles_slug_key'/,
+  );
+  assert.match(ensure, /attempt <= SLUG_ATTEMPTS/);
+  assert.match(ensure, /if \(!collided \|\| attempt === SLUG_ATTEMPTS\) \{\s*throw error;/);
+  assert.match(staffProfileSource, /const SLUG_ATTEMPTS = 3;/);
+
+  /* And it owns no transaction and is handed none. A failed statement aborts the whole Postgres
+     transaction it sat in (db.js says so about the booking-code retry), so a retry inside one
+     would run its second attempt on a connection that can do nothing but roll back. */
+  assert.doesNotMatch(staffProfileSource, /db\.withTransaction/);
+  assert.doesNotMatch(ensure, /\(tx[,)]|tx\.run/);
 });
 
 test("the avatar on a claimed row stops being the owner's, in exactly these words", () => {
@@ -1523,12 +1799,21 @@ test('the unread badge already counts these, and gains nothing new', () => {
 /**
  * oakStaffMe() over a stand-in browser, with every write it sends recorded.
  *
- * `sent` is the whole point of the harness: PATCH /api/staff-me/profile refuses an
+ * `sent` and `wrote` are the whole point of the harness: both PATCH endpoints refuse an
  * unrecognised key with a 400, so what has to hold is not what the markup looks like but
- * what the form actually posts — which is only visible by driving it.
+ * what the page actually posts — which is only visible by driving it. They are two lists
+ * because they are two different questions: `sent` is every write to a ROSTER ROW, which now
+ * owns one column, and `wrote` is every write to the PERSON's own page, which owns seven.
  */
 function profilePage({
   profiles = [], reviews = [], unread = 0, patchError = null, reviewsFail = null,
+  me = MY_PAGE, meFail = null, mePatchError = null, publishFail = null,
+  /* Hold every write to her page open until the test lets it answer, so two writers can be
+     started and the question "did the second one go out" can actually be asked. The publish
+     is one of those writes and is held too: it is a POST to a different endpoint but the same
+     row, and a hold that skipped it would be a queue with a hole in it exactly where the
+     act that matters most goes — which is how it went unnoticed the first time. */
+  holdWrites = false,
   today = '2026-08-28', tenureReply = null, tenureError = null,
   leaveReply = { reassigned: 0, needs_attention: 0 }, leaveError = null,
   /* How many reads of the roster succeed before the rest throw. The departure reloads the
@@ -1537,15 +1822,23 @@ function profilePage({
 } = {}) {
   const tail = profileMeHtml.slice(profileMeHtml.indexOf('const OAK_PORTFOLIO_MAX'));
   const sent = [];
-  /* The attestations and the departure are kept out of `sent`, which the four-columns sweep
-     above reads as "every PATCH /profile this form made". They go through their own
-     endpoints and post keys PATCH /profile would refuse, so counting them there would be
-     counting a different question. */
+  const wrote = [];
+  /* The attestations, the departure and the publish are kept out of both. They go through
+     their own endpoints and post keys either PATCH would refuse, so counting them beside the
+     column sweeps would be counting a different question. */
   const posted = [];
   const asked = [];
   const toasts = [];
   let profileReads = 0;
+  // The page as the server holds it, so a write is readable by the read that follows it.
+  let myPage = me;
+  // One resolver per held write, in the order the writes actually reached the server.
+  const holds = [];
   const context = {
+    // Only copyPageUrl() reaches for either of these, and it is written to survive a browser
+    // that refuses: the field is the fallback path and the toast is the whole of the report.
+    document: { getElementById: () => null },
+    location: { origin: 'https://oak.test' },
     // The upload path reads the file before it posts it; nothing here cares what it read.
     FileReader: class {
       readAsDataURL(file) {
@@ -1590,6 +1883,39 @@ function profilePage({
           }
           return reviews;
         }
+        /* The person's own page. No id travels with any of these — the row is keyed by the
+           account the request is signed in as — so the harness holds one page and every write
+           lands on it, which is exactly the property the switcher tests below are about. */
+        if (endpoint === '/api/staff-me/portfolio') {
+          if (!options) {
+            if (meFail) {
+              throw new Error(meFail);
+            }
+            return myPage;
+          }
+          wrote.push(options.body);
+          if (holdWrites) {
+            await new Promise((resolve) => holds.push(resolve));
+          }
+          if (mePatchError) {
+            throw new Error(mePatchError);
+          }
+          myPage = Object.assign({}, myPage, options.body);
+          return myPage;
+        }
+        if (endpoint === '/api/staff-me/portfolio/publish') {
+          posted.push({ endpoint, method: options.method, body: options.body });
+          if (holdWrites) {
+            await new Promise((resolve) => holds.push(resolve));
+          }
+          if (publishFail) {
+            throw new Error(publishFail);
+          }
+          // Stamped once and never restamped, so a second press reads the first one's date
+          // back — which is what makes the button idempotent from the page's side too.
+          myPage = Object.assign({}, myPage, { published_at: myPage.published_at ?? PUBLISHED_AT });
+          return myPage;
+        }
         if (endpoint === '/api/uploads') {
           return { url: UPLOADED };
         }
@@ -1619,10 +1945,27 @@ function profilePage({
     `${tail.slice(0, tail.indexOf('</script>'))}\nresult = oakStaffMe();`,
     context,
   );
-  return Object.assign(context.result, { sent, posted, asked, toasts });
+  return Object.assign(context.result, { sent, wrote, posted, asked, toasts, holds });
 }
 
 const UPLOADED = 'uploads/moi.webp';
+const PUBLISHED_AT = '2026-08-28T02:00:00.000Z';
+
+/* What GET /api/staff-me/portfolio answers with: one row per person, unpublished, prefilled
+   from whatever her newest roster row already said about her. Deliberately carrying a bio and
+   a picture that no roster row in this file carries, so a page reading the person's words off
+   a stint would show up as the wrong string rather than as a coincidence. */
+const MY_PAGE = {
+  slug: 'phuong-vy-8f2a',
+  title: null,
+  specialty: null,
+  bio: 'Mười năm làm nail',
+  image: null,
+  portfolio: ['uploads/cu.webp'],
+  years_experience: 5,
+  hidden: 0,
+  published_at: null,
+};
 
 /** What a file picker hands a change handler, and what it hands back after the pick. */
 function pickFile(name) {
@@ -1671,85 +2014,172 @@ test('the profile page stands behind the same gate, and names the same way back 
   assert.match(apiJs, /var STAFF_LOGIN_PAGE = 'dang-nhap-nhan-vien\.html';/);
 });
 
-test('every write the profile form sends is staff_id plus the four columns it owns', async () => {
+test('every write this page sends is one roster column, or a key off its own whitelist', async () => {
   const page = profilePage({ profiles: [CLAIMED_ROW] });
   await page.init();
   assert.ok(page.asked.includes('requireStaff'), 'the page drew itself without asking who it is');
 
   // Every control on the page, once each.
+  page.selfTitle = 'Thợ nail chính';
+  page.selfSpecialty = 'Đắp bột';
+  page.selfYears = 9;
   page.bio = 'Mười năm làm nail';
-  await page.saveBio();
-  page.hidden = true;
-  await page.saveHidden();
+  await page.saveDetails();
+  page.pageHidden = true;
+  await page.savePageHidden();
   await page.uploadAvatar(pickFile('daidien.webp'));
   await page.addPhoto(pickFile('tacpham.webp'));
   await page.removePhoto('uploads/cu.webp');
+  page.hidden = true;
+  await page.saveHidden();
+  // The press is a writer too: it saves what is on screen before it stamps, so the fields it
+  // sends are swept here with every other control rather than trusted to match saveDetails.
+  await page.publish();
 
-  /* Read off the bodies actually posted rather than off the markup: PATCH /profile answers
-     an unrecognised key with a 400 rather than dropping it, so what matters is what the form
+  /* Read off the bodies actually posted rather than off the markup: both endpoints answer an
+     unrecognised key with a 400 rather than dropping it, so what matters is what the page
      posts and not what it looks like.
 
-     The whitelist is parsed out of the route rather than restated here — the same parse the
-     "writes exactly four columns" case above makes — so the page is measured against the
-     server's real map and not against a copy of it that can go stale. */
-  const OWNED = [...handler(staffMeSource, 'const PROFILE_COLUMNS = {', '};')
+     Both whitelists are parsed out of the route rather than restated here — the same parse
+     the "a roster row keeps one switch" case above makes — so the page is measured against
+     the server's real maps and not against copies of them that can go stale. */
+  const named = (map) => [...handler(staffMeSource, map, '};')
     .matchAll(/^ {2}([a-z_]+): /gm)].map((hit) => hit[1]).sort();
-  assert.equal(OWNED.length, 4, 'PROFILE_COLUMNS has moved');
-  assert.equal(page.sent.length, 5);
-  const written = [];
+  const OWNED = named('const PROFILE_COLUMNS = {');
+  const MINE = named('const PORTFOLIO_COLUMNS = {');
+  assert.deepEqual(OWNED, ['profile_hidden'], 'PROFILE_COLUMNS has moved');
+  assert.equal(MINE.length, 7, 'PORTFOLIO_COLUMNS has moved');
+
+  // The roster row: a staff_id and the one switch left on it, and never anything else.
+  assert.equal(page.sent.length, 1);
   for (const body of page.sent) {
     assert.equal(body.staff_id, CLAIMED_ROW.staff_id);
-    const fields = Object.keys(body).filter((key) => key !== 'staff_id');
-    assert.ok(fields.length > 0, 'a PATCH with nothing but a staff_id is a 400');
+    assert.deepEqual(Object.keys(body).filter((key) => key !== 'staff_id'), OWNED);
+  }
+
+  /* Her own page: never a staff_id at all, because the row is keyed by the account and a
+     roster id in the body would be this page asking the server which of her chairs she is
+     speaking as. Pinned per press rather than as one union of every key the form ever sends —
+     a union cannot see a key that some OTHER control already contributes being added to this
+     one, and `hidden` folded into the four-field save would make pressing "Lưu thay đổi"
+     re-assert a visibility switch the technician did not touch. */
+  assert.deepEqual(page.wrote.map((body) => Object.keys(body).sort()), [
+    ['bio', 'specialty', 'title', 'years_experience'],
+    ['hidden'],
+    ['image'],
+    ['portfolio'],
+    ['portfolio'],
+    // publish(), sending the same four fields saveDetails does. Named in both places on
+    // purpose: a field added to the form and not to the press fails right here rather than
+    // going out under a consent that did not carry it.
+    ['bio', 'specialty', 'title', 'years_experience'],
+  ]);
+  const written = [];
+  for (const body of page.wrote) {
+    const fields = Object.keys(body);
+    assert.ok(fields.length > 0, 'a PATCH with an empty body is a 400');
+    assert.ok(!fields.includes('staff_id'), 'a page is not a roster row');
     for (const key of fields) {
-      assert.ok(OWNED.includes(key), `${key} is the salon's, not the technician's`);
+      assert.ok(MINE.includes(key), `${key} is not hers to write`);
     }
     written.push(...fields);
   }
-  // …and all four are genuinely exercised, so the sweep above ran over a whole form.
-  assert.deepEqual([...new Set(written)].sort(), OWNED);
+  // …and all seven are genuinely exercised, so the drive above ran over a whole form.
+  assert.deepEqual([...new Set(written)].sort(), MINE);
 
   // The two picture writes send the list as it will be, because the column is one JSON array.
-  assert.deepEqual(page.sent[3].portfolio, ['uploads/cu.webp', UPLOADED]);
-  assert.deepEqual(page.sent[4].portfolio, [UPLOADED]);
+  assert.deepEqual(page.wrote[3].portfolio, ['uploads/cu.webp', UPLOADED]);
+  assert.deepEqual(page.wrote[4].portfolio, [UPLOADED]);
 
   /* The drive above is only ever as complete as the list of controls it knows to press, so
-     the page's own call sites are read beside it: a sixth writer, or one naming a column the
+     the page's own call sites are read beside it: another writer, or one naming a column the
      server does not hand over, fails here even though nothing above would think to press it.
-     Both sides of this come out of source — the call sites from the page, the whitelist from
+     Both sides of this come out of source — the call sites from the page, the whitelists from
      the route — so neither can be quietly widened to fit the other. */
-  const sites = [...profileMeHtml.matchAll(/this\.patch\(\w+, \{\s*(\w+):/g)].map((hit) => hit[1]);
+  const rowSites = [...profileMeHtml.matchAll(/this\.patch\(\w+, \{\s*(\w+):/g)].map((hit) => hit[1]);
   assert.equal(
-    sites.length,
+    rowSites.length,
     (profileMeHtml.match(/this\.patch\(/g) || []).length,
     'a patch() call site is written in a shape this scan cannot read',
   );
-  assert.equal(sites.length, page.sent.length, 'a write on the page that the drive never presses');
-  for (const key of new Set(sites)) {
+  assert.equal(rowSites.length, page.sent.length, 'a write on the page that the drive never presses');
+  for (const key of new Set(rowSites)) {
     assert.ok(OWNED.includes(key), `the page writes ${key}, which PATCH /profile refuses`);
   }
+
+  /* And the same for the page's own writes, reading EVERY key of each call rather than the
+     first: saveDetails() sends four fields in one body, so a scan that stopped at the opening
+     key would let a fifth field be added to that form without anything noticing. */
+  const pageCalls = [...profileMeHtml.matchAll(/this\.patchPortfolio\(\{([^}]*)\}/g)];
+  assert.equal(
+    pageCalls.length,
+    (profileMeHtml.match(/this\.patchPortfolio\(/g) || []).length,
+    'a patchPortfolio() call site is written in a shape this scan cannot read',
+  );
+  assert.equal(pageCalls.length, page.wrote.length, 'a write on the page that the drive never presses');
+  const pageSites = pageCalls
+    .flatMap((hit) => [...hit[1].matchAll(/(\w+):/g)].map((key) => key[1]));
+  assert.deepEqual([...new Set(pageSites)].sort(), MINE);
 });
 
-test('the withdrawal switch says all four things it does, and undoes itself on a refusal', async () => {
+test('the two withdrawals are told apart in words, and neither one throws the other', async () => {
   const consent = handler(profileMeHtml, '>Hiển thị công khai</h2>', '</section>');
-  // The promise Slice 1 made when the row was claimed, spelled out where it is thrown.
-  assert.match(consent, /trang hồ sơ công khai của bạn không còn mở được/);
+  /* Two switches in one card, so the only thing standing between them and being read as one
+     switch is the wording. The page one names the page and what her stint pages fall back to;
+     the salon one names this salon and keeps the promise Slice 1 made when the row was
+     claimed, in the words it was made in. */
+  assert.match(consent, /trang hồ sơ nghề nghiệp của bạn không còn mở được/);
+  assert.match(consent, /hồ sơ của bạn tại mỗi salon quay lại hiện phần giới thiệu salon đang lưu/);
+  assert.match(consent, /hồ sơ của bạn tại salon này không còn mở được/);
   assert.match(consent, /thẻ của bạn không còn hiện trên trang salon/);
   assert.match(consent, /Lịch hẹn của bạn và trang quản lý của salon vẫn chạy bình thường/);
   assert.match(consent, /Bạn tắt lại lúc nào cũng được/);
-  // The box IS the state, so putting the state back puts the box back with it.
+  // Each box IS its own state, so putting a state back puts its own box back with it.
+  assert.match(consent, /@change="savePageHidden\(\)"[^>]*x-model="pageHidden"/);
   assert.match(consent, /@change="saveHidden\(\)"[^>]*x-model="hidden"/);
+  /* Each is gated on the thing it is about having been read. The salon one needs a stint —
+     there is no "this salon" for somebody standing in none — and the page one needs the page,
+     because pageHidden before a read is the factory's own default and a box drawn on that
+     would be reporting the state of something nobody looked up. */
+  assert.match(consent, /<template x-if="me">/);
+  assert.match(consent, /<template x-if="row\(\)">/);
+  assert.ok(consent.indexOf('<template x-if="me">') < consent.indexOf('<template x-if="row()">'));
+  /* And it says "chưa đăng" over a draft rather than "đang hiện". The publish block a few
+     centimetres up says nothing here is public yet; a switch reading "currently shown" beside
+     it would be the same screen disagreeing with itself about the one thing it is for. */
+  assert.match(
+    consent,
+    /x-text="!me\.published_at \? 'Trang chưa đăng' : \(pageHidden \? 'Đang ẩn trang nghề nghiệp' : 'Đang hiện trang nghề nghiệp'\)"/,
+  );
 
-  const page = profilePage({ profiles: [CLAIMED_ROW], patchError: 'Không lưu được.' });
+  const page = profilePage({
+    profiles: [CLAIMED_ROW],
+    patchError: 'Không lưu được.',
+    mePatchError: 'Không lưu được trang.',
+  });
   await page.init();
   assert.equal(page.hidden, false);
+  assert.equal(page.pageHidden, false);
+
+  page.pageHidden = true;
+  await page.savePageHidden();
+
+  // Never a box claiming a state the server refused — and the refusal of one is neither a
+  // word about the other nor a write to it.
+  assert.equal(page.pageHidden, false);
+  assert.equal(page.pageHiddenError, 'Không lưu được trang.');
+  assert.equal(page.hiddenError, '');
+  assert.equal(page.sent.length, 0);
 
   page.hidden = true;
   await page.saveHidden();
 
-  // Never a box claiming a state the server refused.
   assert.equal(page.hidden, false);
   assert.equal(page.hiddenError, 'Không lưu được.');
+  assert.deepEqual(page.wrote.map((body) => Object.keys(body)), [['hidden']]);
+  assert.equal(page.wrote[0].hidden, true);
+  assert.equal(page.sent.length, 1);
+  assert.deepEqual({ ...page.sent[0] }, { staff_id: CLAIMED_ROW.staff_id, profile_hidden: true });
 });
 
 test('the gallery closes at the ceiling the server enforces, not at a number typed twice', async () => {
@@ -1758,14 +2188,16 @@ test('the gallery closes at the ceiling the server enforces, not at a number typ
   const cap = Number(staffMeSource.match(/const PORTFOLIO_MAX = (\d+);/)[1]);
   assert.ok(cap > 0, 'PORTFOLIO_MAX has moved');
 
+  // Counted on the person's own gallery, which is the only one there is: the roster row still
+  // carries a portfolio column and it is an archive nothing on this page reads.
   const full = Array.from({ length: cap }, (value, index) => `uploads/${index}.webp`);
-  const page = profilePage({ profiles: [{ ...CLAIMED_ROW, portfolio: full }] });
+  const page = profilePage({ profiles: [CLAIMED_ROW], me: { ...MY_PAGE, portfolio: full } });
   await page.init();
   assert.equal(page.portfolioMax, cap);
   assert.equal(page.atPortfolioCap(), true);
 
   // One short of it and the control is open again.
-  const room = profilePage({ profiles: [{ ...CLAIMED_ROW, portfolio: full.slice(1) }] });
+  const room = profilePage({ profiles: [CLAIMED_ROW], me: { ...MY_PAGE, portfolio: full.slice(1) } });
   await room.init();
   assert.equal(room.atPortfolioCap(), false);
 
@@ -1877,9 +2309,9 @@ test('the rows the rail is drawn from surface their own failure rather than vani
 });
 
 test('each roster row is read and written on its own, reviews included', async () => {
-  const second = { ...CLAIMED_ROW, staff_id: 9, salon: { id: 5, name: 'Mộc', slug: 'moc' }, bio: 'Chuyên mi' };
+  const second = { ...CLAIMED_ROW, staff_id: 9, salon: { id: 5, name: 'Mộc', slug: 'moc' }, profile_hidden: 1 };
   const page = profilePage({
-    profiles: [{ ...CLAIMED_ROW, bio: 'Chuyên nail' }, second],
+    profiles: [CLAIMED_ROW, second],
     reviews: [
       { id: 1, staff_id: 7, rating: 5, comment: 'Rất khéo', created_at: '2026-08-01', salon: { id: 4, name: 'Lala' } },
       { id: 2, staff_id: 9, rating: 4, comment: '', created_at: '2026-08-02', salon: { id: 5, name: 'Mộc' } },
@@ -1887,21 +2319,21 @@ test('each roster row is read and written on its own, reviews included', async (
   });
   await page.init();
 
-  // The first claimed row opens, and everything on the page is about that one row.
+  // The first claimed row opens, and the stint half of the page is about that one row.
   assert.equal(page.selected, 7);
-  assert.equal(page.bio, 'Chuyên nail');
+  assert.equal(page.hidden, false);
   assert.deepEqual(page.reviewRows().map((review) => review.id), [1]);
 
   // One list arrives for every row they hold, so switching is a filter rather than a fetch.
   const before = page.asked.length;
   page.select(9);
-  assert.equal(page.bio, 'Chuyên mi');
+  assert.equal(page.hidden, true);
   assert.deepEqual(page.reviewRows().map((review) => review.id), [2]);
   assert.equal(page.asked.length, before);
 
   // And the write that follows names the row now on screen.
-  page.bio = 'Chuyên mi và nail';
-  await page.saveBio();
+  page.hidden = false;
+  await page.saveHidden();
   assert.equal(page.sent[0].staff_id, 9);
 
   // The switcher itself is only drawn for somebody who holds more than one row.
@@ -1909,52 +2341,69 @@ test('each roster row is read and written on its own, reviews included', async (
   assert.match(profileMeHtml, /:aria-pressed="row\.staff_id === selected \? 'true' : 'false'"/);
 });
 
-test('a bio half typed survives a look at the other salon, and is dropped once it is saved', async () => {
+test('there is one bio, it belongs to the person, and no salon on screen alters it', async () => {
+  /* The half-typed-draft machinery this replaces existed because the bio was a column on a
+     roster row, so looking at the other salon swapped the textarea out from under whatever was
+     being written. There is nothing left for it to protect: one person has one bio, and the
+     switcher below reaches no part of the editor above it. */
   const second = { ...CLAIMED_ROW, staff_id: 9, salon: { id: 5, name: 'Mộc', slug: 'moc' }, bio: 'Chuyên mi' };
   const page = profilePage({ profiles: [{ ...CLAIMED_ROW, bio: 'Chuyên nail' }, second] });
   await page.init();
 
-  // Checking what the other row says is not a reason to lose a paragraph.
+  // Filled from her page and never from the row on screen, whichever row that is.
+  assert.equal(page.bio, MY_PAGE.bio);
+
   page.bio = 'Mười năm làm nail, chuyên đắp bột';
   page.select(9);
-  assert.equal(page.bio, 'Chuyên mi');
+  assert.equal(page.bio, 'Mười năm làm nail, chuyên đắp bột');
   page.select(7);
   assert.equal(page.bio, 'Mười năm làm nail, chuyên đắp bột');
 
-  /* And once the server has it the stash is dropped, so the row itself is the answer again:
-     a draft left behind here would outrank the column on the next read of the list — which
-     is exactly what the retry button does. */
-  await page.saveBio();
-  assert.ok(!(CLAIMED_ROW.staff_id in page.bioDrafts), 'a saved row keeps a draft to outrank it');
-  assert.equal(page.row().bio, 'Mười năm làm nail, chuyên đắp bột');
+  // Not a stash that happens to survive: select() does not touch the editor's state at all,
+  // and there is no per-row draft anywhere on the page to go stale against a re-read.
+  assert.doesNotMatch(profileMeHtml, /bioDrafts/);
+  const select = handler(profileMeHtml, 'select(staffId) {', '\n            },');
+  for (const owned of [
+    'this.me', 'this.bio', 'this.selfTitle', 'this.selfSpecialty', 'this.selfYears',
+    'this.pageHidden', 'this.detailsError', 'this.portfolioError', 'this.meError',
+  ]) {
+    assert.ok(!select.includes(owned), `select() reaches ${owned}, which is not a row's`);
+  }
+
+  await page.saveDetails();
+  assert.equal(page.wrote[0].bio, 'Mười năm làm nail, chuyên đắp bột');
+  assert.equal(page.me.bio, 'Mười năm làm nail, chuyên đắp bột');
+  // And the rows keep their own frozen copies, which nothing here wrote to.
+  assert.equal(page.rowOf(7).bio, 'Chuyên nail');
+  assert.equal(page.rowOf(9).bio, 'Chuyên mi');
 });
 
-test('a picture belongs to the salon it was picked for, not the one on screen when it lands', async () => {
+test('a picture belongs to the person, so the switcher has nothing to misdirect it with', async () => {
   /* The switcher stays live for the whole upload on purpose — abandoning a file somebody is
-     waiting on is the worse trade — so both writers that read a file first have to pin their
-     row before the read rather than look it up again when it comes back. */
-  const second = {
-    ...CLAIMED_ROW,
-    staff_id: 9,
-    salon: { id: 5, name: 'Mộc', slug: 'moc' },
-    portfolio: ['uploads/moc.webp'],
-  };
+     waiting on is the worse trade. It used to mean both writers had to pin their roster row
+     before reading the file, or a picture landed on the salon that happened to be on screen.
+     A picture now belongs to the person, so there is no row for either of them to name and
+     nothing the switcher can move underneath them. */
+  const second = { ...CLAIMED_ROW, staff_id: 9, salon: { id: 5, name: 'Mộc', slug: 'moc' } };
   const page = profilePage({ profiles: [CLAIMED_ROW, second] });
   await page.init();
   assert.equal(page.selected, 7);
 
-  const avatar = page.uploadAvatar(pickFile('cua-lala.webp'));
+  const avatar = page.uploadAvatar(pickFile('anh-dai-dien.webp'));
   page.select(9);
   await avatar;
 
-  const gallery = page.addPhoto(pickFile('cua-moc.webp'));
+  const gallery = page.addPhoto(pickFile('tac-pham.webp'));
   page.select(7);
   await gallery;
 
-  assert.deepEqual(page.sent.map((body) => body.staff_id), [7, 9]);
-  // …and the gallery write appends to the list of the row it was started on, not the one the
-  // switcher happens to be pointing at when the upload lands.
-  assert.deepEqual([...page.sent[1].portfolio], ['uploads/moc.webp', UPLOADED]);
+  // No roster id travelled with either write, and the list appended to is her own — read
+  // after the upload rather than before it, so a second picture appends to the first's list.
+  assert.deepEqual(page.wrote.map((body) => Object.keys(body)), [['image'], ['portfolio']]);
+  assert.equal(page.wrote[0].image, UPLOADED);
+  assert.deepEqual([...page.wrote[1].portfolio], [...MY_PAGE.portfolio, UPLOADED]);
+  assert.equal(page.sent.length, 0);
+  assert.deepEqual([...page.me.portfolio], [...MY_PAGE.portfolio, UPLOADED]);
 });
 
 test('a review list that never arrived leaves the half the technician can edit standing', async () => {
@@ -1965,11 +2414,12 @@ test('a review list that never arrived leaves the half the technician can edit s
   await page.init();
 
   /* The reviews are read-only and the rest of the page is not: a 500 on them used to take
-     the avatar, the bio, the gallery and the withdrawal switch off the page with it, because
-     one catch emptied `profiles` and the x-if that mounts all four reads row(). */
+     the whole editor off the page with it, because one catch emptied `profiles` and every
+     section on the page was mounted by an x-if that reads row(). */
   assert.equal(page.error, '');
   assert.equal(page.profiles.length, 1);
   assert.equal(page.row().staff_id, CLAIMED_ROW.staff_id);
+  assert.equal(page.me.slug, MY_PAGE.slug);
   assert.equal(page.reviewsError, 'Không tải được đánh giá.');
 
   // The list says so where the list is, and offers the one thing worth pressing.
@@ -1983,6 +2433,338 @@ test('a review list that never arrived leaves the half the technician can edit s
   const before = page.asked.filter((endpoint) => endpoint === '/api/staff-me/profile').length;
   await page.loadReviews();
   assert.equal(page.asked.filter((endpoint) => endpoint === '/api/staff-me/profile').length, before);
+});
+
+test('a technician nobody has invited yet still has a page, and is told what is missing', async () => {
+  const page = profilePage({ profiles: [] });
+  await page.init();
+
+  // The stint half is empty, and says the one true thing about it: no salon, not "nothing".
+  assert.equal(page.profiles.length, 0);
+  assert.equal(page.selected, null);
+  assert.equal(page.row(), null);
+  assert.match(
+    profileMeHtml,
+    /Chưa gắn với salon nào\. Khi salon gửi liên kết mời, hồ sơ làm việc sẽ hiện ở đây\./,
+  );
+  assert.doesNotMatch(profileMeHtml, /Bạn chưa nhận hồ sơ kỹ thuật viên nào\./);
+
+  // …and her own page arrived, filled in, and writes without a roster row to write through.
+  assert.equal(page.me.slug, MY_PAGE.slug);
+  assert.equal(page.bio, MY_PAGE.bio);
+  assert.equal(page.selfYears, MY_PAGE.years_experience);
+  page.bio = 'Tôi làm nail được 5 năm';
+  await page.saveDetails();
+  assert.equal(page.wrote[0].bio, 'Tôi làm nail được 5 năm');
+  assert.equal(page.sent.length, 0);
+
+  /* And it is outside the row() gate in the markup, not merely reachable from the state: the
+     whole stint half is mounted by an x-if="row()" a zero-stint account never satisfies, so a
+     section that had drifted inside it would be a page that only exists once somebody else has
+     invited her — which is the one thing a page about a career must not be. */
+  const section = profileMeHtml.indexOf('>Trang hồ sơ nghề nghiệp</h2>');
+  assert.notEqual(section, -1);
+  assert.ok(
+    section < profileMeHtml.indexOf('<template x-if="row()">'),
+    "the person's own page has drifted inside a stint gate",
+  );
+});
+
+test('the form opens on what the server holds, every field of it, and closes where it does', async () => {
+  /* Every one of fillPage()'s assignments observed with a value that is not its own default,
+     because a page read that quietly dropped a column would otherwise look exactly like a page
+     that had none — and the next press of "Lưu thay đổi" posts all four typed fields at once,
+     so a field that came back blank is a field the save then erases at the server. */
+  const page = profilePage({
+    profiles: [CLAIMED_ROW],
+    me: {
+      ...MY_PAGE,
+      title: 'Thợ nail chính',
+      specialty: 'Đắp bột',
+      hidden: 1,
+      published_at: PUBLISHED_AT,
+    },
+  });
+  await page.init();
+
+  assert.equal(page.selfTitle, 'Thợ nail chính');
+  assert.equal(page.selfSpecialty, 'Đắp bột');
+  assert.equal(page.selfYears, MY_PAGE.years_experience);
+  assert.equal(page.bio, MY_PAGE.bio);
+  assert.equal(page.pageHidden, true);
+  assert.equal(page.me.published_at, PUBLISHED_AT);
+
+  // A page that arrived published shows its address without anybody pressing anything.
+  assert.equal(page.pageUrl(), `https://oak.test/ho-so-chuyen-gia.html?u=${MY_PAGE.slug}`);
+
+  // Saved back whole, so nothing that was read is dropped by a save about something else.
+  await page.saveDetails();
+  assert.equal(page.wrote[0].title, 'Thợ nail chính');
+  assert.equal(page.wrote[0].specialty, 'Đắp bột');
+
+  /* And the two ceilings the form imposes are the route's own, read out of it rather than
+     typed here — the same reasoning OAK_PORTFOLIO_MAX is named for. A form that stopped one
+     character short of what the server takes is a sentence a technician cannot finish; one
+     that stopped late is a save thrown away with a 400 on it. */
+  const titleMax = Number(staffMeSource.match(/const TITLE_MAX = (\d+);/)[1]);
+  const yearsMax = Number(staffMeSource.match(/const YEARS_MAX = (\d+);/)[1]);
+  assert.equal(
+    (profileMeHtml.match(new RegExp(`maxlength="${titleMax}"`, 'g')) || []).length,
+    2,
+    'the two self-declared text fields no longer close where the route closes',
+  );
+  assert.match(profileMeHtml, new RegExp(`id="staff-self-years"[^>]*max="${yearsMax}"`));
+});
+
+test('nothing she wrote is public until the press, and afterwards the page has an address', async () => {
+  /* The consent surface, and the four things it has to say before anybody presses it: what
+     goes out, what it displaces, what it leaves alone, and that it can be taken back down —
+     plus the honest present tense, which is that until the press none of this is public and
+     her page at each salon still shows the introduction it shows today. */
+  const block = handler(profileMeHtml, '>Đăng trang</h3>', '</template>');
+  assert.match(block, /Trang này chưa đăng\./);
+  assert.match(block, /hồ sơ của bạn tại mỗi salon vẫn đang hiện phần giới thiệu cũ/);
+  assert.match(
+    block,
+    /ảnh, chức danh, chuyên môn, số năm kinh nghiệm, giới thiệu và ảnh tác phẩm bạn viết ở trên sẽ nằm trên trang hồ sơ nghề nghiệp của bạn/,
+  );
+  assert.match(block, /Những con số OAK tự đếm được vẫn giữ nguyên/);
+  assert.match(block, /Đăng rồi bạn vẫn ẩn trang lại được bất cứ lúc nào\./);
+
+  /* And the stint pages are described column by column rather than wholesale, because that is
+     what the server actually does with them: selectPublishedProfile in routes/staff.js hands a
+     stint page the person's bio, image, portfolio and years, and GET /api/staff/:id goes on
+     answering with the ROSTER row's title and specialty whoever else has a page. A sentence
+     saying her whole page replaces her stint page would be promising two columns nothing on
+     OAK reads out of staff_profiles today. */
+  const published = handler(staffSource, 'const selectPublishedProfile = db.prepare(', '`);');
+  for (const carried of ['bio', 'image', 'portfolio', 'years_experience']) {
+    assert.match(published, new RegExp(`\\b${carried}\\b`), carried);
+  }
+  for (const salons of ['title', 'specialty']) {
+    assert.doesNotMatch(published, new RegExp(`\\b${salons}\\b`), salons);
+  }
+  assert.match(
+    block,
+    /ảnh, số năm kinh nghiệm, giới thiệu và ảnh tác phẩm ở đó sẽ là của bạn thay cho phần cũ, còn chức danh và chuyên môn ở đó vẫn là do salon ghi/,
+  );
+
+  /* The address block says the page at that address is not open to a reader yet, because it
+     is not: nothing on OAK resolves a `u=` slug until the next slice lands, and a line calling
+     it a live page is a lie she finds out about by pasting it to somebody. */
+  const address = handler(profileMeHtml, '>Địa chỉ trang của bạn</h3>', '</template>');
+  assert.match(address, /Trang tại địa chỉ này sắp mở cho người xem/);
+  assert.match(address, /hồ sơ của bạn tại từng salon đã hiện những gì bạn vừa đăng/);
+
+  const page = profilePage();
+  await page.init();
+  assert.equal(page.me.published_at, null);
+
+  /* Typed and NOT saved, which is the state the copy above is a promise about. There is no
+     autosave here and "Lưu thay đổi" is far enough up the section to scroll past, so a press
+     that stamped the last saved draft would publish the salon's own bio — the thing a first
+     draft is prefilled from — while her own words sat on the screen in front of her. */
+  page.selfTitle = 'Thợ nail chính';
+  page.selfSpecialty = 'Đắp bột';
+  page.selfYears = 11;
+  page.bio = 'Tôi là Phương Vy.';
+  const before = page.asked.length;
+  await page.publish();
+
+  // The save goes first and the stamp second: a stamp on a row the typed fields had not
+  // reached yet would publish the draft and only then replace what was published.
+  assert.deepEqual(page.asked.slice(before), [
+    '/api/staff-me/portfolio',
+    '/api/staff-me/portfolio/publish',
+  ]);
+  assert.deepEqual(page.posted, [
+    { endpoint: '/api/staff-me/portfolio/publish', method: 'POST', body: undefined },
+  ]);
+  // What she wrote went out with the press, and is what came back published.
+  assert.deepEqual(page.wrote.map((body) => Object.keys(body).sort()), [
+    ['bio', 'specialty', 'title', 'years_experience'],
+  ]);
+  assert.equal(page.me.bio, 'Tôi là Phương Vy.');
+  assert.equal(page.me.title, 'Thợ nail chính');
+  assert.equal(page.me.specialty, 'Đắp bột');
+  assert.equal(page.me.years_experience, 11);
+  assert.equal(page.me.published_at, PUBLISHED_AT);
+  assert.deepEqual(page.toasts, [['Đã đăng trang hồ sơ nghề nghiệp.', undefined]]);
+
+  /* One column decides which of the two blocks is on the screen, so there is no state in
+     which the consent copy and the address are both up, or neither is. */
+  assert.match(profileMeHtml, /<template x-if="!me\.published_at">/);
+  assert.match(profileMeHtml, /<template x-if="me\.published_at">/);
+  // The address itself is absolute, because the only thing anybody does with it is paste it
+  // somewhere off OAK, and it is her slug rather than any roster id.
+  assert.equal(page.pageUrl(), `https://oak.test/ho-so-chuyen-gia.html?u=${MY_PAGE.slug}`);
+
+  // Idempotent at the server — published_at is stamped once — so a second press is the same
+  // page and the same date, and the button needs no guard of its own.
+  await page.publish();
+  assert.equal(page.me.published_at, PUBLISHED_AT);
+});
+
+test('two writes to her page are never out at once, and the gallery survives the pair', async () => {
+  /* Every PATCH /portfolio answers with the whole row as it stood when the SERVER answered,
+     and whichever answer lands last becomes `me`. So two of them in the air is a race whose
+     loser is a real edit: "Lưu thay đổi" pressed while a picture is still uploading comes
+     back carrying the gallery as it was BEFORE the picture, and the next removePhoto posts
+     that stale list — one photo gone from the server with nothing on screen having failed. */
+  const page = profilePage({ holdWrites: true });
+  await page.init();
+
+  page.bio = 'Mười năm làm nail';
+  const details = page.saveDetails();
+  const photo = page.addPhoto(pickFile('tacpham.webp'));
+  // Long enough for the upload's own POST /api/uploads to settle, so the only thing keeping
+  // the second write back is the queue rather than a file still being read.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(page.wrote.length, 1, 'a second write went out while the first was still open');
+  assert.deepEqual(Object.keys(page.wrote[0]).sort(), ['bio', 'specialty', 'title', 'years_experience']);
+  // Both controls read as busy meanwhile, each on its own flag: the queue is not a reason for
+  // one press to make another control look idle while its work is still ahead of it.
+  assert.equal(page.detailsSaving, true);
+  assert.equal(page.portfolioBusy, true);
+
+  page.holds[0]();
+  await details;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  // …and only now does the picture's write go, built on the list the first answer carried.
+  assert.equal(page.wrote.length, 2);
+  assert.deepEqual([...page.wrote[1].portfolio], [...MY_PAGE.portfolio, UPLOADED]);
+  page.holds[1]();
+  await photo;
+
+  // Neither answer erased the other: the bio she typed and the photo she added are both here.
+  assert.equal(page.me.bio, 'Mười năm làm nail');
+  assert.deepEqual([...page.me.portfolio], [...MY_PAGE.portfolio, UPLOADED]);
+  assert.equal(page.detailsSaving, false);
+  assert.equal(page.portfolioBusy, false);
+
+  /* Pinned as source too, because the property is invisible from outside once it holds: EVERY
+     request that can change this row goes through the one queue, and the tail is kept SETTLED
+     so a refused write does not take everything queued behind it down with it.
+
+     Counted rather than spot-checked. The publish is a POST to a different endpoint against
+     the same row, and it was outside the queue on the first pass precisely because a test that
+     read patchPortfolio alone could not see it — so what is pinned is that no call to
+     OAK.api on this row exists anywhere except inside a queueWrite(). */
+  assert.match(profileMeHtml, /pageWrites: Promise\.resolve\(\),/);
+  const queue = handler(profileMeHtml, 'queueWrite(send) {', '\n            },');
+  assert.match(queue, /const queued = this\.pageWrites\.then\(send\);/);
+  assert.match(queue, /this\.pageWrites = queued\.catch\(\(\) => \{\}\);/);
+  // Matched on the options object, so the bare GET in loadMe() is not counted: a read has
+  // nothing to serialize and queueing it would put the first paint behind every save.
+  assert.equal(
+    (profileMeHtml.match(/OAK\.api\('\/api\/staff-me\/portfolio(?:\/publish)?', \{/g) || []).length,
+    (profileMeHtml.match(/this\.queueWrite\(/g) || []).length,
+    'a write to her page reaches the server without joining the queue',
+  );
+  for (const queued of [
+    /this\.queueWrite\(\(\) => OAK\.api\('\/api\/staff-me\/portfolio', \{/,
+    /this\.queueWrite\(\s*\(\) => OAK\.api\('\/api\/staff-me\/portfolio\/publish', \{ method: 'POST' \}\),\s*\)/,
+  ]) {
+    assert.match(profileMeHtml, queued);
+  }
+});
+
+test('a publish pressed over a save in flight lands after it, carrying what was saved', async () => {
+  /* The publish is a write to the same row through a different endpoint, and its reply is the
+     same thing every reply here is: the whole row as the SERVER had it when it answered. Out
+     of the queue, a "Lưu thay đổi" still in the air when "Đăng trang" is pressed can have the
+     publish reply land second carrying the pre-save snapshot — so `me` goes back to the bio
+     she replaced and to the gallery as it was, which is the list the next removePhoto builds
+     its own write from. The silent-revert bug, reached through the one press that matters. */
+  const page = profilePage({ holdWrites: true });
+  await page.init();
+
+  page.bio = 'Mười năm làm nail';
+  const saving = page.saveDetails();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(page.wrote.length, 1);
+
+  const publishing = page.publish();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  // Nothing of the press has reached the server while the save is still open — not its own
+  // save of the typed fields, and not the stamp behind it.
+  assert.equal(page.wrote.length, 1, 'the press wrote over a save that was still in flight');
+  assert.equal(page.posted.length, 0, 'the stamp went out over a save that was still open');
+
+  page.holds[0]();
+  await saving;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(page.wrote.length, 2);
+
+  page.holds[1]();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(page.posted.length, 1);
+  page.holds[2]();
+  await publishing;
+
+  // Three writes, in the order they were made, and the last answer is the published row —
+  // with the bio the save put there rather than the one it replaced.
+  assert.equal(page.publishError, '');
+  assert.equal(page.me.published_at, PUBLISHED_AT);
+  assert.equal(page.me.bio, 'Mười năm làm nail');
+  assert.deepEqual([...page.me.portfolio], [...MY_PAGE.portfolio]);
+});
+
+test('a refused write does not take the writes queued behind it down with it', async () => {
+  const page = profilePage({ mePatchError: 'Không lưu được.' });
+  await page.init();
+
+  await page.saveDetails();
+  assert.equal(page.detailsError, 'Không lưu được.');
+
+  // The queue is still usable: the failure was the caller's to hear, not the chain's to keep.
+  await page.savePageHidden();
+  assert.equal(page.pageHiddenError, 'Không lưu được.');
+  assert.equal(page.wrote.length, 2);
+});
+
+test('either half of this page can fail without taking the other down with it', async () => {
+  // Her page gone, the salons she works at still there and still answerable for.
+  const noPage = profilePage({
+    profiles: [CLAIMED_ROW],
+    meFail: 'Không tải được hồ sơ nghề nghiệp.',
+  });
+  await noPage.init();
+
+  assert.equal(noPage.me, null);
+  assert.equal(noPage.meError, 'Không tải được hồ sơ nghề nghiệp.');
+  assert.equal(noPage.error, '');
+  assert.equal(noPage.row().staff_id, CLAIMED_ROW.staff_id);
+
+  // Retrying reaches only that read: the roster is not re-fetched to fix a page.
+  const before = noPage.asked.filter((endpoint) => endpoint === '/api/staff-me/profile').length;
+  await noPage.loadMe();
+  assert.equal(
+    noPage.asked.filter((endpoint) => endpoint === '/api/staff-me/profile').length,
+    before,
+  );
+
+  // And the other way about: the roster read down, the editor standing and writable — which
+  // is the direction that matters most, because the editor is the half nobody else can write.
+  const noRows = profilePage({ profiles: [CLAIMED_ROW], profileReadsBeforeFailing: 0 });
+  await noRows.init();
+
+  assert.equal(noRows.error, 'Không tải được hồ sơ.');
+  assert.equal(noRows.profiles.length, 0);
+  assert.equal(noRows.meError, '');
+  assert.equal(noRows.me.slug, MY_PAGE.slug);
+  await noRows.saveDetails();
+  assert.equal(noRows.wrote.length, 1);
+
+  // Each says so where it is, and each offers its own way back in rather than one button
+  // that re-reads both to fix whichever of them broke.
+  const section = handler(profileMeHtml, '>Trang hồ sơ nghề nghiệp</h2>', '</section>');
+  assert.match(section, /<template x-if="meError">/);
+  assert.match(section, /@click="loadMe\(\)"/);
+  assert.match(profileMeHtml, /@click="loadStints\(\)"/);
 });
 
 // ------------------------------------------------- leaving, as a dated event with two sides
@@ -3862,7 +4644,7 @@ const serviceHtml = ui('chi-tiet-dich-vu.html');
  * recorded, because the other half of the contract is that the page does not go back for
  * more hours it cannot sell.
  */
-function formerPage({ history = [], onRoster = true, fails = {} } = {}) {
+function formerPage({ history = [], onRoster = true, fails = {}, query = { id: '7' } } = {}) {
   const tail = profileHtml.slice(profileHtml.indexOf('function oakTodayISO('));
   const calls = [];
   const gone = () => {
@@ -3889,7 +4671,10 @@ function formerPage({ history = [], onRoster = true, fails = {} } = {}) {
     navigator: {},
     window: {},
     OAK: {
-      qs: (name) => (name === 'id' ? '7' : null),
+      // Read out of `query` rather than answered for 'id' alone: resolveId() now asks about
+      // a second parameter, and a stub that says null to everything else cannot be driven
+      // over the branch that one opens.
+      qs: (name) => (query[name] === undefined ? null : query[name]),
       meta: () => {},
       fmtDate: (value) => value,
       toast: () => {},
@@ -3908,6 +4693,14 @@ function formerPage({ history = [], onRoster = true, fails = {} } = {}) {
         }
         if (url.endsWith('/history')) {
           return answer('history', history);
+        }
+        // The fallback resolveId() takes when no id was named: the flagship salon and then
+        // its roster. Answered so the branch can be driven rather than only read.
+        if (url.startsWith('/api/salons?flagship')) {
+          return [{ id: 4 }];
+        }
+        if (url.startsWith('/api/salons/') && url.endsWith('/staff')) {
+          return [{ id: 7 }];
         }
         return answer('profile', {
           id: 7, name: 'Mai Chi', title: 'KTV', specialty: 'Vẽ móng', bio: 'Mười năm nghề.',
@@ -4169,6 +4962,46 @@ const REDUCED_CARD = {
   id: 9, name: 'Thu Hà', claimed: true, title: null, specialty: null,
   image: null, rating: null, years_experience: null,
 };
+
+test('an address this page cannot read yet is nobody, and never somebody else', async () => {
+  /* ho-so-nhan-vien.html hands a technician `ho-so-chuyen-gia.html?u=<slug>` the moment she
+     publishes, and the read behind that parameter is the next slice. Until it lands, the
+     fallback underneath is the thing the address must never reach: with no ?id= this page
+     resolves to the flagship salon's FIRST technician, so a link she pasted into Zalo would
+     open a stranger's bio, a stranger's gallery and a booking button, under her name and at
+     her address. An empty panel is a page that is not ready; that is a page telling her
+     readers she is somebody else. */
+  const named = formerPage({ query: { u: 'nguyen-mai-chi-8f2a' } });
+  await assert.rejects(() => named.resolveId(), (error) => {
+    // The same code a bad id already gets, so it lands on the "no such specialist" panel
+    // rather than on the "something went wrong, try again" one.
+    assert.equal(error.code, 'NOT_FOUND');
+    return true;
+  });
+  assert.deepEqual(named.calls, [], 'the slug reached the flagship lookup');
+
+  /* And a bare visit with no parameter at all keeps the fallback exactly as it was: nobody was
+     named, so nobody can be got wrong, and this page has never been empty on purpose. */
+  const bare = formerPage({ query: {} });
+  assert.equal(await bare.resolveId(), 7);
+  assert.deepEqual(bare.calls, ['/api/salons?flagship=1&limit=1', '/api/salons/4/staff']);
+
+  // An ?id= still wins outright and asks nothing of the roster.
+  const byId = formerPage({ query: { id: '7', u: 'nguyen-mai-chi-8f2a' } });
+  assert.equal(await byId.resolveId(), '7');
+  assert.deepEqual(byId.calls, []);
+
+  /* The guard refuses and does nothing else: this slice does not add the read, so nothing on
+     the page may fetch by slug or branch on a person yet. */
+  const resolve = handler(profileHtml, 'async resolveId() {', '\n            },');
+  assert.match(resolve, /if \(OAK\.qs\('u'\)\) \{/);
+  assert.ok(
+    resolve.indexOf("OAK.qs('u')") < resolve.indexOf('/api/salons?flagship=1'),
+    'the slug is refused only after the fallback it exists to avoid has already run',
+  );
+  assert.doesNotMatch(profileHtml, /api\/technicians/);
+  assert.equal((profileHtml.match(/OAK\.qs\('u'\)/g) || []).length, 1, 'the slug is read twice');
+});
 
 test('the picker says which chair has an OAK account behind it', () => {
   for (const [name, html] of [['dat-lich.html', wizardHtml], ['chi-tiet-dich-vu.html', serviceHtml]]) {

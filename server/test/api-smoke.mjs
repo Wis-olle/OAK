@@ -4987,7 +4987,11 @@ async function groupStaffPersona() {
 
   /* -- the two reads are staff-only, and not reachable as a guest ------------- */
 
-  for (const pathname of ['/api/staff-me/profile', '/api/staff-me/bookings']) {
+  for (const pathname of [
+    '/api/staff-me/profile',
+    '/api/staff-me/portfolio',
+    '/api/staff-me/bookings',
+  ]) {
     expectError(
       await session('customer').fetch(pathname),
       403,
@@ -5001,6 +5005,58 @@ async function groupStaffPersona() {
       'UNAUTHENTICATED',
       `GET ${pathname} as a guest`,
     );
+  }
+
+  /* -- and the writes behind the editor, which a GET-only sweep never reached ---
+     Both of these call ensureStaffProfile, which INSERTs a staff_profiles row keyed by the
+     caller and carrying a unique slug. A read left open leaks nothing to somebody with no
+     roster row; these two would let any signed-in customer mint a page and sit on an address
+     on the technician side of OAK having claimed nothing. So they are swept in the same three
+     ways as the reads above, and by the method they are actually reachable at: requireStaff
+     could be deleted from either one and every GET here would still answer 403. */
+  for (const write of [
+    { pathname: '/api/staff-me/portfolio', method: 'PATCH', json: { bio: 'Không phải của tôi.' } },
+    { pathname: '/api/staff-me/portfolio/publish', method: 'POST' },
+    { pathname: '/api/staff-me/profile', method: 'PATCH', json: { staff_id: 1, profile_hidden: 1 } },
+  ]) {
+    const { pathname, ...options } = write;
+    const label = `${options.method} ${pathname}`;
+    expectError(
+      await session('customer').fetch(pathname, options),
+      403,
+      'FORBIDDEN',
+      `${label} as a customer`,
+    );
+    expectError(await partnerB.fetch(pathname, options), 403, 'FORBIDDEN', `${label} as a partner`);
+    expectError(
+      await new Session().fetch(pathname, options),
+      401,
+      'UNAUTHENTICATED',
+      `${label} as a guest`,
+    );
+  }
+
+  /* Nothing was created by any of that. The row is the thing the guard exists to protect, so
+     the sweep is worth only as much as this check: a 403 that had already inserted would be a
+     guard that refuses the answer after doing the damage. Read straight out of the table
+     rather than through an endpoint, because there is no endpoint that would show it —
+     a squatted row is invisible from outside until its slug collides with somebody's. */
+  if (!EXTERNAL_URL) {
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      const squatted = await directClient.query(
+        `SELECT COUNT(*) AS count FROM staff_profiles
+         WHERE user_id IN (SELECT id FROM users WHERE role <> 'staff')`,
+      );
+      assert(
+        Number(squatted.rows[0].count) === 0,
+        'a refused write must not have minted a profile row on the way to its 403',
+        squatted.rows,
+      );
+    } finally {
+      await directClient.end();
+    }
   }
 
   /* -- what a technician may read of their own day ---------------------------- */
@@ -5316,18 +5372,44 @@ async function groupStaffPersona() {
   const PARTING_BIO = 'Mình làm móng gel và chăm sóc da tay, chủ yếu nhận khách quen.';
   const PARTING_PORTFOLIO = ['assets/img/chia-tay-1.webp', 'assets/img/chia-tay-2.webp'];
   const PARTING_AVATAR = 'assets/img/ktv-chia-tay.webp';
-  ok(
-    await parting.fetch('/api/staff-me/profile', {
+  /* Her own page, written AND published, because a draft nobody ever agreed to publish is not
+     something an erasure can be shown to destroy. Everything below asserts these three things
+     are gone afterwards, and a save that quietly wrote nothing would make every one of those
+     assertions pass for the wrong reason — the test would be proving that empty stays empty. */
+  const partingDraft = ok(
+    await parting.fetch('/api/staff-me/portfolio', {
       method: 'PATCH',
-      json: {
-        staff_id: partingRow.id,
-        bio: PARTING_BIO,
-        portfolio: PARTING_PORTFOLIO,
-        image: PARTING_AVATAR,
-      },
+      json: { bio: PARTING_BIO, portfolio: PARTING_PORTFOLIO, image: PARTING_AVATAR },
     }),
-    'PATCH /api/staff-me/profile (the page they are about to take down)',
+    'PATCH /api/staff-me/portfolio (the page they are about to take down)',
   );
+  assert(partingDraft.bio === PARTING_BIO, 'there must be a bio there to lose', partingDraft);
+  assert(partingDraft.image === PARTING_AVATAR, 'and a face there to lose', partingDraft);
+  assert(
+    JSON.stringify(partingDraft.portfolio) === JSON.stringify(PARTING_PORTFOLIO),
+    'and a gallery there to lose',
+    partingDraft,
+  );
+  assert(partingDraft.published_at === null, 'writing a page is not publishing it', partingDraft);
+  const partingPublished = ok(
+    await parting.fetch('/api/staff-me/portfolio/publish', { method: 'POST' }),
+    'POST /api/staff-me/portfolio/publish (before the account goes)',
+  );
+  assert(
+    typeof partingPublished.published_at === 'string' && partingPublished.slug.length > 0,
+    'and it must be live at an address, or there is nothing for the erasure to take down',
+    partingPublished,
+  );
+  const partingLive = ok(
+    await session('guest').fetch(`/api/staff/${partingRow.id}`),
+    'GET /api/staff/:id while her page is published',
+  );
+  assert(
+    partingLive.bio === PARTING_BIO && partingLive.technician?.slug === partingPublished.slug,
+    'a published page speaks on the stint page, and names the career behind the chair',
+    partingLive,
+  );
+
   const takenDown = ok(
     await parting.fetch('/api/staff-me/profile', {
       method: 'PATCH',
@@ -5335,18 +5417,7 @@ async function groupStaffPersona() {
     }),
     'PATCH /api/staff-me/profile (take the page down, then erase the account)',
   );
-  /* The whole starting state, read back off the row rather than assumed from the 200s above.
-     Everything below asserts that these three columns are EMPTY afterwards, and a PATCH that
-     quietly wrote nothing would make every one of those assertions pass for the wrong
-     reason — the test would be proving that empty stays empty. */
   assert(takenDown.profile_hidden === 1, 'the page must be down before the account goes', takenDown);
-  assert(takenDown.bio === PARTING_BIO, 'and there must be a bio there to lose', takenDown);
-  assert(takenDown.image === PARTING_AVATAR, 'and a face there to lose', takenDown);
-  assert(
-    JSON.stringify(takenDown.portfolio) === JSON.stringify(PARTING_PORTFOLIO),
-    'and a gallery there to lose',
-    takenDown,
-  );
 
   // Down, and off the salon's team strip. This is the state the erasure must not undo.
   expectError(
@@ -5373,10 +5444,16 @@ async function groupStaffPersona() {
      nobody has withdrawn anything from it. What comes back is the CHAIR, not the person: the
      name the owner typed into the roster is still on it, and so are the reviews its customers
      wrote, because none of that was hers to take away. What she wrote about herself is what
-     goes with her. */
+     goes with her — and her PAGE is destroyed rather than released, so the chair comes back
+     naming nobody's career at all. */
   const handedBackChair = ok(
     await session('guest').fetch(`/api/staff/${partingRow.id}`),
     'GET /api/staff/:id after its holder erased their account',
+  );
+  assert(
+    !('technician' in handedBackChair),
+    'the page that spoke for her is gone, not merely detached from the chair',
+    handedBackChair,
   );
   assert(
     handedBackChair.bio === null,
@@ -6693,11 +6770,19 @@ async function groupStaffPersona() {
      every one of those is something the groups around it would read differently. The row gets
      a full week and the service attached so the operational surfaces further down have
      something to answer with. */
+  /* The salon's own headshot on the chair, supplied BEFORE anybody claims the row — which is
+     now the only way a claimed row's image column is ever written. What a technician says about
+     herself, her face included, lives on her own page (PATCH /api/staff-me/portfolio), and
+     routes/partner.js goes on refusing an owner the photo on a row somebody stands behind. So
+     this one is the salon's, frozen at the claim, and the owner-side block below is about
+     exactly that. */
+  const AVATAR = 'assets/img/ktv-tu-quan.webp';
   const personaRow = ok(
     await partner.fetch('/api/partner/staff', {
       method: 'POST',
       json: {
         name: 'KTV Tự Quản Hồ Sơ',
+        image: AVATAR,
         schedule: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
           weekday,
           start: '00:00',
@@ -6736,69 +6821,312 @@ async function groupStaffPersona() {
     'POST /api/partner/staff (a chair nobody stands behind)',
   );
 
-  const BIO = 'Mình theo nghề nail tám năm, thích những bộ móng gọn và bền màu.';
-  const PORTFOLIO = ['assets/img/tac-pham-1.webp', 'https://cdn.oak.test/tac-pham-2.webp'];
-  const AVATAR = 'assets/img/ktv-tu-quan.webp';
+  /* -- a technician's own page: written, then published, and only then public - */
 
-  const saved = ok(
-    await persona.fetch('/api/staff-me/profile', {
+  /* The heart of the personal profile, driven end to end on `technician`, who holds Minh Hằng's
+     SEEDED roster row: a bio, a gallery and a face the salon page has shown for as long as this
+     database has existed. That is the real case — somebody already on OAK opening an editor for
+     the first time — and the thing that has to hold through the next four steps is that her
+     stint page does not move one byte until she says so. */
+  const stintPage = async (label) =>
+    ok(await session('guest').fetch(`/api/staff/${minhHang.id}`), label);
+  const beforeEditor = await stintPage('GET /api/staff/:id before the editor was ever opened');
+  /* Absent, not null. A chair with no published page behind it has nothing to say about a
+     person, and `technician: null` on every chair on OAK would still be saying something — the
+     reply here is byte for byte the reply this endpoint sent before the table existed. */
+  assert(
+    !('technician' in beforeEditor),
+    'a chair with no published page behind it carries no technician key at all',
+    beforeEditor,
+  );
+
+  // And a chair nobody stands behind says the same nothing, for the other reason there is to
+  // say it: there is no person there who could have a page, published or otherwise.
+  const bareChair = ok(
+    await session('guest').fetch(`/api/staff/${chairRow.id}`),
+    'GET /api/staff/:id on a row nobody stands behind',
+  );
+  assert(
+    !('technician' in bareChair),
+    'an unclaimed chair carries no technician key either',
+    bareChair,
+  );
+
+  const draft = ok(
+    await technician.fetch('/api/staff-me/portfolio'),
+    'GET /api/staff-me/portfolio (the first visit)',
+  );
+  assert(draft.published_at === null, 'a draft nobody published is not a page', draft);
+  assert(draft.hidden === 0, 'and it is not withdrawn either: it has never been anywhere', draft);
+  // The account's own name, not the roster row's: the page belongs to the person.
+  assert(
+    typeof draft.slug === 'string' && /^ky-thuat-vien-moi-[a-z0-9]{4}$/.test(draft.slug),
+    'the address is her name with a suffix that makes it hers alone',
+    draft,
+  );
+  // Prefilled off the row she is standing in, so the first thing she reads is her own work.
+  assert(draft.bio === beforeEditor.bio, 'the draft opens on the bio her row carried', draft);
+  assert(
+    JSON.stringify(draft.portfolio) === JSON.stringify(beforeEditor.portfolio),
+    'and on the gallery',
+    draft,
+  );
+  assert(draft.image === beforeEditor.image, 'and on the face', draft);
+  assert(
+    draft.years_experience === beforeEditor.years_experience,
+    'and on the years the salon entered',
+    draft,
+  );
+  /* And deliberately NOT on the title or the speciality. Those two are the salon's words about
+     a job — an owner typed them into the console — and prefilling a self-declared field with
+     them would put the salon's voice inside her own sentence, with nothing afterwards able to
+     tell which of them said what. She starts with blanks and writes her own. */
+  assert(
+    draft.title === null && draft.specialty === null,
+    'the salon’s words about the job are not handed to her as hers',
+    draft,
+  );
+  // Never the account behind it: this reply IS the account, and the id is not part of a page.
+  assert(!JSON.stringify(draft).includes('user_id'), 'a profile never carries its key', draft);
+
+  const draftAgain = ok(
+    await technician.fetch('/api/staff-me/portfolio'),
+    'GET /api/staff-me/portfolio a second time',
+  );
+  assert(
+    draftAgain.slug === draft.slug,
+    'a profile is created once and read ever after, never minted again',
+    draftAgain,
+  );
+
+  const OWN_BIO = 'Tôi làm nail từ năm 2019, mạnh nhất là nail art vẽ tay và dáng móng tự nhiên.';
+  const OWN_PORTFOLIO = [
+    'assets/img/tac-pham-cua-toi-1.webp',
+    'https://cdn.oak.test/tac-pham-cua-toi-2.webp',
+  ];
+  const OWN_AVATAR = 'assets/img/ktv-tu-chup.webp';
+  const written = ok(
+    await technician.fetch('/api/staff-me/portfolio', {
       method: 'PATCH',
-      json: { staff_id: personaRow.id, bio: BIO, portfolio: PORTFOLIO, image: AVATAR },
+      json: {
+        title: 'Nail artist tự do',
+        specialty: 'Nail art vẽ tay',
+        bio: OWN_BIO,
+        portfolio: OWN_PORTFOLIO,
+        image: OWN_AVATAR,
+        years_experience: 7,
+      },
     }),
-    'PATCH /api/staff-me/profile (bio, portfolio and avatar at once)',
+    'PATCH /api/staff-me/portfolio (everything she says about herself, at once)',
   );
-  assert(saved.bio === BIO, 'the reply must carry the bio that was just written', saved);
+  assert(written.bio === OWN_BIO, 'the reply carries what was just written', written);
   assert(
-    JSON.stringify(saved.portfolio) === JSON.stringify(PORTFOLIO),
-    'the portfolio must come back as the array it went in as, not as the JSON column',
-    saved,
+    JSON.stringify(written.portfolio) === JSON.stringify(OWN_PORTFOLIO),
+    'the gallery comes back as the array it went in as, not as the JSON column',
+    written,
   );
-  assert(saved.image === AVATAR, 'the avatar must have been written', saved);
+  assert(written.title === 'Nail artist tự do', 'and her own words about her own job', written);
+  assert(written.published_at === null, 'writing a page is not publishing it', written);
 
-  // Read back both ways: through the technician's own list, and through the public page it
-  // exists to fill. The two are one row, and a save that only one of them can see is a lie.
-  const ownProfileResponse = await persona.fetch('/api/staff-me/profile');
-  const ownProfileRow = ok(ownProfileResponse, 'GET /api/staff-me/profile after the save').find(
-    (row) => row.staff_id === personaRow.id,
+  const afterWriting = await stintPage('GET /api/staff/:id after she wrote her page');
+  assert(
+    JSON.stringify(afterWriting) === JSON.stringify(beforeEditor),
+    'nothing she wrote reaches the public side before she agrees to publish it',
+    afterWriting,
+  );
+
+  const published = ok(
+    await technician.fetch('/api/staff-me/portfolio/publish', { method: 'POST' }),
+    'POST /api/staff-me/portfolio/publish',
   );
   assert(
-    ownProfileRow?.bio === BIO && ownProfileRow.image === AVATAR,
-    'the technician reads back what they just wrote',
-    ownProfileResponse,
+    typeof published.published_at === 'string',
+    'publishing stamps the day she agreed',
+    published,
+  );
+
+  const afterPublish = await stintPage('GET /api/staff/:id after she published');
+  assert(afterPublish.bio === OWN_BIO, 'now the stint page speaks in her words', afterPublish);
+  assert(afterPublish.image === OWN_AVATAR, 'and shows the face she chose', afterPublish);
+  assert(
+    JSON.stringify(afterPublish.portfolio) === JSON.stringify(OWN_PORTFOLIO),
+    'and her gallery',
+    afterPublish,
+  );
+  assert(afterPublish.years_experience === 7, 'and the years she claims herself', afterPublish);
+  assert(
+    afterPublish.technician?.slug === published.slug,
+    'and names the address of the career behind the chair',
+    afterPublish,
+  );
+  /* And the salon's half is untouched by any of it. title and specialty are what the owner
+     typed about the JOB, and the numbers are what OAK counted off the calendar: a page a person
+     wrote about herself may not move either, or a customer could not tell the two apart. */
+  assert(
+    afterPublish.name === beforeEditor.name &&
+      afterPublish.title === beforeEditor.title &&
+      afterPublish.specialty === beforeEditor.specialty &&
+      afterPublish.rating === beforeEditor.rating,
+    'a stint page still says what the roster says about the job',
+    afterPublish,
   );
   assert(
-    ownProfileRow.profile_hidden === 0,
-    'a profile nobody has hidden reads as visible',
-    ownProfileResponse,
+    JSON.stringify(afterPublish.stats) === JSON.stringify(beforeEditor.stats),
+    'and the numbers OAK counted are not hers to move',
+    afterPublish,
   );
-  const publicResponse = await session('guest').fetch(`/api/staff/${personaRow.id}`);
-  const publicPage = ok(publicResponse, 'GET /api/staff/:id after the save');
-  assert(
-    publicPage.bio === BIO && publicPage.image === AVATAR,
-    'the public page shows what the technician wrote',
-    publicResponse,
+
+  const publishedAgain = ok(
+    await technician.fetch('/api/staff-me/portfolio/publish', { method: 'POST' }),
+    'POST /api/staff-me/portfolio/publish a second time',
   );
   assert(
-    JSON.stringify(publicPage.portfolio) === JSON.stringify(PORTFOLIO),
-    'and the gallery with it',
-    publicResponse,
+    publishedAgain.published_at === published.published_at,
+    'a second press is the same date: publishing is an act, not a toggle',
+    publishedAgain,
+  );
+
+  const withdrawn = ok(
+    await technician.fetch('/api/staff-me/portfolio', {
+      method: 'PATCH',
+      json: { hidden: true },
+    }),
+    'PATCH /api/staff-me/portfolio (take her own page back down)',
+  );
+  assert(
+    withdrawn.hidden === 1 && withdrawn.published_at === published.published_at,
+    'withdrawing is not unpublishing: the day she first agreed is a fact about her page',
+    withdrawn,
+  );
+  const afterWithdrawal = await stintPage('GET /api/staff/:id after she took her page down');
+  assert(
+    !('technician' in afterWithdrawal),
+    'a withdrawn page takes its address off the chair entirely, rather than nulling it',
+    afterWithdrawal,
+  );
+  assert(
+    JSON.stringify(afterWithdrawal) === JSON.stringify(beforeEditor),
+    'the stint page falls back to exactly the roster row, address and all',
+    afterWithdrawal,
+  );
+  ok(
+    await technician.fetch('/api/staff-me/portfolio', {
+      method: 'PATCH',
+      json: { hidden: false },
+    }),
+    'PATCH /api/staff-me/portfolio (put it back up)',
+  );
+  const afterRestore = await stintPage('GET /api/staff/:id after her page went back up');
+  assert(
+    afterRestore.technician?.slug === published.slug && afterRestore.bio === OWN_BIO,
+    'a withdrawal is reversible and deletes nothing',
+    afterRestore,
   );
 
   /* A form with a blank row left in it. isSafeMediaUrl calls an empty value safe — which is
      right for a nullable column, where empty is how the field is cleared — so without a filter
      the blank is stored and the public gallery renders an <img src=""> for it. */
   const trimmed = ok(
-    await persona.fetch('/api/staff-me/profile', {
+    await technician.fetch('/api/staff-me/portfolio', {
       method: 'PATCH',
-      json: { staff_id: personaRow.id, portfolio: [PORTFOLIO[0], '', '   ', PORTFOLIO[1]] },
+      json: { portfolio: [OWN_PORTFOLIO[0], '', '   ', OWN_PORTFOLIO[1]] },
     }),
-    'PATCH /api/staff-me/profile (a gallery with blank rows in it)',
+    'PATCH /api/staff-me/portfolio (a gallery with blank rows in it)',
   );
   assert(
-    JSON.stringify(trimmed.portfolio) === JSON.stringify(PORTFOLIO),
+    JSON.stringify(trimmed.portfolio) === JSON.stringify(OWN_PORTFOLIO),
     'a blank gallery row is dropped rather than stored as an empty image',
     trimmed,
   );
+
+  // Every gallery entry goes through the same guard the avatar does: these strings come back
+  // out of the column straight into the profile's <img> bindings.
+  expectError(
+    await technician.fetch('/api/staff-me/portfolio', {
+      method: 'PATCH',
+      json: { portfolio: ['javascript:alert(1)'] },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/staff-me/portfolio with a script url in the gallery',
+  );
+  // And the ceiling is the server's, not the form's: thirteen pictures is twelve too many.
+  expectError(
+    await technician.fetch('/api/staff-me/portfolio', {
+      method: 'PATCH',
+      json: {
+        portfolio: Array.from({ length: 13 }, (value, index) => `assets/img/qua-nhieu-${index}.webp`),
+      },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/staff-me/portfolio over the gallery ceiling',
+  );
+  // Whole years, and a range a working life can actually fall inside.
+  for (const [label, years] of [
+    ['above the ceiling', 61],
+    ['below zero', -1],
+    ['not whole', 4.5],
+  ]) {
+    expectError(
+      await technician.fetch('/api/staff-me/portfolio', {
+        method: 'PATCH',
+        json: { years_experience: years },
+      }),
+      400,
+      'VALIDATION_ERROR',
+      `PATCH /api/staff-me/portfolio with years ${label}`,
+    );
+  }
+  // The roster row's own columns are not this endpoint's to write, and neither is the address
+  // she was given nor the day she agreed: an unrecognised key is refused, never dropped.
+  for (const [field, value] of [
+    ['staff_id', personaRow.id],
+    ['name', 'Tên Tôi Tự Đặt'],
+    ['slug', 'ten-toi-tu-dat'],
+    ['published_at', '2020-01-01T00:00:00.000Z'],
+    ['profile_hidden', 1],
+  ]) {
+    expectError(
+      await technician.fetch('/api/staff-me/portfolio', {
+        method: 'PATCH',
+        json: { [field]: value },
+      }),
+      400,
+      'VALIDATION_ERROR',
+      `PATCH /api/staff-me/portfolio with ${field} in the body`,
+    );
+  }
+  expectError(
+    await technician.fetch('/api/staff-me/portfolio', { method: 'PATCH', json: {} }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/staff-me/portfolio with nothing to change',
+  );
+
+  /* -- and the roster row's own endpoint has narrowed to one switch ----------- */
+
+  /* The hard half of the cutover. bio, image and portfolio used to be written here, per salon;
+     they are one page per person now, and the refusal has to say so by name rather than merely
+     saying no — a technician meeting a bare 400 on the form she used yesterday would read it as
+     the feature having been taken away from her. */
+  for (const field of ['bio', 'image', 'portfolio']) {
+    const refused = await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id, [field]: field === 'portfolio' ? [] : 'x' },
+    });
+    expectError(
+      refused,
+      400,
+      'VALIDATION_ERROR',
+      `PATCH /api/staff-me/profile with ${field} in the body`,
+    );
+    assert(
+      refused.body?.error?.message?.includes('hồ sơ nghề nghiệp'),
+      'the refusal must point at the page the personal half moved to, by its name',
+      refused,
+    );
+  }
 
   /* A roster row the caller does not hold answers exactly like one that does not exist. Minh
      Anh is a real Lala row and this technician is a real technician: a 403 here would confirm
@@ -6806,7 +7134,7 @@ async function groupStaffPersona() {
   expectError(
     await persona.fetch('/api/staff-me/profile', {
       method: 'PATCH',
-      json: { staff_id: minhAnh.id, bio: 'Không phải hồ sơ của tôi.' },
+      json: { staff_id: minhAnh.id, profile_hidden: 1 },
     }),
     404,
     'NOT_FOUND',
@@ -6838,17 +7166,6 @@ async function groupStaffPersona() {
     400,
     'VALIDATION_ERROR',
     'PATCH /api/staff-me/profile with nothing to change',
-  );
-  // Every gallery entry goes through the same guard the avatar does: these strings come back
-  // out of the column straight into the profile's <img> bindings.
-  expectError(
-    await persona.fetch('/api/staff-me/profile', {
-      method: 'PATCH',
-      json: { staff_id: personaRow.id, portfolio: ['javascript:alert(1)'] },
-    }),
-    400,
-    'VALIDATION_ERROR',
-    'PATCH /api/staff-me/profile with a script url in the gallery',
   );
 
   /* -- and the owner's side of the same row ----------------------------------- */
@@ -6892,25 +7209,20 @@ async function groupStaffPersona() {
   assert(renamed.title === 'Chuyên viên nail', 'the owner still writes the operational half');
   assert(renamed.image === AVATAR, 'and the photo it echoed is still the technician’s own');
 
-  /* The same save on a technician who has not set a photo at all: the column holds NULL and
-     the form sends null — or '', which is the same absence spelled the way a text input
-     spells it. Both have to read as unchanged, or an empty photo field would freeze the row
-     just as surely as a filled one. */
-  ok(
-    await persona.fetch('/api/staff-me/profile', {
-      method: 'PATCH',
-      json: { staff_id: personaRow.id, image: null },
-    }),
-    'PATCH /api/staff-me/profile (the technician clears their own photo)',
-  );
+  /* The same save on a claimed row that has no photo at all: the column holds NULL and the form
+     sends null — or '', which is the same absence spelled the way a text input spells it. Both
+     have to read as unchanged, or an empty photo field would freeze the row just as surely as a
+     filled one. Staged on the chair further up, which was handed on to a second technician with
+     its image cleared by the erasure, because on a CLAIMED row nothing can write that column
+     any more: the owner is refused it and the technician's own face is on her page instead. */
   for (const [spelling, value] of [
     ['null', null],
     ['an empty string', ''],
   ]) {
     const echoed = ok(
-      await partner.fetch(`/api/partner/staff/${personaRow.id}`, {
+      await partner.fetch(`/api/partner/staff/${partingRow.id}`, {
         method: 'PATCH',
-        json: { name: 'KTV Tự Quản Hồ Sơ', specialty: 'Nail nghệ thuật', image: value },
+        json: { name: 'KTV Xóa Cả Trang', specialty: 'Nail nghệ thuật', image: value },
       }),
       `PATCH a claimed row with no photo, echoing the empty field as ${spelling}`,
     );
@@ -6920,13 +7232,6 @@ async function groupStaffPersona() {
       echoed,
     );
   }
-  ok(
-    await persona.fetch('/api/staff-me/profile', {
-      method: 'PATCH',
-      json: { staff_id: personaRow.id, image: AVATAR },
-    }),
-    'PATCH /api/staff-me/profile (the technician puts their photo back)',
-  );
   // And on a row nobody stands behind, the photo is the salon's too — there is no technician
   // there to have taken it over.
   const chairPhoto = ok(
@@ -7471,7 +7776,11 @@ async function groupStaffPersona() {
     await session('guest').fetch(`/api/staff/${personaRow.id}`),
     'GET /api/staff/:id after the page went back up',
   );
-  assert(restored.bio === BIO, 'the page comes back exactly as it was', restored);
+  assert(
+    restored.image === AVATAR && restored.name === 'KTV Tự Quản Hồ Sơ',
+    'the page comes back exactly as it was',
+    restored,
+  );
   ok(
     await session('guest').fetch(`/api/staff/${personaRow.id}/reviews`),
     'GET /api/staff/:id/reviews after the page went back up',

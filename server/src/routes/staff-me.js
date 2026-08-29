@@ -22,6 +22,7 @@ import {
   findLiveInvite,
   inviteNotFound,
 } from '../lib/staff-invite.js';
+import { ensureStaffProfile } from '../lib/staff-profile.js';
 import { staffStats } from '../lib/staff-stats.js';
 import { addDaysISO, formatDateVN, isISODate, todayISO } from '../lib/time.js';
 import { isSafeMediaUrl } from '../lib/urls.js';
@@ -109,10 +110,15 @@ router.post('/claim', async (req, res, next) => {
   }
 });
 
-/* bio, portfolio and profile_hidden ride along with the operational columns because they are
-   the half of the row the technician now owns: PATCH /profile below is the only way they are
-   ever written, and somebody has to be able to read back what they just changed. A hidden row
-   is still returned here — this is their own row, not the public page it has withdrawn. */
+/* profile_hidden rides along with the operational columns because it is the half of the row
+   the technician still owns: PATCH /profile below is the only way it is ever written, and
+   somebody has to be able to read back the switch they just threw. A hidden row is still
+   returned here — this is their own row, not the public page it has withdrawn.
+
+   bio, image and portfolio are here for a different reason now. They are the SALON's copy,
+   frozen at whatever the row carried, because the person's own words moved to staff_profiles
+   with the portfolio editor below; nothing writes them any more. They are still read back
+   because the row still holds them and the page still shows the stint. */
 const CLAIMED_STAFF_COLUMNS = `
   st.id, st.name, st.title, st.specialty, st.bio, st.image, st.portfolio,
   st.profile_hidden, st.active, st.claimed_at,
@@ -187,10 +193,10 @@ router.get('/profile', requireStaff, async (req, res, next) => {
 });
 
 /* ============================================================================
- * The half of the row the technician owns
+ * What the technician writes: one switch on a roster row, and the page behind it
  * ========================================================================= */
 
-/* Four columns need four parsers, so these are local rather than lifted out of
+/* A handful of columns need a handful of parsers, so these are local rather than lifted out of
    routes/partner.js, whose own set is module-private and answers to a much wider form. Same
    shapes and the same words, because a technician and their owner refusing the same value in
    two different sentences is one form disagreeing with another about one row. */
@@ -277,13 +283,13 @@ function requireFlag(value, label) {
   throw httpError(400, 'VALIDATION_ERROR', `${label} phải là true hoặc false.`);
 }
 
-/* Exactly the four columns a technician owns, and the whole of what PATCH /profile can
-   write. Everything else on the row — name, title, specialty, the schedule, the service list,
-   active — is the salon's: the owner runs the roster, and the console is where it is run. */
+/* The one column on a roster row a technician still writes, and the whole of what PATCH
+   /profile can touch: whether THIS stint's page is on the public side. Everything else on the
+   row — name, title, specialty, the schedule, the service list, active — is the salon's, and
+   what she says about herself is no longer on the row at all: it lives in staff_profiles, one
+   per person, edited through PATCH /portfolio below. So this endpoint has narrowed to what it
+   always really was, a per-salon switch. */
 const PROFILE_COLUMNS = {
-  bio: (value) => optionalLimitedText(value, 'Giới thiệu', BIO_MAX),
-  image: (value) => optionalMediaUrl(value, 'Ảnh đại diện'),
-  portfolio: (value) => requireMediaUrlArray(value, 'Ảnh tác phẩm'),
   profile_hidden: (value) => requireFlag(value, 'Ẩn hồ sơ'),
 };
 
@@ -297,7 +303,7 @@ function requireStaffId(value) {
 }
 
 const NOT_YOURS =
-  'Bạn chỉ có thể cập nhật giới thiệu, ảnh đại diện, ảnh tác phẩm và trạng thái ẩn hồ sơ. Tên, chức danh, chuyên môn và lịch làm việc do salon quản lý.';
+  'Giới thiệu, ảnh đại diện và ảnh tác phẩm nay nằm ở hồ sơ nghề nghiệp của bạn, không còn trên từng hồ sơ tại salon. Ở đây bạn chỉ đổi được trạng thái ẩn hồ sơ tại salon này. Tên, chức danh, chuyên môn và lịch làm việc do salon quản lý.';
 const PROFILE_NOT_FOUND = 'Không tìm thấy hồ sơ kỹ thuật viên này.';
 
 router.patch('/profile', requireStaff, async (req, res, next) => {
@@ -349,6 +355,169 @@ router.patch('/profile', requireStaff, async (req, res, next) => {
     }
 
     res.json({ success: true, data: await claimedRowShape(updated) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ============================================================================
+ * The technician's own page — one per person, and public only once she says so
+ * ========================================================================= */
+
+/* A job title and a line of speciality as the TECHNICIAN words them, which is a different
+   thing from the two columns of the same name on a roster row: those are what the salon typed
+   into its console about a job, and they stay there. The ceiling is this file's own rather than
+   routes/partner.js's, which puts none on either column — an owner filling in a roster is
+   describing somebody else's job in passing, and a person writing their own page is exactly who
+   ends up with a paragraph in a job title. */
+const TITLE_MAX = 120;
+/* Nobody has been doing nails for six hundred years and nobody has been doing them for minus
+   three, and those are the only two things this column can honestly be checked against. */
+const YEARS_MAX = 60;
+
+/** Whole years, 0 to 60 — requireCount in routes/partner.js with the far end closed too. */
+function requireYears(value, label) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0 || number > YEARS_MAX) {
+    throw httpError(
+      400,
+      'VALIDATION_ERROR',
+      `${label} phải là số nguyên từ 0 đến ${YEARS_MAX}.`,
+    );
+  }
+  return number;
+}
+
+/* Everything a person says about themselves, and the whole of what PATCH /portfolio writes.
+   slug and published_at are deliberately not in it: the first is the address the page will be
+   reachable at and is minted once, and the second is the consent stamp, which is an act with
+   an endpoint of its own rather than a field on a form. */
+const PORTFOLIO_COLUMNS = {
+  title: (value) => optionalLimitedText(value, 'Chức danh', TITLE_MAX),
+  specialty: (value) => optionalLimitedText(value, 'Chuyên môn', TITLE_MAX),
+  bio: (value) => optionalLimitedText(value, 'Giới thiệu', BIO_MAX),
+  image: (value) => optionalMediaUrl(value, 'Ảnh đại diện'),
+  portfolio: (value) => requireMediaUrlArray(value, 'Ảnh tác phẩm'),
+  years_experience: (value) => requireYears(value, 'Số năm kinh nghiệm'),
+  hidden: (value) => requireFlag(value, 'Ẩn hồ sơ nghề nghiệp'),
+};
+
+/* By the account and never by an id in the path, like every other read in this file. user_id
+   is the key and is deliberately not selected: it is what the caller already is, and the one
+   thing no reply here may ever carry out. */
+const selectMyProfile = db.prepare(`
+  SELECT slug, title, specialty, bio, image, portfolio, years_experience, hidden, published_at
+  FROM staff_profiles
+  WHERE user_id = ?
+`);
+
+/* published_at is stamped once and never restamped, which is what makes publishing idempotent:
+   a second press finds nothing to change and reads back the same date the first one wrote. The
+   guard is in the statement rather than in a branch above it, so two presses arriving together
+   cannot both decide the column is empty. Taking the page back down is hidden = 1 through the
+   PATCH above — a withdrawal is not an unpublishing, because the date she first agreed is a
+   fact about her page and not a switch. */
+const PUBLISH_PROFILE = `
+  UPDATE staff_profiles SET published_at = ?, updated_at = ?
+  WHERE user_id = ? AND published_at IS NULL
+`;
+
+/** The one shape all three endpoints answer with. NEVER user_id: the caller is the key. */
+function profileShape(row) {
+  return {
+    slug: row.slug,
+    title: row.title,
+    specialty: row.specialty,
+    bio: row.bio,
+    image: row.image,
+    portfolio: parseJsonArray(row.portfolio),
+    years_experience: row.years_experience,
+    hidden: row.hidden,
+    published_at: row.published_at,
+  };
+}
+
+/**
+ * The caller's profile row, brought into being on the first visit if it is not there yet.
+ *
+ * Every endpoint below goes through here rather than answering 404 to a technician who has
+ * simply never opened the editor: there is nothing for her to have created, the draft is filled
+ * in from her own roster row, and none of it is public until she publishes. ensureStaffProfile
+ * leaves an existing row entirely alone, so this is safe on every request rather than only the
+ * first one.
+ */
+async function myProfile(userId, name) {
+  const existing = await selectMyProfile.get(userId);
+  if (existing) {
+    return existing;
+  }
+  await ensureStaffProfile(userId, name);
+  return selectMyProfile.get(userId);
+}
+
+router.get('/portfolio', requireStaff, async (req, res, next) => {
+  try {
+    res.json({ success: true, data: profileShape(await myProfile(req.user.id, req.user.name)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const NOT_YOUR_PAGE =
+  'Bạn chỉ có thể cập nhật chức danh, chuyên môn, giới thiệu, ảnh đại diện, ảnh tác phẩm, số năm kinh nghiệm và trạng thái ẩn của hồ sơ nghề nghiệp. Tên tài khoản và thông tin do salon quản lý không sửa được ở đây.';
+
+router.patch('/portfolio', requireStaff, async (req, res, next) => {
+  try {
+    const body = req.body ?? {};
+
+    /* Refused rather than dropped, for the reason PATCH /profile gives above and one more of
+       its own: this endpoint's whole purpose is that a technician's page says what SHE said, so
+       a key it silently ignored would be a sentence she believes is on her page and is not. */
+    const assignments = [];
+    const values = [];
+    for (const [key, value] of Object.entries(body)) {
+      if (!Object.hasOwn(PORTFOLIO_COLUMNS, key)) {
+        throw httpError(400, 'VALIDATION_ERROR', NOT_YOUR_PAGE);
+      }
+      assignments.push(`"${key}" = ?`);
+      values.push(PORTFOLIO_COLUMNS[key](value));
+    }
+    if (assignments.length === 0) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Không có thông tin nào để cập nhật.');
+    }
+
+    // After the body has been read, so a request that was never going to be written does not
+    // leave a row behind it — and before the UPDATE, because a first edit has to land on
+    // something.
+    await myProfile(req.user.id, req.user.name);
+    await db
+      .prepare(
+        `UPDATE staff_profiles SET ${assignments.join(', ')}, updated_at = ? WHERE user_id = ?`,
+      )
+      .run(...values, new Date().toISOString(), req.user.id);
+
+    res.json({ success: true, data: profileShape(await selectMyProfile.get(req.user.id)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/*
+ * The consent itself: until this has run, nothing a technician wrote about herself is on the
+ * public side of OAK at all.
+ *
+ * The row is created first, so publishing is never a 404 — a technician who filled the form in
+ * on a page that failed to save is still entitled to press the button, and what she publishes
+ * is the draft her roster row was prefilled from. Idempotent: pressing it twice is the same
+ * page and the same date, because PUBLISH_PROFILE only ever writes an empty column.
+ */
+router.post('/portfolio/publish', requireStaff, async (req, res, next) => {
+  try {
+    await myProfile(req.user.id, req.user.name);
+    const now = new Date().toISOString();
+    await db.prepare(PUBLISH_PROFILE).run(now, now, req.user.id);
+
+    res.json({ success: true, data: profileShape(await selectMyProfile.get(req.user.id)) });
   } catch (error) {
     next(error);
   }

@@ -39,7 +39,7 @@ const CLAIMED_OR_ON_ROSTER = '(st.user_id IS NOT NULL OR st.active = 1)';
 // 404 in the same words as an id that names nobody. Not "no longer exists" and not "hidden" —
 // a reply that told those apart would put the page back up in the negative.
 const selectStaffProfile = db.prepare(`
-  SELECT st.id, st.name, st.title, st.specialty, st.bio, st.image, st.rating,
+  SELECT st.id, st.user_id, st.name, st.title, st.specialty, st.bio, st.image, st.rating,
          st.years_experience, st.portfolio,
          s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name
   FROM staff st
@@ -294,6 +294,82 @@ router.get('/:id/history', async (req, res, next) => {
   }
 });
 
+/* The person behind the chair, if there is one and if she has put her own page on the public
+ * side. Both halves of the gate are in the statement and neither is optional: published_at
+ * IS NOT NULL is the consent — a draft nobody agreed to publish is not a page — and hidden = 0
+ * is the withdrawal, the same one VISIBLE_PROFILE asks of a roster row, asked again about the
+ * person because taking your page down has to reach every surface it was on. COALESCE for the
+ * reason it is there above: a column that has never been written is 0, not a reason to vanish.
+ */
+const selectPublishedProfile = db.prepare(`
+  SELECT slug, bio, image, portfolio, years_experience
+  FROM staff_profiles
+  WHERE user_id = ? AND published_at IS NOT NULL AND COALESCE(hidden, 0) = 0
+`);
+
+/**
+ * Which of the two voices this stint page speaks the personal half in.
+ *
+ * A roster row's bio, face and gallery are what the salon's own record of that chair carries.
+ * A published profile is what the PERSON says about herself, and where one exists it wins — she
+ * wrote it, it is one page across every salon she has worked at, and the address it lives at
+ * (`technician.slug`) rides along so a reader can go from the stint to the career.
+ *
+ * Where there is no published profile the answer is exactly the row — and exactly the reply
+ * this endpoint sent before this table existed, down to the last key. That covers a chair
+ * nobody stands behind, a technician who never opened the editor, a draft she never published,
+ * and a page she has taken back down: four different situations that must all look the same
+ * from out here, because telling them apart would leak the existence of a page somebody chose
+ * not to show.
+ *
+ * Which is why `link` is a whole key that is spread in rather than a `technician` field set to
+ * null. A page nobody has published has nothing to say about a person, and saying null about
+ * her is still saying something — it is this endpoint announcing, on every chair on OAK, that
+ * there is a person-shaped hole here and a table somewhere that fills it. An absent key says
+ * nothing at all, and nothing at all is the truth. The slug is the sharpest case of the same
+ * rule: an address is the one thing an unpublished page must never hand out.
+ *
+ * name, title, specialty and rating are not in it at all. Those are the salon's words about a
+ * job and OAK's own count of what its customers said, and a stint page goes on speaking them
+ * whoever else has a page.
+ *
+ * SCOPE, and a question left open on purpose. This override covers ONE surface: the stint page
+ * that GET /api/staff/:id serves. Every other place a technician's face and years appear still
+ * reads them off the roster row — the salon's team strip out of routes/salons.js, and the
+ * technician picker in the booking wizard out of routes/services.js. So a published profile
+ * can show one photo on her stint page and another on the salon card that links to it, and
+ * that really is a disagreement rather than a distinction: both are OAK showing a customer
+ * the same person.
+ *
+ * It is left that way here deliberately, and not by oversight. This slice's headline property
+ * is that nothing publicly visible moves until somebody publishes, and reaching into the
+ * booking picker to make it read a second table is a change to the surface that sells hours —
+ * a much wider blast radius than the page this endpoint serves, and one nobody has reviewed.
+ * Consent-first holds either way: an unpublished profile is invisible on every one of these
+ * surfaces, because they are all still reading the roster. The slice that opens the person's
+ * own page is where "which surfaces speak in her voice" should be settled across all three at
+ * once, rather than one endpoint at a time from three different directions.
+ */
+async function personalHalf(row) {
+  const person = row.user_id === null ? undefined : await selectPublishedProfile.get(row.user_id);
+  if (!person) {
+    return {
+      bio: row.bio,
+      image: row.image,
+      portfolio: parseJsonArray(row.portfolio),
+      years_experience: row.years_experience,
+      link: {},
+    };
+  }
+  return {
+    bio: person.bio,
+    image: person.image,
+    portfolio: parseJsonArray(person.portfolio),
+    years_experience: person.years_experience,
+    link: { technician: { slug: person.slug } },
+  };
+}
+
 router.get('/:id', async (req, res, next) => {
   try {
     const row = /^\d+$/.test(req.params.id)
@@ -302,6 +378,7 @@ router.get('/:id', async (req, res, next) => {
     if (!row) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này.');
     }
+    const person = await personalHalf(row);
 
     res.json({
       success: true,
@@ -310,16 +387,19 @@ router.get('/:id', async (req, res, next) => {
         name: row.name,
         title: row.title,
         specialty: row.specialty,
-        bio: row.bio,
-        image: row.image,
+        bio: person.bio,
+        image: person.image,
         // The cache of this technician's real review average (staff.rating), maintained by
         // every write in routes/reviews.js — not a figure anybody typed. stats.rating_avg
         // below is the same average computed live from the reviews table, so a reader of
         // this reply can see for themselves whether the two still agree.
         rating: row.rating ?? 0,
-        years_experience: row.years_experience,
-        portfolio: parseJsonArray(row.portfolio),
+        years_experience: person.years_experience,
+        portfolio: person.portfolio,
         salon: { id: row.salon_id, slug: row.salon_slug, name: row.salon_name },
+        // One key, `technician`, naming where the person's own page lives — and nothing
+        // whatsoever when this chair is all there is to read. See personalHalf above.
+        ...person.link,
         // What this technician has actually done here, split by who attested to it. The
         // profile used to show a seeded number; this is the work, counted.
         stats: await staffStats(row.id),

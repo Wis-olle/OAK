@@ -550,6 +550,21 @@
                 if (id) {
                     return encodeURIComponent(id);
                 }
+                /* ?u= is a technician's own page, addressed by the slug ho-so-nhan-vien.html
+                   hands her once she publishes, and this page cannot read one yet — the read
+                   behind it is the next slice. Until then the address is answered as not
+                   found, because the fallback below is the thing it must never reach: a link
+                   she pasted into Zalo would open the flagship salon's first technician, under
+                   her name, with somebody else's bio and gallery and a booking button. An
+                   empty panel is a page that is not ready; a stranger's profile at her address
+                   is OAK telling her readers that she is that stranger.
+                   A bare visit with no parameter at all keeps the fallback: nobody was named,
+                   so nobody can be got wrong. */
+                if (OAK.qs('u')) {
+                    const error = new Error('Không tìm thấy chuyên gia này.');
+                    error.code = 'NOT_FOUND';
+                    throw error;
+                }
                 const [salon] = await OAK.api('/api/salons?flagship=1&limit=1');
                 const staff = salon ? await OAK.api('/api/salons/' + salon.id + '/staff') : [];
                 if (!staff.length) {

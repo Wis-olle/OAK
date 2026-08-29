@@ -80,7 +80,7 @@ Thông báo
 <div class="flex-1 min-w-0 max-w-4xl">
 <div class="mt-8 mb-8 border-b border-outline-variant/30 pb-4">
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Hồ sơ của tôi</h1>
-<p class="font-body-md text-body-md text-on-surface-variant">Ảnh, giới thiệu, ảnh tác phẩm và trạng thái hiển thị là phần hồ sơ bạn tự quản lý.</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Trang hồ sơ nghề nghiệp là của riêng bạn và chỉ ra công khai khi bạn đăng. Bên dưới là hồ sơ làm việc tại từng salon bạn đã nhận.</p>
 </div>
 <!-- The technician rail, mobile. -->
 <nav aria-label="Kỹ thuật viên" class="md:hidden -mx-margin-mobile px-margin-mobile mb-8 overflow-x-auto" data-oak-staff-tabs="">
@@ -112,6 +112,153 @@ Thông báo
 </a>
 </div>
 </nav>
+<div aria-hidden="true" class="flex flex-col gap-6" x-show="loading">
+<template :key="row" x-for="row in 3">
+<div class="bg-surface-container-lowest p-6 flex flex-col gap-3 rounded-xl border border-outline-variant/20">
+<div class="h-6 w-1/3 rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-2/3 rounded bg-surface-container animate-pulse"></div>
+<div class="h-4 w-1/2 rounded bg-surface-container animate-pulse"></div>
+</div>
+</template>
+</div>
+<!-- The technician's own page, first on the screen because it is the only thing here that
+     belongs to the person rather than to a chair. Deliberately outside the row() gate further
+     down, and that is the whole reason this section exists as its own: somebody who holds no
+     roster row at all still has a trade to describe, and hanging her own page off a stint
+     would have answered "no salon has invited me yet" with "there is nothing here for you".
+
+     Everything in it is a draft until the press at the foot of the section. -->
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/20 mb-8" x-cloak="" x-show="!loading">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Trang hồ sơ nghề nghiệp</h2>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Một trang duy nhất về nghề của bạn, đi theo bạn qua mọi salon. Bạn tự viết, và trang chỉ ra công khai khi bạn bấm đăng.</p>
+<!-- Its own error and its own way back in. The roster rows below arrive from another endpoint
+     entirely and neither read may be the other's undoing: an editor that disappeared because a
+     list failed would cost this page the one half nobody else can write. -->
+<template x-if="meError">
+<div class="flex flex-col items-start gap-3 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
+<div class="flex items-center gap-3">
+<span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
+<p class="font-body-md text-body-md text-on-surface" x-text="meError"></p>
+</div>
+<button @click="loadMe()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+</div>
+</template>
+<template x-if="me">
+<div>
+<div class="flex flex-wrap items-center gap-6 mb-8">
+<div class="relative shrink-0">
+<div class="w-28 h-28 rounded-full overflow-hidden bg-surface-variant border-2 border-surface shadow-sm flex items-center justify-center">
+<span aria-hidden="true" class="material-symbols-outlined text-[56px] text-on-surface-variant" x-show="!me.image">person</span>
+<img decoding="async" :src="me.image" alt="Ảnh đại diện" class="w-full h-full object-cover" x-cloak="" x-show="me.image">
+</div>
+<button :disabled="uploading" @click="$refs.avatarInput.click()" aria-label="Đổi ảnh đại diện" class="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-primary-container text-on-primary flex items-center justify-center hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">
+<span class="material-symbols-outlined text-[20px]" data-icon="photo_camera">photo_camera</span>
+</button>
+<input @change="uploadAvatar($event)" accept="image/png, image/jpeg, image/webp" class="hidden" type="file" x-ref="avatarInput">
+</div>
+<div class="min-w-0">
+<p class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="uploading">Đang tải ảnh lên…</p>
+<p class="font-caption text-caption text-on-surface-variant">Ảnh trên trang hồ sơ nghề nghiệp của bạn. Tối đa 5MB.</p>
+</div>
+</div>
+<!-- Her own words for the job she does, and deliberately not the salon's two columns of the
+     same name further down the page: the owner typed those into a console about a chair. The
+     "(tự khai)" beside each one is the same hedge ho-so-chuyen-gia.html puts on the years —
+     nothing OAK cannot check goes out on a page unlabelled. -->
+<div class="flex flex-col gap-4 mb-8">
+<div>
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-self-title">Chức danh <span>(tự khai)</span></label>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-self-title" maxlength="120" type="text" x-model="selfTitle"/>
+</div>
+<div>
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-self-specialty">Chuyên môn <span>(tự khai)</span></label>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-self-specialty" maxlength="120" type="text" x-model="selfSpecialty"/>
+</div>
+<div>
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-self-years">Số năm kinh nghiệm <span>(tự khai)</span></label>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-self-years" inputmode="numeric" max="60" min="0" type="number" x-model="selfYears"/>
+</div>
+<div>
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-bio">Giới thiệu về bạn</label>
+<textarea class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-bio" maxlength="1000" rows="6" x-model="bio"></textarea>
+<p class="font-caption text-caption text-on-surface-variant mt-2">Vài dòng về tay nghề và phong cách của bạn, tối đa 1000 ký tự.</p>
+</div>
+</div>
+<p class="font-caption text-caption text-error mb-4" role="alert" x-cloak="" x-show="detailsError" x-text="detailsError"></p>
+<button :disabled="detailsSaving" @click="saveDetails()" class="mb-8 inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="button" x-text="detailsSaving ? 'Đang lưu…' : 'Lưu thay đổi'">Lưu thay đổi</button>
+<!-- The gallery. Each picture saves itself the moment it is picked or dropped, because the
+     column is one JSON list and the whole list is what travels. -->
+<div class="mb-8">
+<h3 class="font-headline-sm text-[20px] text-primary mb-2">Ảnh tác phẩm</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">
+<span>Đã thêm</span> <span x-text="me.portfolio.length + '/' + portfolioMax"></span> <span>ảnh</span>
+</p>
+<div class="grid grid-cols-2 gap-4 mb-6" x-show="me.portfolio.length > 0">
+<template :key="url" x-for="url in me.portfolio">
+<div class="relative aspect-square rounded-xl overflow-hidden bg-surface-variant">
+<img decoding="async" width="600" height="600" loading="lazy" alt="Ảnh tác phẩm" :src="url" class="w-full h-full object-cover">
+<div class="absolute inset-x-0 bottom-0 flex items-center justify-end px-1 py-1 bg-surface/80 backdrop-blur">
+<button :disabled="portfolioBusy" @click="removePhoto(url)" aria-label="Xóa ảnh" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-error transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+</template>
+</div>
+<!-- OAK-EMPTY -->
+<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-show="me.portfolio.length === 0">Chưa có ảnh tác phẩm nào.</p>
+<p class="font-caption text-caption text-error mb-4" role="alert" x-cloak="" x-show="portfolioError" x-text="portfolioError"></p>
+<p class="font-caption text-caption text-on-surface-variant mb-4" x-cloak="" x-show="atPortfolioCap()">Bạn đã dùng hết số ảnh tối đa. Hãy xóa bớt một ảnh trước khi thêm ảnh mới.</p>
+<label :class="atPortfolioCap() ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary hover:text-primary cursor-pointer'" class="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider transition-colors">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="add_photo_alternate">add_photo_alternate</span>
+<span x-text="portfolioBusy ? 'Đang tải ảnh…' : 'Thêm ảnh'">Thêm ảnh</span>
+<input :disabled="portfolioBusy || atPortfolioCap()" @change="addPhoto($event)" accept="image/jpeg,image/png,image/webp" class="sr-only" type="file">
+</label>
+</div>
+<!-- The consent surface, and the reason every field above is worded the way it is. Until this
+     button is pressed nothing here has left the technician's own screen, so the copy says all
+     four things at once: what goes out, what it displaces, what it leaves alone, and what is
+     true right now for as long as she never presses it. Saying "your page" in the present
+     tense over an unpublished draft would be the page lying about the one thing it is for. -->
+<template x-if="!me.published_at">
+<div class="pt-6 border-t border-outline-variant/20">
+<h3 class="font-headline-sm text-[20px] text-primary mb-2">Đăng trang</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-3">Trang này chưa đăng. Ngoài bạn ra chưa ai nhìn thấy những gì bạn viết ở trên, và hồ sơ của bạn tại mỗi salon vẫn đang hiện phần giới thiệu cũ.</p>
+<p class="font-caption text-caption text-on-surface-variant mb-3">Khi bạn đăng, ảnh, chức danh, chuyên môn, số năm kinh nghiệm, giới thiệu và ảnh tác phẩm bạn viết ở trên sẽ nằm trên trang hồ sơ nghề nghiệp của bạn.</p>
+<p class="font-caption text-caption text-on-surface-variant mb-3">Hồ sơ của bạn tại từng salon cũng đổi theo: ảnh, số năm kinh nghiệm, giới thiệu và ảnh tác phẩm ở đó sẽ là của bạn thay cho phần cũ, còn chức danh và chuyên môn ở đó vẫn là do salon ghi.</p>
+<p class="font-caption text-caption text-on-surface-variant mb-3">Những con số OAK tự đếm được vẫn giữ nguyên, không đổi theo trang này.</p>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Đăng rồi bạn vẫn ẩn trang lại được bất cứ lúc nào.</p>
+<p class="font-caption text-caption text-error mb-4" role="alert" x-cloak="" x-show="publishError" x-text="publishError"></p>
+<button :disabled="publishing" @click="publish()" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="button" x-text="publishing ? 'Đang đăng…' : 'Đăng trang'">Đăng trang</button>
+</div>
+</template>
+<template x-if="me.published_at">
+<div class="pt-6 border-t border-outline-variant/20">
+<h3 class="font-headline-sm text-[20px] text-primary mb-2">Địa chỉ trang của bạn</h3>
+<!-- Two nodes, not one string built in JavaScript: the label is a dictionary key and the
+     date beside it is a date. -->
+<p class="font-caption text-caption text-on-surface-variant mb-6"><span>Đã đăng ngày</span> <span x-text="OAK.fmtDate(me.published_at, 'long')"></span></p>
+<div class="space-y-2">
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-page-url">Địa chỉ trang</label>
+<div class="flex flex-wrap items-center gap-3">
+<input :value="pageUrl()" class="flex-1 min-w-0 bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-page-url" readonly type="text"/>
+<button @click="copyPageUrl()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors shrink-0" type="button">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="content_copy">content_copy</span>
+Sao chép liên kết
+</button>
+</div>
+</div>
+<!-- Said plainly, because the address is real and the page at it is not open yet — it lands
+     in the next slice. A line calling this a live page would be a lie the technician finds out
+     about by pasting it to somebody; a line withholding the address would be OAK keeping her
+     own address from her. So she gets the address and the state of it, and is told which
+     surface is already carrying what she just published. -->
+<p class="font-caption text-caption text-on-surface-variant mt-4">Đây là địa chỉ riêng của trang bạn trên OAK. Trang tại địa chỉ này sắp mở cho người xem; trong lúc chờ, hồ sơ của bạn tại từng salon đã hiện những gì bạn vừa đăng. Bạn ẩn trang lại lúc nào cũng được ở phần Hiển thị công khai bên dưới.</p>
+</div>
+</template>
+</div>
+</template>
+</section>
 <!-- One chip per claimed row, and only for somebody who holds more than one: every section
      below is about a single roster row, and with one row there is nothing to choose.
 
@@ -129,103 +276,72 @@ Thông báo
 </button>
 </template>
 </div>
-<div aria-hidden="true" class="flex flex-col gap-6" x-show="loading">
-<template :key="row" x-for="row in 3">
-<div class="bg-surface-container-lowest p-6 flex flex-col gap-3 rounded-xl border border-outline-variant/20">
-<div class="h-6 w-1/3 rounded bg-surface-container animate-pulse"></div>
-<div class="h-4 w-2/3 rounded bg-surface-container animate-pulse"></div>
-<div class="h-4 w-1/2 rounded bg-surface-container animate-pulse"></div>
+<!-- Both switches in one place, because this is the one question they are two answers to:
+     who gets to see what. They are two different withdrawals and neither implies the other —
+     one takes down the page she wrote about her trade, the other takes down her page at one
+     salon — so they are worded to be unmistakable rather than merely adjacent. The salon one
+     is here only while a stint is on screen; there is no "this salon" without one.
+
+     Both save on the change itself: whether a page is public is not a draft anybody wants
+     sitting in a form waiting to be submitted. -->
+<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/20 mb-8" x-cloak="" x-show="!loading">
+<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Hiển thị công khai</h2>
+<div class="grid gap-8 md:grid-cols-2">
+<!-- Gated on the page having been READ, not merely on the section being past its skeleton.
+     An unread page leaves pageHidden at the value the factory was built with, and a box
+     drawn on a default is a box telling somebody the state of something nobody looked up —
+     which is the one thing a withdrawal switch may never do. -->
+<template x-if="me">
+<div>
+<h3 class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant mb-3">Trang hồ sơ nghề nghiệp</h3>
+<label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer">
+<input :disabled="pageHiddenSaving" @change="savePageHidden()" class="mt-1" type="checkbox" x-model="pageHidden">
+<span class="flex flex-col gap-1">
+<!-- Three states and not two, because "đang hiện" over a draft nobody has published would
+     contradict the block a few centimetres above it that says nothing here is public yet.
+     The switch is still offered while unpublished — it is a decision she is allowed to take
+     in advance, and the server stores it either way — it simply does not claim the page is
+     on the public side when the only thing keeping it off is that she never pressed. -->
+<span class="font-label-md text-label-md text-primary uppercase tracking-widest" x-text="!me.published_at ? 'Trang chưa đăng' : (pageHidden ? 'Đang ẩn trang nghề nghiệp' : 'Đang hiện trang nghề nghiệp')"></span>
+<span class="font-caption text-caption">Bật: trang hồ sơ nghề nghiệp của bạn không còn mở được, và hồ sơ của bạn tại mỗi salon quay lại hiện phần giới thiệu salon đang lưu. Lịch hẹn của bạn vẫn chạy bình thường. Bạn tắt lại lúc nào cũng được.</span>
+</span>
+</label>
+<p class="font-caption text-caption text-error mt-4" role="alert" x-cloak="" x-show="pageHiddenError" x-text="pageHiddenError"></p>
+</div>
+</template>
+<template x-if="row()">
+<div>
+<h3 class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant mb-3"><span>Hồ sơ tại</span> <span x-text="row().salon.name"></span></h3>
+<label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer">
+<input :disabled="hiddenSaving" @change="saveHidden()" class="mt-1" type="checkbox" x-model="hidden">
+<span class="flex flex-col gap-1">
+<span class="font-label-md text-label-md text-primary uppercase tracking-widest" x-text="hidden ? 'Đang ẩn hồ sơ tại salon này' : 'Đang hiện hồ sơ tại salon này'"></span>
+<span class="font-caption text-caption">Bật: hồ sơ của bạn tại salon này không còn mở được, và thẻ của bạn không còn hiện trên trang salon. Lịch hẹn của bạn và trang quản lý của salon vẫn chạy bình thường. Bạn tắt lại lúc nào cũng được.</span>
+</span>
+</label>
+<p class="font-caption text-caption text-error mt-4" role="alert" x-cloak="" x-show="hiddenError" x-text="hiddenError"></p>
 </div>
 </template>
 </div>
+</section>
 <template x-if="!loading &amp;&amp; error">
 <div class="flex flex-col items-start gap-3 p-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest" role="alert">
 <div class="flex items-center gap-3">
 <span aria-hidden="true" class="material-symbols-outlined text-error" data-icon="info">info</span>
 <p class="font-body-md text-body-md text-on-surface" x-text="error"></p>
 </div>
-<button @click="load()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
+<button @click="loadStints()" class="font-label-md text-label-md uppercase tracking-wider text-secondary hover:underline" type="button">Thử lại</button>
 </div>
 </template>
 <!-- OAK-EMPTY -->
 <template x-if="!loading &amp;&amp; !error &amp;&amp; !profiles.length">
 <div class="bg-surface-container-low rounded-lg py-16 px-6 text-center">
-<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="person">person</span>
-<p class="font-body-md text-body-md text-on-surface-variant">Bạn chưa nhận hồ sơ kỹ thuật viên nào.</p>
+<span aria-hidden="true" class="material-symbols-outlined text-4xl text-on-surface-variant mb-4 font-light" data-icon="storefront">storefront</span>
+<p class="font-body-md text-body-md text-on-surface-variant">Chưa gắn với salon nào. Khi salon gửi liên kết mời, hồ sơ làm việc sẽ hiện ở đây.</p>
 </div>
 </template>
 <template x-if="row()">
 <div>
-<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/20 mb-8">
-<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Ảnh đại diện</h2>
-<div class="flex flex-wrap items-center gap-6">
-<div class="relative shrink-0">
-<div class="w-28 h-28 rounded-full overflow-hidden bg-surface-variant border-2 border-surface shadow-sm flex items-center justify-center">
-<span aria-hidden="true" class="material-symbols-outlined text-[56px] text-on-surface-variant" x-show="!row().image">person</span>
-<img decoding="async" :src="row().image" alt="Ảnh đại diện" class="w-full h-full object-cover" x-cloak="" x-show="row().image">
-</div>
-<button :disabled="uploading" @click="$refs.avatarInput.click()" aria-label="Đổi ảnh đại diện" class="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-primary-container text-on-primary flex items-center justify-center hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button">
-<span class="material-symbols-outlined text-[20px]" data-icon="photo_camera">photo_camera</span>
-</button>
-<input @change="uploadAvatar($event)" accept="image/png, image/jpeg, image/webp" class="hidden" type="file" x-ref="avatarInput">
-</div>
-<div class="min-w-0">
-<p class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="uploading">Đang tải ảnh lên…</p>
-<p class="font-caption text-caption text-on-surface-variant">Ảnh này là ảnh khách thấy trên hồ sơ công khai của bạn. Tối đa 5MB.</p>
-</div>
-</div>
-</section>
-<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/20 mb-8">
-<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Giới thiệu</h2>
-<p class="font-caption text-caption text-on-surface-variant mb-6">Vài dòng về tay nghề và phong cách của bạn, tối đa 1000 ký tự.</p>
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="staff-bio">Giới thiệu về bạn</label>
-<textarea class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="staff-bio" maxlength="1000" rows="6" x-model="bio"></textarea>
-<p class="font-caption text-caption text-error mt-4" role="alert" x-cloak="" x-show="bioError" x-text="bioError"></p>
-<button :disabled="bioSaving" @click="saveBio()" class="mt-6 inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="button" x-text="bioSaving ? 'Đang lưu…' : 'Lưu thay đổi'">Lưu thay đổi</button>
-</section>
-<!-- The gallery on the public profile. Each picture saves itself the moment it is picked or
-     dropped, because the column is one JSON list and the whole list is what travels. -->
-<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/20 mb-8">
-<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Ảnh tác phẩm</h2>
-<p class="font-caption text-caption text-on-surface-variant mb-2">Vài tác phẩm gần đây của bạn, hiện ngay trên hồ sơ công khai.</p>
-<p class="font-caption text-caption text-on-surface-variant mb-6">
-<span>Đã thêm</span> <span x-text="row().portfolio.length + '/' + portfolioMax"></span> <span>ảnh</span>
-</p>
-<div class="grid grid-cols-2 gap-4 mb-6" x-show="row().portfolio.length > 0">
-<template :key="url" x-for="url in row().portfolio">
-<div class="relative aspect-square rounded-xl overflow-hidden bg-surface-variant">
-<img decoding="async" width="600" height="600" loading="lazy" alt="Ảnh tác phẩm" :src="url" class="w-full h-full object-cover">
-<div class="absolute inset-x-0 bottom-0 flex items-center justify-end px-1 py-1 bg-surface/80 backdrop-blur">
-<button :disabled="portfolioBusy" @click="removePhoto(url)" aria-label="Xóa ảnh" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-error transition-colors disabled:opacity-50 disabled:cursor-not-allowed" type="button">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="delete">delete</span>
-</button>
-</div>
-</div>
-</template>
-</div>
-<!-- OAK-EMPTY -->
-<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-show="row().portfolio.length === 0">Chưa có ảnh tác phẩm nào.</p>
-<p class="font-caption text-caption text-error mb-4" role="alert" x-cloak="" x-show="portfolioError" x-text="portfolioError"></p>
-<p class="font-caption text-caption text-on-surface-variant mb-4" x-cloak="" x-show="atPortfolioCap()">Bạn đã dùng hết số ảnh tối đa. Hãy xóa bớt một ảnh trước khi thêm ảnh mới.</p>
-<label :class="atPortfolioCap() ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary hover:text-primary cursor-pointer'" class="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider transition-colors">
-<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="add_photo_alternate">add_photo_alternate</span>
-<span x-text="portfolioBusy ? 'Đang tải ảnh…' : 'Thêm ảnh'">Thêm ảnh</span>
-<input :disabled="portfolioBusy || atPortfolioCap()" @change="addPhoto($event)" accept="image/jpeg,image/png,image/webp" class="sr-only" type="file">
-</label>
-</section>
-<!-- The switch the consent line promised when the profile was claimed. Saved on the change
-     itself: whether a page is public is not a draft anybody wants sitting in a form. -->
-<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline-variant/20 mb-8">
-<h2 class="font-headline-sm text-headline-sm text-primary mb-6">Hiển thị công khai</h2>
-<label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer">
-<input :disabled="hiddenSaving" @change="saveHidden()" class="mt-1" type="checkbox" x-model="hidden">
-<span class="flex flex-col gap-1">
-<span class="font-label-md text-label-md text-primary uppercase tracking-widest" x-text="hidden ? 'Đang ẩn hồ sơ' : 'Đang hiện hồ sơ'"></span>
-<span class="font-caption text-caption">Bật: trang hồ sơ công khai của bạn không còn mở được, và thẻ của bạn không còn hiện trên trang salon. Lịch hẹn của bạn và trang quản lý của salon vẫn chạy bình thường. Bạn tắt lại lúc nào cũng được.</span>
-</span>
-</label>
-<p class="font-caption text-caption text-error mt-4" role="alert" x-cloak="" x-show="hiddenError" x-text="hiddenError"></p>
-</section>
 <!-- The salon's half of the row, on the page so the technician can read it — and with
      nothing to press, because the console is where it is changed. -->
 <section class="bg-surface-container-low p-6 md:p-8 rounded-xl mb-8">
@@ -479,17 +595,38 @@ Thông báo
             loading: true,
             error: '',
             portfolioMax: OAK_PORTFOLIO_MAX,
+            /* The person's own page as the server last answered with it, or null while the
+               read is out or has failed. One per account, so nothing about it is keyed by a
+               roster row and the switcher below never touches any of it. */
+            me: null,
+            meError: '',
+            /* The tail of the writes to that row: every one of them queues behind it, so two
+               replies can never race to be the version of `me` the page keeps. See
+               patchPortfolio below for what the race costs. */
+            pageWrites: Promise.resolve(),
+            // The four fields she types into, held apart from `me` so a picture landing
+            // mid-sentence cannot put the saved paragraph back over the one being written.
             bio: '',
-            // Half-written text, per roster row, so switching salons does not throw it away.
-            bioDrafts: {},
-            bioSaving: false,
-            bioError: '',
-            hidden: false,
-            hiddenSaving: false,
-            hiddenError: '',
+            selfTitle: '',
+            selfSpecialty: '',
+            selfYears: 0,
+            detailsSaving: false,
+            detailsError: '',
+            publishing: false,
+            publishError: '',
+            // The person's switch. `hidden` further down is the OTHER one — this page's whole
+            // point is that the two are separate acts, so they are separate state.
+            pageHidden: false,
+            pageHiddenSaving: false,
+            pageHiddenError: '',
             uploading: false,
             portfolioBusy: false,
             portfolioError: '',
+            // Whether THIS stint's page is on the public side: the one column left on a roster
+            // row that the technician still writes.
+            hidden: false,
+            hiddenSaving: false,
+            hiddenError: '',
             // The stint card. One busy flag over both attestation buttons and one line under
             // them, because the two answers are the same size of act; the departure keeps its
             // own pair, because its panel stays open on a refusal and says so in place.
@@ -520,8 +657,20 @@ Thông báo
                 }
             },
 
+            /* Two reads of two different things, neither of which is the other's business.
+               The stint list is the salons a person works at; the page is what she says about
+               her trade, and an account can have either one without the other — a technician
+               nobody has invited yet has a page and no stint, and a read that failed leaves the
+               other half exactly where it was. So each has its own error, its own retry and its
+               own section, and the only thing they share is the one moment the skeleton lifts. */
             async load() {
                 this.loading = true;
+                await Promise.all([this.loadStints(), this.loadMe()]);
+                this.loading = false;
+                await this.loadReviews();
+            },
+
+            async loadStints() {
                 this.error = '';
                 try {
                     this.profiles = await OAK.api('/api/staff-me/profile');
@@ -529,14 +678,36 @@ Thông báo
                 } catch (error) {
                     this.profiles = [];
                     this.error = error.message;
-                } finally {
-                    this.loading = false;
                 }
-                await this.loadReviews();
             },
 
-            /* Read on its own, and failing on its own. The rows above are the editor — the
-               avatar, the bio, the gallery, the switch — and a read-only list that 500'd must
+            /* GET /api/staff-me/portfolio answers every technician, creating an unpublished
+               draft on the first visit out of whatever her newest roster row already said about
+               her — so there is no "you have no page yet" state to write, and none is written. */
+            async loadMe() {
+                this.meError = '';
+                try {
+                    this.fillPage(await OAK.api('/api/staff-me/portfolio'));
+                } catch (error) {
+                    this.me = null;
+                    this.meError = error.message;
+                }
+            },
+
+            /** The page into the form. Only a read does this — a save reads the whole row back
+                as well, and putting it through here would overwrite whatever is half typed in
+                a field the save was not about. */
+            fillPage(me) {
+                this.me = me;
+                this.bio = me.bio || '';
+                this.selfTitle = me.title || '';
+                this.selfSpecialty = me.specialty || '';
+                this.selfYears = me.years_experience || 0;
+                this.pageHidden = Boolean(me.hidden);
+            },
+
+            /* Read on its own, and failing on its own. The section above is the editor — the
+               photo, the fields, the gallery, the switch — and a read-only list that 500'd must
                not take any of that off the page; it carries its own line inside its own
                section instead. One page of fifty rather than the default ten, because the
                list covers every row the technician holds and is cut down to the selected one
@@ -551,14 +722,11 @@ Thông báo
                 }
             },
 
-            /** Move the whole page onto one roster row: the two form fields are per-row state,
-                so they are read back out of that row rather than left on the one before. */
+            /** Move the STINT half of the page onto one roster row. It reaches nothing above
+                the switcher: what a person says about her trade is one page for the person, so
+                choosing a salon is no longer a thing that can disturb a sentence she is in the
+                middle of writing. */
             select(staffId) {
-                // What is on the row being left is kept rather than dropped; saveBio() clears
-                // it once the server has it, so a saved row comes back from the row itself.
-                if (this.selected !== null) {
-                    this.bioDrafts[this.selected] = this.bio;
-                }
                 this.selected = staffId;
                 /* rowOf(staffId) and not row(), which is the same answer by a name the caller
                    can shadow: the switcher calls this from inside x-for="row in profiles", and
@@ -566,11 +734,8 @@ Thông báo
                    item — an object — and calling it throws. Nothing moved and the technician
                    was left on the salon she was already reading. */
                 const row = this.rowOf(staffId);
-                this.bio = staffId in this.bioDrafts ? this.bioDrafts[staffId] : ((row && row.bio) || '');
                 this.hidden = Boolean(row && row.profile_hidden);
-                this.bioError = '';
                 this.hiddenError = '';
-                this.portfolioError = '';
                 this.tenureError = '';
                 this.leaveError = '';
                 // A panel opened over one salon must never be answered against another: both
@@ -600,14 +765,16 @@ Thông báo
                 return this.reviews.filter((review) => review.staff_id === selected);
             },
 
-            /* The one way this page writes. PATCH /api/staff-me/profile owns exactly four
-               columns and answers a fifth key with a 400 rather than dropping it, so every
-               caller here names its own field and the staff_id is added in one place.
+            /* The one way this page writes to a ROSTER ROW, and there is exactly one column
+               left on one to write: PATCH /api/staff-me/profile owns profile_hidden and answers
+               any other key with a 400 rather than dropping it.
 
-               The row is a required argument and never read off `this` here: a default of
-               `this.selected` would be resolved at the moment of the call, which for the two
-               writers that read a file first is after the switcher may have moved — see
-               uploadAvatar below. Every caller captures it before its own first await. */
+               The row stays a required argument rather than defaulting to `this.selected`,
+               even though only one caller is left and it reads that very field one line above
+               the call. A write says out loud which row it is a write to; the guard the
+               argument used to be — pinning a row before an await the switcher could move
+               under — is gone with the writers that had one, and nothing here should be read
+               as still standing guard over a race that no longer exists. */
             async patch(staffId, fields) {
                 const updated = await OAK.api('/api/staff-me/profile', {
                     method: 'PATCH',
@@ -618,22 +785,163 @@ Thông báo
                 return updated;
             },
 
-            async saveBio() {
-                const staffId = this.selected;
-                this.bioSaving = true;
-                this.bioError = '';
+            /* And the way it writes to the PAGE. No id of any kind travels with it: the row is
+               keyed by the account the request is already signed in as, which is why none of
+               the writers below has a switcher to lose their place in. The whole page comes
+               back and replaces `me`; the form fields are deliberately left alone (fillPage
+               above is the only thing that touches those).
+
+               One at a time, and that is the whole reason this is a queue rather than a call.
+               The reply to a PATCH here is the whole row as it stood when the SERVER answered,
+               so two of them in the air means the second reply describes a row the first has
+               already changed — and whichever answer lands last is the one that becomes `me`.
+               A "Lưu thay đổi" pressed while a picture was still uploading would come back
+               carrying the gallery as it was before the picture, put that list back on the
+               page, and hand it to the next removePhoto to post as if it were current: one
+               photo gone from the server, silently, with nothing on screen having failed.
+               Every writer keeps its own busy flag and its own error line — those are about
+               what one control is doing and belong to it — and they share only this, the
+               guarantee that no two of them are ever out at once.
+
+               The tail is kept as a SETTLED chain: a rejection is caught off it here so a
+               refused write does not take every write queued behind it down with it, while the
+               caller still sees the failure through its own await below.
+
+               Its own method rather than something patchPortfolio does for itself, because the
+               publish is a write to this same row through a different endpoint, and a queue
+               that only the PATCH joined would be a queue with a hole in it exactly where the
+               act that matters most goes. Every request that can change this row goes through
+               here; nothing calls OAK.api on it directly. */
+            queueWrite(send) {
+                const queued = this.pageWrites.then(send);
+                this.pageWrites = queued.catch(() => {});
+                return queued;
+            },
+
+            async patchPortfolio(fields) {
+                this.me = await this.queueWrite(() => OAK.api('/api/staff-me/portfolio', {
+                    method: 'PATCH',
+                    body: fields,
+                }));
+                return this.me;
+            },
+
+            /** The four typed fields, in one save, because they are one thought about one job
+                and a button per field would be four ways to leave three of them behind. */
+            async saveDetails() {
+                this.detailsSaving = true;
+                this.detailsError = '';
                 try {
-                    await this.patch(staffId, { bio: this.bio });
-                    delete this.bioDrafts[staffId];
-                    OAK.toast('Đã lưu giới thiệu.');
+                    await this.patchPortfolio({
+                        title: this.selfTitle,
+                        specialty: this.selfSpecialty,
+                        bio: this.bio,
+                        years_experience: Number(this.selfYears),
+                    });
+                    OAK.toast('Đã lưu trang hồ sơ nghề nghiệp.');
                 } catch (error) {
-                    this.bioError = error.message;
+                    this.detailsError = error.message;
                 } finally {
-                    this.bioSaving = false;
+                    this.detailsSaving = false;
                 }
             },
 
+            /* The consent itself, and the only act on this page that puts anything on the
+               public side. Idempotent at the server — published_at is stamped once and never
+               restamped — so a second press is the same page and the same date, and there is
+               nothing here that has to guard against one.
+
+               It writes the typed fields BEFORE it stamps, and that is not a convenience. The
+               block above this button says, twice, that what she published is what she wrote
+               above it; there is no autosave on this page and "Lưu thay đổi" is far enough up
+               the section to scroll past. Publishing the last SAVED draft would therefore put
+               a bio she replaced — the salon's own, on a first visit — on the public side
+               while her own words were still on the screen in front of her, and the sentence
+               promising otherwise would be false in a state a technician reaches by scrolling.
+               The press is a consent to publish what is on screen, so what is on screen is
+               what it sends. The four fields are named here as well as in saveDetails rather
+               than shared, because these two are the only writers of them and a test pins both
+               bodies: a field added to the form and not to the press fails rather than quietly
+               publishing without it.
+
+               Both halves ride the same queue, so a "Lưu thay đổi" still in the air when this
+               is pressed settles first. Out of order, the publish reply — a snapshot of the
+               row as it was BEFORE that save — would become `me`, and the gallery inside it is
+               the list the next removePhoto builds its own write from. */
+            async publish() {
+                this.publishing = true;
+                this.publishError = '';
+                try {
+                    await this.patchPortfolio({
+                        title: this.selfTitle,
+                        specialty: this.selfSpecialty,
+                        bio: this.bio,
+                        years_experience: Number(this.selfYears),
+                    });
+                    this.me = await this.queueWrite(
+                        () => OAK.api('/api/staff-me/portfolio/publish', { method: 'POST' }),
+                    );
+                    OAK.toast('Đã đăng trang hồ sơ nghề nghiệp.');
+                } catch (error) {
+                    this.publishError = error.message;
+                } finally {
+                    this.publishing = false;
+                }
+            },
+
+            /** Where her page will answer. Absolute, because the whole point of the field is
+                that it gets pasted somewhere off OAK. */
+            pageUrl() {
+                return location.origin + '/ho-so-chuyen-gia.html?u='
+                    + encodeURIComponent(this.me.slug);
+            },
+
+            /* Shaped like copyInvite() in ui/quan-ly-nhan-vien.html, and for the same reasons:
+               the clipboard API needs a secure context that an http deploy is not, the older
+               way still works there, and execCommand reports a refusal by returning false
+               rather than by throwing — so a copy the browser declined must never be announced
+               as one that happened, or she pastes whatever was on the clipboard before. */
+            async copyPageUrl() {
+                var field = document.getElementById('staff-page-url');
+                try {
+                    await navigator.clipboard.writeText(this.pageUrl());
+                    OAK.toast('Đã sao chép liên kết.');
+                    return;
+                } catch (error) {
+                    // Falls through to the older way rather than giving up here.
+                }
+                if (field) {
+                    field.select();
+                    try {
+                        if (document.execCommand('copy')) {
+                            OAK.toast('Đã sao chép liên kết.');
+                            return;
+                        }
+                    } catch (error) {
+                        // Disabled by policy. Same answer as a false return.
+                    }
+                }
+                OAK.toast('Không sao chép được, vui lòng chép thủ công.', 'error');
+            },
+
             /** Saved on the change itself: whether a page is public is not a form to submit. */
+            async savePageHidden() {
+                this.pageHiddenSaving = true;
+                this.pageHiddenError = '';
+                try {
+                    await this.patchPortfolio({ hidden: this.pageHidden });
+                } catch (error) {
+                    // Put back what is actually stored, so the box never claims a state the
+                    // server refused.
+                    this.pageHidden = !this.pageHidden;
+                    this.pageHiddenError = error.message;
+                } finally {
+                    this.pageHiddenSaving = false;
+                }
+            },
+
+            /** The other switch, over the page at one salon. Saved the same way and undone the
+                same way, and it reaches nothing the one above it reaches. */
             async saveHidden() {
                 const staffId = this.selected;
                 this.hiddenSaving = true;
@@ -641,8 +949,6 @@ Thông báo
                 try {
                     await this.patch(staffId, { profile_hidden: this.hidden });
                 } catch (error) {
-                    // Put back what is actually stored, so the box never claims a state the
-                    // server refused.
                     this.hidden = !this.hidden;
                     this.hiddenError = error.message;
                 } finally {
@@ -681,26 +987,20 @@ Thông báo
                 return file;
             },
 
-            /* The row this picture is for, pinned before the file is read rather than looked
-               up again once it comes back. Reading and uploading take long enough to switch
-               salons under, and the switcher stays live throughout on purpose — abandoning an
-               upload somebody is waiting on is the worse trade — so a picture that lands after
-               a switch has to go to the salon it was picked for. A row that is gone by then
-               (the retry button re-read the list) is left alone rather than guessed at. */
+            /* A picture belongs to the person, so there is no longer any row for one to arrive
+               at the wrong one of. Reading and uploading still take long enough to switch
+               salons under and the switcher still stays live throughout — but the switcher no
+               longer moves anything either of these writes to, so neither pins anything. */
             async uploadAvatar(event) {
                 const file = this.picked(event);
                 if (!file) {
                     return;
                 }
 
-                const staffId = this.selected;
                 this.uploading = true;
                 try {
                     const upload = await this.upload(file);
-                    if (!this.rowOf(staffId)) {
-                        return;
-                    }
-                    await this.patch(staffId, { image: upload.url });
+                    await this.patchPortfolio({ image: upload.url });
                     OAK.toast('Đã cập nhật ảnh đại diện.');
                 } catch (error) {
                     OAK.toast(error.message, 'error');
@@ -710,29 +1010,26 @@ Thông báo
             },
 
             atPortfolioCap() {
-                const row = this.row();
-                return Boolean(row) && row.portfolio.length >= this.portfolioMax;
+                return Boolean(this.me) && this.me.portfolio.length >= this.portfolioMax;
             },
 
             /* The column is one JSON list, so both of these send the list as it will be
-               afterwards rather than the one picture that moved. */
+               afterwards rather than the one picture that moved. Read after the upload rather
+               than before it: portfolioBusy closes the picker against a second picture, but it
+               says nothing to the avatar control beside it, and a gallery write built from a
+               list read before an upload that an avatar save has since replaced would post a
+               list one edit out of date. */
             async addPhoto(event) {
                 const file = this.picked(event);
                 if (!file) {
                     return;
                 }
 
-                // Pinned the same way, and the list appended to is that row's own.
-                const staffId = this.selected;
                 this.portfolioBusy = true;
                 this.portfolioError = '';
                 try {
                     const upload = await this.upload(file);
-                    const row = this.rowOf(staffId);
-                    if (!row) {
-                        return;
-                    }
-                    await this.patch(staffId, { portfolio: row.portfolio.concat(upload.url) });
+                    await this.patchPortfolio({ portfolio: this.me.portfolio.concat(upload.url) });
                 } catch (error) {
                     this.portfolioError = error.message;
                 } finally {
@@ -741,12 +1038,11 @@ Thông báo
             },
 
             async removePhoto(url) {
-                const staffId = this.selected;
                 this.portfolioBusy = true;
                 this.portfolioError = '';
                 try {
-                    const kept = this.rowOf(staffId).portfolio.filter((item) => item !== url);
-                    await this.patch(staffId, { portfolio: kept });
+                    const kept = this.me.portfolio.filter((item) => item !== url);
+                    await this.patchPortfolio({ portfolio: kept });
                 } catch (error) {
                     this.portfolioError = error.message;
                 } finally {
@@ -817,8 +1113,12 @@ Thông báo
             /* The two attestations. Both answer with the whole updated row, exactly as PATCH
                /profile does, so the swap is the swap patch() makes — but neither goes through
                patch() itself, which is that one endpoint and refuses a key it does not own.
-               staffId is pinned before the await for the reason it is pinned there: the
-               switcher stays live while the request is out. */
+
+               staffId is read once, into a const, before the request goes out. Unlike the two
+               picture writers this replaced, that is load-bearing here and has stayed so: the
+               id is in the URL, the switcher stays live while the request is out, and reading
+               this.selected again on the way back would file a ✓ under whichever salon the
+               technician had moved to while she waited. */
             async answerTenure(action, field) {
                 const staffId = this.selected;
                 this.tenureBusy = true;
