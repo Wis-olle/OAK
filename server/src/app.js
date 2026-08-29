@@ -21,6 +21,7 @@ import searchRoutes from './routes/search.js';
 import serviceRoutes from './routes/services.js';
 import staffMeRoutes from './routes/staff-me.js';
 import staffRoutes from './routes/staff.js';
+import technicianRoutes from './routes/technicians.js';
 import uploadRoutes from './routes/uploads.js';
 import userRoutes from './routes/users.js';
 
@@ -93,6 +94,8 @@ app.use('/api/salons', salonRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/staff-me', staffMeRoutes);
+// One chair on a roster is /api/staff/:id; the person who has sat in several is this one.
+app.use('/api/technicians', technicianRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/reviews', reviewRoutes);

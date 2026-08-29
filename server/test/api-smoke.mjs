@@ -7168,6 +7168,75 @@ async function groupStaffPersona() {
     'PATCH /api/staff-me/profile with nothing to change',
   );
 
+  /* -- a page with no career under it yet is still a page --------------------- */
+
+  /* The shape a technician who has published but has nothing verified behind her gets, and
+     the one the page draws its "Chưa có dữ liệu xác minh trên OAK" from. Reached here by
+     withdrawing this account's only stint, which leaves exactly the payload a technician who
+     has never been invited anywhere will get once registration needs no invite: her own words,
+     an empty career, and four zeroes.
+
+     The zeroes are the point. They are not the page's answer to a reader — the page says the
+     sentence instead — but the endpoint has to send them, because a strip that decided for
+     itself when to omit a figure would be the server making that judgement in a place no
+     reader can see. */
+  const soloProfile = ok(
+    await persona.fetch('/api/staff-me/portfolio', {
+      method: 'PATCH',
+      json: { bio: 'Mới mở trang, chưa có gì để khoe.' },
+    }),
+    'PATCH /api/staff-me/portfolio (the technician with one stint)',
+  );
+  ok(
+    await persona.fetch('/api/staff-me/portfolio/publish', { method: 'POST' }),
+    'POST /api/staff-me/portfolio/publish (the technician with one stint)',
+  );
+  ok(
+    await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id, profile_hidden: true },
+    }),
+    'PATCH /api/staff-me/profile (withdraw the only stint she holds)',
+  );
+  const careerless = ok(
+    await session('guest').fetch(`/api/technicians/${soloProfile.slug}`),
+    'GET /api/technicians/:slug with no stint left to show',
+  );
+  assert(
+    careerless.name === 'KTV Tự Quản Hồ Sơ' && careerless.bio === 'Mới mở trang, chưa có gì để khoe.',
+    'a page with no career under it is still her name and her words',
+    careerless,
+  );
+  assert(
+    Array.isArray(careerless.career) && careerless.career.length === 0,
+    'and an empty career rather than a missing key',
+    careerless,
+  );
+  assert(
+    ['verified_count', 'walkin_count', 'unattested_count', 'legacy_count',
+      'distinct_customers', 'review_count', 'rating_avg']
+      .every((key) => careerless.stats[key] === 0),
+    'every figure is present and every one of them is zero',
+    careerless.stats,
+  );
+  /* And the three keys a stint carries are absent from the strip, because a career has no
+     single one of them: a date taken across several stints is a date no ✓ can be granted to,
+     and the career list below carries every date there is, one per stint, each with its own. */
+  assert(
+    !('started_at' in careerless.stats) &&
+      !('months_active' in careerless.stats) &&
+      !('tenure_verified' in careerless.stats),
+    'a career names no start date of its own, because no mark could ever be put beside one',
+    careerless.stats,
+  );
+  ok(
+    await persona.fetch('/api/staff-me/profile', {
+      method: 'PATCH',
+      json: { staff_id: personaRow.id, profile_hidden: false },
+    }),
+    'PATCH /api/staff-me/profile (put her only stint back)',
+  );
+
   /* -- and the owner's side of the same row ----------------------------------- */
 
   const refusedPhoto = await partner.fetch(`/api/partner/staff/${personaRow.id}`, {
@@ -8796,11 +8865,274 @@ async function groupStaffDeparture() {
     closedOverDispute,
   );
 
+  /* -- the person's own page, at an address that is hers ---------------------- */
+
+  /* Staged here rather than in the persona group because THIS is where a career exists: one
+     technician, three stints, two salons, one of them closed by each side. The person page is
+     the only surface that shows all of it at once, and every rule it has to keep — the gate,
+     the withdrawal, the dedupe — needs more than one stint to be visible at all. */
+
+  const personPage = async (slug) => guest.fetch(`/api/technicians/${slug}`);
+
+  // Nothing is at her address before she writes anything: no row, no draft, no page.
+  const draftPage = ok(
+    await leaver.fetch('/api/staff-me/portfolio'),
+    'GET /api/staff-me/portfolio (the technician with three stints)',
+  );
+  expectError(
+    await personPage(draftPage.slug),
+    404,
+    'NOT_FOUND',
+    'GET /api/technicians/:slug for a draft nobody published',
+  );
+
+  const CAREER_BIO = 'Tôi làm nail từ 2016, đi qua ba salon và vẫn giữ một trang duy nhất.';
+  ok(
+    await leaver.fetch('/api/staff-me/portfolio', {
+      method: 'PATCH',
+      json: {
+        title: 'Nail artist tự do',
+        specialty: 'Vẽ móng, Đắp gel',
+        bio: CAREER_BIO,
+        image: 'assets/img/ktv-ra-di.webp',
+        portfolio: ['assets/img/tac-pham-a.webp'],
+        years_experience: 9,
+      },
+    }),
+    'PATCH /api/staff-me/portfolio (the career page)',
+  );
+  // Written is still not published: the address stays 404 until she presses the button.
+  expectError(
+    await personPage(draftPage.slug),
+    404,
+    'NOT_FOUND',
+    'GET /api/technicians/:slug after writing but before publishing',
+  );
+  const livePage = ok(
+    await leaver.fetch('/api/staff-me/portfolio/publish', { method: 'POST' }),
+    'POST /api/staff-me/portfolio/publish (the career page)',
+  );
+
+  const person = ok(await personPage(livePage.slug), 'GET /api/technicians/:slug');
+  assert(
+    person.slug === livePage.slug && person.name === 'KTV Ra Đi' && person.bio === CAREER_BIO,
+    'the page is her name off the account and the words she wrote',
+    person,
+  );
+  assert(
+    person.title === 'Nail artist tự do' &&
+      person.specialty === 'Vẽ móng, Đắp gel' &&
+      person.years_experience === 9 &&
+      JSON.stringify(person.portfolio) === JSON.stringify(['assets/img/tac-pham-a.webp']),
+    'and every other field she declared about herself',
+    person,
+  );
+  /* Exactly these keys. A person page carries no salon, no roster id and no rating cache —
+     each of those is a fact about ONE chair, and printing one here would be the page claiming
+     a career belongs to a salon. */
+  assert(
+    JSON.stringify(Object.keys(person).sort()) ===
+      JSON.stringify([
+        'bio', 'career', 'image', 'name', 'portfolio', 'slug', 'specialty', 'stats',
+        'title', 'years_experience',
+      ]),
+    'the person block is these ten keys and nothing else',
+    person,
+  );
+  /* The one thing the slug exists to protect. A suffixed slug is unguessable so nobody can
+     walk the accounts; handing back the account id beside it would give that away for free.
+     Regexed over the whole serialized body, career and figures included. */
+  assert(
+    !JSON.stringify(person).includes('user_id'),
+    'a person page never names the account behind it, anywhere in the reply',
+    person,
+  );
+
+  /* The career: every stint she still shows, newest first — the same order and the same shape
+     /api/staff/:id/history sends, because it is the same list from the same place. */
+  assert(
+    person.career.map((stint) => stint.staff_id).join(',') ===
+      [secondRow.id, rehiredRow.id, leaverRow.id].join(','),
+    'the career is every stint she holds, newest first',
+    person.career,
+  );
+  assert(
+    person.career.every(
+      (stint) =>
+        stint.salon?.id !== undefined &&
+        stint.salon?.slug !== undefined &&
+        typeof stint.verified_count === 'number' &&
+        typeof stint.tenure_verified?.started === 'boolean',
+    ),
+    'every line of it names its salon and carries its own numbers and marks',
+    person.career,
+  );
+  assert(
+    person.career.filter((stint) => stint.is_current).map((stint) => stint.staff_id).join(',') ===
+      String(rehiredRow.id),
+    'and exactly the open stint is the one the page may offer to book',
+    person.career,
+  );
+
+  /* -- a customer who followed her between salons is one customer ------------- */
+
+  if (!EXTERNAL_URL) {
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      /* The figure the whole strip is built around, and the one a per-stint sum gets wrong.
+         Summing distinct_customers over the stints would count a customer who moved salons
+         with her once per salon — inflating exactly the number a reader is told to trust, and
+         inflating it most for the technicians who have moved most.
+
+         Only SQL can stage it. A verified visit is one a CUSTOMER booked at a PUBLISHED salon,
+         and the second stint is closed by now, so no route will take a booking on it; the
+         salons are lifted to published for the same reason, and both are put back below. */
+      for (const salonId of [leaverSalon.salon.id, secondSalon.salon.id]) {
+        await directClient.query('UPDATE salons SET published = 1 WHERE id = $1', [salonId]);
+      }
+      for (const [index, [salonId, staffId, serviceId]] of [
+        [leaverSalon.salon.id, rehiredRow.id, service.id],
+        [secondSalon.salon.id, secondRow.id, secondService.id],
+      ].entries()) {
+        await directClient.query(
+          `INSERT INTO bookings
+             (salon_id, service_id, staff_id, user_id, code, date, time, status, source,
+              total_price, customer_name, payment_method, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, '11:00', 'completed', 'customer',
+                   250000, 'Khách Theo Chân', 'at_salon', $7)`,
+          [
+            salonId,
+            serviceId,
+            staffId,
+            state.customerId,
+            `OAK-FOLLOW${stamp}${index}`,
+            addDays(state.today, -3),
+            new Date().toISOString(),
+          ],
+        );
+      }
+
+      const followed = ok(
+        await personPage(livePage.slug),
+        'GET /api/technicians/:slug (one customer, two salons)',
+      );
+      assert(
+        followed.stats.verified_count === person.stats.verified_count + 2,
+        'both visits are counted, one at each salon',
+        followed.stats,
+      );
+      assert(
+        followed.stats.distinct_customers === 1,
+        'and the person behind them is counted once, not once per salon',
+        followed.stats,
+      );
+      // Per stint the same two visits are one apiece, which is what a sum would have added up.
+      const perStint = followed.career
+        .filter((stint) => [rehiredRow.id, secondRow.id].includes(stint.staff_id))
+        .map((stint) => stint.verified_count);
+      assert(
+        perStint.join(',') === '1,1',
+        'the stints below the strip each carry their own one, and the strip is not their sum',
+        followed.career,
+      );
+
+      /* -- and a stint she takes down leaves the career AND the figures --------- */
+
+      /* One withdrawal, two things it has to reach. A page taken off the site that reappeared
+         as a line inside another one would be no withdrawal at all — and a page taken down
+         whose visits went on being counted in the total above it would be the same leak one
+         layer further in, where nobody would look for it. Asserted here, over the two visits
+         just staged, because that is what makes the arithmetic exact: one verified visit sits
+         on the stint being withdrawn, so the total must fall by exactly one. */
+      ok(
+        await leaver.fetch('/api/staff-me/profile', {
+          method: 'PATCH',
+          json: { staff_id: rehiredRow.id, profile_hidden: true },
+        }),
+        'PATCH /api/staff-me/profile (take one stint off the career)',
+      );
+      const withoutStint = ok(
+        await personPage(livePage.slug),
+        'GET /api/technicians/:slug with one stint withdrawn',
+      );
+      assert(
+        !withoutStint.career.some((stint) => stint.staff_id === rehiredRow.id),
+        'a stint whose page is down is not a line on the career either',
+        withoutStint.career,
+      );
+      assert(
+        withoutStint.stats.verified_count === followed.stats.verified_count - 1,
+        'and the work behind it leaves the total with it, rather than outliving the page',
+        { before: followed.stats, after: withoutStint.stats },
+      );
+      /* The customer is still counted once: she is behind the other salon's visit too, and a
+         withdrawal removes work rather than people. Which is the same COUNT(DISTINCT …) read
+         from the other side — a sum over stints could not produce this number either. */
+      assert(
+        withoutStint.stats.distinct_customers === 1,
+        'the customer behind the stint that remains is still counted, and still once',
+        withoutStint.stats,
+      );
+      ok(
+        await leaver.fetch('/api/staff-me/profile', {
+          method: 'PATCH',
+          json: { staff_id: rehiredRow.id, profile_hidden: false },
+        }),
+        'PATCH /api/staff-me/profile (put the stint back on the career)',
+      );
+    } finally {
+      for (const salonId of [leaverSalon.salon.id, secondSalon.salon.id]) {
+        await directClient.query('UPDATE salons SET published = 0 WHERE id = $1', [salonId]);
+      }
+      await directClient.end();
+    }
+  } else {
+    skip('the cross-salon dedupe needs a verified visit no route can write on a closed stint');
+  }
+
+  /* -- and the withdrawal takes the address down with the page ---------------- */
+
+  ok(
+    await leaver.fetch('/api/staff-me/portfolio', { method: 'PATCH', json: { hidden: true } }),
+    'PATCH /api/staff-me/portfolio (take the whole page down)',
+  );
+  expectError(
+    await personPage(livePage.slug),
+    404,
+    'NOT_FOUND',
+    'GET /api/technicians/:slug on a page its holder took down',
+  );
+  ok(
+    await leaver.fetch('/api/staff-me/portfolio', { method: 'PATCH', json: { hidden: false } }),
+    'PATCH /api/staff-me/portfolio (put the whole page back up)',
+  );
+  ok(await personPage(livePage.slug), 'GET /api/technicians/:slug after it went back up');
+
+  /* A slug that names nobody answers in the same words as all four of the above, because a
+     reply that told them apart would put a withdrawn page back up in the negative. */
+  expectError(
+    await personPage(`khong-ai-${stamp}`),
+    404,
+    'NOT_FOUND',
+    'GET /api/technicians/:slug for a slug that names nobody',
+  );
+
   /* -- and an erased account leaves three chairs, not a career ---------------- */
 
   ok(
     await leaver.fetch('/api/users/me', { method: 'DELETE', json: { password: 'Oak@1234' } }),
     'DELETE /api/users/me (the technician with three stints)',
+  );
+  /* The address goes with the person, and goes first: the erasure DELETEs the profile row
+     rather than anonymising it, so the slug is freed and the page it addressed is gone. The
+     three chairs below survive as the salons' own records; the career over them does not,
+     because there is no longer anybody whose career it was. */
+  expectError(
+    await personPage(livePage.slug),
+    404,
+    'NOT_FOUND',
+    'GET /api/technicians/:slug after the account was erased',
   );
   for (const staffId of [rehiredRow.id, leaverRow.id, secondRow.id]) {
     const alone = ok(

@@ -45,6 +45,9 @@ const reviewsSource = source('routes', 'reviews.js');
 const notifySource = source('lib', 'notify.js');
 const staffProfileSource = source('lib', 'staff-profile.js');
 const staffStatsSource = source('lib', 'staff-stats.js');
+const staffCareerSource = source('lib', 'staff-career.js');
+const techniciansSource = source('routes', 'technicians.js');
+const appSource = source('app.js');
 
 /** The handler of one route, up to whatever comes after it. */
 function handler(text, from, to) {
@@ -96,8 +99,11 @@ function calls(text, name) {
 const STAFF_READERS = [
   ['db.js', dbSource],
   ['lib/notify.js', notifySource],
+  ['lib/staff-career.js', staffCareerSource],
   ['lib/staff-departure.js', departureSource],
+  ['lib/staff-stats.js', staffStatsSource],
   ['routes/staff.js', staffSource],
+  ['routes/technicians.js', techniciansSource],
   ['routes/staff-me.js', staffMeSource],
   ['routes/salons.js', salonsSource],
   ['routes/services.js', servicesSource],
@@ -1352,8 +1358,25 @@ test('the verified numbers cannot be reached from the self-declared table', () =
     'lib/staff-profile.js',
     'routes/staff-me.js',
     'routes/staff.js',
+    // The person's own page: it reads the table for the half she wrote, and the figures beside
+    // that half come out of userStats below, which cannot see the table at all.
+    'routes/technicians.js',
     'routes/users.js',
   ]);
+
+  /* Which is the same invariant asked of the cross-stint figures, and asked by name because
+     they are the ones the person page prints directly under her own sentences. userStats reads
+     bookings, reviews and staff — what customers did and what salons recorded — and the
+     assertion at the top of this test covers it by covering the whole file. Pinned here so a
+     later slice cannot quietly move it somewhere the sweep does not look. */
+  assert.match(staffStatsSource, /export async function userStats\(userId\) \{/);
+  const user = declaration(staffStatsSource, 'export async function userStats(');
+  assert.doesNotMatch(user, /staff_profiles|selectPublishedProfile/);
+  for (const statement of ['selectUserTiers', 'selectUserReviewStats']) {
+    const sql = handler(staffStatsSource, `const ${statement} = db.prepare(`, '`);');
+    assert.doesNotMatch(sql, /staff_profiles/, statement);
+    assert.match(sql, /FROM (?:bookings|reviews)/, statement);
+  }
 
   /* And the other direction: no self-declared field name appears in what staffStats hands
      back. A figure and a claim travelling in one object is how a page ends up rendering the
@@ -1531,13 +1554,23 @@ test('a hidden profile is always a CLAIMED hidden profile, never a bare flag', (
   for (const [name, text] of STAFF_READERS) {
     assert.doesNotMatch(text, /profile_hidden\s*(?:=|<>|!=)\s*1/, name);
   }
-  // Both halves of the predicate, spelled the same way in both places that carry it. COALESCE
-  // because the column was added to a table that already had rows: an unwritten value is 0,
-  // not a reason to disappear.
+  /* Both halves of the predicate, and now written ONCE for the three files that ask it — the
+     stint page, the career list and the cross-stint figures. COALESCE because the column was
+     added to a table that already had rows: an unwritten value is 0, not a reason to
+     disappear. Exported rather than copied, because a withdrawal spelled two ways is a
+     withdrawal that holds on one surface and not on the next. */
   assert.match(
-    staffSource,
-    /const VISIBLE_PROFILE =\s*'\(st\.user_id IS NULL OR COALESCE\(st\.profile_hidden, 0\) = 0\)';/,
+    staffStatsSource,
+    /export const VISIBLE_PROFILE =\s*'\(st\.user_id IS NULL OR COALESCE\(st\.profile_hidden, 0\) = 0\)';/,
   );
+  assert.equal((staffStatsSource.match(/st\.profile_hidden/g) || []).length, 1);
+  for (const [name, text] of [
+    ['routes/staff.js', staffSource],
+    ['lib/staff-career.js', staffCareerSource],
+  ]) {
+    assert.match(text, /VISIBLE_PROFILE.*from '\.\.?\/(?:lib\/)?staff-stats\.js'/, name);
+    assert.doesNotMatch(text, /const VISIBLE_PROFILE =/, name);
+  }
   assert.match(salonsSource, /AND \(user_id IS NULL OR COALESCE\(profile_hidden, 0\) = 0\)/);
 
   // Added like any other column, once, unconditionally, and no sweep writes it: hiding a
@@ -3070,18 +3103,26 @@ test('the CV is every stint of one person, and the withdrawal reaches it', () =>
   // Hidden is 404 in the same words the profile itself answers with, and a hidden stint is
   // left out of everybody else's list rather than reappearing inside one.
   assert.match(history, /'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này\.'/);
-  assert.match(staffSource, /WHERE st\.user_id = \? AND \$\{VISIBLE_PROFILE\}\s*ORDER BY st\.id DESC/);
+  /* Keyed by the person and not by the row in the path, and living in lib/ because the
+     person's OWN page asks the same question of the same list. Two spellings of a career is
+     how a stint page and the career page it links to would come to disagree about a working
+     life. */
+  assert.match(
+    staffCareerSource,
+    /WHERE st\.user_id = \? AND \$\{VISIBLE_PROFILE\}\s*ORDER BY st\.id DESC/,
+  );
+  assert.doesNotMatch(staffSource, /SELECT[\s\S]*WHERE st\.user_id = \?/);
 
   /* A row nobody stands behind is a chair, not a person, so there is nothing tying it to any
      other row — which is also what an erased account leaves behind, since the release clears
      user_id off every row it held. */
   assert.match(
     history,
-    /const stints = row\.user_id === null \? \[row\] : await selectStaffStints\.all\(row\.user_id\);/,
+    /const data = row\.user_id === null \? \[await stintShape\(row\)\] : await careerOf\(row\.user_id\);/,
   );
 
   // Both halves of "still here": no leaving date, and still on the roster.
-  const shape = declaration(staffSource, 'async function stintShape(');
+  const shape = declaration(staffCareerSource, 'export async function stintShape(');
   assert.match(shape, /is_current: row\.left_at === null && row\.active === 1,/);
   // Per stint, through the one block both the public profile and the technician's own page
   // are served from, rather than a second count written for this endpoint.
@@ -3092,7 +3133,7 @@ test('the CV is every stint of one person, and the withdrawal reaches it', () =>
 
 // ------------------------------------------------- the CV, on the page a customer reads
 
-/* One stint the way GET /api/staff/:id/history sends one — stintShape() in routes/staff.js.
+/* One stint the way GET /api/staff/:id/history sends one — stintShape() in lib/staff-career.js.
    tenure_verified is its own nested object precisely so nothing on the page has to work the
    badge out from the two columns underneath it. */
 const STINT = {
@@ -3233,8 +3274,8 @@ test('the CV says the dispute once over the stint, and never about a date she wr
   }
   assert.equal((cv.match(/>chưa xác thực<\/span>/g) || []).length, 2);
 
-  // left_by rides in on the payload the page is drawn from — stintShape() in routes/staff.js.
-  assert.match(declaration(staffSource, 'async function stintShape('), /left_by: row\.left_by,/);
+  // left_by rides in on the payload the page is drawn from — stintShape() in lib/staff-career.js.
+  assert.match(declaration(staffCareerSource, 'export async function stintShape('), /left_by: row\.left_by,/);
 });
 
 test('each date row on the CV is gated on its own date being there', () => {
@@ -4644,7 +4685,15 @@ const serviceHtml = ui('chi-tiet-dich-vu.html');
  * recorded, because the other half of the contract is that the page does not go back for
  * more hours it cannot sell.
  */
-function formerPage({ history = [], onRoster = true, fails = {}, query = { id: '7' } } = {}) {
+function formerPage({
+  history = [],
+  onRoster = true,
+  fails = {},
+  query = { id: '7' },
+  // The person page's whole payload, or null for a slug the server answers 404 to. Only
+  // reached through ?u=, which is the only address that read is behind.
+  person = null,
+} = {}) {
   const tail = profileHtml.slice(profileHtml.indexOf('function oakTodayISO('));
   const calls = [];
   const gone = () => {
@@ -4680,6 +4729,12 @@ function formerPage({ history = [], onRoster = true, fails = {}, query = { id: '
       toast: () => {},
       api: async (url) => {
         calls.push(url);
+        if (url.startsWith('/api/technicians/')) {
+          if (!person) {
+            throw gone();
+          }
+          return person;
+        }
         if (url.includes('/availability')) {
           return answer('availability', {
             week: [{ date: '2026-08-29', slots: [{ time: '09:00', available: true }] }],
@@ -4875,7 +4930,7 @@ test('departure is read off the CV, and never off a request that failed', async 
   /* is_current is the server's own answer to the same question — left_at IS NULL AND
      active = 1 — so the page never works it out from two columns of its own. */
   assert.match(
-    declaration(staffSource, 'async function stintShape('),
+    declaration(staffCareerSource, 'export async function stintShape('),
     /is_current: row\.left_at === null && row\.active === 1,/,
   );
   // And GET /api/staff/:id carries no roster flag at all, which is why the CV is the signal.
@@ -4893,10 +4948,14 @@ test('what a departure takes off the page is the booking, and nothing else', () 
   // "Chưa có lịch trống" is a week that happens to be full, which this is not.
   assert.match(profileHtml, /x-show="!departed\(\)">Chưa có lịch trống trong tuần này\.<\/p>/);
 
-  // Both booking buttons go; "Xem đánh giá" stays, because the reviews are still there.
-  assert.match(profileHtml, /<template x-if="!departed\(\)">\s*<a :href="bookingUrl\(\)" style="display:contents/);
-  assert.match(profileHtml, /<template x-if="!departed\(\)">\s*<div class="fixed bottom-0[^"]*" data-oak-sticky-cta>/);
-  const cta = handler(profileHtml, '<div class="mt-8 flex gap-4">', '</div>');
+  /* Both booking buttons go; "Xem đánh giá" stays, because the reviews are still there. The
+     `!person &&` in front of each gate is the person page taking the same two away for its
+     own reason — it has no chair to book and no reviews section to jump to — and neither
+     half may swallow the other: a departed technician on her stint page loses the button
+     whatever mode says, and a person page has none to lose. */
+  assert.match(profileHtml, /<template x-if="!person &amp;&amp; !departed\(\)">\s*<a :href="bookingUrl\(\)" style="display:contents/);
+  assert.match(profileHtml, /<template x-if="!person &amp;&amp; !departed\(\)">\s*<div class="fixed bottom-0[^"]*" data-oak-sticky-cta>/);
+  const cta = handler(profileHtml, '<div class="mt-8 flex flex-wrap gap-4">', '</div>');
   assert.equal((cta.match(/departed\(\)/g) || []).length, 1, 'the reviews button was gated too');
   assert.match(cta, /<a href="#danh-gia"/);
 
@@ -4963,44 +5022,211 @@ const REDUCED_CARD = {
   image: null, rating: null, years_experience: null,
 };
 
-test('an address this page cannot read yet is nobody, and never somebody else', async () => {
+// ------------------------------------------------------ the person page, at her own address
+
+/* The reply GET /api/technicians/:slug sends: six fields she wrote, her name off the account,
+   the career she did not write, and the figures counted across it. No salon, no row id, and —
+   the property the route exists to hold — nothing anywhere that names the account. */
+const PERSON = {
+  slug: 'nguyen-mai-chi-8f2a',
+  name: 'Nguyễn Mai Chi',
+  title: 'Nail artist tự do',
+  specialty: 'Vẽ móng, Đắp gel',
+  bio: 'Mười năm nghề.',
+  image: 'toi.webp',
+  portfolio: ['mot.webp', 'hai.webp'],
+  years_experience: 10,
+  career: [{ ...STINT, staff_id: 7 }],
+  stats: {
+    verified_count: 3, walkin_count: 2, unattested_count: 1, legacy_count: 4,
+    distinct_customers: 3, review_count: 5, rating_avg: 4.8,
+  },
+};
+const NOTHING_VERIFIED = {
+  verified_count: 0, walkin_count: 0, unattested_count: 0, legacy_count: 0,
+  distinct_customers: 0, review_count: 0, rating_avg: 0,
+};
+
+test('the address decides which page this is, and the two never fall through to each other', async () => {
   /* ho-so-nhan-vien.html hands a technician `ho-so-chuyen-gia.html?u=<slug>` the moment she
-     publishes, and the read behind that parameter is the next slice. Until it lands, the
-     fallback underneath is the thing the address must never reach: with no ?id= this page
-     resolves to the flagship salon's FIRST technician, so a link she pasted into Zalo would
-     open a stranger's bio, a stranger's gallery and a booking button, under her name and at
-     her address. An empty panel is a page that is not ready; that is a page telling her
-     readers she is somebody else. */
-  const named = formerPage({ query: { u: 'nguyen-mai-chi-8f2a' } });
-  await assert.rejects(() => named.resolveId(), (error) => {
-    // The same code a bad id already gets, so it lands on the "no such specialist" panel
-    // rather than on the "something went wrong, try again" one.
-    assert.equal(error.code, 'NOT_FOUND');
-    return true;
-  });
-  assert.deepEqual(named.calls, [], 'the slug reached the flagship lookup');
+     publishes. The branch is taken in init() BEFORE resolveId() is reached, and that ordering
+     is the whole of the guarantee: the fallback underneath resolveId() picks the flagship
+     salon's FIRST technician when no id was named, so a slug that ever reached it would open
+     a stranger's bio, gallery and booking button under her name and at her address. */
+  const mine = formerPage({ query: { u: PERSON.slug }, person: PERSON });
+  await mine.init();
+  assert.equal(mine.person, true);
+  assert.deepEqual(mine.calls, ['/api/technicians/nguyen-mai-chi-8f2a']);
+  assert.equal(mine.staff.name, 'Nguyễn Mai Chi');
+  assert.deepEqual(mine.history, PERSON.career, 'the career is what the CV section renders');
 
-  /* And a bare visit with no parameter at all keeps the fallback exactly as it was: nobody was
-     named, so nobody can be got wrong, and this page has never been empty on purpose. */
+  /* A slug that names nobody — never published, taken down, erased, or never a person at all —
+     lands on the same "no such specialist" panel a bad id does, with no retry offered: the
+     server said not found, and asking again cannot change that. */
+  const missing = formerPage({ query: { u: 'khong-ai-0000' }, person: null });
+  await missing.init();
+  assert.equal(missing.staff, null);
+  assert.equal(missing.loadError, '');
+  assert.equal(missing.loading, false);
+  assert.deepEqual(missing.calls, ['/api/technicians/khong-ai-0000'], 'the slug fell through');
+
+  // A bare visit with no parameter at all keeps the fallback: nobody was named, so nobody can
+  // be got wrong, and this page has never been empty on purpose.
   const bare = formerPage({ query: {} });
-  assert.equal(await bare.resolveId(), 7);
-  assert.deepEqual(bare.calls, ['/api/salons?flagship=1&limit=1', '/api/salons/4/staff']);
+  await bare.init();
+  assert.equal(bare.person, false);
+  assert.equal(bare.calls[0], '/api/salons?flagship=1&limit=1');
 
-  // An ?id= still wins outright and asks nothing of the roster.
-  const byId = formerPage({ query: { id: '7', u: 'nguyen-mai-chi-8f2a' } });
-  assert.equal(await byId.resolveId(), '7');
-  assert.deepEqual(byId.calls, []);
+  // ?id= is still a stint page, and asks the person route nothing.
+  const byId = formerPage({ query: { id: '7' }, history: [{ ...STINT, staff_id: 7 }] });
+  await byId.init();
+  assert.equal(byId.person, false);
+  assert.equal(byId.staff.salon.name, 'Lala Nail Studio');
+  assert.ok(byId.calls.every((url) => !url.startsWith('/api/technicians')));
 
-  /* The guard refuses and does nothing else: this slice does not add the read, so nothing on
-     the page may fetch by slug or branch on a person yet. */
-  const resolve = handler(profileHtml, 'async resolveId() {', '\n            },');
-  assert.match(resolve, /if \(OAK\.qs\('u'\)\) \{/);
-  assert.ok(
-    resolve.indexOf("OAK.qs('u')") < resolve.indexOf('/api/salons?flagship=1'),
-    'the slug is refused only after the fallback it exists to avoid has already run',
+  /* One read and not five. The availability, reviews and services endpoints beside the stint
+     one are all keyed by a roster row, and a person page has none — asking them for a slug
+     would 404 four times per visit. */
+  assert.equal(mine.calls.length, 1);
+});
+
+test('a career with nothing verified behind it says so, rather than falling silent', async () => {
+  /* The trust signal IS the empty section. A person page with no salon line, no week grid and
+     no reviews has nothing else on it a reader could weigh, so a career strip that simply did
+     not render would leave them to fill the silence in themselves. It is said in one sentence
+     — and never as a row of zeroes, which reads as a verdict on somebody nobody has booked
+     yet rather than as an absence of evidence. */
+  const fresh = formerPage({
+    query: { u: PERSON.slug },
+    person: { ...PERSON, career: [], stats: NOTHING_VERIFIED },
+  });
+  await fresh.init();
+  assert.equal(fresh.showStats(), false);
+  assert.equal(fresh.history.length, 0, 'no stint to show, and the CV section hides itself');
+  assert.match(
+    profileHtml,
+    /<template x-if="person &amp;&amp; !showStats\(\)">\s*<p [^>]*>Chưa có dữ liệu xác minh trên OAK<\/p>/,
   );
-  assert.doesNotMatch(profileHtml, /api\/technicians/);
-  assert.equal((profileHtml.match(/OAK\.qs\('u'\)/g) || []).length, 1, 'the slug is read twice');
+
+  // One completed visit anywhere in the career and the strip comes back whole, zeroes and all.
+  const working = formerPage({
+    query: { u: PERSON.slug },
+    person: { ...PERSON, career: [], stats: { ...NOTHING_VERIFIED, walkin_count: 1 } },
+  });
+  await working.init();
+  assert.equal(working.showStats(), true);
+  assert.equal(working.completedTotal(), 1);
+
+  /* And the career-wide figures carry no start date, so the strip's "tại salon từ …" is off a
+     person page by arithmetic rather than by a second gate: userStats sends no started_at,
+     because a date taken across several stints is a date no ✓ can be granted to. */
+  const dated = formerPage({ query: { u: PERSON.slug }, person: PERSON });
+  await dated.init();
+  assert.equal(dated.sinceLabel(), '');
+  assert.doesNotMatch(staffStatsSource, /started_at[\s\S]{0,80}selectUserTiers/);
+});
+
+test('a person is never bookable, and every button on her page names a salon', async () => {
+  const TWO = { ...STINT, staff_id: 9, salon: { id: 6, slug: 'ha-noi', name: 'Hà Nội Spa' } };
+  const CLOSED = { ...STINT, staff_id: 4, is_current: false };
+
+  /* Nowhere to send anybody: somebody between salons has no hour anybody can sell, and the
+     page says nothing rather than offering a chair she has left. */
+  const between = formerPage({
+    query: { u: PERSON.slug },
+    person: { ...PERSON, career: [CLOSED] },
+  });
+  await between.init();
+  assert.equal(between.currentStints().length, 0);
+
+  // One open stint, one button, addressed to the salon that actually sells the hour.
+  const one = formerPage({ query: { u: PERSON.slug }, person: PERSON });
+  await one.init();
+  assert.equal(one.currentStints().length, 1);
+  assert.equal(
+    one.personBookingUrl(one.currentStints()[0]),
+    'dat-lich.html?salon_id=4&staff_id=7',
+  );
+
+  /* Two open stints, two buttons: a reader chooses where, rather than being sent to whichever
+     the page happened to list first. Closed stints stay out of both. */
+  const many = formerPage({
+    query: { u: PERSON.slug },
+    person: { ...PERSON, career: [TWO, { ...STINT, staff_id: 7 }, CLOSED] },
+  });
+  await many.init();
+  assert.deepEqual(many.currentStints().map((stint) => stint.staff_id), [9, 7]);
+  assert.equal(many.personBookingUrl(TWO), 'dat-lich.html?salon_id=6&staff_id=9');
+
+  // In stint mode the list is empty, so the page's own booking button is the only one drawn.
+  const stint = formerPage({ query: { id: '7' }, history: [{ ...STINT, staff_id: 7 }] });
+  await stint.init();
+  assert.equal(stint.currentStints().length, 0);
+
+  /* No service and no hour on these links, unlike bookingUrl(): this page has neither a week
+     grid nor service chips to have picked either from, and a time carried without a service
+     is one the wizard drops the moment a shorter service is chosen. */
+  const link = handler(profileHtml, 'personBookingUrl(stint) {', '\n            },');
+  assert.doesNotMatch(link, /service_id|time|date/);
+
+  /* The list the buttons are built from is the list the CV renders, and not a second key in
+     the payload: a stint whose page she has taken down is absent from the career the server
+     sent, and must therefore be unbookable from here too. */
+  const current = handler(profileHtml, 'currentStints() {', '\n            },');
+  assert.match(current, /this\.history\.filter\(\(stint\) => stint\.is_current\)/);
+});
+
+test('a person page shows her words, and hands the salon-shaped sections back', () => {
+  /* Every self-declared field carries the hedge, and carries it unconditionally where it is
+     drawn: the label rides inside a template gated on the MODE, never on an x-show that could
+     switch a hedge off over words that are still hers. */
+  assert.match(
+    profileHtml,
+    /x-show="staff\.title"><span x-text="staff\.title"><\/span><template x-if="person"><span> \(tự khai\)<\/span><\/template>/,
+  );
+  assert.match(profileHtml, /<template x-if="person &amp;&amp; specialties\(\)\.length">/);
+  assert.match(profileHtml, /Phần giới thiệu và tác phẩm do kỹ thuật viên tự đăng\./);
+  // The years hedge was already unconditional and stays that way, in both modes.
+  assert.doesNotMatch(profileHtml, /x-show="[^"]*"> \(tự khai\)</);
+
+  /* The week grid and the reviews go together and go whole. A week is one chair's hours at one
+     salon and there is no chair here; a review was written about a visit at a PARTICULAR
+     salon, and pooling a career's worth of them under one heading would strip every one of
+     them of the place it was earned. They stay on the stint pages the career links to. */
+  const booking = handler(profileHtml, '<!-- Booking & Schedule Section', '</template>');
+  assert.match(booking, /<template x-if="!person">\s*<section class="mt-section-gap grid/);
+  assert.ok(
+    profileHtml.indexOf('<template x-if="!person">\n<section class="mt-section-gap grid')
+      < profileHtml.indexOf('id="danh-gia"'),
+    'the reviews column is inside the section the person page drops',
+  );
+
+  /* And the salon line is gated on the KEY rather than on the mode — x-if, not x-show, because
+     x-show still evaluates staff.salon.slug in the children and a person page has no salon. */
+  assert.match(profileHtml, /<template x-if="staff\.salon">\s*<p class="flex items-center gap-2/);
+
+  // The CV and its legend are common ground: both modes draw them, from the same markup.
+  const cv = handler(profileHtml, '>Quá trình làm việc</h2>', '</section>');
+  assert.doesNotMatch(cv, /person/);
+});
+
+test('a stint page names the career behind the chair, and only where there is one', () => {
+  /* GET /api/staff/:id omits `technician` entirely for an unclaimed chair, an unpublished
+     draft and a withdrawn page, so the link cannot be drawn over any of the three. x-if and
+     not x-show for the same reason the salon line is: x-show would evaluate .slug on the
+     absent key. */
+  assert.match(
+    profileHtml,
+    /<template x-if="staff\.technician">[\s\S]{0,200}'ho-so-chuyen-gia\.html\?u=' \+ encodeURIComponent\(staff\.technician\.slug\)[^>]*>Xem hồ sơ nghề nghiệp →<\/a>/,
+  );
+  assert.equal((profileHtml.match(/staff\.technician/g) || []).length, 2);
+
+  /* The editor hands her the same address, so the link she pastes into Zalo and the link a
+     customer follows off a stint page are one page. */
+  assert.match(
+    profileMeHtml,
+    /location\.origin \+ '\/ho-so-chuyen-gia\.html\?u='\s*\+ encodeURIComponent\(this\.me\.slug\)/,
+  );
 });
 
 test('the picker says which chair has an OAK account behind it', () => {

@@ -15,6 +15,19 @@ import { todayISO } from './time.js';
 
 const MONTHS_PER_YEAR = 12;
 
+/* The technician's withdrawal, in the one clause every page-shaped read of a roster row is
+   gated on. COALESCE because the column was added to a table that already had rows, so an
+   unwritten one is 0 rather than a reason to disappear; user_id IS NULL because a row nobody
+   stands behind has nobody to have withdrawn it — the predicate is "claimed AND hidden"
+   everywhere it appears, and a bare hidden test would let a stray column value take a salon's
+   own roster entry off the site.
+
+   It lives here rather than in routes/staff.js because three files now ask it: the stint page
+   and its review list, the career list in lib/staff-career.js, and the cross-stint figures
+   below. A withdrawal spelled two ways is a withdrawal that holds on one surface and not on
+   the next, which is the one failure this feature cannot have. */
+export const VISIBLE_PROFILE = '(st.user_id IS NULL OR COALESCE(st.profile_hidden, 0) = 0)';
+
 /*
  * Every completed booking on a roster row falls into exactly one tier, decided by a strict
  * precedence chain rather than by four independent tests. The plain readings overlap — a
@@ -49,26 +62,60 @@ const MONTHS_PER_YEAR = 12;
  * profile showing a customer arithmetic that does not close. A missing salon is not a
  * published one, so it lands in unattested, which is the safe side of the question.
  */
-const selectStaffTiers = db.prepare(`
-  WITH tiered AS (
-    SELECT b.user_id,
-           CASE
-             WHEN b.auto_closed = 1 THEN 'unattested'
-             WHEN b.source = 'customer' AND s.published = 1 THEN 'verified'
-             WHEN b.source = 'customer' THEN 'unattested'
-             WHEN b.source = 'partner' THEN 'walkin'
-             ELSE 'legacy'
-           END AS tier
-    FROM bookings b
-    LEFT JOIN salons s ON s.id = b.salon_id
-    WHERE b.staff_id = ? AND b.status = 'completed'
-  )
+const TIER_CASE = `
+    CASE
+      WHEN b.auto_closed = 1 THEN 'unattested'
+      WHEN b.source = 'customer' AND s.published = 1 THEN 'verified'
+      WHEN b.source = 'customer' THEN 'unattested'
+      WHEN b.source = 'partner' THEN 'walkin'
+      ELSE 'legacy'
+    END AS tier`;
+
+/* The four counts the partition yields, written once because two readers now ask for them:
+   one roster row, and one person across every row she still shows. A second spelling is how
+   a career page and the stint pages inside it would come to disagree about the same work. */
+const TIER_COUNTS = `
   SELECT COUNT(*) FILTER (WHERE tier = 'verified') AS verified_count,
          COUNT(*) FILTER (WHERE tier = 'walkin') AS walkin_count,
          COUNT(*) FILTER (WHERE tier = 'unattested') AS unattested_count,
          COUNT(*) FILTER (WHERE tier = 'legacy') AS legacy_count,
          COUNT(DISTINCT user_id) FILTER (WHERE tier = 'verified') AS distinct_customers
-  FROM tiered
+  FROM tiered`;
+
+const selectStaffTiers = db.prepare(`
+  WITH tiered AS (
+    SELECT b.user_id, ${TIER_CASE}
+    FROM bookings b
+    LEFT JOIN salons s ON s.id = b.salon_id
+    WHERE b.staff_id = ? AND b.status = 'completed'
+  )
+  ${TIER_COUNTS}
+`);
+
+/*
+ * The same partition asked about a PERSON: every completed booking on every roster row she
+ * still shows, in one query rather than a sum over the stints.
+ *
+ * One query and not a fold, for distinct_customers. A customer who followed a technician from
+ * one salon to the next is one customer, and adding the per-row figures up would count her
+ * twice — inflating exactly the number the career page tells a reader to trust, and inflating
+ * it most for the technicians who have moved most. COUNT(DISTINCT b.user_id) over the whole
+ * career is the only place that question can be answered.
+ *
+ * Restricted to the stints the career list SHOWS, by the same VISIBLE_PROFILE the list is
+ * gated on: a stint whose page the technician has taken down must not walk back onto the site
+ * inside an aggregate. The join is the restriction — a row that fails it contributes no
+ * bookings at all — so the counts and the list can never describe different sets of work.
+ */
+const selectUserTiers = db.prepare(`
+  WITH tiered AS (
+    SELECT b.user_id, ${TIER_CASE}
+    FROM bookings b
+    JOIN staff st ON st.id = b.staff_id
+    LEFT JOIN salons s ON s.id = b.salon_id
+    WHERE st.user_id = ? AND ${VISIBLE_PROFILE} AND b.status = 'completed'
+  )
+  ${TIER_COUNTS}
 `);
 
 /* Computed live, and deliberately the same expression staff.rating caches, so an endpoint
@@ -78,6 +125,16 @@ const selectStaffTiers = db.prepare(`
 const selectStaffReviewStats = db.prepare(`
   SELECT COUNT(*) AS review_count, COALESCE(ROUND(AVG(rating), 1), 0) AS rating_avg
   FROM reviews WHERE staff_id = ?
+`);
+
+/* Every review of every stint the person still shows, averaged once over all of them rather
+   than averaged per stint and averaged again — a mean of means weights a two-review stint the
+   same as a two-hundred-review one. Gated on the same withdrawal as the counts above it. */
+const selectUserReviewStats = db.prepare(`
+  SELECT COUNT(*) AS review_count, COALESCE(ROUND(AVG(r.rating), 1), 0) AS rating_avg
+  FROM reviews r
+  JOIN staff st ON st.id = r.staff_id
+  WHERE st.user_id = ? AND ${VISIBLE_PROFILE}
 `);
 
 /* The write side of that same average, kept in this file so the cache and the live figure
@@ -172,5 +229,33 @@ export async function staffStats(staffId) {
     // Served from the same read the date came out of, so a page never has to ask a second
     // endpoint whether the date it is showing is attested to.
     tenure_verified: tenureVerified(tenure),
+  };
+}
+
+/**
+ * The same figures asked about one person rather than one chair: what a career adds up to.
+ *
+ * Deliberately shorter than staffStats by three keys, and none of the three is an oversight.
+ * started_at, months_active and tenure_verified are statements about a STINT — a date a salon
+ * entered and the technician confirmed, or the first completed visit on one row — and a career
+ * has no single one of any of them. The earliest date across a person's stints would be a
+ * number with no ✓ available to it: tenureVerified answers about a row, and there is no way to
+ * put a mark on a minimum taken over several. The career list underneath the strip carries
+ * every date there is, one per stint, each with its own mark. Naming a career-wide "since"
+ * beside them would be the page's one unmarked date, which is the one thing this feature is
+ * built not to print.
+ */
+export async function userStats(userId) {
+  const tiers = await selectUserTiers.get(userId);
+  const reviews = await selectUserReviewStats.get(userId);
+
+  return {
+    verified_count: tiers.verified_count,
+    walkin_count: tiers.walkin_count,
+    unattested_count: tiers.unattested_count,
+    legacy_count: tiers.legacy_count,
+    distinct_customers: tiers.distinct_customers,
+    review_count: reviews.review_count,
+    rating_avg: reviews.rating_avg,
   };
 }

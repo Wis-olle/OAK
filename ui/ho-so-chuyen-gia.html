@@ -88,7 +88,12 @@
 <section class="grid grid-cols-1 md:grid-cols-12 gap-gutter mt-12 items-center">
 <div class="md:col-span-5 order-2 md:order-1 flex flex-col gap-6">
 <div class="flex items-center gap-2">
-<span class="inline-block px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant font-caption text-caption rounded-full" x-text="staff.title"></span>
+<!-- On a stint page the title is the SALON's word for the job, typed into the console by an
+     owner. On a person page it is hers, so it carries the same hedge the years do — through
+     a template rather than an x-show, because a hedge that can be switched off is the one
+     thing the rule under it forbids: where the words are self-declared the label is not
+     conditional on anything, it is part of the chip. -->
+<span class="inline-block px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant font-caption text-caption rounded-full" x-show="staff.title"><span x-text="staff.title"></span><template x-if="person"><span> (tự khai)</span></template></span>
 <!-- The years are a number the technician typed about themselves, in every case, and the
      label says so wherever the number appears. It used to be conditional — added only where
      a start date was there to outrank it — and that had it backwards: the profile with the
@@ -106,7 +111,10 @@
 </button>
 </div>
 <!-- staff.salon arrived with the payload all along and only fed the booking link; a reader
-     could not tell where this person works. -->
+     could not tell where this person works. A person page carries no salon at all — she is
+     not one salon's — so the line is gated on the key being there rather than on the mode:
+     x-if and not x-show, because x-show still evaluates staff.salon.slug in the children. -->
+<template x-if="staff.salon">
 <p class="flex items-center gap-2 font-body-md text-body-md text-on-surface-variant">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">storefront</span>
 <!-- The present tense belongs to an open stint. This page outlives the job, and the salon
@@ -115,6 +123,15 @@
 <span x-show="departed()">Từng làm việc tại</span>
 <a :href="'salon-profile.html?salon=' + encodeURIComponent(staff.salon.slug)" class="text-primary hover:underline" x-text="staff.salon.name"></a>
 </p>
+</template>
+<!-- The way from the chair to the career. Served only where there is a published page to go
+     to (GET /api/staff/:id omits the key entirely otherwise), so the link cannot appear over
+     a page nobody agreed to publish or one she has since taken down. -->
+<template x-if="staff.technician">
+<p class="font-body-md text-body-md">
+<a :href="'ho-so-chuyen-gia.html?u=' + encodeURIComponent(staff.technician.slug)" class="text-primary hover:underline">Xem hồ sơ nghề nghiệp →</a>
+</p>
+</template>
 <!-- What this person has actually done here, as the server counted it: the completed total,
      the people behind it, the live review average, and how long the roster row has stood.
      The quieter line under it says how much of that total two independent parties attested
@@ -163,19 +180,47 @@
 </p>
 </div>
 </template>
+<!-- The other half of the same rule, and the half that matters most: a career page with
+     nothing verified behind it says so, in a sentence, rather than falling silent. The
+     silence is what a reader would fill in for themselves — and on a stint page they can at
+     least see a salon and a week's hours, while here there is nothing else to go on. Only in
+     person mode: a chair with no numbers yet is a chair, and the stint page has said nothing
+     about them since the day it was written. -->
+<template x-if="person &amp;&amp; !showStats()">
+<p class="font-body-md text-body-md text-on-surface-variant">Chưa có dữ liệu xác minh trên OAK</p>
+</template>
 <p class="font-body-lg text-body-lg text-on-surface-variant max-w-lg" x-text="staff.bio"></p>
+<!-- Everything above and the gallery below it is what she wrote about herself. Said once,
+     plainly, rather than hung as a chip on each of five fields. -->
+<template x-if="person">
+<p class="font-caption text-caption text-on-surface-variant">Phần giới thiệu và tác phẩm do kỹ thuật viên tự đăng.</p>
+</template>
 <div class="flex flex-wrap gap-3 mt-4">
 <template :key="tag" x-for="tag in specialties()">
 <div class="px-4 py-2 bg-surface-container-low text-on-surface border border-outline-variant/30 rounded-full font-label-md text-label-md" x-text="tag"></div>
 </template>
+<template x-if="person &amp;&amp; specialties().length">
+<span class="self-center font-caption text-caption text-on-surface-variant">(tự khai)</span>
+</template>
 </div>
-<div class="mt-8 flex gap-4">
+<div class="mt-8 flex flex-wrap gap-4">
 <!-- The booking button goes with the job; the reviews stay. They are what this page is
      still for once the stint has ended, and they are still worth reading. -->
-<template x-if="!departed()">
+<template x-if="!person &amp;&amp; !departed()">
 <a :href="bookingUrl()" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary hover:bg-primary transition-colors px-8 py-3 rounded-full font-label-md text-label-md uppercase tracking-wider">Đặt lịch ngay</button></a>
 </template>
+<template x-if="!person">
 <a href="#danh-gia" style="display:contents;color:inherit;text-decoration:none"><button class="border border-outline text-on-surface hover:bg-surface-variant transition-colors px-8 py-3 rounded-full font-label-md text-label-md uppercase tracking-[0.05em]">Xem đánh giá</button></a>
+</template>
+<!-- A person is not bookable, and this page never pretends otherwise: an hour is sold by a
+     salon, at a chair, and every button here is addressed to one of them by name. One open
+     stint gives one button; several give several, so the reader chooses where rather than
+     being sent to whichever the page happened to list first; none gives no button at all,
+     which is the honest answer for somebody between salons. Same list the career section
+     renders, so a stint she has taken down can never be sold from here. -->
+<template :key="stint.staff_id" x-for="stint in currentStints()">
+<a :href="personBookingUrl(stint)" style="display:contents;color:inherit;text-decoration:none"><button class="bg-primary-container text-on-primary hover:bg-primary transition-colors px-8 py-3 rounded-full font-label-md text-label-md uppercase tracking-wider"><span>Đặt lịch tại</span> <span x-text="stint.salon.name"></span></button></a>
+</template>
 </div>
 </div>
 <div class="md:col-span-7 order-1 md:order-2 flex justify-center md:justify-end">
@@ -283,7 +328,13 @@
 <p class="font-body-md text-body-md text-on-surface-variant"><strong class="text-primary">Tự khai:</strong> số năm kinh nghiệm do kỹ thuật viên tự ghi, OAK không kiểm chứng.</p>
 </div>
 </section>
-<!-- Booking & Schedule Section -->
+<!-- Booking & Schedule Section.
+     Absent whole on a person page, and both halves for the same reason. A week grid is one
+     chair's hours at one salon, and there is no chair here to draw one for. The reviews are
+     the sharper case: a review was written about a visit at a particular salon, and pooling
+     a career's worth of them under one heading would strip every one of them of the place it
+     was earned. They stay on the stint pages the career list links to. -->
+<template x-if="!person">
 <section class="mt-section-gap grid grid-cols-1 md:grid-cols-2 gap-gutter items-start">
 <!-- Booking Calendar -->
 <div class="bg-surface-container-low p-8 rounded-xl border border-outline-variant/20 shadow-sm">
@@ -358,12 +409,15 @@
 <button @click="loadMoreReviews()" class="self-start font-label-md text-label-md uppercase tracking-[0.05em] text-on-surface border-b border-on-surface pb-1 hover:text-primary hover:border-primary transition-colors" type="button" x-show="reviews.length &lt; reviewMeta.total" x-text="'Xem tất cả ' + reviewMeta.total + ' đánh giá'"></button>
 </div>
 </section>
+</template>
 <!-- The two other pages of this path carry one; this page's only button sat above a
      portfolio and a week grid, out of reach by the time either had been read. -->
 <!-- The bar is the button, so a technician who is not taking bookings has no bar. Removed
      rather than emptied: oak-utils.css keeps the page's scroll clear of it by asking
-     whether the element is there at all. -->
-<template x-if="!departed()">
+     whether the element is there at all. A person page has no bar either: the salon it would
+     name is the one thing this page does not have, and the buttons in the hero already name
+     every salon there is to name. -->
+<template x-if="!person &amp;&amp; !departed()">
 <div class="fixed bottom-0 inset-x-0 z-40 md:hidden flex items-center justify-between gap-4 border-t border-outline-variant/30 bg-surface-container-low px-margin-mobile py-3" data-oak-sticky-cta>
 <span class="font-caption text-caption text-on-surface-variant truncate" x-text="staff.salon.name"></span>
 <a :href="bookingUrl()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 px-6 min-h-[44px] ml-auto flex items-center justify-center" style="text-decoration:none">
@@ -456,6 +510,12 @@
         return {
             filled: "font-variation-settings: 'FILL' 1;",
             staff: null,
+            /* Which of the two pages this is. ?u= is the person: her own words, her career,
+               and no chair. ?id= is one stint at one salon, which is what a reader who came
+               off a roster asked for. Neither redirects to the other — both are the right
+               page for whoever opened it — and every difference between them is read off
+               this one flag. */
+            person: false,
             week: [],
             services: [],
             history: [],
@@ -479,59 +539,12 @@
                 this.loading = true;
                 this.loadError = '';
                 try {
-                    const id = await this.resolveId();
-                    const [profile, availability, reviews, services, history] = await Promise.all([
-                        OAK.api('/api/staff/' + id),
-                        /* Availability resolves through the roster (staffIdOrThrow), so it is
-                           404 for a technician who has left — and this page is exactly the one
-                           that has to survive that: her CV is the whole reason it still
-                           answers. Null here is the ONLY thing this catch produces and a
-                           successful read is always an object, so the two are told apart
-                           below: an ordinary 404 on a departed row is silent, and any other
-                           failure on a row still working is said out loud with a way back. */
-                        OAK.api('/api/staff/' + id + '/availability?from=' + oakTodayISO() + '&days=7')
-                            .catch(() => null),
-                        /* No catch on the reviews, deliberately. GET /:id/reviews is gated on
-                           visibleStaffIdOrThrow — the SAME gate as the profile read beside it —
-                           so it cannot 404 for a departed row and has no failure of its own to
-                           survive. Swallowing one would render "chưa có đánh giá" over forty of
-                           them and drop the star average with it; the two reads stand or fall
-                           together by the server's own design, and the outer catch says so. */
-                        OAK.api('/api/staff/' + id + '/reviews'),
-                        /* The service chips are an extra: a slow or failing read hides the
-                           row, it must never replace a profile that loaded with an error. */
-                        OAK.api('/api/staff/' + id + '/services').catch(() => []),
-                        /* And so is the CV. A read that failed is one section fewer on the
-                           page, never a profile that says it could not be read. */
-                        OAK.api('/api/staff/' + id + '/history').catch(() => []),
-                    ]);
-
-                    this.staff = profile;
-                    this.services = services;
-                    this.history = history;
-                    /* The title is assembled around a name, so it can never be a dictionary
-                       key of its own — only the wording in front of the name can be. */
-                    const prefix = 'Hồ sơ chuyên gia';
-                    OAK.meta({
-                        title: (window.OAKI18N ? window.OAKI18N.label(prefix) : prefix)
-                            + ' - ' + profile.name + ' - OAK Beauty',
-                        description: profile.bio,
-                        image: profile.image,
-                    });
-                    /* A week that failed to load is not a week without room in it — the same
-                       rule loadWeek() keeps, kept here too, because this is the read that
-                       draws the grid the first time. departed() answers off this.history,
-                       assigned above: for a stint that has ended the 404 is the expected
-                       answer and the line over the grid has already explained it, so the page
-                       stays quiet. For anybody still working it is a transport failure, and
-                       an empty grid would show a fully free technician as fully booked with
-                       no way back — so the error block and its "Thử lại" take the space. */
-                    this.week = availability ? availability.week : [];
-                    if (!availability && !this.departed()) {
-                        this.weekError = 'Không tải được lịch trống.';
+                    const slug = OAK.qs('u');
+                    if (slug) {
+                        await this.loadPerson(slug);
+                    } else {
+                        await this.loadStint(await this.resolveId());
                     }
-                    this.reviews = reviews;
-                    this.reviewMeta = { total: reviews.meta.total, average: reviews.meta.average };
                 } catch (error) {
                     /* A 404 is the only answer that means "no such specialist"; a cold server
                        or a dropped connection used to read as one and offered no way back. */
@@ -544,27 +557,101 @@
                 }
             },
 
+            /**
+             * The person's own page, off one read.
+             *
+             * The payload's own keys ARE the hero's: name, title, specialty, bio, image,
+             * portfolio and years_experience are spelled the same as on a stint reply, so one
+             * set of markup renders both and the two can never drift into two designs. What
+             * is missing is missing on purpose — no salon, no row id, no rating cache — and
+             * the markup asks for the key rather than for the mode wherever that is enough.
+             *
+             * One request and no Promise.all: the availability, reviews and services reads
+             * beside the stint one are all keyed by a roster row, and there is no roster row
+             * here. The career and the figures came down inside this reply.
+             */
+            async loadPerson(slug) {
+                const person = await OAK.api('/api/technicians/' + encodeURIComponent(slug));
+                this.person = true;
+                this.staff = person;
+                this.history = person.career;
+                const prefix = 'Hồ sơ chuyên gia';
+                OAK.meta({
+                    title: (window.OAKI18N ? window.OAKI18N.label(prefix) : prefix)
+                        + ' - ' + person.name + ' - OAK Beauty',
+                    description: person.bio,
+                    image: person.image,
+                });
+            },
+
+            /** One chair at one salon: the page as it has always been. */
+            async loadStint(id) {
+                const [profile, availability, reviews, services, history] = await Promise.all([
+                    OAK.api('/api/staff/' + id),
+                    /* Availability resolves through the roster (staffIdOrThrow), so it is
+                       404 for a technician who has left — and this page is exactly the one
+                       that has to survive that: her CV is the whole reason it still
+                       answers. Null here is the ONLY thing this catch produces and a
+                       successful read is always an object, so the two are told apart
+                       below: an ordinary 404 on a departed row is silent, and any other
+                       failure on a row still working is said out loud with a way back. */
+                    OAK.api('/api/staff/' + id + '/availability?from=' + oakTodayISO() + '&days=7')
+                        .catch(() => null),
+                    /* No catch on the reviews, deliberately. GET /:id/reviews is gated on
+                       visibleStaffIdOrThrow — the SAME gate as the profile read beside it —
+                       so it cannot 404 for a departed row and has no failure of its own to
+                       survive. Swallowing one would render "chưa có đánh giá" over forty of
+                       them and drop the star average with it; the two reads stand or fall
+                       together by the server's own design, and the outer catch says so. */
+                    OAK.api('/api/staff/' + id + '/reviews'),
+                    /* The service chips are an extra: a slow or failing read hides the
+                       row, it must never replace a profile that loaded with an error. */
+                    OAK.api('/api/staff/' + id + '/services').catch(() => []),
+                    /* And so is the CV. A read that failed is one section fewer on the
+                       page, never a profile that says it could not be read. */
+                    OAK.api('/api/staff/' + id + '/history').catch(() => []),
+                ]);
+
+                this.staff = profile;
+                this.services = services;
+                this.history = history;
+                /* The title is assembled around a name, so it can never be a dictionary
+                   key of its own — only the wording in front of the name can be. */
+                const prefix = 'Hồ sơ chuyên gia';
+                OAK.meta({
+                    title: (window.OAKI18N ? window.OAKI18N.label(prefix) : prefix)
+                        + ' - ' + profile.name + ' - OAK Beauty',
+                    description: profile.bio,
+                    image: profile.image,
+                });
+                /* A week that failed to load is not a week without room in it — the same
+                   rule loadWeek() keeps, kept here too, because this is the read that
+                   draws the grid the first time. departed() answers off this.history,
+                   assigned above: for a stint that has ended the 404 is the expected
+                   answer and the line over the grid has already explained it, so the page
+                   stays quiet. For anybody still working it is a transport failure, and
+                   an empty grid would show a fully free technician as fully booked with
+                   no way back — so the error block and its "Thử lại" take the space. */
+                this.week = availability ? availability.week : [];
+                if (!availability && !this.departed()) {
+                    this.weekError = 'Không tải được lịch trống.';
+                }
+                this.reviews = reviews;
+                this.reviewMeta = { total: reviews.meta.total, average: reviews.meta.average };
+            },
+
             /** ?id=, or the first technician of the flagship salon so the page is never empty. */
             async resolveId() {
                 const id = OAK.qs('id');
                 if (id) {
                     return encodeURIComponent(id);
                 }
-                /* ?u= is a technician's own page, addressed by the slug ho-so-nhan-vien.html
-                   hands her once she publishes, and this page cannot read one yet — the read
-                   behind it is the next slice. Until then the address is answered as not
-                   found, because the fallback below is the thing it must never reach: a link
-                   she pasted into Zalo would open the flagship salon's first technician, under
-                   her name, with somebody else's bio and gallery and a booking button. An
-                   empty panel is a page that is not ready; a stranger's profile at her address
-                   is OAK telling her readers that she is that stranger.
-                   A bare visit with no parameter at all keeps the fallback: nobody was named,
-                   so nobody can be got wrong. */
-                if (OAK.qs('u')) {
-                    const error = new Error('Không tìm thấy chuyên gia này.');
-                    error.code = 'NOT_FOUND';
-                    throw error;
-                }
+                /* ?u= never reaches here — init() answers it off /api/technicians/:slug before
+                   this runs. The fallback below is why that branch is taken first and not as
+                   an afterthought: a link she pasted into Zalo landing here would open the
+                   flagship salon's first technician, under her name, with somebody else's bio,
+                   gallery and booking button. A bare visit with no parameter at all keeps the
+                   fallback — nobody was named, so nobody can be got wrong. */
                 const [salon] = await OAK.api('/api/salons?flagship=1&limit=1');
                 const staff = salon ? await OAK.api('/api/salons/' + salon.id + '/staff') : [];
                 if (!staff.length) {
@@ -746,6 +833,35 @@
             departed() {
                 const stint = this.history.find((entry) => entry.staff_id === this.staff.id);
                 return Boolean(stint) && !stint.is_current;
+            },
+
+            /**
+             * The stints she is working today — the whole of what a person page offers to
+             * book, and nothing else on it is bookable at all.
+             *
+             * Read off the career list rather than off a second key in the payload, so the
+             * buttons and the timeline can never describe different stints: a page she has
+             * taken down is absent from both by the one server-side gate, and a chair she has
+             * left carries is_current = false in both. Empty in stint mode, which is what
+             * leaves that page's own booking button the only one there.
+             */
+            currentStints() {
+                return this.person ? this.history.filter((stint) => stint.is_current) : [];
+            },
+
+            /**
+             * dat-lich.html at one salon, with her chair there.
+             *
+             * No service and no hour, unlike bookingUrl() below: this page has no week grid
+             * and no service chips to have picked either from, and the wizard asks for both
+             * anyway. What it does carry is the salon, which is the whole difference between
+             * this page and one that pretended a person could be booked.
+             */
+            personBookingUrl(stint) {
+                return 'dat-lich.html?' + new URLSearchParams({
+                    salon_id: stint.salon.id,
+                    staff_id: stint.staff_id,
+                }).toString();
             },
 
             /** Days off come back with an empty slot list and are not worth a heading. */
