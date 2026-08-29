@@ -67,9 +67,34 @@ function element(tag) {
   };
 }
 
+/* The four pages a technician's own account is. The first three in the order her rail on
+   lich-cua-toi.html carries them; Cài đặt is on no rail and is last here, as it is for the
+   customer. A free-standing list, not one read off the rail — server/test/staff-persona.test.mjs
+   is what holds the rail itself to its order. */
+const STAFF_PAGES = [
+  'lich-cua-toi.html',
+  'ho-so-nhan-vien.html',
+  'thong-bao.html',
+  'cai-dat.html',
+];
+
 /** The href of every entry of the menu, in the order they were written. */
 function hrefs(markup) {
   return [...markup.matchAll(/href="([^"]+)"/g)].map((hit) => hit[1]);
+}
+
+/** The group of the menu a piece of it sits in: the last persona opened above that point. */
+function groupAt(markup, index) {
+  const opened = [...markup.slice(0, index).matchAll(/data-oak-auth="([a-z]+)"/g)];
+  return opened.length ? opened[opened.length - 1][1] : null;
+}
+
+/** One persona's group, which is flat and so ends at the first close after it. */
+function groupOf(markup, persona) {
+  const from = markup.indexOf(`<div class="hidden" data-oak-auth="${persona}">`);
+  assert.notEqual(from, -1, `the menu carries no ${persona} group`);
+  const opened = markup.slice(from);
+  return opened.slice(0, opened.indexOf('</div>'));
 }
 
 test('the account block of the menu is in the same order as the account pages themselves', () => {
@@ -80,11 +105,118 @@ test('the account block of the menu is in the same order as the account pages th
   assert.deepEqual(hrefs(block), ACCOUNT_PAGES);
 });
 
-test('exactly one entry is marked as the page the reader is on', () => {
-  const { markup } = header('/uu-dai.html');
-  const marked = [...markup.matchAll(/href="([^"]+)"[^>]*aria-current="page"/g)].map((hit) => hit[1]);
+/* A technician meets this bar everywhere outside the console — on kham-pha.html, on a salon
+   profile, on the blog — and until she had a group of her own she met the customer's six
+   pages there, not one of which is hers. */
+test("the technician block of the menu is in the same order as her own pages", () => {
+  const { markup } = header('/kham-pha.html');
 
-  assert.deepEqual(marked, ['uu-dai.html']);
+  assert.deepEqual(hrefs(groupOf(markup, 'staff')), STAFF_PAGES);
+});
+
+test('the technician block says whose account it is, in the same voice as the categories', () => {
+  const { markup } = header('/kham-pha.html');
+
+  /* Nothing else on the bar names the kind of account signed in, and a menu that offers
+     "Lịch của tôi" without saying whose leaves a reader guessing which site they are on.
+     The same caption the service list is led by, so the two read as one menu. */
+  const caption = /<p class="px-5 pt-3 pb-1 font-caption text-caption uppercase tracking-widest text-on-surface-variant">([^<]+)<\/p>/g;
+  assert.deepEqual([...markup.matchAll(caption)].map((hit) => hit[1]), ['Kỹ thuật viên', 'Dịch vụ']);
+  assert.match(groupOf(markup, 'staff'), /^<div class="hidden" data-oak-auth="staff"><p /);
+});
+
+test('both notification rows name themselves the way oak-api.js looks for them', () => {
+  const { markup } = header('/kham-pha.html');
+
+  /* oak-api.js finds the bell by this name and hangs the unread mark where data-oak-dot
+     says — across a full-width entry a corner lands nowhere near the words. The row is the
+     same row in both menus, so it carries the same pair in both. */
+  const rows = [...markup.matchAll(/<a[^>]*aria-label="Thông báo" data-oak-dot="([^"]+)"/g)];
+  assert.deepEqual(
+    rows.map((hit) => [groupAt(markup, hit.index), hit[1]]),
+    [
+      ['user', 'absolute right-4 top-1/2 -translate-y-1/2'],
+      ['staff', 'absolute right-4 top-1/2 -translate-y-1/2'],
+    ],
+  );
+});
+
+test('each account signs out through the door it came in by', () => {
+  const { markup } = header('/kham-pha.html');
+
+  /* OAK.logout() reads its destination off the link that was pressed, so these two hrefs
+     are the whole of the difference: a customer is put back on the site they were browsing,
+     a technician on the staff sign-in page rather than a shop front she has no account for. */
+  const out = [...markup.matchAll(/data-oak-logout href="([^"]+)"/g)];
+  assert.deepEqual(
+    out.map((hit) => [groupAt(markup, hit.index), hit[1]]),
+    [['user', 'kham-pha.html'], ['staff', 'dang-nhap-nhan-vien.html']],
+  );
+});
+
+test('the technician entries end the menu rather than parting the customer one', () => {
+  const { markup } = header('/kham-pha.html');
+
+  /* Both sign-outs sit after the categories, so whichever persona is reading finds it in
+     the last place it has always been. The order was the thing at risk here: a group added
+     anywhere else moves the customer's own sign-out up into the middle of the menu. */
+  const where = (needle) => markup.indexOf(needle);
+  assert.ok(where('data-oak-auth="staff"') > where('data-oak-auth="user"'));
+  assert.ok(where('>Dịch vụ<') < where('href="kham-pha.html">Đăng xuất<'));
+  assert.ok(
+    where('href="kham-pha.html">Đăng xuất<') < where('href="dang-nhap-nhan-vien.html">Đăng xuất<'),
+  );
+});
+
+/** Every entry marked as where the reader is, in the order they were written. */
+function marked(markup) {
+  return [...markup.matchAll(/href="([^"]+)"[^>]*aria-current="page"/g)].map((hit) => hit[1]);
+}
+
+/**
+ * The menu as one persona actually meets it: every other persona's group taken out, so what
+ * is left is what that reader can reach. Depth-counted rather than sliced to the first
+ * close, because the two sign-out groups each wrap a rule of their own.
+ */
+function reading(markup, persona) {
+  var out = markup;
+  for (;;) {
+    const group = /<div(?: class="hidden")? data-oak-auth="([a-z]+)">/.exec(out);
+    if (!group) {
+      return out;
+    }
+    let at = group.index + group[0].length;
+    for (let depth = 1; depth > 0; ) {
+      const open = out.indexOf('<div', at);
+      const close = out.indexOf('</div>', at);
+      assert.notEqual(close, -1, 'a group of the menu is never closed');
+      if (open !== -1 && open < close) {
+        depth += 1;
+        at = open + '<div'.length;
+      } else {
+        depth -= 1;
+        at = close + '</div>'.length;
+      }
+    }
+    /* Unwrapped rather than kept, so the next turn of the loop finds the next group. */
+    const body = group[1] === persona ? out.slice(group.index + group[0].length, at - '</div>'.length) : '';
+    out = out.slice(0, group.index) + body + out.slice(at);
+  }
+}
+
+test('exactly one entry the reader can reach is marked as the page they are on', () => {
+  /* thong-bao.html and cai-dat.html are each written twice now, once per account group, so
+     the raw markup does stamp two anchors on those two pages. Only one group is ever on
+     screen, so the invariant is one mark per reading — and the mark has to be there in both
+     readings, because either persona can be the one standing on the page. Driven on an
+     account page and not only on uu-dai.html: a page in no account group at all cannot see
+     a duplicate, which is why the old reading of this test would have passed through one. */
+  for (const page of ['uu-dai.html', 'cai-dat.html', 'thong-bao.html']) {
+    const { markup } = header('/' + page);
+    for (const persona of ['user', 'staff']) {
+      assert.deepEqual(marked(reading(markup, persona)), [page], `${page} read as ${persona}`);
+    }
+  }
 });
 
 test('Blog is a menu entry rather than a bar entry, and an article still marks it', () => {

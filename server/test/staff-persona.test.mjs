@@ -516,6 +516,167 @@ test('a start date is the first completed visit, unless the salon entered one', 
   assert.match(statsSource, /months_active: monthsActive\(startedAt, todayISO\(\)\)/);
 });
 
+// ------------------------------------------------------ how the page is reached at all
+
+/* Every other promise this file makes about the sign-in page assumes the technician got to
+   it. Until now she could only get there through a link a salon owner had mailed her: no
+   page of the site named it, so a technician who closed that mail, or who signed out, was
+   left with two customer forms and no third door. */
+test('the customer sign-in and sign-up pages both point a technician at her own', () => {
+  for (const name of ['dang-nhap-nguoi-dung.html', 'dang-ky.html']) {
+    const page = ui(name);
+    const body = page.slice(0, page.indexOf('<footer'));
+
+    // In the body, not only down in the footer: somebody who has scrolled to the bottom of
+    // a sign-in form is looking at the form, and that is where the question belongs.
+    assert.match(body, /Bạn là kỹ thuật viên\?/, `${name} does not ask the question`);
+    assert.match(
+      body,
+      /href="dang-nhap-nhan-vien\.html">Đăng nhập tại đây<\/a>/,
+      `${name} asks the question and answers it nowhere`,
+    );
+  }
+});
+
+// ------------------------------------------------------ the bar she meets everywhere else
+
+/* oak-header.js writes all three readings of the account menu into every page, and oak-api.js
+   is what keeps the one the account calls for. test/header-ui.test.mjs pins the markup half;
+   this is the deciding half, and no assertion about markup can see it — every reading is in
+   the page whichever way the decision goes. Both functions are lifted out of the IIFE and
+   driven, the way test/a11y-ui.test.mjs drives the toast. */
+
+/** Just enough of a document for a menu of groups, each holding rows, to be read and toggled. */
+function menuDom(groups) {
+  const nodes = [];
+  const make = (attributes, parent) => {
+    const node = {
+      attributes,
+      parent,
+      children: [],
+      tagName: 'A',
+      className: '',
+      classList: {
+        toggle(name, on) { node.hidden = on; if (name !== 'hidden') node.className += ' ' + name; },
+        add(name) { node.className += ' ' + name; },
+        remove() {},
+      },
+      hidden: false,
+      getAttribute: (name) => (name in attributes ? attributes[name] : null),
+      setAttribute: (name, value) => { attributes[name] = value; },
+      appendChild(child) { node.children.push(child); },
+      /* Only ever asked '.hidden' here, which is the question the bell search asks. */
+      closest(selector) {
+        assert.equal(selector, '.hidden');
+        for (let at = node; at; at = at.parent) {
+          if (at.hidden) return at;
+        }
+        return null;
+      },
+    };
+    nodes.push(node);
+    return node;
+  };
+
+  for (const [persona, rows] of Object.entries(groups)) {
+    /* As authored: the guest reading is on screen and the rest are put away. */
+    const group = make({ 'data-oak-auth': persona });
+    group.hidden = persona !== 'guest';
+    for (const row of rows) {
+      make({ 'aria-label': row, 'data-oak-dot': `dot-for-${persona}` }, group);
+    }
+  }
+
+  const matches = (node, selector) =>
+    selector === '[data-oak-auth]'
+      ? node.attributes['data-oak-auth'] !== undefined
+      : node.attributes['aria-label'] === 'Thông báo';
+
+  return {
+    nodes,
+    document: {
+      querySelectorAll: (selector) =>
+        selector === '[data-oak-unread]' ? [] : nodes.filter((node) => matches(node, selector)),
+      /* Only ever asked whether this page has a technician group to give. */
+      querySelector: (selector) =>
+        nodes.find((node) => `[data-oak-auth="${node.attributes['data-oak-auth']}"]` === selector)
+          || null,
+      createElement: () => make({}),
+    },
+  };
+}
+
+/** initAuthMenu over a menu of the given groups. Hands back what is left on screen. */
+function shownFor(user, groups = { guest: [], user: ['Thông báo'], staff: ['Thông báo'] }) {
+  const dom = menuDom(groups);
+  const script = handler(apiJs, '  function initAuthMenu(user) {', '  async function initHeader(');
+  vm.runInNewContext(`${script}\ninitAuthMenu(user);`, { document: dom.document, user });
+  return dom.nodes
+    .filter((node) => node.attributes['data-oak-auth'] !== undefined && !node.hidden)
+    .map((node) => node.attributes['data-oak-auth']);
+}
+
+test('the bar keeps the technician menu for a technician and the customer one for everyone else', () => {
+  // The whole of the persona's way into her own pages from a salon profile or the blog. A
+  // decision that answered 'staff' to nobody would leave her the customer's six; one that
+  // answered with the role itself would put every group away for a customer, leaving a menu
+  // of nothing but the service list and no way to sign out of it.
+  assert.deepEqual(shownFor({ role: 'staff' }), ['staff']);
+  assert.deepEqual(shownFor({ role: 'customer' }), ['user']);
+  // A partner meets this bar on the public side of the site, where the customer entries are
+  // the ones that lead anywhere; their own console carries a bar of its own.
+  assert.deepEqual(shownFor({ role: 'partner' }), ['user']);
+});
+
+test('a technician meeting a header written before she had a menu still gets one', () => {
+  /* oak-header.js and oak-api.js are both unhashed and cached five minutes apiece, so for
+     five minutes after a deploy a reader can hold the old header and the new api together.
+     Asked for a group that header never wrote, the loop would put every group away — an
+     account looking at a menu with no entries in it and no way to sign out of itself. The
+     customer reading is the wrong menu for her, and it is still a menu. */
+  assert.deepEqual(shownFor({ role: 'staff' }, { guest: [], user: ['Thông báo'] }), ['user']);
+});
+
+/** initNotificationBell over the same menu, once initAuthMenu has settled it. */
+async function unreadDot(user) {
+  const dom = menuDom({ guest: [], user: ['Thông báo'], staff: ['Thông báo'] });
+  const authScript = handler(apiJs, '  function initAuthMenu(user) {', '  async function initHeader(');
+  const bellScript = handler(
+    apiJs,
+    '  // What the menu button is called once something is waiting to be read.',
+    "  // The partner console's own bell,",
+  );
+  const context = {
+    document: dom.document,
+    Array,
+    window: {},
+    user,
+    NOTIFICATIONS_PAGE: 'thong-bao.html',
+    api: async () => ({ unread_count: 3 }),
+  };
+  vm.runInNewContext(`${authScript}\n${bellScript}\nran = initAuthMenu(user) || initNotificationBell();`, context);
+  await context.ran;
+
+  const marked = dom.nodes.filter((node) => node.children.length > 0);
+  assert.equal(marked.length, 1, 'the unread mark was hung on more than one row');
+  return { in: marked[0].parent.attributes['data-oak-auth'], dot: marked[0].children[0] };
+}
+
+test('the unread mark is hung on the row that is actually on screen', async () => {
+  // Both menus carry a row answering to "Thông báo" and only one of them is ever shown, so
+  // the first in document order — the customer's — is the wrong answer for a technician:
+  // the mark would sit inside a group nobody can open, and she would be told nothing.
+  const technician = await unreadDot({ role: 'staff' });
+  assert.equal(technician.in, 'staff');
+  const customer = await unreadDot({ role: 'customer' });
+  assert.equal(customer.in, 'user');
+
+  // And each row still names its own spot: across a full-width entry a corner lands nowhere
+  // near the words, so the mark is placed by the row's own data-oak-dot, not by a default.
+  assert.match(technician.dot.className, /^dot-for-staff /);
+  assert.match(customer.dot.className, /^dot-for-user /);
+});
+
 // ------------------------------------------------------ the page the link opens onto
 
 /* dang-nhap-nhan-vien.html keeps its factory inline in a <script>, so lift it out and

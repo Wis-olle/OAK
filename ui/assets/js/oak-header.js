@@ -18,7 +18,7 @@
  *   data-oak-avatar-icon / data-oak-avatar-img  oak-api.js swaps in the reader's photo
  *   data-oak-unread                             oak-api.js reveals the unread mark
  *   data-oak-dot                                where oak-api.js puts the mark on a row
- *   data-oak-auth="guest" | "user"              oak-api.js picks the pair that applies
+ *   data-oak-auth="guest" | "user" | "staff"    oak-api.js picks the one that applies
  *   data-oak-lang="menu"                        the language dropdown on the bar: oak-i18n.js
  *                                               writes its two named options in here, and the
  *                                               "menu" value is what asks for that shape
@@ -167,8 +167,8 @@
     entry('spa-massage.html', 'SPA &amp; MASSAGE', CATEGORY, CATEGORY_HERE) +
     entry('dich-vu-mi.html', 'EYELASH', CATEGORY, CATEGORY_HERE);
 
-  /* Both pairs ship in the markup; oak-api.js keeps the one that matches the reader and
-     puts the other one away once /api/auth/me answers. */
+  /* All three readings ship in the markup; oak-api.js keeps the one that matches the reader
+     and puts the others away once /api/auth/me answers. */
   var guest =
     '<div data-oak-auth="guest">' +
       entry('dang-nhap-nguoi-dung.html', 'Đăng nhập', ITEM_STRONG) +
@@ -189,11 +189,37 @@
       entry('cai-dat.html', 'Cài đặt') +
     '</div>';
 
+  /* The third reading of the same menu. A technician signed in on a public page was being
+     offered the customer's six pages, none of which is hers, and no way to the four that
+     are; the caption leads them because nothing else on the bar says which kind of account
+     is signed in. The first three in the order her own rail carries them, for the same
+     reason `mine` follows the customer's. Cài đặt is on no rail — it is reached from a menu
+     and nowhere else — so it comes last, which is where `mine` ends on it too. */
+  var staff =
+    '<div class="hidden" data-oak-auth="staff">' +
+      '<p class="px-5 pt-3 pb-1 font-caption text-caption uppercase tracking-widest ' +
+        'text-on-surface-variant">Kỹ thuật viên</p>' +
+      entry('lich-cua-toi.html', 'Lịch của tôi') +
+      entry('ho-so-nhan-vien.html', 'Hồ sơ của tôi') +
+      /* The mark oak-api.js adds belongs at the end of this row, not over its first word. */
+      entry('thong-bao.html', 'Thông báo', null, null,
+        ' aria-label="Thông báo" data-oak-dot="absolute right-4 top-1/2 -translate-y-1/2"') +
+      entry('cai-dat.html', 'Cài đặt') +
+    '</div>';
+
   /* Signing out is not a place, so it never counts as where the reader is. */
   var signOut =
     '<div class="hidden" data-oak-auth="user">' + RULE +
       '<a @click.prevent="OAK.logout()" class="' + ITEM + '" data-oak-logout ' +
         'href="kham-pha.html">Đăng xuất</a>' +
+    '</div>';
+
+  /* The same door she came in by. OAK.logout() reads the destination off the link that was
+     pressed, in a capture-phase listener, so this address is the whole of the difference. */
+  var staffSignOut =
+    '<div class="hidden" data-oak-auth="staff">' + RULE +
+      '<a @click.prevent="OAK.logout()" class="' + ITEM + '" data-oak-logout ' +
+        'href="dang-nhap-nhan-vien.html">Đăng xuất</a>' +
     '</div>';
 
   var panel =
@@ -212,7 +238,7 @@
         entry('dang-nhap-doi-tac.html', 'Dành cho salon') +
         RULE +
       '</div>' +
-      guest + mine + RULE + everyone + RULE + categories + signOut +
+      guest + mine + staff + RULE + everyone + RULE + categories + signOut + staffSignOut +
     '</div>';
 
   var pill =

@@ -815,7 +815,18 @@
   }
 
   async function initNotificationBell() {
-    var bell = document.querySelector('[aria-label="Thông báo"]');
+    // The customer menu and the technician menu each carry a row of this name, and only one
+    // of the two is on screen. Taking the first in document order would hang the mark inside
+    // the group initAuthMenu just put away, where nobody would ever see it — so the first one
+    // outside a put-away group wins. The plain first behind it is for the cached page that
+    // meets an older oak-header.js, whose one row is in a group no persona here matches: a
+    // mark in the wrong row still says there is something to read, and none says nothing.
+    // Safe by ordering: initHeader() settles the groups before this, and the search below
+    // runs before the first await, so nothing can slip in between.
+    var bells = document.querySelectorAll('[aria-label="Thông báo"]');
+    var bell = Array.prototype.filter.call(bells, function (node) {
+      return !(node.closest && node.closest('.hidden'));
+    })[0] || bells[0];
     if (!bell) {
       return;
     }
@@ -835,11 +846,11 @@
 
     bell.classList.add('relative');
     var dot = document.createElement('span');
-    // The one bell answering to this name is the "Thông báo" entry oak-header.js writes into
-    // the customer menu, and it names its own spot through data-oak-dot: across a full-width
-    // menu entry a corner lands nowhere near the words. The default behind it is for a bell
-    // drawn as a lone glyph. Nothing in the partner console answers here — it counts pending
-    // bookings on a bell of its own, further down.
+    // The bells answering to this name are the two "Thông báo" entries oak-header.js writes
+    // into the menu, one per persona, and each names its own spot through data-oak-dot:
+    // across a full-width menu entry a corner lands nowhere near the words. The default
+    // behind it is for a bell drawn as a lone glyph. Nothing in the partner console answers
+    // here — it counts pending bookings on a bell of its own, further down.
     dot.className = (bell.getAttribute('data-oak-dot') || 'absolute top-0 right-0') +
       ' w-2 h-2 rounded-full bg-error';
     dot.setAttribute('aria-label', 'Có thông báo mới');
@@ -958,13 +969,24 @@
   }
 
   /**
-   * The customer menu ships both readings of itself — the entries for a visitor who has not
-   * signed in, and the ones for a reader who has — and this keeps whichever applies. Called
-   * only once a real user is known, so the markup as authored is already the guest reading.
+   * The menu ships all three readings of itself — the entries for a visitor who has not
+   * signed in, the ones for a customer, and the ones for a technician — and this keeps
+   * whichever the account calls for. Called only once a real user is known, so the markup
+   * as authored is already the guest reading. Everyone who is not staff reads as 'user':
+   * a partner meets this bar on the public side of the site, where the customer entries
+   * are the ones that lead anywhere.
+   *
+   * A technician is only asked for once the page proves it has one to give. Both scripts are
+   * unhashed and cached for five minutes apiece, so a reader can hold a header written before
+   * the staff group existed while running this — and asking for a group nobody answers to
+   * would put every group away, leaving an account with no entries and, worse, no way to sign
+   * out of itself. The customer reading is the wrong menu for her; it is still a menu.
    */
-  function initAuthMenu() {
+  function initAuthMenu(user) {
+    var wanted = user.role === 'staff' && document.querySelector('[data-oak-auth="staff"]')
+      ? 'staff' : 'user';
     Array.prototype.forEach.call(document.querySelectorAll('[data-oak-auth]'), function (group) {
-      group.classList.toggle('hidden', group.getAttribute('data-oak-auth') !== 'user');
+      group.classList.toggle('hidden', group.getAttribute('data-oak-auth') !== wanted);
     });
   }
 
@@ -977,7 +999,7 @@
       return;
     }
     initAccountLink(user);
-    initAuthMenu();
+    initAuthMenu(user);
     initNotificationBell();
   }
 

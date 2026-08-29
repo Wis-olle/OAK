@@ -70,6 +70,12 @@ test('the footer links are a landmark, and Liên hệ leads the support column',
   assert.equal(links[0], 'Liên hệ');
   assert.ok(links.includes('Điều khoản đối tác'), 'the partner terms are not linked');
   assert.match(support, /href="dieu-khoan\.html#doi-tac"/);
+
+  // A technician has her own sign-in page and nothing on the site led to it, so the only way
+  // in was a link a salon owner had mailed her. The footer is where the salon side already
+  // says where it lives, and the two belong beside each other: one door per persona.
+  assert.match(support, /href="dang-nhap-nhan-vien\.html"/, 'the staff sign-in is not linked');
+  assert.equal(links[links.indexOf('Trở thành đối tác') + 1], 'Dành cho kỹ thuật viên');
 });
 
 test('the footer claims no legal entity that does not exist', () => {
