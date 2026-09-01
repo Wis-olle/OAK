@@ -876,6 +876,50 @@ async function groupStaff() {
     'NOT_FOUND',
     'GET /api/staff/:bogusId/services',
   );
+
+  /* And the day strip, sized for a service, obeys the same rule the menu above states. A
+     technician performs a service when a staff_services row links the two and never
+     otherwise; POST /api/bookings has refused the pair for a long time, but this endpoint
+     used to hand back her hours for any service id at all — so the wizard offered times the
+     booking would then refuse, which is the one failure a picker must not have.
+
+     Sized for a service she does perform, the week still has working days in it. */
+  const linkedWeekResponse = await guest.fetch(
+    `/api/staff/${state.staffId}/availability?from=${state.today}&days=7&service_id=${staffServices[0].id}`,
+  );
+  const linkedWeek = ok(linkedWeekResponse, 'GET /api/staff/:id/availability?service_id= (linked)');
+  assert(
+    linkedWeek.week.some((day) => day.slots.length > 0),
+    'staff availability: a service she performs must still have hours',
+    linkedWeekResponse,
+  );
+
+  /* Sized for one she does not, every day of it is empty. A service of ANOTHER salon is the
+     unlinked case that cannot go stale: staff_services never crosses a salon, so no amount of
+     seed editing can accidentally link these two. The reply is still 200 with a full week —
+     the days are there, and none of them sells an hour. */
+  const otherMenu = ok(
+    await guest.fetch(`/api/salons/${state.maisonId}/services`),
+    'GET /api/salons/:id/services for a service this technician cannot perform',
+  );
+  assert(otherMenu.length > 0, 'the other salon must have a menu to borrow a service from');
+  const unlinkedWeekResponse = await guest.fetch(
+    `/api/staff/${state.staffId}/availability?from=${state.today}&days=7&service_id=${otherMenu[0].id}`,
+  );
+  const unlinkedWeek = ok(
+    unlinkedWeekResponse,
+    'GET /api/staff/:id/availability?service_id= (not linked)',
+  );
+  assert(
+    unlinkedWeek.week.length === 7,
+    'staff availability: an unlinked service still gets a week, not a 404',
+    unlinkedWeekResponse,
+  );
+  assert(
+    unlinkedWeek.week.every((day) => day.slots.length === 0),
+    'staff availability: a service she does not perform must sell no hour at all',
+    unlinkedWeekResponse,
+  );
 }
 
 /* ============================================================================

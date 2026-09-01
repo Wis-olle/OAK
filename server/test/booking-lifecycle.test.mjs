@@ -366,6 +366,43 @@ test('the one rule about who performs what is asked in exactly one place', async
   }
 });
 
+test('and the reading side asks it too, so no picker offers what the booking refuses', async () => {
+  /* The rule used to be enforced on the way IN and nowhere else: POST /api/bookings refused
+     the pair, while the day strip behind it (GET /api/staff/:id/availability?service_id=),
+     the console's GET /api/partner/availability and the wizard all read their hours out of
+     getStaffSlots, which never asked. So a technician nobody had linked to the service was
+     offered with a full calendar and refused at the end of it. */
+  const asked = [];
+  const slotsFor = (canDo) =>
+    liftFromAvailability(
+      /async function getStaffSlots\([\s\S]*?\n}\n/,
+      "getStaffSlots(7, 4, '2026-09-01')",
+      {
+        db: { prepare: () => {} },
+        selectService: { get: async () => ({ id: 4, salon_id: 1, duration_min: 60 }) },
+        staffCanDo: async (handle, staffId, serviceId) => {
+          asked.push([staffId, serviceId]);
+          return canDo;
+        },
+        staffDaySlots: async () => [{ time: '10:00', available: true }],
+        FALLBACK_DURATION_MIN: 60,
+      },
+    );
+
+  /* Spread before comparing: the arrays come back from the vm realm, so a strict deep-equal
+     against a host literal fails on the prototype rather than on the contents. */
+  assert.deepEqual([...(await slotsFor(false))], [], 'a service she is not linked to has no hours');
+  assert.deepEqual([...(await slotsFor(true))], [{ time: '10:00', available: true }]);
+  // Asked about the pair the caller named, and asked through the shared rule rather than a
+  // staff_services SELECT of its own — the same thing the writes were already doing.
+  assert.deepEqual(asked, [[7, 4], [7, 4]]);
+  assert.ok(
+    !/SELECT 1 FROM staff_services/.test(
+      availabilitySource.slice(availabilitySource.indexOf('async function getStaffSlots(')),
+    ),
+  );
+});
+
 test('a weekday the salon never described is closed, not unrestricted', () => {
   const clamp = (shift, hours) =>
     liftFromAvailability(

@@ -466,6 +466,18 @@ export async function getStaffSlots(
   if (!service) {
     return [];
   }
+  /* THE RULE, on the reading side too. Every WRITE has asked staffCanDo since it was written
+     down (routes/bookings.js, the console's own create), but this — the function behind the
+     wizard's day strip, GET /api/staff/:id/availability?service_id= and the console's
+     GET /api/partner/availability — answered with her hours for a service nobody had linked
+     her to. So all three offered times that POST /api/bookings would then refuse, which is
+     the worst shape a picker can have: the customer picks, waits, and is told no by a rule
+     the screen never mentioned. Asked here rather than in the three callers because it is
+     one rule and it is already written down once; a technician who does not perform this
+     service has no hours for it, which is the same sentence the writes have been saying. */
+  if (!(await staffCanDo(db, staffId, serviceId))) {
+    return [];
+  }
   return staffDaySlots(
     staffId, date, service.duration_min || FALLBACK_DURATION_MIN, knownOff, leadMin,
     exceptBookingId,
