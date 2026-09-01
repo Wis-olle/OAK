@@ -20,10 +20,16 @@
  *   - Nothing younger than a day is ever touched. An upload lands in the bucket BEFORE the
  *     form that will name it is saved, so a picture a partner is halfway through attaching
  *     is unreferenced and perfectly alive. A day is far longer than any such gap.
- *   - A name is "referenced" if it appears anywhere at all — including in `uploads.url`,
- *     which records every object this platform ever wrote. Reading one column too many
- *     costs a picture nobody will ever see again; reading one too few deletes a live one.
- *     So when in doubt this errs at keeping, and the list below is deliberately generous.
+ *   - A name is "referenced" if a CONTENT column names it. Reading one column too many costs
+ *     a picture nobody will ever see again; reading one too few deletes a live one. So when
+ *     in doubt this errs at keeping, and the list below is deliberately generous.
+ *
+ * `uploads.url` is the one address column deliberately NOT on that list, and it is worth
+ * saying why: it is the ledger of what this platform WROTE, not evidence that anything still
+ * points at it. A settled row is never deleted (lib/upload-quota.js only deletes the ones
+ * whose bytes never arrived), so every object that ever landed in the bucket is named there
+ * for ever — including the cover photo a salon replaced this morning, which is exactly the
+ * kind of object this sweep exists to reclaim. Read it and the answer is always zero.
  *
  * It also clears abandoned RESERVATIONS: `uploads` rows still carrying url = '' more than an
  * hour after they were written are a process that died between taking the day's allowance
@@ -53,7 +59,8 @@ const ABANDONED_RESERVATION_MS = 60 * 60 * 1000;
    column whose pictures this sweep deletes. `json` columns hold a JSON array of addresses in
    one TEXT field (the portfolio editor writes them that way); the rest hold one address.
    promotions.image and posts.image are in the list even though today they are only ever
-   seeded or written by hand — the cost of reading a column that names nothing is nothing. */
+   seeded or written by hand — the cost of reading a column that names nothing is nothing.
+   uploads.url is not a content column and does not belong here: see the header. */
 export const IMAGE_COLUMNS = [
   ['users', 'avatar', 'url'],
   ['salons', 'image', 'url'],
@@ -65,7 +72,6 @@ export const IMAGE_COLUMNS = [
   ['staff_profiles', 'portfolio', 'json'],
   ['promotions', 'image', 'url'],
   ['posts', 'image', 'url'],
-  ['uploads', 'url', 'url'],
 ];
 
 /**

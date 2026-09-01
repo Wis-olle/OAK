@@ -233,6 +233,14 @@ test('every column of the schema that can hold a picture is on the list', () => 
       assert.ok(declared.has(`${table}.${column[1]}`), `${table}.${column[1]} is not swept`);
     }
   }
-  // And uploads.url, which is not called any of those and is the record of every write.
-  assert.ok(declared.has('uploads.url'));
+  /* And uploads.url is NOT on it, which is the difference between a sweep and a no-op. That
+     table is the record of every write, and a settled row is never deleted — so an object a
+     salon replaced last year is still named there, and reading the column would mark the
+     whole bucket as referenced. An object whose only mention is its own uploads row is
+     precisely an orphan, and this asks the tool to go on seeing it as one. */
+  assert.ok(!declared.has('uploads.url'), 'the write ledger is not a reference');
+  assert.ok(
+    !IMAGE_COLUMNS.some(([table]) => table === 'uploads'),
+    'the sweep reads no column of uploads for references',
+  );
 });
