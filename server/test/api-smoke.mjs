@@ -42,6 +42,12 @@ const BODY_PREVIEW_CHARS = 300;
    suite spawns. In external mode the server was started by somebody else, so the blocks
    that need it say so and step around it. */
 const ADMIN_EMAIL = 'hoangyen@oak.vn';
+/* The key the spawned server is given for GET /api/internal/tick, and the one this suite
+   knocks with. Nothing sweeps itself in a test run — the child also gets TICK_INTERVAL_MS=0 —
+   so every close-out and every reminder below happens because a group asked for one, at the
+   moment it asked. In external mode the server was started by somebody else: give it this
+   value as TICK_SECRET, or set OAK_TEST_TICK_SECRET here to whatever it was given. */
+const TICK_SECRET = process.env.OAK_TEST_TICK_SECRET ?? 'oak-smoke-tick-key';
 const PNG_1X1 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
@@ -226,6 +232,11 @@ function spawnServer() {
     // This suite uses the demo seed as its fixture, so it asks for the seed by name
     // rather than depending on whatever NODE_ENV the shell happens to carry.
     SEED_DEMO: '1',
+    // The clock is the suite's to wind: no interval of the server's own, and one door the
+    // groups below open by hand. A sweep arriving between two assertions would close a
+    // booking a test had staged and left the failure looking like a bug in the route.
+    TICK_SECRET,
+    TICK_INTERVAL_MS: '0',
   };
   // A shell with production's credentials exported would otherwise have this suite writing
   // its fixture images into the real bucket and mailing real people; the child gets neither.
@@ -274,6 +285,30 @@ async function login(email) {
   });
   ok(response, `login ${email}`);
   return { client, user: response.body.data.user };
+}
+
+/**
+ * Minutes past midnight where the salon is, read off the SERVER's clock rather than this
+ * machine's — the same way every date here is read off the server's notion of today.
+ *
+ * Every response carries a Date header in GMT, and lib/time.js reads "now" in Vietnam, which
+ * is seven hours ahead of it and has been since 1975.
+ */
+async function serverNowMinutes() {
+  const response = await fetch(`${BASE_URL}/api/health`);
+  const vietnam = new Date(Date.parse(response.headers.get('date')) + 7 * 60 * 60 * 1000);
+  return vietnam.getUTCHours() * 60 + vietnam.getUTCMinutes();
+}
+
+/**
+ * Run the clock once (server/src/lib/tick.js) and hand back what it did: how many
+ * appointments it completed, how many it cancelled, how many reminders it wrote.
+ */
+async function tick() {
+  const response = await session('guest').fetch(
+    `/api/internal/tick?key=${encodeURIComponent(TICK_SECRET)}`,
+  );
+  return ok(response, 'GET /api/internal/tick');
 }
 
 /**
@@ -1787,9 +1822,9 @@ async function groupBookings() {
     'cancel: the salon owner must be told the hour is free again',
   );
 
-  // A day that has gone by closes itself out the next time the customer opens their list:
-  // a confirmed booking happened, a pending one was never taken up. Only the salon may
-  // move a booking, so that is how the day gets put behind these two.
+  // A day that has gone by closes itself out when the clock next runs: a confirmed booking
+  // happened, a pending one was never taken up. Only the salon may move a booking, so that
+  // is how the day gets put behind these three.
   const yesterday = addDays(state.today, -1);
   const stranded = {};
   const strandedSlots = [];
@@ -1838,6 +1873,67 @@ async function groupBookings() {
     'PATCH /api/partner/salon (automatic confirmation again)',
   );
 
+  /* The third case, and the one the lazy sweep could never reach: a walk-in the counter
+     typed in against a number no account holds. There is no list it belongs to and nobody
+     to open one, so under the old design it stayed 'confirmed' for ever and the salon's own
+     figures undercounted it. Written for tomorrow and moved back, because the console will
+     not book into a day that is already over. */
+  const walkInBooking = ok(
+    await partner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        customer_name: 'Khách Vãng Lai Hôm Qua',
+        customer_phone: '0900 000 222',
+        service_id: service.id,
+        date: addDays(state.today, 1),
+        time: '12:00',
+      },
+    }),
+    'POST /api/partner/bookings (a walk-in for the clock to close)',
+  );
+  ok(
+    await partner.fetch(`/api/partner/bookings/${walkInBooking.id}`, {
+      method: 'PATCH',
+      json: { date: yesterday },
+    }),
+    'PATCH /api/partner/bookings/:id (move the walk-in into yesterday)',
+  );
+
+  /* Reading a list closes nothing any more. It used to: GET /api/bookings/mine swept the
+     caller's stale bookings on the way past, which made a read into a write, raced two open
+     tabs against each other, and still left the walk-in above untouched. */
+  const beforeTickResponse = await customer.fetch('/api/bookings/mine?limit=50');
+  const beforeTick = ok(beforeTickResponse, 'GET /api/bookings/mine (before the clock runs)');
+  for (const kind of ['confirmed', 'pending']) {
+    assert(
+      beforeTick.find((item) => item.id === stranded[kind])?.status === kind,
+      `auto-close: reading a list must not close the ${kind} booking out`,
+      beforeTickResponse,
+    );
+  }
+
+  /* The key is the whole of what stands between a stranger and a sweep of everybody's rows,
+     so it is asked for both ways round before it is used. */
+  expectError(
+    await guest.fetch('/api/internal/tick'),
+    401,
+    'UNAUTHENTICATED',
+    'GET /api/internal/tick with no key',
+  );
+  expectError(
+    await guest.fetch('/api/internal/tick?key=oak-smoke-tick-keyy'),
+    401,
+    'UNAUTHENTICATED',
+    'GET /api/internal/tick with the wrong key',
+  );
+
+  const ran = await tick();
+  assert(
+    ran.closed >= 2 && ran.cancelled >= 1,
+    'the clock reports the appointments it completed and cancelled',
+    ran,
+  );
+
   const sweptResponse = await customer.fetch('/api/bookings/mine?status=completed&limit=50');
   const swept = ok(sweptResponse, 'GET /api/bookings/mine?status=completed (after the sweep)');
   const closed = swept.find((item) => item.id === stranded.confirmed);
@@ -1857,21 +1953,168 @@ async function groupBookings() {
   );
   assert(invitations.length === 1, 'auto-close: expected one invitation to review the closed booking', invitedResponse);
 
-  // A second look sweeps nothing: those rows are no longer pending or confirmed.
-  ok(
-    await customer.fetch('/api/bookings/mine?status=completed&limit=50'),
-    'GET /api/bookings/mine?status=completed (the second look)',
+  // The walk-in closed out with the rest, and nobody was invited to review it: there is no
+  // account behind the number on the counter's booking.
+  const closedWalkIn = ok(
+    await partner.fetch(`/api/partner/bookings/${walkInBooking.id}`),
+    'GET /api/partner/bookings/:id (the walk-in after the clock ran)',
   );
-  const repeated = ok(await customer.fetch('/api/notifications'), 'GET /api/notifications after the second look');
+  assert(closedWalkIn.status === 'completed', 'auto-close: the walk-in must close out too', closedWalkIn);
+  if (!EXTERNAL_URL) {
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      const row = (
+        await directClient.query('SELECT user_id, status, auto_closed FROM bookings WHERE id = $1', [
+          walkInBooking.id,
+        ])
+      ).rows[0];
+      assert(row.user_id === null, 'auto-close: the walk-in must belong to no account at all');
+      assert(row.auto_closed === 1, 'auto-close: the walk-in card must say the clock closed it');
+      const notified = (
+        await directClient.query(
+          'SELECT COUNT(*)::int AS total FROM notifications WHERE booking_id = $1',
+          [walkInBooking.id],
+        )
+      ).rows[0].total;
+      assert(notified === 0, 'auto-close: there is nobody to invite to review a walk-in');
+    } finally {
+      await directClient.end();
+    }
+  } else {
+    skip('auto_closed and the absent invitation are read straight from the table');
+  }
+
+  // A second run sweeps nothing: those rows are no longer pending or confirmed.
+  const again = await tick();
+  assert(
+    again.closed === 0 && again.cancelled === 0,
+    'auto-close: a second run finds nothing left to close',
+    again,
+  );
+  const repeated = ok(await customer.fetch('/api/notifications'), 'GET /api/notifications after the second run');
   assert(
     repeated.filter((item) => item.type === 'review' && item.booking_id === stranded.confirmed).length === 1,
-    'auto-close: a second list must not queue a second invitation',
+    'auto-close: a second run must not queue a second invitation',
   );
 
   ok(
     await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: salonHours } }),
     'PATCH /api/partner/salon (restore the hours the booking group started from)',
   );
+
+  await meCarriesTheHeader(customer, partner, service);
+}
+
+/**
+ * GET /api/auth/me carries what a header needs: the bell's number for anyone who has a bell,
+ * and the customer's next appointment. A signed-in page load used to make three requests to
+ * draw one bar — who is signed in, how many unread, what is next — and now makes one.
+ *
+ * The interesting half is what "next" means. The "upcoming" tab keeps an appointment that has
+ * already begun, because the customer sitting in the chair has to be able to find it; a strip
+ * that announced "Bạn có lịch 09:00 hôm nay" all evening would be simply wrong. So the two
+ * answers differ on purpose, and the pair of bookings staged below is the difference.
+ */
+async function meCarriesTheHeader(customer, partner, service) {
+  const unread = ok(
+    await customer.fetch('/api/notifications?count_only=true'),
+    'GET /api/notifications?count_only=true (beside /me)',
+  ).unread_count;
+  const meResponse = await customer.fetch('/api/auth/me');
+  const me = ok(meResponse, 'GET /api/auth/me (the customer)').user;
+  assert(me.unread_count === unread, '/me: the badge number must be the bell endpoint’s own', meResponse);
+  assert('next_booking' in me, '/me: a customer is told what is next', meResponse);
+
+  // A partner has a bell of their own and no header strip at all.
+  const partnerMeResponse = await partner.fetch('/api/auth/me');
+  const partnerMe = ok(partnerMeResponse, 'GET /api/auth/me (the partner)').user;
+  assert(typeof partnerMe.unread_count === 'number', '/me: every account with a bell gets a number', partnerMeResponse);
+  assert(
+    (partnerMe.next_booking ?? null) === null,
+    '/me: an appointment strip is a customer’s, so a partner is told about no booking',
+    partnerMeResponse,
+  );
+
+  if (EXTERNAL_URL) {
+    skip('an appointment that started twenty minutes ago can only be written into the table');
+    return;
+  }
+
+  /* Written straight in, because no endpoint can produce one: an hour that has already gone
+     by is exactly what the booking routes refuse. */
+  const now = await serverNowMinutes();
+  const startedAt = hhmm(Math.max(0, now - 20));
+  const stillAheadAt = now + 30 <= 23 * 60 + 59 ? hhmm(now + 30) : null;
+  const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+  await directClient.connect();
+  const staged = [];
+  try {
+    const stage = async (time) => {
+      const row = await directClient.query(
+        `INSERT INTO bookings
+           (user_id, salon_id, service_id, code, date, time, status, total_price,
+            customer_name, customer_phone, payment_method, source, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, 'Ngọc Anh', '0901 234 567',
+                 'at_salon', 'customer', $8)
+         RETURNING id`,
+        [
+          state.customerId,
+          state.lalaId,
+          service.id,
+          `OAK-N${staged.length}${String(Date.now()).slice(-4)}`,
+          state.today,
+          time,
+          service.price,
+          new Date().toISOString(),
+        ],
+      );
+      staged.push(row.rows[0].id);
+      return row.rows[0].id;
+    };
+
+    const started = await stage(startedAt);
+    const nextAfterStart = ok(await customer.fetch('/api/auth/me'), 'GET /api/auth/me (a visit under way)')
+      .user.next_booking;
+    assert(
+      (nextAfterStart?.id ?? null) !== started,
+      '/me: an appointment that has already begun is not the one still to come',
+      nextAfterStart,
+    );
+    // It is still the customer's, and still in the tab that holds today.
+    const stillListed = ok(
+      await customer.fetch('/api/bookings/mine?status=upcoming&limit=50'),
+      'GET /api/bookings/mine?status=upcoming (a visit under way)',
+    );
+    assert(
+      stillListed.some((item) => item.id === started),
+      '/me: the tab still holds the visit the customer is sitting in',
+    );
+
+    if (stillAheadAt === null) {
+      skip('too close to midnight to stage an appointment later today');
+    } else {
+      await stage(stillAheadAt);
+      const next = ok(await customer.fetch('/api/auth/me'), 'GET /api/auth/me (something later today)')
+        .user.next_booking;
+      /* Today, and no later than the hour just staged: the strip names an appointment that
+         is still to come today rather than skipping over it to tomorrow. Its id is not
+         pinned, because anything else this group left at an earlier hour of today would be
+         the right answer too. */
+      assert(next?.date === state.today, '/me: the next appointment is the one still to come today', next);
+      assert(
+        next.time > hhmm(now) && next.time <= stillAheadAt,
+        '/me: it starts after this moment, and no later than the hour that was staged',
+        next,
+      );
+      assert(next.salon?.name !== undefined, '/me: next_booking is the same card the list answers with', next);
+    }
+  } finally {
+    if (staged.length > 0) {
+      await directClient.query('DELETE FROM bookings WHERE id = ANY($1::int[])', [staged]);
+    }
+    await directClient.end();
+  }
 }
 
 /* ============================================================================
@@ -2017,7 +2260,7 @@ async function groupReviews() {
   const beforeReply = ok(
     await customer.fetch('/api/notifications?limit=50'),
     'GET /api/notifications (before the reply)',
-  ).length;
+  );
 
   const replied = ok(
     await partnerA.fetch(`/api/partner/reviews/${ownReview.id}/reply`, {
@@ -2041,13 +2284,16 @@ async function groupReviews() {
     publicResponse,
   );
 
-  const afterReply = ok(
-    await customer.fetch('/api/notifications?limit=50'),
-    'GET /api/notifications (after the reply)',
-  );
+  const afterReplyResponse = await customer.fetch('/api/notifications?limit=50');
+  const afterReply = ok(afterReplyResponse, 'GET /api/notifications (after the reply)');
+  /* One row that was not there before, and it is the answer. Compared by id rather than by
+     counting: the bell answers with the thirty newest and nothing more, so for an account
+     that already holds thirty the length stops moving whatever arrives. */
+  const fresh = afterReply.filter((item) => !beforeReply.some((one) => one.id === item.id));
   assert(
-    afterReply.length === beforeReply + 1 && afterReply.some((item) => item.type === 'review'),
-    'review reply: the author must be told about it',
+    fresh.length === 1 && fresh[0].type === 'review',
+    'review reply: the author must be told about it, exactly once',
+    afterReplyResponse,
   );
 
   // Taking it back down is the same request with nothing in it.
@@ -4901,7 +5147,7 @@ async function groupBookingLifecycle() {
 
 /* ============================================================================
  * 18 — the account lifecycle: consent, the welcome greeting, the login throttle,
- *      the lazy 24h reminder, and erasing an account
+ *      the 24h reminder, and erasing an account
  * ========================================================================= */
 
 async function groupAccountLifecycle() {
@@ -4972,41 +5218,80 @@ async function groupAccountLifecycle() {
   }
   expectError(await badLogin(), 429, 'TOO_MANY_ATTEMPTS', 'the eleventh bad login in the window');
 
-  /* -- the lazy 24h reminder: exactly one, however often the bell is read ------ */
+  /* -- the 24h reminder: one per booking, written by the clock and by nothing else --- */
 
   const customer = session('customer');
+  const partner = session('partnerA');
   const service = ok(await guest.fetch('/api/services/1'), 'GET /api/services/1 (for a reminder)');
-  const slot = await findServiceSlot(service);
-  assert(slot !== null, 'no free hour in the next week to hang a reminder on');
-  const booked = ok(
-    await customer.fetch('/api/bookings', {
-      method: 'POST',
-      json: {
-        salon_id: service.salon.id,
-        service_id: service.id,
-        date: slot.date,
-        time: slot.time,
-        customer_name: 'Ngoc Anh',
-        customer_phone: '0901234567',
-      },
-    }),
-    'POST /api/bookings (a booking for the reminder sweep to find)',
+
+  /* Two bookings, one on each side of the window. The hours they end up at are chosen so the
+     answer cannot depend on what time of day the suite runs at: tomorrow at midnight is
+     between now and a day from now whatever the clock says, and the day after tomorrow at
+     23:00 is more than forty-seven hours away at the very least. Only the salon may move a
+     booking, so a real bookable hour is booked first and then moved. */
+  const reminderCases = [];
+  const reminderSlots = [];
+  for (const [kind, date, time] of [
+    ['due', addDays(state.today, 1), '00:00'],
+    ['too far off', addDays(state.today, 2), '23:00'],
+  ]) {
+    const slot = await findServiceSlot(service, reminderSlots);
+    assert(slot !== null, `no free hour left to hang the ${kind} reminder case on`);
+    reminderSlots.push(slot);
+    const booked = ok(
+      await customer.fetch('/api/bookings', {
+        method: 'POST',
+        json: {
+          salon_id: service.salon.id,
+          service_id: service.id,
+          date: slot.date,
+          time: slot.time,
+          customer_name: 'Ngoc Anh',
+          customer_phone: '0901234567',
+        },
+      }),
+      `POST /api/bookings (the ${kind} reminder case)`,
+    );
+    ok(
+      await partner.fetch(`/api/partner/bookings/${booked.id}`, { method: 'PATCH', json: { date, time } }),
+      `PATCH /api/partner/bookings/:id (move the ${kind} case onto its hour)`,
+    );
+    reminderCases.push(booked.id);
+  }
+  const [due, tooFarOff] = reminderCases;
+
+  /* Reading the bell writes nothing now. It used to run the sweep before answering, which is
+     why a reminder only existed once somebody happened to look — and at this platform's
+     traffic nobody looks inside any given window, so the reminder was simply missed. */
+  const beforeClock = ok(
+    await customer.fetch('/api/notifications?limit=50'),
+    'GET /api/notifications (before the clock runs)',
+  );
+  assert(
+    beforeClock.every((item) => !(item.type === 'reminder' && item.booking_id === due)),
+    'reminders: opening the bell must not write one',
+    beforeClock,
   );
 
-  // The sweep is gated to once per ten minutes per PROCESS, and this suite shares one with
-  // every group before it — so what is asserted is the count, not that the first read
-  // creates it. Reading four times may legitimately sweep zero times; it may never leave
-  // two reminders behind for one booking.
-  for (let read = 0; read < 4; read += 1) {
-    const inbox = ok(
-      await customer.fetch('/api/notifications?limit=50'),
-      `GET /api/notifications (${read + 1})`,
-    );
-    const reminders = inbox.filter(
-      (item) => item.type === 'reminder' && item.booking_id === booked.id,
-    );
-    assert(reminders.length <= 1, 'the sweep never writes a second reminder for one booking', inbox);
-  }
+  const swept = await tick();
+  assert(swept.reminded >= 1, 'the clock reports the reminders it wrote', swept);
+
+  const remindersOf = async (label) => {
+    const inbox = ok(await customer.fetch('/api/notifications?limit=50'), label);
+    return (id) => inbox.filter((item) => item.type === 'reminder' && item.booking_id === id);
+  };
+  const afterOne = await remindersOf('GET /api/notifications (after the clock ran)');
+  assert(afterOne(due).length === 1, 'reminders: an appointment inside the window gets exactly one');
+  assert(
+    afterOne(tooFarOff).length === 0,
+    'reminders: an appointment two days out is nobody’s business yet',
+  );
+
+  // And running it again writes nothing more: one reminder per booking, ever.
+  await tick();
+  const afterTwo = await remindersOf('GET /api/notifications (after the second run)');
+  assert(afterTwo(due).length === 1, 'reminders: a second run must not write a second reminder');
+  assert(afterTwo(tooFarOff).length === 0, 'reminders: nor reach further than its window');
   /* -- erasing an account ----------------------------------------------------- */
 
   expectError(
@@ -5086,7 +5371,6 @@ async function groupAccountLifecycle() {
      types that number into a sign-up form used to be handed the visit. The number is typed,
      not verified, so it was proof of nothing — a contact list was a shopping list. Both ways
      of attaching a number to an account are swept here, because both used to claim. */
-  const partner = session('partnerA');
   const menu = ok(
     await partner.fetch('/api/partner/services?limit=1'),
     'a service for the counter to write the walk-ins against',
@@ -7202,9 +7486,11 @@ async function groupStaffPersona() {
         }),
         'PATCH the stranded visit into yesterday',
       );
+      // The clock is what closes it out; the list only reports what the clock did.
+      await tick();
       const sweptList = ok(
         await strandedCustomer.fetch('/api/bookings/mine?status=completed&limit=50'),
-        'GET /api/bookings/mine (the sweep that closes the stranded visit)',
+        'GET /api/bookings/mine (the stranded visit after the clock ran)',
       );
       assert(
         sweptList.some((item) => item.id === strandedBooking.id && item.auto === true),

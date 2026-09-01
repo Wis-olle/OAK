@@ -47,6 +47,12 @@ import {
   selectPublicUser,
   sessionOutlivedPassword,
 } from '../middleware/auth.js';
+/* The two answers /me carries besides the account itself. Both are owned by the route that
+   also serves them on its own — the bell's number and the booking card — so that the header
+   can be told them in one breath without a second opinion of either coming into existence
+   here. See the handler at the bottom of this file. */
+import { nextBookingFor } from './bookings.js';
+import { selectUnreadCount } from './notifications.js';
 
 const router = express.Router();
 
@@ -931,9 +937,23 @@ router.post('/logout', (req, res) => {
   res.json({ success: true, data: { ok: true } });
 });
 
-// Optional auth: a guest is a normal outcome here, not a 401. Every page probes this on
-// load, so an anonymous visitor gets 200 {user:null} and the browser console stays clean;
-// the endpoints that genuinely need a session keep using requireAuth.
+/*
+ * Optional auth: a guest is a normal outcome here, not a 401. Every page probes this on
+ * load, so an anonymous visitor gets 200 {user:null} and the browser console stays clean;
+ * the endpoints that genuinely need a session keep using requireAuth.
+ *
+ * A signed-in reader gets two more fields on the account, and the reason is that every page
+ * load used to make three requests to draw one header: this one, the bell's unread count,
+ * and the customer's next appointment. Two of the three answered a single number and a
+ * single row, both of them cheap, both of them wanted by the page that had already asked
+ * this question. So they ride along. GET /api/notifications?count_only=true and GET
+ * /api/bookings/mine both stay exactly as they were — the pages that refresh a count after
+ * marking something read still need them — and the numbers come from the same statements,
+ * so the two doors cannot disagree.
+ *
+ * next_booking is for customers alone: it is the header strip's row, and a partner or a
+ * technician meets the site through a console that has no such strip.
+ */
 router.get('/me', async (req, res) => {
   const token = req.cookies?.[COOKIE_NAME];
   let user = null;
@@ -948,6 +968,12 @@ router.get('/me', async (req, res) => {
       }
     } catch {
       user = null;
+    }
+  }
+  if (user) {
+    user.unread_count = (await selectUnreadCount.get(user.id)).count;
+    if (user.role === 'customer') {
+      user.next_booking = await nextBookingFor(user.id);
     }
   }
   res.json({ success: true, data: { user } });

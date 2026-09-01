@@ -815,15 +815,24 @@
     return window.OAKI18N && window.OAKI18N.label ? window.OAKI18N.label(text) : text;
   }
 
-  async function initNotificationBell() {
+  /**
+   * Hang the unread mark on the bell, from the count /api/auth/me already answered with.
+   *
+   * It used to ask GET /api/notifications?count_only=true for that number itself, which made
+   * a second round trip out of one integer the page had just been told. The endpoint is still
+   * there and thong-bao.html and the two technician pages still read it — they refresh a
+   * count after something is marked read, which this never does: the mark is drawn once, for
+   * the load it belongs to.
+   */
+  function initNotificationBell(user) {
     // The customer menu and the technician menu each carry a row of this name, and only one
     // of the two is on screen. Taking the first in document order would hang the mark inside
     // the group initAuthMenu just put away, where nobody would ever see it — so the first one
     // outside a put-away group wins. The plain first behind it is for the cached page that
     // meets an older oak-header.js, whose one row is in a group no persona here matches: a
     // mark in the wrong row still says there is something to read, and none says nothing.
-    // Safe by ordering: initHeader() settles the groups before this, and the search below
-    // runs before the first await, so nothing can slip in between.
+    // Safe by ordering: initHeader() settles the groups before this one is called, and
+    // nothing here waits on anything, so the two cannot interleave.
     var bells = document.querySelectorAll('[aria-label="Thông báo"]');
     var bell = Array.prototype.filter.call(bells, function (node) {
       return !(node.closest && node.closest('.hidden'));
@@ -835,13 +844,9 @@
       bell.href = NOTIFICATIONS_PAGE;
     }
 
-    var unread;
-    try {
-      unread = (await api('/api/notifications?count_only=true')).unread_count;
-    } catch (error) {
-      return;
-    }
-    if (!unread) {
+    // Absent on a page cached from before /me carried it, which reads as "nothing to see":
+    // a missing mark is the same thing a reader with an empty inbox gets.
+    if (!user.unread_count) {
       return;
     }
 
@@ -1001,7 +1006,7 @@
     }
     initAccountLink(user);
     initAuthMenu(user);
-    initNotificationBell();
+    initNotificationBell(user);
   }
 
   /* --------------------------------------------------------------- measurement

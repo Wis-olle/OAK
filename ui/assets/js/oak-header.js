@@ -392,22 +392,20 @@
   }
 
   /*
-   * One request for the two places that name the next appointment: this bar, and the "Lịch
-   * kế tiếp" band under the hero on kham-pha.html. GET /api/bookings/mine also closes out
-   * the appointments whose day is over (bookings.js closePastBookings), so a second copy of
-   * the request on one page is not merely wasteful — the two sweeps would race each other.
-   * Memoized the way oak-api.js memoizes OAK.me(), and hung off OAK for the same reason:
-   * the band is Alpine, which starts after this file has already run.
+   * The next appointment, for the two places that name it: this bar, and the "Lịch kế tiếp"
+   * band under the hero on kham-pha.html. No request of its own any more — /api/auth/me
+   * carries it, and the page asks that question anyway — so what used to be a second round
+   * trip (and, before the tick existed, a sweep of the reader's rows on a GET) is now a
+   * field. Null for anyone with nothing ahead of them, and for anyone who is not a customer:
+   * the server sends the field only to those, so there is nothing to sort out here.
+   *
+   * Still memoized the way oak-api.js memoizes OAK.me(), and still hung off OAK for the same
+   * reason: the band is Alpine, which starts after this file has already run.
    */
   function nextBooking() {
     if (!OAK.nextBookingPromise) {
       OAK.nextBookingPromise = OAK.me().then(function (user) {
-        if (!user || user.role !== 'customer') {
-          return null;
-        }
-        return OAK.api('/api/bookings/mine?status=upcoming&limit=1').then(function (list) {
-          return (list && list[0]) || null;
-        });
+        return (user && user.next_booking) || null;
       });
     }
     return OAK.nextBookingPromise;

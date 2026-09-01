@@ -14,7 +14,7 @@ import {
 import { withBookingCode } from '../lib/booking-code.js';
 import { notifyStaff, notifyUser } from '../lib/notify.js';
 import { parsePagination } from '../lib/query.js';
-import { isHHMM, isISODate, nowMinutes, toMinutes, todayISO } from '../lib/time.js';
+import { fromMinutes, isHHMM, isISODate, nowMinutes, toMinutes, todayISO } from '../lib/time.js';
 import { httpError, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -91,22 +91,20 @@ const INSERT_BOOKING = `
 `;
 const CANCEL_BOOKING = "UPDATE bookings SET status = 'cancelled', note = ? WHERE id = ?";
 
-// What the sweep below appends to the note so the salon can read why the booking closed.
-// The card does not read these back: bookings.auto_closed carries that fact instead, because
-// `note` also holds the customer's own words and a customer may write anything into it.
-const AUTO_COMPLETED_NOTE = 'Tự động hoàn tất';
-const AUTO_CANCELLED_NOTE = 'Quá giờ chưa xác nhận';
-const SELECT_STALE_BOOKINGS = `
-  SELECT b.id, b.code, b.note, b.status, s.name AS salon_name
-  FROM bookings b
-  JOIN salons s ON s.id = b.salon_id
-  WHERE b.user_id = ? AND b.date < ? AND b.status IN ('pending', 'confirmed')
+// The one appointment the header strip and the "Lịch kế tiếp" band name, answered as part
+// of GET /api/auth/me so a page load asks once rather than three times. Stricter than the
+// "upcoming" tab below on purpose: that tab keeps a visit that has already started, because
+// the customer sitting in the chair must be able to find it, while a strip announcing "Bạn
+// có lịch 09:00 hôm nay" at eight in the evening is simply wrong. Same reading of "still to
+// come" as minutesUntilStart below, in SQL.
+const SELECT_NEXT_BOOKING = `
+  SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM}
+  WHERE b.user_id = ? AND b.status IN ('pending', 'confirmed')
+    AND (b.date > ? OR (b.date = ? AND b.time > ?))
+  ORDER BY b.date ASC, b.time ASC
+  LIMIT 1
 `;
-const selectStaleBookings = db.prepare(SELECT_STALE_BOOKINGS);
-// Guarded on the status the row was read with, so two lists opened at once cannot both
-// close it out and both queue the invitation to review it.
-const CLOSE_STALE_BOOKING =
-  'UPDATE bookings SET status = ?, note = ?, auto_closed = 1 WHERE id = ? AND status = ?';
+const selectNextBooking = db.prepare(SELECT_NEXT_BOOKING);
 
 // The status filters double as the sort order: only "upcoming" reads forwards in time.
 // Fragments are constants picked by key, never assembled from request text.
@@ -115,8 +113,8 @@ const MINE_FILTERS = {
     /* The whole of today, in Vietnam time, and not only the hours it has left. An
        appointment at 09:00 read at 09:20 is under way, not over: it was in no tab at all
        once — past holds only what has closed out — so a customer sitting in the chair
-       could not find the booking they were sitting in. It stays here until
-       closePastBookings settles it the day after. What the customer may still DO with it
+       could not find the booking they were sitting in. It stays here until the tick
+       (lib/tick.js) settles it the day after. What the customer may still DO with it
        is a separate question, and the screens ask it separately: an appointment that has
        started offers neither Hủy nor Đổi lịch. */
     where: "b.date >= ? AND b.status IN ('pending', 'confirmed')",
@@ -166,7 +164,7 @@ function toBookingCard(row) {
       cancel_policy_text: row.salon_cancel_policy_text ?? null,
     },
     staff: row.staff_id ? { id: row.staff_id, name: row.staff_name } : null,
-    // True when closePastBookings below is what ended this booking, not the salon: the
+    // True when the tick (lib/tick.js) is what ended this booking, not the salon: the
     // card then says so instead of implying somebody looked at it.
     auto: Boolean(row.auto_closed),
   };
@@ -262,48 +260,17 @@ function minutesUntilStart(date, time) {
 }
 
 /**
- * Close out the caller's own appointments whose day is over and which the salon never
- * touched: a confirmed one happened, a pending one was never taken up.
+ * The card for `userId`'s next appointment, or null when there is none to come.
  *
- * Done lazily, on the request that is about to show the list, rather than by a cron job:
- * the answer is only ever needed when somebody looks, and the customer's own list is the
- * one place it is looked at. An auto-completed booking is what opens the review loop, so
- * each one gets the same invitation partner.js sends when the salon closes it by hand.
+ * Exported for GET /api/auth/me, which carries it so that a signed-in page load asks the
+ * server once instead of three times. It lives here rather than in auth.js because the card
+ * shape and the columns behind it are this file's, and a second copy of either is a second
+ * thing to drift.
  */
-async function closePastBookings(userId) {
-  const stale = await selectStaleBookings.all(userId, todayISO());
-  if (stale.length === 0) {
-    return;
-  }
-
-  await db.withTransaction(async (tx) => {
-    for (const booking of stale) {
-      const completed = booking.status === 'confirmed';
-      // Appended, not replaced: the customer's own request stays readable for the salon.
-      const note = [booking.note, completed ? AUTO_COMPLETED_NOTE : AUTO_CANCELLED_NOTE]
-        .filter(Boolean)
-        .join('\n');
-      const { changes } = await tx.run(
-        CLOSE_STALE_BOOKING,
-        completed ? 'completed' : 'cancelled',
-        note,
-        booking.id,
-        booking.status,
-      );
-      // Nothing changed means another request swept this row first, and it already sent
-      // the invitation — sending a second one is what the status guard is there to stop.
-      if (changes > 0 && completed) {
-        await notifyUser(
-          tx,
-          userId,
-          'Buổi hẹn đã hoàn tất',
-          `Cảm ơn bạn đã sử dụng dịch vụ tại ${booking.salon_name}. Hãy dành một phút đánh giá lịch hẹn ${booking.code} nhé!`,
-          'review',
-          booking.id,
-        );
-      }
-    }
-  });
+export async function nextBookingFor(userId) {
+  const today = todayISO();
+  const row = await selectNextBooking.get(userId, today, today, fromMinutes(nowMinutes()));
+  return row ? toBookingCard(row) : null;
 }
 
 // Registered before GET /:id, otherwise Express matches 'quote' and 'mine' as booking ids.
@@ -337,10 +304,6 @@ router.get('/quote', async (req, res, next) => {
 
 router.get('/mine', async (req, res, next) => {
   try {
-    // Before the list is counted or read, so a booking the salon left behind lands in the
-    // tab it belongs to instead of falling out of all three.
-    await closePastBookings(req.user.id);
-
     // Object.hasOwn, so a status like "constructor" cannot reach an inherited member
     // and put `undefined` into the WHERE clause.
     const filter = Object.hasOwn(MINE_FILTERS, req.query.status)

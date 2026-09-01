@@ -962,9 +962,8 @@ async function unreadDot(user) {
     window: {},
     user,
     NOTIFICATIONS_PAGE: 'thong-bao.html',
-    api: async () => ({ unread_count: 3 }),
   };
-  vm.runInNewContext(`${authScript}\n${bellScript}\nran = initAuthMenu(user) || initNotificationBell();`, context);
+  vm.runInNewContext(`${authScript}\n${bellScript}\nran = initAuthMenu(user) || initNotificationBell(user);`, context);
   await context.ran;
 
   const marked = dom.nodes.filter((node) => node.children.length > 0);
@@ -976,9 +975,9 @@ test('the unread mark is hung on the row that is actually on screen', async () =
   // Both menus carry a row answering to "Thông báo" and only one of them is ever shown, so
   // the first in document order — the customer's — is the wrong answer for a technician:
   // the mark would sit inside a group nobody can open, and she would be told nothing.
-  const technician = await unreadDot({ role: 'staff' });
+  const technician = await unreadDot({ role: 'staff', unread_count: 3 });
   assert.equal(technician.in, 'staff');
-  const customer = await unreadDot({ role: 'customer' });
+  const customer = await unreadDot({ role: 'customer', unread_count: 3 });
   assert.equal(customer.in, 'user');
 
   // And each row still names its own spot: across a full-width entry a corner lands nowhere
@@ -2604,16 +2603,21 @@ test('the ten things a technician is told about, each written once and in a tran
 });
 
 test('the unread badge already counts these, and gains nothing new', () => {
-  /* GET /api/notifications?count_only=true has answered {unread_count} since the bell existed,
-     and assets/js/oak-api.js reads exactly that. A technician's rows are notifications like
-     any other, so a second count beside it would be a number that can disagree with itself. */
+  /* One statement answers {unread_count}, and it has since the bell existed. A technician's
+     rows are notifications like any other, so a second count beside it would be a number
+     that can disagree with itself. */
   const notificationsSource = source('routes', 'notifications.js');
   assert.match(
     notificationsSource,
     /if \(req\.query\.count_only === 'true'\) \{\s*res\.json\(\{\s*success: true,\s*data: \{ unread_count: \(await selectUnreadCount\.get\(req\.user\.id\)\)\.count \},/,
   );
   assert.doesNotMatch(notificationsSource, /meta: \{[^}]*unread/);
-  assert.match(apiJs, /count_only=true/);
+  /* The bar reads that same number off /api/auth/me, which carries it — the count is the
+     same statement either way (routes/auth.js imports selectUnreadCount from here), and the
+     header stops making a second request for one integer. The endpoint stays for the pages
+     that refresh the count after marking something read. */
+  assert.match(notificationsSource, /export const selectUnreadCount/);
+  assert.match(apiJs, /if \(!user\.unread_count\)/);
 });
 
 // ------------------------------------------- the page the technician owns their half from

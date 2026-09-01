@@ -28,6 +28,13 @@ services:
         value: Asia/Ho_Chi_Minh
       - key: JWT_SECRET
         generateValue: true
+      # The key GET /api/internal/tick asks for. The app runs its own tick on an interval
+      # (src/index.js), so nothing has to call that route — it is there for an external cron,
+      # and for running the sweep on demand. Generated rather than left unset: without it the
+      # route answers 503, which is the safe default but a puzzling one to meet later.
+      # DEPLOY.md §8.
+      - key: TICK_SECRET
+        generateValue: true
       # Set these three in the Render dashboard (sync: false keeps secrets out of git).
       # Values come from the Supabase project — see DEPLOY.md.
       - key: DATABASE_URL

@@ -1,62 +1,44 @@
-/* The lazy 24-hour reminder sweep (src/lib/reminders.js). The module opens a database
-   connection the moment it is imported, so its body is lifted and driven against a stand-in
-   store instead — the same trick events-route.test.mjs and assistant-parser.test.mjs use.
-   What is worth pinning here is exactly what the sweep promises: the window it asks for,
-   the sentence it writes, and that asking twice never writes twice. */
+/* The 24-hour reminder sweep (src/lib/reminders.js). It runs on a transaction the tick hands
+   it and imports no database of its own, so it is driven here directly, against a stand-in
+   transaction that behaves the way Postgres does. What is worth pinning is exactly what the
+   sweep promises: the window it asks for, the sentence it writes, and that asking twice never
+   writes twice. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 
-import { addDaysISO, fromMinutes, toMinutes } from '../src/lib/time.js';
+import { sweepReminders } from '../src/lib/reminders.js';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const source = fs.readFileSync(path.join(root, 'src', 'lib', 'reminders.js'), 'utf8');
-
-/* A morning that puts the window squarely on tomorrow: 10:30 today reminds about the
-   appointments starting between 09:30 and 11:30 tomorrow. */
+/* A morning that puts the window on the day ahead: 10:30 today reminds about everything
+   starting between now and 11:30 tomorrow. */
 const TODAY = '2026-08-23';
 const NOW_MIN = 10 * 60 + 30;
 
 /**
- * Run the sweep over `bookings`, with a store that behaves the way Postgres does: the
- * SELECT hides whatever already has a reminder, and the write puts one there.
- * Returns what was asked and what was written.
+ * A transaction over `bookings`: the SELECT hides whatever already has a reminder, and the
+ * INSERT notify.js writes puts one there. Returns what was asked and what was written.
  */
 function sweeper(bookings) {
   const written = [];
   const asked = [];
   const reminded = (id) => written.some((row) => row.bookingId === id);
 
-  const from = source.indexOf('const MINUTES_PER_DAY');
-  assert.ok(from !== -1, 'reminders.js no longer starts with its constants');
-  const body = source.slice(from).replace('export async function', 'async function');
-
-  const context = {
-    addDaysISO,
-    fromMinutes,
-    toMinutes,
-    todayISO: () => TODAY,
-    nowMinutes: () => NOW_MIN,
-    db: {
-      prepare: () => ({
-        all: async (...params) => {
-          asked.push(params);
-          /* The SQL's own NOT EXISTS, in JavaScript: a booking already reminded about is
-             not returned at all, which is what makes a second sweep find nothing. */
-          return bookings.filter((row) => !reminded(row.id));
-        },
-      }),
-      withTransaction: async (work) => work({ get: async (sql, id) => (reminded(id) ? {} : null) }),
+  const tx = {
+    all: async (sql, ...params) => {
+      asked.push(params);
+      /* The SQL's own NOT EXISTS, in JavaScript: a booking already reminded about is not
+         returned at all, which is what makes a second sweep find nothing. */
+      return bookings.filter((row) => !reminded(row.id));
     },
-    notifyUser: async (tx, userId, title, bodyText, type, bookingId) => {
-      written.push({ userId, title, body: bodyText, type, bookingId });
+    get: async (sql, id) => (reminded(id) ? {} : undefined),
+    /* notify.js is the real one, so what lands here is the row it would insert:
+       (user_id, title, body, type, booking_id, created_at). */
+    run: async (sql, userId, title, body, type, bookingId) => {
+      written.push({ userId, title, body, type, bookingId });
+      return { changes: 1 };
     },
   };
-  vm.runInNewContext(`${body}\nglobalThis.sweep = runReminderSweep;`, context);
-  return { run: context.sweep, written, asked };
+
+  return { run: () => sweepReminders(tx, TODAY, NOW_MIN), written, asked };
 }
 
 const BOOKING = {
@@ -70,12 +52,15 @@ const BOOKING = {
   staff_name: 'Minh Anh',
 };
 
-test('the sweep asks for the appointments starting about a day from now', async () => {
+/* The lower bound is now, not an hour short of a day from now. A sweep that skipped what was
+   already inside the day left it unreminded for ever, because the next sweep finds it later
+   still — and this deployment sleeps, restarts and misses beats. */
+test('the sweep asks for everything from this moment to a day and an hour out', async () => {
   const { run, asked } = sweeper([]);
   await run();
 
-  /* date >= 24/08 09:30 and date <= 24/08 11:30, each bound spelled as (date, date, time). */
-  assert.deepEqual(asked, [['2026-08-24', '2026-08-24', '09:30', '2026-08-24', '2026-08-24', '11:30']]);
+  /* Later than 23/08 10:30 and no later than 24/08 11:30, each bound spelled (date, date, time). */
+  assert.deepEqual(asked, [['2026-08-23', '2026-08-23', '10:30', '2026-08-24', '2026-08-24', '11:30']]);
 });
 
 test('the reminder names the service, the hour, the salon, the technician and the code', async () => {
@@ -134,7 +119,7 @@ test('sweeping again writes nothing more — one reminder per booking, ever', as
   assert.equal(written.length, 1);
 });
 
-test('nothing due is not a transaction', async () => {
+test('nothing due writes nothing', async () => {
   const { run, written } = sweeper([]);
 
   assert.equal(await run(), 0);

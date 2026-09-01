@@ -214,6 +214,10 @@ Hoặc **cron-job.org** (free): **Create cronjob** → URL như trên → Schedu
 
 Endpoint này cố tình rẻ: `GET /api/health` trả `{"success":true,"data":{"status":"ok"}}` và không chạm database, nên ping mỗi 10 phút không sinh tải và không đánh thức Supabase một cách vô ích. Ping cũng không thay thế được trang: client vẫn có banner "OAK đang khởi động…" cho lần hiếm hoi service vẫn kịp ngủ.
 
+Ping này còn nuôi một thứ nữa: **tác vụ định kỳ** (`server/src/lib/tick.js` — đóng lịch của những ngày đã qua, kể cả khách vãng lai không có tài khoản, và gửi nhắc lịch 24 giờ). Nó chạy bằng `setInterval` ngay trong tiến trình web (mặc định 10 phút, `TICK_INTERVAL_MS`), nên **service còn thức là tác vụ còn chạy** — không cần worker, không cần cron, không tốn thêm đồng nào. Lần chạy đầu là 15 giây sau khi boot, để bù phần bị bỏ lỡ lúc service ngủ.
+
+Muốn chắc ăn hơn (ví dụ khi ping uptime chết mà không ai biết), thêm **một monitor cron-job.org thứ hai** trỏ tới `https://<tên-service>.onrender.com/api/internal/tick?key=<TICK_SECRET>`, lịch *Every 10 minutes*. `TICK_SECRET` do `render.yaml` sinh sẵn — đọc trong **Render → Environment**. Không phải sửa dòng code nào. Lưu ý: khoá nằm trong URL là khoá nằm trong log của dịch vụ cron, nên coi nó như một secret cần xoay vòng; muốn sạch hơn thì gửi bằng header `x-oak-tick-key`. Hai nguồn gọi cùng lúc cũng không sao: mỗi lần chạy giữ một advisory lock, ai đến sau thì bỏ qua.
+
 ---
 
 ## 9. Đo lường ẩn danh (`POST /api/events`)

@@ -1,10 +1,10 @@
 /*
  * The 24-hour appointment reminder.
  *
- * There is no scheduler on this deployment — the free tier sleeps whenever nobody is
- * looking — so the sweep is lazy: GET /api/notifications runs it before it answers, at
- * most once every ten minutes. The reminder is therefore written the first time anyone
- * opens the bell inside the window, which is also the only moment it could be read.
+ * Written by the tick (lib/tick.js), on the transaction and under the advisory lock the tick
+ * holds. It used to be lazy — GET /api/notifications ran it before answering — which meant
+ * the reminder was only ever written when somebody opened the bell, and at today's traffic
+ * nobody opens the bell inside any given window, so it was simply missed.
  *
  * Idempotency is the NOT EXISTS below rather than a column on bookings: one notification
  * of type 'reminder' per booking is the whole rule, and the notifications table already
@@ -12,14 +12,20 @@
  *
  * When a Zalo OA account exists, the same function is where the ZNS message goes out.
  */
-import { db } from '../db.js';
 import { notifyUser } from './notify.js';
-import { addDaysISO, fromMinutes, nowMinutes, todayISO, toMinutes } from './time.js';
+import { addDaysISO, fromMinutes, toMinutes } from './time.js';
 
 const MINUTES_PER_DAY = 24 * 60;
-// A day ahead, give or take an hour either side: the sweep runs at most every ten minutes,
-// so a window this wide cannot be stepped over, and a booking can only fall in it once.
-const WINDOW_FROM_MIN = 23 * 60;
+/* Everything starting between this moment and a day and an hour from now.
+ *
+ * There is no lower bound, and there used to be one — an hour either side of the 24-hour
+ * mark. A window with a floor only works for a sweep that never misses a beat, and this one
+ * can: the free tier sleeps, a deploy restarts the process, an instance is asleep for hours.
+ * Anything that fell through such a gap was never reminded about at all. A reminder that
+ * arrives eight hours before the appointment instead of twenty-four is late; it is not
+ * useless, and it is worth far more than none. The hour past the day is what keeps the
+ * upper edge from being stepped over between two runs of a ten-minute tick.
+ */
 const WINDOW_TO_MIN = 25 * 60;
 // Only for a salon that never set one of its own: bookings.js DEFAULT_CANCEL_WINDOW_HOURS is
 // the same fallback, and PATCH /api/bookings/:id/cancel enforces the salon's column. The two
@@ -38,13 +44,12 @@ const SELECT_DUE = `
   LEFT JOIN staff st ON st.id = b.staff_id
   WHERE b.user_id IS NOT NULL
     AND b.status IN ('pending', 'confirmed')
-    AND (b.date > ? OR (b.date = ? AND b.time >= ?))
+    AND (b.date > ? OR (b.date = ? AND b.time > ?))
     AND (b.date < ? OR (b.date = ? AND b.time <= ?))
     AND NOT EXISTS (
       SELECT 1 FROM notifications n WHERE n.booking_id = b.id AND n.type = 'reminder'
     )
 `;
-const selectDue = db.prepare(SELECT_DUE);
 const SELECT_REMINDED = `SELECT 1 FROM notifications WHERE booking_id = ? AND type = 'reminder'`;
 
 /** `minutes` past midnight on `date`, as the ('YYYY-MM-DD', 'HH:MM') pair the schema stores. */
@@ -78,31 +83,29 @@ function reminderBody(row) {
 }
 
 /**
- * Write one 'reminder' notification for every appointment starting about a day from now
- * that has not been reminded about yet. Returns how many were written.
+ * Write one 'reminder' notification for every appointment starting between `now` (minutes
+ * past midnight on `today`) and a day and an hour later that has not been reminded about
+ * yet. Returns how many were written.
+ *
+ * Runs on the caller's transaction: lib/tick.js opens it and holds the lock that keeps two
+ * instances out of the same window.
  */
-export async function runReminderSweep() {
-  const today = todayISO();
-  const now = nowMinutes();
-  const [fromDate, fromTime] = shift(today, now + WINDOW_FROM_MIN);
+export async function sweepReminders(tx, today, now) {
+  const [fromDate, fromTime] = shift(today, now);
   const [toDate, toTime] = shift(today, now + WINDOW_TO_MIN);
 
-  const due = await selectDue.all(fromDate, fromDate, fromTime, toDate, toDate, toTime);
-  if (due.length === 0) {
-    return 0;
-  }
+  const due = await tx.all(SELECT_DUE, fromDate, fromDate, fromTime, toDate, toDate, toTime);
 
   let written = 0;
-  await db.withTransaction(async (tx) => {
-    for (const row of due) {
-      // Asked again inside the transaction: the NOT EXISTS above ran before it opened, so a
-      // second sweep that started in between would otherwise write the same reminder twice.
-      if (await tx.get(SELECT_REMINDED, row.id)) {
-        continue;
-      }
-      await notifyUser(tx, row.user_id, REMINDER_TITLE, reminderBody(row), 'reminder', row.id);
-      written += 1;
+  for (const row of due) {
+    // Asked a second time, per booking. The advisory lock already makes this impossible to
+    // need; it stays because "one reminder per booking, ever" is the promise, and a promise
+    // that rests on a lock held somewhere else is one refactor from being broken quietly.
+    if (await tx.get(SELECT_REMINDED, row.id)) {
+      continue;
     }
-  });
+    await notifyUser(tx, row.user_id, REMINDER_TITLE, reminderBody(row), 'reminder', row.id);
+    written += 1;
+  }
   return written;
 }

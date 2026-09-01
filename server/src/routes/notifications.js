@@ -1,7 +1,6 @@
 // Customer notifications: list, unread count, mark read.
 import express from 'express';
 import { db } from '../db.js';
-import { runReminderSweep } from '../lib/reminders.js';
 import { httpError, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -11,28 +10,6 @@ router.use(requireAuth);
 
 // The list is a notification bell, not an archive: 30 newest is all the UI can show.
 const FEED_LIMIT = 30;
-
-/* The 24-hour reminder has no cron to run it — this deployment sleeps whenever nobody is
-   looking — so the bell itself sweeps for due appointments before it answers. Reading the
-   bell is also the only moment a reminder could be seen, so nothing is lost by waiting for
-   it. Once every ten minutes at most, across the whole process: the sweep looks at every
-   account, not just the caller's, so one reader pays for all of them. */
-const SWEEP_INTERVAL_MS = 10 * 60 * 1000;
-let lastSweepAt = 0;
-
-async function sweepReminders() {
-  if (Date.now() - lastSweepAt < SWEEP_INTERVAL_MS) {
-    return;
-  }
-  // Stamped before the await, not after: two requests arriving together must not both sweep.
-  lastSweepAt = Date.now();
-  try {
-    await runReminderSweep();
-  } catch (error) {
-    // A bell that cannot show one extra row is still a bell; a bell that 500s is not.
-    console.error('reminder sweep failed:', error);
-  }
-}
 
 // "read" is a SQL keyword, so it stays quoted in every statement that touches it.
 const selectFeed = db.prepare(`
@@ -49,7 +26,12 @@ const selectUnreadFeed = db.prepare(`
   ORDER BY created_at DESC, id DESC
   LIMIT ?
 `);
-const selectUnreadCount = db.prepare(
+/* The badge's number. Exported because GET /api/auth/me carries it too — a page load asks
+   who is signed in anyway, and a second request for one integer is a request too many — and
+   because a count that can disagree with the one this route answers is worse than no badge.
+   The reminders that used to be swept into existence by GET / below are written by the tick
+   (lib/tick.js) now: reading the bell is a read again, with no side effect on anybody's rows. */
+export const selectUnreadCount = db.prepare(
   'SELECT COUNT(*) AS count FROM notifications WHERE user_id = ? AND "read" = 0',
 );
 const markRead = db.prepare('UPDATE notifications SET "read" = 1 WHERE id = ? AND user_id = ?');
@@ -73,9 +55,6 @@ function toNotification(row) {
 
 router.get('/', async (req, res, next) => {
   try {
-    // Before either branch, so the badge counts a reminder the same load it is written on.
-    await sweepReminders();
-
     // count_only wins: the badge needs a number, and sending the rows too would be waste.
     if (req.query.count_only === 'true') {
       res.json({

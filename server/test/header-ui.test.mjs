@@ -299,10 +299,11 @@ async function nextBookingBar(booking) {
   const body = { style: {} };
   const asked = [];
   const OAK = {
-    me: async () => ({ id: 1, role: 'customer' }),
+    // The appointment rides along on /api/auth/me, which the bar asks anyway.
+    me: async () => ({ id: 1, role: 'customer', next_booking: booking }),
     api: async (path) => {
       asked.push(path);
-      return booking ? [booking] : [];
+      return [];
     },
   };
 
@@ -317,7 +318,7 @@ async function nextBookingBar(booking) {
     },
   });
   ready();
-  /* The bar is two awaits deep — /api/auth/me, then the booking list. */
+  /* The bar is two awaits deep — /api/auth/me, then the field it carried. */
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setImmediate(resolve));
 
@@ -343,7 +344,8 @@ const tomorrow = () => ({
 test("the bar says when and where the reader's next appointment is", async () => {
   const { bar, body, asked } = await nextBookingBar(tomorrow());
 
-  assert.deepEqual(asked, ['/api/bookings/mine?status=upcoming&limit=1']);
+  // Not one request of its own: the answer came with the question the page had to ask anyway.
+  assert.deepEqual(asked, []);
   assert.equal(bar.href, 'lich-hen-cua-toi.html');
   /* One word per element: a sentence assembled around an hour and a salon name is in no
      dictionary, and each of these pieces is. */
@@ -372,14 +374,13 @@ test('the page is measured again when the window changes size', async () => {
 });
 
 /* kham-pha.html shows the same appointment in its "Lịch kế tiếp" band, and reads it through
-   this. GET /api/bookings/mine also closes out yesterday's appointments, so two copies of
-   the request on one page would put two of those sweeps in flight at once. */
+   this. Both readers share the one memoized answer, so neither of them costs a request. */
 test('the next appointment is read once, however many places show it', async () => {
   const { asked, OAK } = await nextBookingBar(tomorrow());
 
-  assert.deepEqual(asked, ['/api/bookings/mine?status=upcoming&limit=1']);
+  assert.deepEqual(asked, []);
   assert.equal((await OAK.nextBooking()).salon.name, 'Lala Nail Studio');
-  assert.deepEqual(asked, ['/api/bookings/mine?status=upcoming&limit=1']);
+  assert.deepEqual(asked, []);
 });
 
 test('an appointment further off than tomorrow is not worth a bar', async () => {

@@ -986,9 +986,9 @@
                     return;
                 }
                 try {
-                    /* The one the header bar already asked for (oak-header.js nextBooking):
-                       the request also closes out yesterday's appointments, so this page
-                       makes it once for both readers of it rather than twice. */
+                    /* The one the header bar already asked for (oak-header.js nextBooking).
+                       It arrives with /api/auth/me, which this page has asked anyway, so
+                       both readers of it here cost nothing between them. */
                     this.booking = await OAK.nextBooking();
                     if (!this.booking) {
                         this.pending = await this.unreviewed();

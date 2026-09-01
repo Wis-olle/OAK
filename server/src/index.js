@@ -7,6 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import app from './app.js';
+import { db } from './db.js';
+import { runTick } from './lib/tick.js';
 
 const port = process.env.PORT || 3000;
 const dataDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../data');
@@ -78,6 +80,43 @@ server.on('error', (error) => {
   logCrash('server error — exiting with code 1', error);
   process.exit(1);
 });
+
+/*
+ * The scheduler, such as it is: a setInterval in the web process.
+ *
+ * There is no worker dyno and no cron on this plan, and there does not need to be. The
+ * health ping keeps exactly one instance awake round the clock (DEPLOY.md §8), so an
+ * in-process interval is the cheapest scheduler that exists here — no extra service, no
+ * extra bill, nothing to keep in sync with the code it runs. What it cannot promise is a
+ * process that was asleep or restarting, and the tick a few seconds after boot is for that:
+ * whatever was missed while nobody was home is swept the moment somebody is. Fifteen seconds
+ * rather than immediately, so a cold start spends its first moments answering the request
+ * that woke it rather than sweeping every salon's yesterday.
+ *
+ * Both timers are unref'd: a tick pending is never a reason for the process to stay alive.
+ * TICK_INTERVAL_MS=0 turns the interval off entirely — what the smoke suite does, so that
+ * the only ticks in a test run are the ones the suite asked for. GET /api/internal/tick
+ * stands beside this for an external cron; the advisory lock in lib/tick.js is what keeps
+ * the two of them (and two instances mid-deploy) out of each other's way.
+ */
+const DEFAULT_TICK_INTERVAL_MS = 10 * 60 * 1000;
+const BOOT_TICK_DELAY_MS = 15 * 1000;
+const tickIntervalMs = Number(process.env.TICK_INTERVAL_MS ?? DEFAULT_TICK_INTERVAL_MS);
+
+async function tick() {
+  try {
+    await runTick(db);
+  } catch (error) {
+    // A sweep that failed is a sweep the next one redoes. Nothing here may take the site
+    // down, and an unhandled rejection out of a timer would do exactly that.
+    logCrash('tick failed — the next one will retry', error);
+  }
+}
+
+if (Number.isFinite(tickIntervalMs) && tickIntervalMs > 0) {
+  setTimeout(tick, BOOT_TICK_DELAY_MS).unref();
+  setInterval(tick, tickIntervalMs).unref();
+}
 
 function shutdown(signal) {
   console.log(`[${stamp()}] ${signal} received — OAK server shutting down.`);
