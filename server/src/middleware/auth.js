@@ -151,6 +151,30 @@ const ADMIN_EMAILS = new Set(
     .filter(Boolean),
 );
 
+/**
+ * The ADMIN_EMAILS addresses no account answers to yet.
+ *
+ * The gate recognises an operator by their address, and sign-up verifies no address: an
+ * address named here before the operator has registered it is a seat anybody can sit in by
+ * registering it first, and they hold it until somebody notices. Nothing here closes that —
+ * the only fix is to register the account BEFORE setting the variable, which DEPLOY.md §12
+ * now makes a numbered step — so this exists to make the wrong order VISIBLE in the boot log
+ * rather than silent for a month.
+ */
+export async function unclaimedAdminEmails() {
+  const named = [...ADMIN_EMAILS];
+  if (named.length === 0) {
+    return [];
+  }
+  const rows = await db
+    .prepare(
+      'SELECT lower(email::text) AS email FROM users WHERE lower(email::text) = ANY(?::text[])',
+    )
+    .all(named);
+  const held = new Set(rows.map((row) => row.email));
+  return named.filter((email) => !held.has(email));
+}
+
 /** Allow only the accounts ADMIN_EMAILS names. Expects requireAuth to have run first. */
 export function requireAdmin(req, res, next) {
   if (!req.user) {

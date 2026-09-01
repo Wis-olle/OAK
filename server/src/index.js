@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import app from './app.js';
 import { db } from './db.js';
 import { runTick, tickIntervalFrom } from './lib/tick.js';
+import { unclaimedAdminEmails } from './middleware/auth.js';
 
 const port = process.env.PORT || 3000;
 const dataDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../data');
@@ -124,6 +125,26 @@ if (tickIntervalMs > 0) {
 } else {
   console.log(`[${stamp()}] tick disabled (TICK_INTERVAL_MS=0) — only GET /api/internal/tick will run it.`);
 }
+
+/* An operator seat that no account holds yet is a seat anybody can take by registering the
+   address, since sign-up verifies nothing — so a deploy that set ADMIN_EMAILS before the
+   account existed says so here, once, by name. Loud rather than fatal: refusing to boot over
+   it would take the site down for a door that is only half open. */
+unclaimedAdminEmails()
+  .then((unclaimed) => {
+    if (unclaimed.length > 0) {
+      console.warn(
+        `[${stamp()}] ADMIN_EMAILS: chưa có tài khoản nào cho ${unclaimed.join(', ')} — ` +
+          `ai đăng ký địa chỉ này trước sẽ nắm quyền vận hành. Hãy đăng ký ngay (DEPLOY.md §12).`,
+      );
+    }
+  })
+  .catch((error) => {
+    logCrash(
+      'could not check ADMIN_EMAILS against the accounts — the gate itself is unaffected',
+      error,
+    );
+  });
 
 function shutdown(signal) {
   console.log(`[${stamp()}] ${signal} received — OAK server shutting down.`);
