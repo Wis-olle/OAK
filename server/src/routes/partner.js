@@ -105,6 +105,19 @@ const TOP_BREAKDOWN_LIMIT = 5;
 const DAYS_IN_WEEK = 7;
 const MINUTES_PER_DAY = 24 * 60;
 
+/* Both a week and a shift are stored as two times inside ONE day, so a night that runs past
+   midnight cannot be written here at all: '22:00' to '02:00' is not a short day, it is two
+   days, and the slot arithmetic and idx_bookings_slot both read it as an end before its own
+   start. Rather than let the owner discover that by having the calendar quietly generate
+   nothing, the refusal says where the wall is and what to do instead — a night shift is a
+   seat taken at the counter, which the console can already hold at any hour. The same
+   sentence is beside both forms (cai-dat-salon.html, quan-ly-nhan-vien.html), so what the
+   owner is told before the save and after it are the same words. */
+const PAST_MIDNIGHT_NOTE = 'Giờ kết thúc muộn nhất 23:59; ca qua đêm ghi nhận tại quầy.';
+const OPEN_BEFORE_CLOSE_MESSAGE = `Giờ mở cửa phải sớm hơn giờ đóng cửa. ${PAST_MIDNIGHT_NOTE}`;
+const SHIFT_STARTS_BEFORE_IT_ENDS_MESSAGE =
+  `Giờ bắt đầu ca phải sớm hơn giờ kết thúc. ${PAST_MIDNIGHT_NOTE}`;
+
 /* ============================================================================
  * Salon scoping — the security spine of this file
  * ========================================================================= */
@@ -2174,7 +2187,7 @@ function parseSchedule(value) {
     const start = requireTime(entry.start, 'Giờ bắt đầu ca');
     const end = requireTime(entry.end, 'Giờ kết thúc ca');
     if (toMinutes(start) >= toMinutes(end)) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Giờ bắt đầu ca phải sớm hơn giờ kết thúc.');
+      throw httpError(400, 'VALIDATION_ERROR', SHIFT_STARTS_BEFORE_IT_ENDS_MESSAGE);
     }
     const isOff = entry.is_off === undefined ? 0 : requireFlag(entry.is_off, 'Ngày nghỉ');
     return { weekday, start, end, is_off: isOff };
@@ -3610,7 +3623,7 @@ function parseSalonHours(value) {
     const start = requireTime(entry.start, 'Giờ mở cửa');
     const end = requireTime(entry.end, 'Giờ đóng cửa');
     if (toMinutes(start) >= toMinutes(end)) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Giờ mở cửa phải sớm hơn giờ đóng cửa.');
+      throw httpError(400, 'VALIDATION_ERROR', OPEN_BEFORE_CLOSE_MESSAGE);
     }
     return { weekday, start, end, is_off: 0 };
   });

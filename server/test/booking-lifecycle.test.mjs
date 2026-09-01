@@ -665,3 +665,24 @@ test('the counter is told before it books over her, and may still say yes', () =
     /Object\.hasOwn\(patch, 'staff_id'\) \|\|\n[\s\S]{0,400}?Object\.hasOwn\(patch, 'service_id'\)\)/,
   );
 });
+
+/* ------------------------------------------------- a shift that runs past midnight */
+
+/* A week and a shift are both two times inside ONE day, so '22:00' to '02:00' is not a short
+   night — it is an end before its own start, which the slot arithmetic and idx_bookings_slot
+   both read as nothing at all. The owner used to meet that as a bare "must be earlier", or
+   worse, as a calendar that quietly generated no hours. Both forms now say where the wall is
+   and what to do instead, and the server's own refusals say it in the same words. */
+test('the two hours forms say where the day ends, and the refusals say the same thing', () => {
+  const note = 'Giờ kết thúc muộn nhất 23:59; ca qua đêm ghi nhận tại quầy.';
+  assert.ok(settingsHtml.includes(note), 'the salon week form must carry the note');
+  assert.ok(staffHtml.includes(note), 'the technician shift form must carry the same note');
+
+  const partnerSource = readServer('routes/partner.js');
+  assert.ok(
+    partnerSource.includes(`const PAST_MIDNIGHT_NOTE = '${note}'`),
+    'and the server holds that sentence once, rather than a second wording of it',
+  );
+  assert.match(partnerSource, /Giờ mở cửa phải sớm hơn giờ đóng cửa\. \$\{PAST_MIDNIGHT_NOTE\}/);
+  assert.match(partnerSource, /Giờ bắt đầu ca phải sớm hơn giờ kết thúc\. \$\{PAST_MIDNIGHT_NOTE\}/);
+});

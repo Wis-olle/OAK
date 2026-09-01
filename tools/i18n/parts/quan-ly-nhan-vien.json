@@ -99,5 +99,6 @@
   "Ghi nhận nhầm ngày thì đi đường này: hủy ghi nhận, rồi kết thúc hợp tác lại với ngày đúng.": "This is the way to fix a date recorded wrong: cancel the record, then end the collaboration again with the right day.",
   "Lịch hẹn đã chuyển sang đồng nghiệp sẽ không tự quay lại.": "Appointments already moved to colleagues do not come back on their own.",
   "Hủy ghi nhận": "Cancel the record",
-  "Đã hủy ghi nhận nghỉ việc.": "The departure record has been cancelled."
+  "Đã hủy ghi nhận nghỉ việc.": "The departure record has been cancelled.",
+  "Giờ kết thúc muộn nhất 23:59; ca qua đêm ghi nhận tại quầy.": "The latest end time is 23:59; an overnight shift is recorded at the counter."
 }

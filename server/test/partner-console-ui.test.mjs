@@ -820,3 +820,24 @@ test('the very same minute is not offered as something to overrule', async () =>
   assert.match(state.formError, /chọn phút khác/);
   assert.equal(state.saving, false);
 });
+
+/* ------------------------------------------------------ the calendar on a phone */
+
+/* The grid is 80px of hours plus three 200px columns, held to a 800px minimum — behind a
+   phone-sized window that is most of a day off to the right, and the only way to find that
+   out was to drag. So below md the page opens on the list of what is still ahead, which
+   fits and says the same things, and the grid stays one tap away behind the toggle the
+   "sắp tới" view already had. */
+test('on a phone the console calendar opens on the list, and the grid keeps its scrollbar', () => {
+  // The breakpoint is read before anything asks it: `narrow` decides the opening view.
+  assert.match(calendarHtml, /this\.watchViewport\(\);\n\s+try \{/);
+  assert.match(calendarHtml, /if \(this\.narrow\) \{\n\s+this\.upcoming = true;/);
+  assert.match(calendarHtml, /var wide = window\.matchMedia\('\(min-width: 768px\)'\);/);
+  // And the way back to the grid is the toggle that was already there.
+  assert.match(calendarHtml, /@click="exitUpcoming\(\)"/);
+  /* Nothing hides the sideways scrollbar on a phone any more — it is the one thing saying
+     the columns carry on past the edge. Above md, where there is room, it still goes. */
+  assert.doesNotMatch(calendarHtml, /hide-scrollbar/);
+  assert.match(calendarHtml, /@media \(min-width: 768px\) \{\n\s+\.calendar-scroll \{/);
+  assert.match(calendarHtml, /class="[^"]*overflow-x-auto calendar-scroll/);
+});
