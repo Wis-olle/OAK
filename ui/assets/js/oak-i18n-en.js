@@ -523,7 +523,6 @@ window.OAK_I18N_EN = {
   "của chúng tôi.": ".",
   "Nhập email của bạn rồi bấm lại.": "Enter your email address, then press it again.",
   "Tài khoản này không phải đối tác.": "This account is not a partner account.",
-  "Nhận ưu đãi và tin khuyến mãi qua Thông báo (không bắt buộc).": "Send me offers and promotions in Notifications (optional).",
   "Bạn đã thử đăng nhập quá nhiều lần. Vui lòng đợi 15 phút rồi thử lại.": "Too many sign-in attempts. Please wait 15 minutes and try again.",
   "Tài khoản này là kỹ thuật viên. Vui lòng dùng trang đăng nhập kỹ thuật viên.": "This is a technician account. Please use the technician sign-in page.",
   "Miễn phí sử dụng nền tảng đến hết 31/12/2026; khi bắt đầu thu phí, OAK Beauty báo trước ít nhất 30 ngày.": "The platform is free to use until 31/12/2026; before any fee starts, OAK Beauty gives at least 30 days’ notice.",

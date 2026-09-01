@@ -428,9 +428,12 @@ test('the tick is what carries the consent now, not a sentence under the button'
   // The column and the route that writes it are untouched, so an account that turned the
   // permission on keeps it and can still be sent the other way.
   assert.match(readServer('routes/users.js'), /if \('marketing_opt_in' in body\) \{/);
-  // The partner form asks the same thing, in the same shape.
+  // The partner form asks the same thing, in the same shape — and stops there too: a
+  // permission that can be given on a form nobody can skip and withdrawn nowhere at all
+  // is one OAK should not be holding.
   assert.match(partnerHtml, /id="register-consent"[^>]*type="checkbox"/);
-  assert.match(partnerHtml, /id="register-marketing"[^>]*type="checkbox"/);
+  assert.doesNotMatch(partnerHtml, /id="register-marketing"/);
+  assert.doesNotMatch(partnerHtml, /marketing_opt_in/);
 });
 
 // ------------------------------------------------------------------ cai-dat

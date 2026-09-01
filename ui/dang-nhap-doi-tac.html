@@ -156,15 +156,12 @@
 <label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-confirm">Xác nhận mật khẩu</label>
 <input class="oak-field" id="register-confirm" minlength="8" required="" type="password" x-model="form.confirm">
 </div>
-<!-- Consent, asked as an act of its own rather than read into the button below it, and
-     asked once per purpose: agreeing to be here is not agreeing to be marketed to. -->
+<!-- Consent, asked as an act of its own rather than read into the button below it. The
+     marketing box that used to sit beside it is gone: it collected a permission nothing on
+     OAK has ever spent, and the one screen that could take it back went with it. -->
 <label class="flex items-start gap-3 cursor-pointer" for="register-consent">
 <input class="mt-1" id="register-consent" type="checkbox" x-model="form.consent">
 <span class="font-caption text-caption text-on-surface-variant">Tôi đồng ý với <a class="underline hover:text-primary transition-colors" href="dieu-khoan.html#doi-tac" rel="noopener noreferrer" target="_blank">Điều khoản dịch vụ</a> và <a class="underline hover:text-primary transition-colors" href="bao-mat.html" rel="noopener noreferrer" target="_blank">Chính sách bảo mật</a> của OAK Beauty.</span>
-</label>
-<label class="flex items-start gap-3 cursor-pointer" for="register-marketing">
-<input class="mt-1" id="register-marketing" type="checkbox" x-model="form.marketing">
-<span class="font-caption text-caption text-on-surface-variant">Nhận ưu đãi và tin khuyến mãi qua Thông báo (không bắt buộc).</span>
 </label>
 <!-- Asked, not assumed. The 20% comes out of the salon's own margin, so a salon that
      never wanted to spend it is not handed a code it has to go and find to switch off. -->
@@ -249,7 +246,7 @@
             /* Its own flag, not `busy`: the submit button renames itself to "Đang xử lý…"
                off that one, and a password-reset request is not a sign-in attempt. */
             sending: false,
-            form: { name: '', salon_name: '', email: '', phone: '', password: '', confirm: '', consent: false, marketing: false, welcomePromo: false },
+            form: { name: '', salon_name: '', email: '', phone: '', password: '', confirm: '', consent: false, welcomePromo: false },
 
             async init() {
                 const user = await OAK.me();
@@ -339,7 +336,6 @@
                             password: this.form.password,
                             salon_name: this.form.salon_name,
                             consent: true,
-                            marketing_opt_in: this.form.marketing,
                             welcome_promo_opt_in: this.form.welcomePromo,
                         },
                     });
