@@ -143,6 +143,20 @@ test('the four pages of the booking path state the same three conditions', () =>
     // Both halves are gated on the flag, so neither can be shown for the other kind of salon
     // and neither is on screen before the payload has said which kind this is.
     assert.match(page, /x-show="[^"]*!(?:salon|service\.salon)\.auto_confirm"/);
+    /* And each sentence on ITS OWN gate. "gated on auto_confirm" is satisfied by the negation
+       too, so with the two expressions swapped every pin in this file stayed green while a
+       salon that reads the request first told the customer she was already booked — the exact
+       over-promise the pair replaced. So: the promise carries a gate with no `!` in it, and
+       the waiting half carries the negated one. */
+    const gateOf = (sentence) =>
+      /x-show="([^"]*)"/.exec(new RegExp(`<[^>]*>${sentence}`).exec(page)[0])[1];
+    const promised = gateOf('Lịch được xác nhận ngay');
+    assert.match(promised, /(?:salon|service\.salon)\.auto_confirm/);
+    assert.doesNotMatch(promised, /!/, `the promise is on the flag, not on its negation: ${promised}`);
+    assert.match(
+      gateOf('Salon sẽ xác nhận, bạn được báo trong Thông báo'),
+      /!(?:salon|service\.salon)\.auto_confirm/,
+    );
     assert.doesNotMatch(page, /Salon xác nhận lịch, bạn được báo/);
     assert.doesNotMatch(page, /Bạn được báo trong mục Thông báo ngay khi lịch được xác nhận/);
   }
@@ -199,6 +213,9 @@ test('no page promises what the codebase does not do', () => {
        the words appearing anywhere on a page.) */
     for (const promise of page.matchAll(/<[^>]*>Lịch được xác nhận ngay/g)) {
       assert.match(promise[0], /x-show="[^"]*auto_confirm"/, `${name}: ${promise[0]}`);
+      // On the flag, not on its negation — which the line above matches just as happily, and
+      // which would put the promise in front of exactly the salons it is untrue of.
+      assert.doesNotMatch(promise[0], /x-show="[^"]*![^"]*auto_confirm"/, `${name}: ${promise[0]}`);
     }
   }
 });
