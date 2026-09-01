@@ -21,15 +21,21 @@ const NOW_MIN = 10 * 60 + 30;
 function sweeper(bookings, closures = []) {
   const written = [];
   const asked = [];
+  const closuresAsked = [];
   const reminded = (id) => written.some((row) => row.bookingId === id);
 
   const tx = {
     all: async (sql, ...params) => {
-      /* The second statement the sweep runs: the closures overlapping its window. Filtered
-         the way the SQL filters, so a row outside the window is invisible here too. */
+      /* The second statement the sweep runs: the closures overlapping its window, at the
+         salons the window's bookings are at. Filtered the way the SQL filters, so a row
+         outside the window — or at a salon the sweep never asked about — is invisible here
+         too. */
       if (sql.includes('time_off')) {
-        const [from, to] = params;
-        return closures.filter((off) => off.date_to >= from && off.date_from <= to);
+        closuresAsked.push(params);
+        const [salonIds, from, to] = params;
+        return closures.filter(
+          (off) => salonIds.includes(off.salon_id) && off.date_to >= from && off.date_from <= to,
+        );
       }
       asked.push(params);
       const [fromDate, , fromTime, toDate, , toTime] = params;
@@ -53,7 +59,7 @@ function sweeper(bookings, closures = []) {
     },
   };
 
-  return { run: () => sweepReminders(tx, TODAY, NOW_MIN), written, asked };
+  return { run: () => sweepReminders(tx, TODAY, NOW_MIN), written, asked, closuresAsked };
 }
 
 const BOOKING = {
@@ -232,6 +238,19 @@ test('a closure at another salon, or on another day, changes nothing here', asyn
     await sweeper([BOOKING], [{ ...CLOSURE, date_from: '2026-08-25', date_to: '2026-08-25' }]).run(),
     1,
   );
+});
+
+/* time_off is never pruned, so the read has to lead with the salons the sweep is actually
+   about — the index does, and the table grows for ever. A window with nothing in it asks
+   nothing. */
+test('the closure read names only the salons the window’s bookings are at', async () => {
+  const one = sweeper([BOOKING], [CLOSURE]);
+  await one.run();
+  assert.deepEqual(one.closuresAsked, [[[1], '2026-08-23', '2026-08-24']]);
+
+  const none = sweeper([], [CLOSURE]);
+  await none.run();
+  assert.deepEqual(none.closuresAsked, []);
 });
 
 test('a closure spanning the day covers it, edges included', async () => {

@@ -75,7 +75,7 @@ const SELECT_REMINDED = `SELECT 1 FROM notifications WHERE booking_id = ? AND ty
    staff_id NULL is the whole salon; a row naming a technician only reaches her own. */
 const SELECT_CLOSURES = `
   SELECT salon_id, staff_id, date_from, date_to FROM time_off
-  WHERE date_to >= ? AND date_from <= ?
+  WHERE salon_id = ANY(?) AND date_to >= ? AND date_from <= ?
 `;
 
 /** `minutes` past midnight on `date`, as the ('YYYY-MM-DD', 'HH:MM') pair the schema stores. */
@@ -140,9 +140,16 @@ export async function sweepReminders(tx, today, now) {
   const [toDate, toTime] = shift(today, now + WINDOW_TO_MIN);
 
   const inWindow = await tx.all(SELECT_DUE, fromDate, fromDate, fromTime, toDate, toDate, toTime);
-  /* Read once for the window rather than asked per booking: at most two days of closures
-     across the whole platform, against a handful of rows. */
-  const closures = await tx.all(SELECT_CLOSURES, fromDate, toDate);
+  /* Read once for the window rather than asked per booking, and only for the salons those
+     bookings belong to. The dates alone would be the honest filter, but nothing ever prunes
+     time_off — every holiday and every leave day the platform has recorded stays in it — and
+     no index leads with them, so a tick would scan the whole table for the handful of rows in
+     a two-day window. Leading with salon_id puts the read back on idx_time_off_salon_range,
+     and a window with no bookings in it asks nothing at all. */
+  const salonIds = [...new Set(inWindow.map((row) => row.salon_id))];
+  const closures = salonIds.length === 0
+    ? []
+    : await tx.all(SELECT_CLOSURES, salonIds, fromDate, toDate);
   const closed = (row) =>
     closures.some(
       (off) =>
