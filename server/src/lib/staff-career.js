@@ -43,10 +43,17 @@ export async function stintShape(row) {
        technician worked, and a career that quietly lost a year of itself the day a former
        employer hid its page would be worth less than no career at all. What it loses is the
        link — the page renders the name as plain text — because a salon nothing public lists
-       is not a page to send a reader to. */
+       is not a page to send a reader to.
+
+       And it loses the address with it. A career is one person's, so it crosses salons: a
+       stint at a salon nobody has switched on rides along on a page that is otherwise
+       public, and the slug is the one thing a draft must never hand out (lib/salon-visibility.js
+       answers 404 to everybody but the owner at that address). The name is hers to keep —
+       it is where she worked — and the page never had a link to lose here, since it only
+       renders one where published === 1. */
     salon: {
       id: row.salon_id,
-      slug: row.salon_slug,
+      slug: row.salon_published === 1 ? row.salon_slug : null,
       name: row.salon_name,
       published: row.salon_published,
     },

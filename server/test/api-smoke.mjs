@@ -11209,9 +11209,17 @@ async function groupStaffDeparture() {
     'NOT_FOUND',
     'GET /api/technicians/:slug after the account was erased',
   );
-  for (const staffId of [rehiredRow.id, leaverRow.id, secondRow.id]) {
+  /* Read by each salon's own owner, and that is about the SALONS rather than the erasure:
+     both were put back to draft at the end of the block above, and a draft's chairs answer
+     404 to everybody but the owner. The question here is what an erased account leaves on a
+     roster row, which is the same answer whoever is allowed to ask it. */
+  for (const [reader, staffId] of [
+    [leaverSalon.owner, rehiredRow.id],
+    [leaverSalon.owner, leaverRow.id],
+    [secondSalon.owner, secondRow.id],
+  ]) {
     const alone = ok(
-      await guest.fetch(`/api/staff/${staffId}/history`),
+      await reader.fetch(`/api/staff/${staffId}/history`),
       `GET /api/staff/:id/history after the erasure (${staffId})`,
     );
     assert(
@@ -11227,7 +11235,7 @@ async function groupStaffDeparture() {
      would hand the next technician to claim the chair a stint already attested to — a badge
      for days she has never seen, and an argument she never started, sitting on her console. */
   const releasedLeaver = ok(
-    await guest.fetch(`/api/staff/${leaverRow.id}/history`),
+    await leaverSalon.owner.fetch(`/api/staff/${leaverRow.id}/history`),
     'GET /api/staff/:id/history (the released first stint)',
   )[0];
   assert(
@@ -11246,7 +11254,7 @@ async function groupStaffDeparture() {
     releasedLeaver,
   );
   const releasedSecond = ok(
-    await guest.fetch(`/api/staff/${secondRow.id}/history`),
+    await secondSalon.owner.fetch(`/api/staff/${secondRow.id}/history`),
     'GET /api/staff/:id/history (the released second stint)',
   )[0];
   assert(
@@ -12540,6 +12548,10 @@ async function groupSalonAddress() {
     'POST /api/partner/staff (the draft roster)',
   );
 
+  /* Every public read that carries the draft's own material, and not only the page it hangs
+     off: the roster, the price list and the career behind a chair are the same words and the
+     same faces one endpoint further in, and ids are small sequential integers, so leaving any
+     of them open would hand a stranger the whole draft without a name ever being guessed. */
   const draftReads = [
     [`/api/salons/${renamed.slug}`, 'the profile by slug'],
     [`/api/salons/${draft.id}`, 'the profile by id'],
@@ -12548,7 +12560,12 @@ async function groupSalonAddress() {
     [`/api/salons/${draft.id}/staff`, 'the roster'],
     [`/api/salons/${draft.id}/reviews`, 'the reviews'],
     [`/api/services/${service.id}`, 'one service of it'],
+    [`/api/services/${service.id}/staff`, 'who performs that service'],
     [`/api/staff/${staff.id}`, 'one chair of it'],
+    [`/api/staff/${staff.id}/services`, 'what that chair is booked for'],
+    [`/api/staff/${staff.id}/reviews`, 'the reviews of that chair'],
+    [`/api/staff/${staff.id}/history`, 'the career behind that chair'],
+    [`/api/staff/${staff.id}/availability?days=1`, 'the hours that chair has free'],
   ];
   for (const [route, label] of draftReads) {
     expectError(await guest.fetch(route), 404, 'NOT_FOUND', `${label} of a draft, as a stranger`);

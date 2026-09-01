@@ -2440,27 +2440,40 @@ test('the withdrawal hides the page and never the working day', () => {
   );
   assert.match(
     staffSource,
-    /const selectVisibleStaffExists = db\.prepare\(\s*`SELECT 1 FROM staff st WHERE st\.id = \? AND \$\{CLAIMED_OR_ON_ROSTER\} AND \$\{VISIBLE_PROFILE\}`,/,
+    /const selectVisibleStaff = db\.prepare\(`[\s\S]{0,200}?WHERE st\.id = \? AND \$\{CLAIMED_OR_ON_ROSTER\} AND \$\{VISIBLE_PROFILE\}/,
   );
   assert.match(
     staffSource,
-    /router\.get\('\/:id\/reviews'[\s\S]{0,400}?await visibleStaffIdOrThrow\(req\.params\.id\)/,
+    /router\.get\('\/:id\/reviews'[\s\S]{0,400}?await visibleStaffIdOrThrow\(req, req\.params\.id\)/,
   );
   const detail = handler(staffSource, "router.get('/:id',", 'export default router');
   assert.match(detail, /'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này\.'/);
 
-  /* Operational, and gated on nothing: the day strip and the service list of one technician.
-     Somebody who has taken their page down is still at work today, still on the calendar, and
-     still owed the appointments the salon has already put on it. */
-  assert.match(
-    staffSource,
-    /const selectStaffExists = db\.prepare\('SELECT 1 FROM staff WHERE id = \? AND active = 1'\);/,
-  );
+  /* Operational, and not gated on the WITHDRAWAL: the day strip and the service list of one
+     technician. Somebody who has taken their page down is still at work today, still on the
+     calendar, and still owed the appointments the salon has already put on it. The salon's own
+     switch is another matter and both resolvers do ask it — see the draft gate below — so this
+     statement carries the two columns salonVisibleTo needs and nothing about the person. */
+  const rostered = handler(staffSource, 'const selectRosteredStaff', '`);');
+  assert.match(rostered, /WHERE st\.id = \? AND st\.active = 1/);
+  assert.doesNotMatch(rostered, /VISIBLE_PROFILE|profile_hidden/);
   for (const route of ['/:id/availability', '/:id/services']) {
     const read = handler(staffSource, `router.get('${route}'`, '});');
-    assert.match(read, /staffIdOrThrow\(req\.params\.id\)/, route);
+    assert.match(read, /staffIdOrThrow\(req, req\.params\.id\)/, route);
     assert.doesNotMatch(read, /visibleStaffIdOrThrow/, route);
   }
+
+  /* And the draft gate, asked by BOTH resolvers and by the career read, so that no chair of a
+     salon nobody has switched on answers with its roster, its price list or its stints while
+     the salon's own page answers 404. */
+  for (const resolver of ['staffIdOrThrow', 'visibleStaffIdOrThrow']) {
+    const fn = declaration(staffSource, `async function ${resolver}(req, value)`);
+    assert.match(fn, /salonVisibleTo\(req, row\.salon_published, row\.salon_owner_id\)/, resolver);
+  }
+  const career = handler(staffSource, "router.get('/:id/history'", '});');
+  assert.match(career, /salonVisibleTo\(req, row\.salon_published, row\.salon_owner_id\)/);
+  const serviceGate = declaration(servicesSource, 'async function serviceIdOrThrow(req, value)');
+  assert.match(serviceGate, /salonVisibleTo\(req, row\.salon_published, row\.salon_owner_id\)/);
 
   /* The booking wizard's technician picker, for the same reason: dropping a technician out of
      it would quietly take a salon's chair off sale.
@@ -5793,10 +5806,10 @@ test('the availability 404 costs the page its grid, and the profile read still s
   assert.match(handler(staffSource, "router.get('/:id/reviews'", '\n});'), /visibleStaffIdOrThrow\(/);
   for (const [name, from] of [
     ['profile', 'const selectStaffProfile = db.prepare('],
-    ['reviews', 'const selectVisibleStaffExists = db.prepare('],
+    ['reviews', 'const selectVisibleStaff = db.prepare('],
   ]) {
     assert.match(
-      handler(staffSource, from, ');'),
+      handler(staffSource, from, '`);'),
       /\$\{CLAIMED_OR_ON_ROSTER\} AND \$\{VISIBLE_PROFILE\}/,
       name,
     );

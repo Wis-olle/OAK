@@ -57,7 +57,14 @@ const selectServiceDetail = db.prepare(`
 // active = 1 on both public lookups: a service the salon has hidden must disappear
 // from the whole customer side, not just from the listings. The partner console reads
 // its own rows through partner.js and still sees hidden services.
-const selectServiceExists = db.prepare('SELECT 1 FROM services WHERE id = ? AND active = 1');
+//
+// The salon's switch and its owner ride along because serviceIdOrThrow gates on them too —
+// see there.
+const selectServiceSalon = db.prepare(`
+  SELECT s.published AS salon_published, s.owner_id AS salon_owner_id
+  FROM services sv JOIN salons s ON s.id = sv.salon_id
+  WHERE sv.id = ? AND sv.active = 1
+`);
 
 // Same published switch the listing applies, or the number on a category chip would promise
 // services the listing behind it does not show.
@@ -130,10 +137,16 @@ function intValue(value) {
   return Number.isInteger(parsed) ? parsed : null;
 }
 
-/** Resolve a :id path segment to an existing service id, or 404. */
-async function serviceIdOrThrow(value) {
+/**
+ * Resolve a :id path segment to an existing service id, or 404 — the draft gate included,
+ * in the same words and for the same reason GET /:id below asks it. The technician picker
+ * hanging off this path is the salon's roster with faces and years on it, and a service of a
+ * salon nobody has switched on must not answer with one while the service page itself is 404.
+ */
+async function serviceIdOrThrow(req, value) {
   const id = Number.parseInt(value, 10);
-  if (!Number.isInteger(id) || !(await selectServiceExists.get(id))) {
+  const row = Number.isInteger(id) ? await selectServiceSalon.get(id) : null;
+  if (!row || !(await salonVisibleTo(req, row.salon_published, row.salon_owner_id))) {
     throw httpError(404, 'NOT_FOUND', 'Không tìm thấy dịch vụ này.');
   }
   return id;
@@ -256,7 +269,7 @@ async function getServiceWeek(serviceId, from, days, except = null) {
  */
 router.get('/:id/availability', async (req, res, next) => {
   try {
-    const serviceId = await serviceIdOrThrow(req.params.id);
+    const serviceId = await serviceIdOrThrow(req, req.params.id);
     // The caller's own appointment, taken out of the calendar it is being moved off.
     // Ignored unless they are signed in and it is really theirs (lib/except-booking.js).
     const except = await exceptBookingIdFor(req);
@@ -292,7 +305,7 @@ router.get('/:id/availability', async (req, res, next) => {
 
 router.get('/:id/staff', async (req, res, next) => {
   try {
-    const rows = await selectServiceStaff.all(await serviceIdOrThrow(req.params.id));
+    const rows = await selectServiceStaff.all(await serviceIdOrThrow(req, req.params.id));
     res.json({ success: true, data: rows.map(pickerCard), meta: { total: rows.length } });
   } catch (error) {
     next(error);

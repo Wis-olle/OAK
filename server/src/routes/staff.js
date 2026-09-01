@@ -48,12 +48,22 @@ const selectStaffProfile = db.prepare(`
    a technician, those two size the day strip and list what that person performs — and a
    technician who has taken their page down is still at work today, still on the calendar, and
    still owed the appointments the salon has already put on it. Hiding a page is not calling
-   in sick. The review list below asks the visible question instead, on its own statement. */
-const selectStaffExists = db.prepare('SELECT 1 FROM staff WHERE id = ? AND active = 1');
+   in sick. The review list below asks the visible question instead, on its own statement.
 
-const selectVisibleStaffExists = db.prepare(
-  `SELECT 1 FROM staff st WHERE st.id = ? AND ${CLAIMED_OR_ON_ROSTER} AND ${VISIBLE_PROFILE}`,
-);
+   Both statements carry the salon's switch and its owner, because BOTH resolvers gate on it:
+   the withdrawal is one person's decision about one page, and the draft is the salon's
+   decision about all of them. See salonVisibleTo in the two functions below. */
+const selectRosteredStaff = db.prepare(`
+  SELECT s.published AS salon_published, s.owner_id AS salon_owner_id
+  FROM staff st JOIN salons s ON s.id = st.salon_id
+  WHERE st.id = ? AND st.active = 1
+`);
+
+const selectVisibleStaff = db.prepare(`
+  SELECT s.published AS salon_published, s.owner_id AS salon_owner_id
+  FROM staff st JOIN salons s ON s.id = st.salon_id
+  WHERE st.id = ? AND ${CLAIMED_OR_ON_ROSTER} AND ${VISIBLE_PROFILE}
+`);
 
 const selectStaffSalon = db.prepare('SELECT salon_id FROM staff WHERE id = ?');
 
@@ -82,19 +92,29 @@ const selectStaffReviewSummary = db.prepare(
   'SELECT COUNT(*) AS total, ROUND(AVG(rating), 1) AS average FROM reviews WHERE staff_id = ?',
 );
 
-/** Resolve a :id path segment to an existing active staff id, or 404. */
-async function staffIdOrThrow(value) {
+/**
+ * Resolve a :id path segment to an existing active staff id, or 404.
+ *
+ * The draft gate is asked here rather than route by route, because it is the same question
+ * about the same salon whichever of these reads is answering: a chair at a salon nobody has
+ * switched on is that salon's own business, and leaving one of them open would serve the
+ * roster and the price list of a page that answers 404 one endpoint back. A published salon
+ * is unaffected — the booking wizard's day strip and service list go on exactly as they were.
+ */
+async function staffIdOrThrow(req, value) {
   const id = Number.parseInt(value, 10);
-  if (!Number.isInteger(id) || !(await selectStaffExists.get(id))) {
+  const row = Number.isInteger(id) ? await selectRosteredStaff.get(id) : null;
+  if (!row || !(await salonVisibleTo(req, row.salon_published, row.salon_owner_id))) {
     throw httpError(404, 'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này.');
   }
   return id;
 }
 
 /** The same resolution for the reads that ARE the public profile, in the same words. */
-async function visibleStaffIdOrThrow(value) {
+async function visibleStaffIdOrThrow(req, value) {
   const id = Number.parseInt(value, 10);
-  if (!Number.isInteger(id) || !(await selectVisibleStaffExists.get(id))) {
+  const row = Number.isInteger(id) ? await selectVisibleStaff.get(id) : null;
+  if (!row || !(await salonVisibleTo(req, row.salon_published, row.salon_owner_id))) {
     throw httpError(404, 'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này.');
   }
   return id;
@@ -133,7 +153,7 @@ async function getServiceWeek(staffId, serviceId, from, days, except = null) {
 
 router.get('/:id/availability', async (req, res, next) => {
   try {
-    const staffId = await staffIdOrThrow(req.params.id);
+    const staffId = await staffIdOrThrow(req, req.params.id);
 
     const from = req.query.from === undefined ? todayISO() : req.query.from;
     if (!isISODate(from)) {
@@ -172,7 +192,7 @@ router.get('/:id/availability', async (req, res, next) => {
 
 router.get('/:id/services', async (req, res, next) => {
   try {
-    const rows = await selectStaffServices.all(await staffIdOrThrow(req.params.id));
+    const rows = await selectStaffServices.all(await staffIdOrThrow(req, req.params.id));
     res.json({
       success: true,
       data: rows.map((row) => ({ ...row, price_is_from: Boolean(row.price_is_from) })),
@@ -195,7 +215,7 @@ router.get('/:id/services', async (req, res, next) => {
    one person's withdrawal would take the salon's history down with the technician's page. */
 router.get('/:id/reviews', async (req, res, next) => {
   try {
-    const staffId = await visibleStaffIdOrThrow(req.params.id);
+    const staffId = await visibleStaffIdOrThrow(req, req.params.id);
     const { page, limit, offset } = parsePagination(req.query, REVIEW_LIMIT);
     const summary = await selectStaffReviewSummary.get(staffId);
     const rows = await selectStaffReviews.all(staffId, limit, offset);
@@ -223,7 +243,7 @@ const selectVisibleStaffRow = db.prepare(`
   SELECT st.id, st.user_id, st.active, st.started_at, st.left_at, st.left_by,
          st.started_confirmed_at, st.left_confirmed_at, st.tenure_disputed,
          s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name,
-         s.published AS salon_published
+         s.published AS salon_published, s.owner_id AS salon_owner_id
   FROM staff st
   JOIN salons s ON s.id = st.salon_id
   WHERE st.id = ? AND ${VISIBLE_PROFILE}
@@ -234,7 +254,10 @@ router.get('/:id/history', async (req, res, next) => {
     const row = /^\d+$/.test(req.params.id)
       ? await selectVisibleStaffRow.get(Number(req.params.id))
       : null;
-    if (!row) {
+    // Reached through the stint page, so it answers to the same switch the stint page does:
+    // a career asked for through a draft salon's chair is that salon's own business, and
+    // the reply names the salon.
+    if (!row || !(await salonVisibleTo(req, row.salon_published, row.salon_owner_id))) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này.');
     }
 
@@ -387,10 +410,11 @@ router.get('/:id', async (req, res, next) => {
         rating: row.rating ?? 0,
         years_experience: person.years_experience,
         portfolio: person.portfolio,
-        /* `published` for the same reason a career stint carries it (lib/staff-career.js):
-           this page is reachable by a link the salon's own switch cannot reach, so it says
-           where the work is done either way and the page links to the salon only where
-           there is a public page to link to. */
+        /* `published` is now only ever 0 for the owner reading their own draft back: the
+           gate above answers 404 to everybody else on an unpublished salon. It stays in the
+           reply because the page decides its link on it (ho-so-chuyen-gia.html renders the
+           salon's name as plain text where there is no public page to link to), and the
+           owner's "xem trước" is exactly the reader who must see that plain text. */
         salon: {
           id: row.salon_id,
           slug: row.salon_slug,
