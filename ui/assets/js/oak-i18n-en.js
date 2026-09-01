@@ -828,7 +828,7 @@ window.OAK_I18N_EN = {
   "Giá cuối salon chốt theo thực tế": "The salon sets the final price on the day",
   "Cần hỗ trợ?": "Need help?",
   "Liên hệ OAK": "Contact OAK",
-  "Số điện thoại chỉ dùng để salon liên hệ xác nhận lịch.": "Your phone number is used only so the salon can confirm your appointment.",
+  "Salon dùng số này để liên hệ về lịch và nhận ra bạn khi bạn quay lại.": "The salon uses this number to reach you about your appointment and to recognise you when you come back.",
   "Giữ nguyên dịch vụ của lịch cũ": "Keeping the service from the appointment you are moving",
   "Giá đã chốt": "Price already agreed",
   "Giữ nguyên thông tin liên hệ của lịch cũ": "Keeping the contact details from the appointment you are moving",

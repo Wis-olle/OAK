@@ -1054,6 +1054,15 @@ test('the contact form asks for a phone the way a phone asks for one', () => {
   assert.match(html, /enterkeyhint="done"[^>]*rows="3"/);
 });
 
+test('the note under the button names both things the salon does with the number', () => {
+  /* It used to say the number was used ONLY to phone about this appointment, which was not
+     what happens to it: routes/partner.js groups a salon's customers by the folded number
+     (CUSTOMER_KEY), so the counter recognises a returning customer by it too. A promise of
+     exclusivity the code does not keep is the one shape of this sentence that cannot stand. */
+  assert.match(html, /Salon dùng số này để liên hệ về lịch và nhận ra bạn khi bạn quay lại\./);
+  assert.doesNotMatch(html, /chỉ dùng để salon/);
+});
+
 test('a number written with spaces and dots is accepted and sent as digits', async () => {
   const bodies = [];
   const state = readyToSubmit(bookingForm(async (path, options) => {

@@ -512,8 +512,11 @@
 <p class="font-caption text-caption text-on-tertiary/80" x-cloak="" x-show="!loading &amp;&amp; !user">Bạn cần đăng nhập để hoàn tất đặt lịch — lựa chọn của bạn sẽ được giữ nguyên.</p>
 <button :disabled="busy || loading" @click="submit()" class="w-full bg-surface-container-lowest text-tertiary font-label-md text-label-md uppercase tracking-wider py-4 rounded-full hover:bg-surface-container transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : (loading || user ? 'Xác nhận đặt lịch' : 'Đăng nhập &amp; xác nhận')">Xác nhận đặt lịch</button>
 <!-- What the one piece of personal data being handed over is for, said where it is handed
-     over rather than in a policy page nobody opens. -->
-<p class="font-caption text-caption text-on-tertiary/60">Số điện thoại chỉ dùng để salon liên hệ xác nhận lịch.</p>
+     over rather than in a policy page nobody opens. Both uses, because there are two: the
+     salon phones about this appointment, and the console groups a customer's visits by the
+     number (CUSTOMER_KEY in routes/partner.js), so the counter recognises a returning
+     customer by it. Saying only the first would understate what handing it over does. -->
+<p class="font-caption text-caption text-on-tertiary/60">Salon dùng số này để liên hệ về lịch và nhận ra bạn khi bạn quay lại.</p>
 </div>
 <!-- The same three conditions the salon page and the service page state, in the one place
      the reader is about to commit to them. -->
