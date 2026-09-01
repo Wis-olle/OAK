@@ -371,7 +371,7 @@ window.OAK_I18N_EN = {
   "Dán link trang web hoặc trang đặt lịch salon bạn đang dùng. Link KiotViet (web-store, booksalon) nhập được gần như mọi thứ; link Facebook hay Zalo chỉ lưu được đường dẫn, phần còn lại bạn điền tay.": "Paste the link to the website or booking page your salon already uses. A KiotViet link (web-store, booksalon) imports almost everything; a Facebook or Zalo link only stores the address itself, and you fill in the rest by hand.",
   "Ưu đãi chào mừng": "Welcome offer",
   "Tặng khách mới 20% cho lần đầu (30 ngày)": "Give new customers 20% off their first visit (30 days)",
-  "Chi phí ưu đãi do salon chịu. Mã riêng của salon bạn sẽ xuất hiện trong mục Ưu đãi ngay sau khi lưu.": "The discount comes out of your own margin. Your salon’s own code appears under Offers as soon as you save.",
+  "Chi phí ưu đãi do salon chịu. Bật: mã riêng của salon bạn xuất hiện trong mục Ưu đãi ngay sau khi lưu. Tắt: mã ngừng áp dụng cho khách.": "The discount comes out of your own margin. On: your salon’s own code appears under Offers as soon as you save. Off: the code stops applying for customers.",
   "Cài đặt - OAK Beauty": "Settings - OAK Beauty",
   "Ngôn ngữ hiển thị và bảo mật tài khoản của bạn.": "Your display language and account security.",
   "Ngôn ngữ hiển thị": "Display language",

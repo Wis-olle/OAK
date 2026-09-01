@@ -59,6 +59,7 @@ const INSERT_WELCOME_PROMOTION = `
   VALUES (?, ?, 'discount', ?, ?, ?, ?, ?, ?, 1)
 `;
 const SELECT_SALON_OPT_IN = 'SELECT owner_id, welcome_promo_opt_in FROM salons WHERE id = ?';
+const UPDATE_WELCOME_ACTIVE = 'UPDATE promotions SET active = ? WHERE salon_id = ? AND code = ?';
 // Keyed on the derived code rather than on a title, so "has this salon got one?" is a
 // lookup and running this twice writes once.
 const SELECT_EXISTING_WELCOME = 'SELECT 1 FROM promotions WHERE salon_id = ? AND code = ?';
@@ -101,4 +102,17 @@ export async function mintWelcomePromotion(tx, salonId) {
     'promotion',
   );
   return code;
+}
+
+/**
+ * Switch this salon's welcome code on or off, if it has one.
+ *
+ * The box in the console is the switch the Terms promise it is, so unticking it has to
+ * stop the discount rather than merely stop a future one being issued. The row is left
+ * where it is either way: a customer may be holding the code, and the salon is owed the
+ * history of an offer it once ran. Keyed on the derived code, so it reaches that salon's
+ * welcome offer and none of the offers the salon wrote itself.
+ */
+export async function setWelcomePromotionActive(tx, salonId, active) {
+  await tx.run(UPDATE_WELCOME_ACTIVE, active, salonId, welcomeCode(salonId));
 }

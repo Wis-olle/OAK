@@ -24,6 +24,7 @@ import {
   WELCOME_PERCENT,
   WELCOME_TITLE,
   mintWelcomePromotion,
+  setWelcomePromotionActive,
   welcomeCode,
   welcomeOwnerNotice,
   welcomeWindow,
@@ -427,6 +428,42 @@ test('the mint writes nothing for a salon that did not ask, and nothing twice', 
   assert.deepEqual(again.writes, []);
 });
 
+// ------------------------------------------------------------- the box as a switch
+
+test('the switch reaches this salon’s welcome offer and no other row', async () => {
+  const { writes, tx } = mintOn();
+  await setWelcomePromotionActive(tx, 42, 0);
+
+  assert.equal(writes.length, 1);
+  const [{ sql, params }] = writes;
+  // Scoped on the salon AND on the derived code, so an offer the salon wrote itself is
+  // never switched off by the box in Cài đặt salon.
+  assert.match(sql, /^UPDATE promotions SET active = \? WHERE salon_id = \? AND code = \?$/);
+  assert.deepEqual(params, [0, 42, welcomeCode(42)]);
+  // And the row is only switched off, never deleted: a customer may be holding the code.
+  assert.ok(!sql.includes('DELETE'));
+});
+
+test('the console save acts on the answer changing, not on the key being sent', () => {
+  /* cai-dat-salon.html sends welcome_promo_opt_in on EVERY save, so minting on the key
+     being present handed the offer back to a salon that had deleted it the moment the
+     owner edited their phone number — 20% of their own margin, un-asked-for. */
+  const save = handler(partnerSource, "router.patch('/salon'", "\n * Search");
+  assert.match(save, /asksWelcome !== null && asksWelcome !== holdsWelcome/);
+  assert.ok(!save.includes("if (Object.hasOwn(body, 'welcome_promo_opt_in')) {"));
+  // Read off the row the handler already holds, and through the same validator the
+  // column is written with, so "1" and true are the same answer here as there.
+  assert.match(save, /SALON_COLUMNS\.welcome_promo_opt_in\(body\.welcome_promo_opt_in\)/);
+  assert.match(save, /Number\(salon\.welcome_promo_opt_in\) === 1/);
+  // Unticking switches the code off — the Terms say this box is where that happens — and
+  // re-ticking a salon that already holds its code switches it back on rather than
+  // minting a second one.
+  assert.match(
+    save,
+    /if \(asksWelcome === 0 \|\| !\(await mintWelcomePromotion\(tx, salon\.id\)\)\) \{\s*\n\s*await setWelcomePromotionActive\(tx, salon\.id, asksWelcome\);/,
+  );
+});
+
 // ------------------------------------------------------------------ the seed
 
 test('the demo cohort ships opted in, so its codes are its own doing', () => {
@@ -539,7 +576,10 @@ test('a salon cannot take a code out of the family registration writes from', ()
   assert.equal(requirePromotionCode(null), null);
   assert.equal(requirePromotionCode('   '), null);
   // And the reservation is the same constant the code is built from, not a copy of it.
-  assert.match(partnerSource, /import \{ WELCOME_CODE_PREFIX, mintWelcomePromotion \} from '\.\.\/lib\/welcome-promotion\.js';/);
+  assert.match(
+    partnerSource,
+    /import \{\s*\n\s*WELCOME_CODE_PREFIX,\s*\n\s*mintWelcomePromotion,\s*\n\s*setWelcomePromotionActive,\s*\n\} from '\.\.\/lib\/welcome-promotion\.js';/,
+  );
   assert.ok(welcomeCode(99).startsWith(WELCOME_CODE_PREFIX));
 });
 

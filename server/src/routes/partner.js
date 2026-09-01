@@ -47,7 +47,11 @@ import {
   weekdayOf,
 } from '../lib/time.js';
 import { isSafeMediaUrl } from '../lib/urls.js';
-import { WELCOME_CODE_PREFIX, mintWelcomePromotion } from '../lib/welcome-promotion.js';
+import {
+  WELCOME_CODE_PREFIX,
+  mintWelcomePromotion,
+  setWelcomePromotionActive,
+} from '../lib/welcome-promotion.js';
 import { httpError, requireAuth, requirePartner } from '../middleware/auth.js';
 // The recovery hatch for a technician who has lost their password is auth.js's machinery —
 // its table, its TTL, its origin rule, its mailer — so it is imported rather than rebuilt.
@@ -3541,14 +3545,23 @@ router.patch('/salon', async (req, res, next) => {
           await tx.run(INSERT_SALON_SOCIAL_LINK, salon.id, link.platform, link.url);
         }
       }
-      /* Ticking the box is what mints the code, so the offer is live the moment the
-         owner asks for it rather than at some later boot. Unconditional because the mint
-         is: it reads the column this save has just written, and does nothing for a salon
-         that did not ask or that already holds a code. Unticking takes nothing back —
-         the code exists and customers may be holding it, so it is switched off in the
-         offers list like any other. */
-      if (Object.hasOwn(body, 'welcome_promo_opt_in')) {
-        await mintWelcomePromotion(tx, salon.id);
+      /* The box is the switch, so it acts on the answer CHANGING rather than on the key
+         being present: the console sends this field on every save, and a salon that
+         deleted its offer on purpose must not find it back after editing its phone
+         number. Ticking mints the code the first time and switches it back on after
+         that — it is minted once, under a code derived from the salon id. Unticking
+         switches it off, because the Terms tell the owner this is where the welcome
+         offer is turned off; the row stays, since customers may be holding the code. */
+      const asksWelcome = Object.hasOwn(body, 'welcome_promo_opt_in')
+        ? SALON_COLUMNS.welcome_promo_opt_in(body.welcome_promo_opt_in)
+        : null;
+      const holdsWelcome = Number(salon.welcome_promo_opt_in) === 1 ? 1 : 0;
+      if (asksWelcome !== null && asksWelcome !== holdsWelcome) {
+        // The mint reads the column this save has just written, and answers null when the
+        // salon already has its code — which is exactly when there is one to switch on.
+        if (asksWelcome === 0 || !(await mintWelcomePromotion(tx, salon.id))) {
+          await setWelcomePromotionActive(tx, salon.id, asksWelcome);
+        }
       }
       // Only the fields publishing depends on are worth re-checking. A listed salon
       // saving its phone number or its cancellation policy takes nothing away, and

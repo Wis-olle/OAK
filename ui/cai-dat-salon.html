@@ -375,15 +375,15 @@
 
 <!-- The welcome offer, which a salon may take up at any time and not only on the day it
      joined. Ticking it mints the code on save and puts it in your Thông báo; unticking
-     leaves the code where it is — customers may be holding it — and it is switched off
-     from the Ưu đãi list like any other. -->
+     stops it applying. The row itself stays in the Ưu đãi list either way, because the
+     salon is owed the history of an offer it once ran. -->
 <section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
 <h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Ưu đãi chào mừng</h3>
 <label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer">
 <input class="mt-1" type="checkbox" x-model="form.welcome_promo_opt_in"/>
 <span class="flex flex-col gap-1">
 <span class="font-label-md text-label-md text-primary uppercase tracking-widest">Tặng khách mới 20% cho lần đầu (30 ngày)</span>
-<span class="font-caption text-caption">Chi phí ưu đãi do salon chịu. Mã riêng của salon bạn sẽ xuất hiện trong mục Ưu đãi ngay sau khi lưu.</span>
+<span class="font-caption text-caption">Chi phí ưu đãi do salon chịu. Bật: mã riêng của salon bạn xuất hiện trong mục Ưu đãi ngay sau khi lưu. Tắt: mã ngừng áp dụng cho khách.</span>
 </span>
 </label>
 </section>

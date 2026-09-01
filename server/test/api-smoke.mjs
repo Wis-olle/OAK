@@ -4424,6 +4424,86 @@ async function groupAuthz() {
     'DELETE /api/partner/promotions/:id (TET2026, second salon)',
   );
 
+  /* The box in Cài đặt salon is the switch the Terms say it is, and the console sends
+     that field on EVERY save — so the handler acts on the answer changing rather than on
+     the key arriving. Unticking stops the discount; a routine save leaves it alone. */
+  const welcome = welcomeCode(ownSalon.id);
+  const welcomeOffers = async (label) =>
+    ok(await applicant.fetch('/api/partner/promotions'), label).filter(
+      (item) => item.code === welcome,
+    );
+
+  ok(
+    await applicant.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { welcome_promo_opt_in: 0 },
+    }),
+    'PATCH /api/partner/salon (unticking the welcome offer)',
+  );
+  const switchedOff = await welcomeOffers('GET /api/partner/promotions (unticked)');
+  assert(
+    switchedOff.length === 1 && switchedOff[0].active === 0,
+    'unticking the box must switch the welcome code off, not merely stop a future one',
+    switchedOff,
+  );
+  const withoutWelcome = await session('guest').fetch('/api/promotions');
+  assert(
+    !ok(withoutWelcome, 'GET /api/promotions (welcome switched off)').some(
+      (item) => item.code === welcome,
+    ),
+    'a switched-off welcome offer must leave the public offers page',
+    withoutWelcome,
+  );
+
+  // The exact shape cai-dat-salon.html sends when the owner edits something else entirely.
+  ok(
+    await applicant.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { phone: '0900 000 111', welcome_promo_opt_in: 0 },
+    }),
+    'PATCH /api/partner/salon (a routine save, box unchanged)',
+  );
+  const stillOff = await welcomeOffers('GET /api/partner/promotions (after a routine save)');
+  assert(
+    stillOff.length === 1 && stillOff[0].active === 0 && stillOff[0].id === switchedOff[0].id,
+    'a routine save must not touch the welcome offer',
+    stillOff,
+  );
+
+  // Re-ticking switches the same row back on: the code is minted once, so changing your
+  // mind twice does not collect a second offer or a second notification.
+  ok(
+    await applicant.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { welcome_promo_opt_in: 1 },
+    }),
+    'PATCH /api/partner/salon (re-ticking the welcome offer)',
+  );
+  const switchedOn = await welcomeOffers('GET /api/partner/promotions (re-ticked)');
+  assert(
+    switchedOn.length === 1 && switchedOn[0].active === 1 && switchedOn[0].id === switchedOff[0].id,
+    're-ticking the box must switch the code back on rather than mint a second one',
+    switchedOn,
+  );
+
+  /* And an offer deleted on purpose stays deleted: nobody is handed 20% of their own
+     margin back for editing their phone number. */
+  ok(
+    await applicant.fetch(`/api/partner/promotions/${switchedOn[0].id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/promotions/:id (the welcome offer)',
+  );
+  ok(
+    await applicant.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { phone: '0900 000 222', welcome_promo_opt_in: 1 },
+    }),
+    'PATCH /api/partner/salon (a routine save after deleting the offer)',
+  );
+  assert(
+    (await welcomeOffers('GET /api/partner/promotions (offer deleted)')).length === 0,
+    'a welcome offer deleted on purpose must not come back on the next save',
+  );
+
   // The public menu carries the flag the console set, so the profile can print "từ ...".
   const publicMenu = await session('guest').fetch(`/api/salons/${ownSalon.id}/services`);
   assert(
