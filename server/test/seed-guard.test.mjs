@@ -3,9 +3,15 @@
 // every case below is a database that is empty, which is the only state in which the
 // question is even asked, plus the two shapes COUNT(*) can arrive in.
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { shouldSeedDemo } from '../src/seed.js';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const dbSource = fs.readFileSync(path.join(root, 'server/src/db.js'), 'utf8');
 
 test('an empty database on a developer machine is seeded', () => {
   assert.equal(shouldSeedDemo({}, 0), true);
@@ -36,4 +42,10 @@ test('a database that already holds accounts is never seeded, in either spelling
   assert.equal(shouldSeedDemo({}, '3'), false);
   assert.equal(shouldSeedDemo({ SEED_DEMO: '1' }, 3), false);
   assert.equal(shouldSeedDemo({ NODE_ENV: 'production', SEED_DEMO: '1' }, '3'), false);
+});
+
+// Everything above is true of a function nobody calls. This pins the one call site: the
+// guard decides from the real environment, not from a literal somebody left behind.
+test('db.js asks the guard, and asks it with the process environment', () => {
+  assert.match(dbSource, /shouldSeedDemo\(process\.env, /);
 });

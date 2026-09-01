@@ -52,7 +52,11 @@ Các biến còn lại đã có sẵn giá trị trong `render.yaml`, không c�
 
 Sau đó **Save & Deploy** (hoặc push commit mới). Lần boot đầu tiên server tự tạo bảng, nhưng **không** seed dữ liệu mẫu: mọi tài khoản demo dùng chung một mật khẩu in công khai trong `server/README.md`, nên `NODE_ENV=production` là đủ để server bỏ qua seed và ghi một dòng log nói vậy. Muốn có dữ liệu mẫu trên một database production thì tự khai `SEED_DEMO=1`.
 
-Nếu database đã được seed từ trước khi có chốt này, chạy [`tools/sql/lock-demo-accounts.sql`](tools/sql/lock-demo-accounts.sql) một lần trong Supabase SQL editor: script khoá cả mười tài khoản `@oak.vn` bằng một mật khẩu ngẫu nhiên không ai biết và xoá token mời nhân viên cố định, không xoá dữ liệu demo. Chạy lại nhiều lần vô hại.
+Nếu database đã được seed từ trước khi có chốt này, chạy [`tools/sql/lock-demo-accounts.sql`](tools/sql/lock-demo-accounts.sql) một lần trong Supabase SQL editor. Script khoá cả mười tài khoản demo — mật khẩu ngẫu nhiên không ai biết, địa chỉ chuyển sang `.invalid` để "Quên mật khẩu?" cũng không còn là đường vào, xoá link đặt lại đang treo và xoá token mời nhân viên cố định. Chạy lại nhiều lần vô hại. Cuối file có hai câu **chỉ đọc** phải trả về 0 hàng thì mới coi là xong: chúng tìm người ngoài đã kịp nhận ghế nhân viên ở salon demo, và lời mời còn sót lại ở đó.
+
+Lưu ý: script **chỉ đóng lối đăng nhập**. Sáu salon demo vẫn còn và vẫn hiện trên trang khách, nên khách thật vẫn đặt lịch vào một console không còn ai mở được. Muốn gỡ chúng xuống thì bỏ chú thích ở mục **TÙY CHỌN** cuối file — đó là quyết định của người vận hành, không phải mặc định.
+
+Nhân tiện, kiểm tra `ADMIN_EMAILS` trong Render: nó **không được** là một địa chỉ demo (bộ smoke test dùng `hoangyen@oak.vn`), nếu không thì quyền ẩn/hiện bài blog nằm ở một tài khoản mà script trên vừa khoá.
 
 ---
 
