@@ -228,6 +228,9 @@ function registerPartner() {
     isValidPhone: () => true,
     normalisePhone: (value) => value,
     phoneHeldByAnother: async () => false,
+    // The per-address ceiling on opening an account is charged by every registration now,
+    // number or no number, so the lifted function reaches for it on this path too.
+    registerIpLimited: () => false,
     notifyUser: async () => {},
     slugify,
     todayISO,

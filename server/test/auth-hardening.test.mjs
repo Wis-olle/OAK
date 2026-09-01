@@ -477,12 +477,56 @@ test('and neither door will answer that question many times over', () => {
 
   // One counter for the whole app, in a lib both routes import: a route module is nobody's
   // library, and a second copy of the sweep would have to be fixed twice.
-  assert.ok(
-    authSource.includes("import { phoneLookupLimited, rateLimited, refundAttempt } from '../lib/rate-limit.js';"),
+  assert.match(
+    authSource,
+    /import \{\s*phoneLookupLimited,\s*rateLimited,\s*refundAttempt,\s*registerIpLimited,\s*\} from '\.\.\/lib\/rate-limit\.js';/,
   );
   assert.ok(usersSource.includes("import { phoneLookupLimited, rateLimited } from '../lib/rate-limit.js';"));
   assert.ok(!usersSource.includes("from './auth.js'"), 'users.js imports no route module');
   assert.doesNotMatch(authSource, /function (countAttempt|rateLimited|refundAttempt)\(/);
+});
+
+test('and opening an account at all is rationed per address, number or no number', () => {
+  /* The budget above rations a QUESTION, and a sign-up with no number in it asks none — which
+     is deliberate, and is also the hole: a script that simply never sends a phone number paid
+     nothing for account number ten thousand, and each one is a bcrypt hash, a row, a notice
+     and a door onto the rest of the site. So there is a second ceiling under all three
+     registration doors, on the ACT rather than on anything the request carried. */
+  assert.ok(
+    rateLimitSource.includes('const REGISTER_IP_MAX_ATTEMPTS = Number.isFinite(parsedRegisterIpLimit)'),
+  );
+  // Forty in the quarter of an hour: met by no shop signing its own staff up, and far under
+  // what a script posting sign-ups in a loop would want.
+  assert.match(rateLimitSource, /\? parsedRegisterIpLimit\s+: 40;/);
+  assert.match(rateLimitSource, /const registerIpAttempts = new Map\(\);/);
+  assert.ok(rateLimitSource.includes('rateLimited(registerIpAttempts, ip, REGISTER_IP_MAX_ATTEMPTS)'));
+
+  /* Number.parseInt with an explicit finite check, not `Number(x) || 40`: 0 is the one value
+     an operator would only ever type on purpose — sign-ups shut — and the shorter idiom reads
+     it as absent and hands back the default. lib/upload-quota.js reads its cap the same way. */
+  assert.match(
+    rateLimitSource,
+    /const parsedRegisterIpLimit = Number\.parseInt\(process\.env\.REGISTER_IP_LIMIT \?\? '', 10\);/,
+  );
+
+  /* Charged in createAccount, which is the one place all three doors — /register,
+     /partner/register and /staff/register — pass through, and charged unconditionally: an
+     `if (phone && ...)` here would be the same hole a second time. */
+  const create = handler(authSource, 'async function createAccount(', "router.post('/register'");
+  assert.ok(create.includes('if (registerIpLimited(req.ip)) {'));
+  assert.equal((authSource.match(/registerIpLimited\(/g) || []).length, 1, 'one door, charged once');
+  // Before the ~90ms of hashing, so a run of sign-ups never gets the server's bcrypt free...
+  assert.ok(create.indexOf('registerIpLimited') < create.indexOf('bcrypt.hash'));
+  // ...and after the shape checks and the consent gate, so no mistyped form costs an account.
+  assert.ok(create.indexOf("'CONSENT_REQUIRED'") < create.indexOf('registerIpLimited'));
+  assert.match(create, /429,\s*'TOO_MANY_ATTEMPTS'/);
+  assert.match(create, /Đã có quá nhiều tài khoản được tạo từ kết nối này/);
+
+  /* And the one caller that legitimately opens dozens of accounts from a single address in a
+     few seconds raises it rather than the ceiling being left off. Raised, not disabled, so
+     every smoke run still exercises the variable being read. */
+  const smoke = source('server/test/api-smoke.mjs');
+  assert.match(smoke, /REGISTER_IP_LIMIT: '1000',/);
 });
 
 test('and a number that is not changing is not a question at all', () => {

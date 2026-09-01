@@ -12,7 +12,12 @@ import { isValidPhone, normalisePhone, phoneHeldByAnother } from '../lib/phone.j
 // The fixed-window counter behind every allowance below, and the one tally that is not
 // this file's alone: PATCH /api/users/me answers the same question a sign-up carrying a
 // number does, so both doors are charged to the same per-address budget.
-import { phoneLookupLimited, rateLimited, refundAttempt } from '../lib/rate-limit.js';
+import {
+  phoneLookupLimited,
+  rateLimited,
+  refundAttempt,
+  registerIpLimited,
+} from '../lib/rate-limit.js';
 import {
   CLAIM_STAFF_ROW,
   SPEND_STAFF_INVITE,
@@ -303,6 +308,24 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
     // one, and never because a request asked the public register for that role.
     if (forcedRole == null && !ROLES.includes(accountRole)) {
       throw httpError(400, 'VALIDATION_ERROR', 'Loại tài khoản không hợp lệ.');
+    }
+
+    /* And the floor under all three doors: how many accounts one address may open, whatever
+       the request carried. The allowance above rations a question and only sign-ups that ask
+       it, so a script that simply never sends a number walked past it and paid nothing for
+       account number ten thousand. Charged last of the checks, so no shape mistake and no
+       withheld consent costs anybody an account, and before the ~90ms of hashing below, so a
+       run of them never gets the server's bcrypt for free. An attempt that dies in the
+       transaction below — an email already taken — is charged all the same: what this rations
+       is the request, not the row. lib/rate-limit.js holds the number and the
+       REGISTER_IP_LIMIT that overrides it. */
+    if (registerIpLimited(req.ip)) {
+      console.warn(`register: too many accounts opened from ${req.ip}`);
+      throw httpError(
+        429,
+        'TOO_MANY_ATTEMPTS',
+        'Đã có quá nhiều tài khoản được tạo từ kết nối này. Vui lòng đợi 15 phút rồi thử lại.',
+      );
     }
 
     const passwordHash = await bcrypt.hash(password, 10);

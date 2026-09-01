@@ -89,10 +89,50 @@ function phoneLookupLimited(ip) {
   return rateLimited(phoneLookupAttempts, ip, PHONE_LOOKUP_MAX_ATTEMPTS);
 }
 
+/* ============================================================================
+ * The floor under all of it: how many accounts one address may open
+ * ========================================================================= */
+
+/* The allowance above rations a QUESTION, and only sign-ups that ask it. A registration with
+   no number in it asks nothing and is charged nothing — which is deliberate and stays true,
+   because a salon signing its whole staff up from one wifi must not be turned away. What that
+   leaves open is the other abuse, the one that is not about phone numbers at all: an address
+   opening accounts by the thousand. Each one costs the server ~90ms of bcrypt, a row, a
+   welcome notice and (for a technician) a page, and every one of them is a door onto the rest
+   of the site that no later ceiling can take back.
+
+   So this is a ceiling on the ACT rather than on anything the request asked, charged by every
+   door that creates an account — /register, /partner/register and /staff/register all go
+   through createAccount, and it is charged there once for all three.
+
+   Forty in the quarter of an hour, and the number is chosen to be met by nobody real. A shop
+   opening accounts for a dozen staff spends twelve; a household behind one CGNAT address
+   spends what its people actually sign up for. It is not a rate limiter for a botnet — every
+   caveat at the top of this file still holds — it is the single script from a single address,
+   made to cost forty accounts a quarter of an hour instead of as many as it can post.
+
+   REGISTER_IP_LIMIT overrides it, because there is one caller that legitimately opens dozens
+   of accounts from 127.0.0.1 in a few seconds: the smoke suite (server/test/api-smoke.mjs
+   raises it to 1000). Number.parseInt with an explicit finite check rather than `Number(x) ||
+   40`, so that 0 — the value an operator would only ever type on purpose, to shut sign-ups
+   entirely — is not read as absent and quietly replaced by the default. */
+const parsedRegisterIpLimit = Number.parseInt(process.env.REGISTER_IP_LIMIT ?? '', 10);
+const REGISTER_IP_MAX_ATTEMPTS = Number.isFinite(parsedRegisterIpLimit)
+  ? parsedRegisterIpLimit
+  : 40;
+const registerIpAttempts = new Map();
+
+/** Charge one account creation to `ip`; true once the per-address ceiling is spent. */
+function registerIpLimited(ip) {
+  return rateLimited(registerIpAttempts, ip, REGISTER_IP_MAX_ATTEMPTS);
+}
+
 export {
   PHONE_LOOKUP_MAX_ATTEMPTS,
   RATE_WINDOW_MS,
+  REGISTER_IP_MAX_ATTEMPTS,
   phoneLookupLimited,
   rateLimited,
   refundAttempt,
+  registerIpLimited,
 };

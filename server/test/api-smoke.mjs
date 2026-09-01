@@ -240,6 +240,13 @@ function spawnServer() {
     // Count the round trips and report them per request, so the blocks below can assert
     // what a page COSTS rather than only what it says. Off everywhere else (src/db.js).
     OAK_QUERY_COUNT: '1',
+    /* Account creation is rationed per address (lib/rate-limit.js), forty in the quarter of
+       an hour, and every request in this file comes from 127.0.0.1. This suite opens dozens
+       of accounts in a few seconds — customers, partners, technicians — and would spend that
+       allowance somewhere in the middle of group 14 and then fail every group after it for a
+       reason that is not the code under test. Raised rather than switched off, so the plumbing
+       that reads the variable is exercised on every run. */
+    REGISTER_IP_LIMIT: '1000',
   };
   // A shell with production's credentials exported would otherwise have this suite writing
   // its fixture images into the real bucket and mailing real people; the child gets neither.
@@ -12305,6 +12312,31 @@ async function groupRegisterThrottle() {
   ok(
     await saver.fetch('/api/users/me', { method: 'PATCH', json: { name: 'Nguoi Luu Ten' } }),
     'PATCH /api/users/me with no number in it, from the same spent address',
+  );
+
+  /* The OTHER per-address ceiling — the one on opening an account at all, whatever the request
+     carried — is not spent here, and cannot be: it is forty in the quarter of an hour and this
+     suite raises it to 1000 (REGISTER_IP_LIMIT, spawnServer above), because every request in
+     this file comes from 127.0.0.1 and the groups before this one open dozens of accounts.
+     Walking a thousand sign-ups to meet it would cost a thousand bcrypt hashes and a thousand
+     rows to prove an arithmetic that lib/rate-limit.js is unit-tested for.
+
+     So what is asserted here is that it is WIRED and that this run stayed under it. Both are
+     the same assertion: at the default of forty the ceiling would have shut somewhere in the
+     middle of group 14 and every group after it would already have failed, and if it were
+     charged from the wrong tally this last sign-up — the suite's last of many from one
+     address — is where that would show. */
+  ok(
+    await new Session().fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi Cuoi Cung',
+        email: `last${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'the account-creation ceiling is raised for this suite and has not fired',
   );
 }
 
