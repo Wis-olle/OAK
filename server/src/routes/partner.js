@@ -2909,35 +2909,49 @@ const selectAffectedBookings = db.prepare(`
   ORDER BY b.date, b.time, b.id
 `);
 
-/**
- * Which of `bookings` a proposed week has no room for: the weekday is closed, the row for
- * it is missing entirely, or the hour the appointment starts at falls outside that day's
- * shift.
- *
- * The START only. An appointment that runs a few minutes past closing is the ordinary end
- * of a working day, and refusing every save over one would leave a salon unable to edit its
- * own week.
- */
-function outsideWeek(bookings, week) {
-  const byWeekday = new Map(week.map((day) => [day.weekday, day]));
-  return bookings.filter((booking) => {
-    const day = byWeekday.get(weekdayOf(booking.date));
-    return !day || day.is_off === 1 || booking.time < day.start || booking.time >= day.end;
-  });
+/* How much room a proposed week leaves one appointment, worst first. Graded rather than a
+   yes/no because the refusal below is drawn on the DIFFERENCE between two weeks, and there
+   are two different ways to have no room: a day the salon has SHUT, and a day it is open on
+   at an hour that is not this one. They are not the same loss, and telling them apart is the
+   whole of what the comparison needs.
+
+   FITS is the START only. An appointment that runs a few minutes past closing is the ordinary
+   end of a working day, and refusing every save over one would leave a salon unable to edit
+   its own week. */
+const DAY_SHUT = 0;
+const OUTSIDE_SHIFT = 1;
+const FITS = 2;
+
+/** Which of the three this week leaves `booking`. A weekday with no row is a weekday shut. */
+function roomFor(byWeekday, booking) {
+  const day = byWeekday.get(weekdayOf(booking.date));
+  if (!day || day.is_off === 1) {
+    return DAY_SHUT;
+  }
+  return booking.time < day.start || booking.time >= day.end ? OUTSIDE_SHIFT : FITS;
 }
 
 /**
- * Which of `bookings` the move from `before` to `after` strands: outside the new week, and
- * not already outside the old one.
+ * Which of `bookings` the move from `before` to `after` strands: the ones the new week
+ * leaves LESS room than the old one did.
  *
  * The difference is the whole rule. An appointment that already sat outside the salon's
  * declared hours — one the counter took anyway, which the console allows and warns about —
  * is not stranded by a save that leaves it exactly where it was, and refusing an unrelated
- * edit over it would be blaming this save for something it did not do.
+ * edit over it would be blaming this save for something it did not do. Nor is it stranded by
+ * a save that gives it back some room, which is what reopening a closed weekday on narrower
+ * hours does.
+ *
+ * But a day going is_off under it IS a loss, even when the hour was already outside the
+ * shift: it turns an open day somebody was being worked late on into a day the salon is shut.
+ * A boolean "was it out before" could not see that — the 19:00 customer on a Monday the owner
+ * has just closed was out before and out after, so the arithmetic said nobody was affected
+ * and the save went through in silence, with nobody named for the owner to ring.
  */
 function newlyStranded(bookings, before, after) {
-  const alreadyOut = new Set(outsideWeek(bookings, before).map((row) => row.code));
-  return outsideWeek(bookings, after).filter((row) => !alreadyOut.has(row.code));
+  const oldWeek = new Map(before.map((day) => [day.weekday, day]));
+  const newWeek = new Map(after.map((day) => [day.weekday, day]));
+  return bookings.filter((booking) => roomFor(newWeek, booking) < roomFor(oldWeek, booking));
 }
 
 /** Refuse `rows` unless the caller said `force`; hands `rows` back either way. */

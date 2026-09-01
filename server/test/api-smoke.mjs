@@ -3911,10 +3911,14 @@ async function groupPartner() {
 
   // open_now is answered against today's own row. Open days run 00:00-23:59 so the
   // result never depends on the clock the suite happens to run at.
+  /* force, because closing today is exactly the save that strands somebody: this salon has
+     appointments on today's date from the groups above, and a weekday going is_off says so
+     now even where the hour was already outside the week. This case is about open_now, and
+     the refusal itself is group 20e's business. */
   ok(
     await partner.fetch('/api/partner/salon', {
       method: 'PATCH',
-      json: { hours: weekClosedOn(weekdayOf(state.today)) },
+      json: { hours: weekClosedOn(weekdayOf(state.today)), force: true },
     }),
     'PATCH /api/partner/salon (closed today)',
   );
@@ -12471,6 +12475,77 @@ async function groupClosedDays() {
       json: { schedule: closedShift, force: true },
     }),
     'PUT /api/partner/staff/:id/schedule with force',
+  );
+
+  /* -- the hour the counter took anyway, on a day that then closes ------------- */
+
+  /* The narrowing above — "already outside the old week, so this save did not strand it" —
+     must not swallow the customer a CLOSING day strands. An appointment at 19:00 on a salon
+     that shuts at 18:00 is out of hours and stays out of hours whatever the owner does to
+     the times; but the day going is_off is not "leaving it where it was", it is shutting the
+     salon on them, and they belong on the list the owner is told to ring. */
+  ok(
+    await owner.fetch(`/api/partner/staff/${staff.id}/schedule`, {
+      method: 'PUT',
+      json: { schedule: week },
+    }),
+    'PUT /api/partner/staff/:id/schedule giving the shift back',
+  );
+  const officeWeek = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+    weekday, start: '09:00', end: '18:00', is_off: 0,
+  }));
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: officeWeek } }),
+    'PATCH /api/partner/salon (office hours, the appointment already inside them)',
+  );
+  const lateDay = addDays(state.today, 8);
+  const inHours = ok(
+    await owner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: staff.id,
+        date: lateDay,
+        time: '10:00',
+        customer_name: 'Khách Trong Giờ',
+      },
+    }),
+    'one appointment inside the salon hours',
+  );
+  const afterHours = ok(
+    await owner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: staff.id,
+        date: lateDay,
+        time: '19:00',
+        customer_name: 'Khách Ngoài Giờ',
+        force: true,
+      },
+    }),
+    'and one the counter took an hour after closing',
+  );
+  // The one difference from the week just saved: that weekday goes off. Nothing else moves,
+  // so whatever the refusal names was stranded by the closure and by nothing else.
+  const closedLateWeek = officeWeek.map((day) =>
+    day.weekday === weekdayOf(lateDay) ? { ...day, is_off: 1 } : day,
+  );
+  const closingLate = await owner.fetch('/api/partner/salon', {
+    method: 'PATCH',
+    json: { hours: closedLateWeek },
+  });
+  expectError(
+    closingLate,
+    409,
+    'BOOKINGS_AFFECTED',
+    'PATCH /api/partner/salon closing a weekday that holds an after-hours appointment',
+  );
+  const stranded = (closingLate.body?.error?.details ?? []).map((row) => row.code);
+  assert(
+    stranded.includes(inHours.code) && stranded.includes(afterHours.code),
+    'a closing day strands the customer booked after hours as surely as the one booked inside them',
+    closingLate,
   );
 }
 
