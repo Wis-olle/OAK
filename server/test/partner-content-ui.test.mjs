@@ -24,6 +24,17 @@ test('the salon settings form no longer collects social profiles', () => {
   assert.match(readServer('routes/partner.js'), /social_links/);
 });
 
+test('no page prints a salon’s tags, now that no owner can edit them', () => {
+  /* The editor went with the social links, so a tag still shown under a salon's name
+     would be words about that salon its owner could no longer correct or clear. The
+     column and the API stay — ket-qua-tim-kiem.html reads tags[0] to pick a map-pin
+     icon, which puts none of the text on the page. */
+  for (const name of fs.readdirSync(path.join(root, 'ui')).filter((f) => f.endsWith('.html'))) {
+    const html = readUi(name);
+    assert.doesNotMatch(html, /(x-text|x-for)="[^"]*\.tags\b[^"]*"/, name);
+  }
+});
+
 test('the public salon page renders no link it was handed, and still no x-html', () => {
   const html = readUi('salon-profile.html');
   assert.doesNotMatch(html, /safeSocialLinks/);
