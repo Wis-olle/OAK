@@ -228,7 +228,6 @@ function registerPartner() {
     isValidPhone: () => true,
     normalisePhone: (value) => value,
     phoneHeldByAnother: async () => false,
-    linkBookingsByPhone: async () => {},
     notifyUser: async () => {},
     slugify,
     todayISO,

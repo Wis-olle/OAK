@@ -10,12 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
-import {
-  isValidPhone,
-  linkBookingsByPhone,
-  normalisePhone,
-  phoneHeldByAnother,
-} from '../src/lib/phone.js';
+import { isValidPhone, normalisePhone, phoneHeldByAnother } from '../src/lib/phone.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const source = (name) => fs.readFileSync(path.join(root, name), 'utf8');
@@ -24,6 +19,7 @@ const authSource = source('server/src/routes/auth.js');
 const usersSource = source('server/src/routes/users.js');
 const phoneSource = source('server/src/lib/phone.js');
 const middlewareSource = source('server/src/middleware/auth.js');
+const partnerSource = source('server/src/routes/partner.js');
 const schemaSource = source('server/src/db.js');
 
 /** The handler of one route, up to whatever comes after it. */
@@ -39,19 +35,6 @@ function declaration(text, from) {
   const start = text.indexOf(from);
   assert.notEqual(start, -1, `no declaration matching ${from}`);
   return text.slice(start, text.indexOf('\n}', start) + 2);
-}
-
-/** Nothing under test may write to the console during a test run. */
-async function quietly(work) {
-  const { warn, info } = console;
-  console.warn = () => {};
-  console.info = () => {};
-  try {
-    return await work();
-  } finally {
-    console.warn = warn;
-    console.info = info;
-  }
 }
 
 // ------------------------------------------------------------------ consent
@@ -379,7 +362,7 @@ test('and only something shaped like a number gets to be one', () => {
 });
 
 /** A db.withTransaction handle that answers whatever the case needs and records the calls. */
-function fakeTx({ heldByAnother = false, changes = 0 } = {}) {
+function fakeTx({ heldByAnother = false } = {}) {
   const calls = [];
   return {
     calls,
@@ -389,25 +372,31 @@ function fakeTx({ heldByAnother = false, changes = 0 } = {}) {
     },
     async run(sql, ...params) {
       calls.push({ verb: 'run', sql, params });
-      return { changes };
+      return { changes: 0 };
     },
   };
 }
 
-test('the claim compares the folded number, not the one that happened to be typed', async () => {
-  const tx = fakeTx({ changes: 2 });
-  assert.equal(await quietly(() => linkBookingsByPhone(tx, 7, '+84 903 555 111')), 2);
+test('a typed number claims nothing: no booking changes hands for one', () => {
+  /* The takeover this closes. Both ways in used to reassign every account-less booking left
+     under the number in the body — and the number is typed, not verified, so anybody holding
+     a person's phone number held that person's history at the counter, and a contact list was
+     a shopping list. There is no OTP to gate it with, so the mechanism is gone rather than
+     guarded: what cannot be proved is not done. */
+  assert.doesNotMatch(phoneSource, /linkBookingsByPhone/);
+  assert.doesNotMatch(phoneSource, /UPDATE bookings SET user_id/);
+  assert.doesNotMatch(authSource, /linkBookingsByPhone/);
+  assert.doesNotMatch(usersSource, /linkBookingsByPhone/);
+  // And the source says what would have to exist before any of it could come back.
+  assert.match(phoneSource, /until a code sent to the number is checked/);
 
-  const update = tx.calls.find((call) => call.verb === 'run');
-  assert.equal(update.params[0], 7);
-  assert.equal(update.params[1], '0903555111', 'the incoming number is folded');
-  // ...and so is the stored one, or half the bookings could never match. Both sides go
-  // through the same expression, which is SQL and so can only be read here, not run.
-  assert.match(update.sql, /regexp_replace\(regexp_replace\(coalesce\(customer_phone/);
-  assert.match(update.sql, /'\[\^0-9\]', '', 'g'/, 'every separator, not only whitespace');
-  assert.match(update.sql, /'\^84', '0'/);
-  // Only bookings nobody owns: a booking already attached to an account is never moved.
-  assert.match(update.sql, /WHERE user_id IS NULL/);
+  /* The counter's own lookup stays, and is now the only place a number attaches a booking to
+     an account — the one place it can be trusted, because the salon read it off the customer
+     in front of them. It answers only when exactly one live customer holds the number, which
+     is also why PHONE_IN_USE has to keep refusing a second claim on one. */
+  assert.match(partnerSource, /async function accountForPhone\(phone\)/);
+  assert.match(partnerSource, /role = 'customer' AND deleted_at IS NULL/);
+  assert.match(partnerSource, /matches\.length === 1 \? matches\[0\]\.id : null/);
 });
 
 test('a number already answering for somebody else is spotted before it is stored', async () => {
@@ -444,32 +433,52 @@ test('and both ways in refuse it out loud rather than storing it quietly', () =>
   assert.ok(patch.indexOf('PHONE_IN_USE') < patch.indexOf('UPDATE users SET'), 'before the write');
 });
 
-test('no number, no claim: nothing is asked and nothing is written', async () => {
-  for (const value of ['', null, undefined, '   ']) {
-    const tx = fakeTx({ changes: 3 });
-    assert.equal(await quietly(() => linkBookingsByPhone(tx, 7, value)), 0);
-    assert.deepEqual(tx.calls, []);
-  }
-});
-
-test('both ways in go through it, and the profile write is in the same transaction', () => {
-  // The account being created (a customer's — a salon owner's business line is not a claim
-  // on those bookings), and the number being added to one that exists.
+test('and neither door will answer that question many times over', () => {
+  /* The 409 above is an answer nothing else on the site will give: "yes, somebody here holds
+     this number". Free and unlimited, it is an oracle — a script walks a contact list through
+     the sign-up form and learns which of a person's friends are on OAK. So the ration is on
+     the question, not on the door: a registration with no number in it spends nothing, which
+     is what keeps a salon opening accounts for its own staff (and this suite) out of it. */
+  const create = handler(authSource, 'async function createAccount(', "router.post('/register'");
   assert.match(
-    authSource,
-    /if \(phone && accountRole === 'customer'\) \{\s*await linkBookingsByPhone\(tx, userId, phone\);/,
+    create,
+    /if \(phone && rateLimited\(registerPhoneAttempts, req\.ip, REGISTER_PHONE_MAX_ATTEMPTS\)\)/,
   );
+  assert.match(authSource, /const REGISTER_PHONE_MAX_ATTEMPTS = 12;/);
+  assert.match(authSource, /const registerPhoneAttempts = new Map\(\);/, 'its own tally');
+  assert.match(create, /429,\s*'TOO_MANY_ATTEMPTS'/);
+  // Vietnamese, like every other message a visitor can be shown.
+  assert.match(create, /Vui lòng đợi 15 phút rồi thử lại/);
+  // Charged before the ~90ms of hashing, so scanning never gets bcrypt for free...
+  assert.ok(create.indexOf('registerPhoneAttempts') < create.indexOf('bcrypt.hash'));
+  // ...and before the refusal it rations, or the refusal would still be free.
+  assert.ok(create.indexOf('registerPhoneAttempts') < create.indexOf('PHONE_IN_USE'));
+
+  /* The same question asked from inside an account, which is the easier one to automate: one
+     sign-in and a loop, no new account per guess. Keyed on the account, because that is who
+     gets the answer. */
   const patch = handler(usersSource, "router.patch('/me'", 'const selectPasswordHash');
   assert.match(
     patch,
-    /if \(claimedPhone && req\.user\.role === 'customer'\) \{\s*await linkBookingsByPhone\(tx, req\.user\.id, claimedPhone\);/,
+    /if \(body\.phone && rateLimited\(phoneChangeAttempts, req\.user\.id, PHONE_CHANGE_MAX_ATTEMPTS\)\)/,
   );
-  assert.ok(patch.indexOf('db.withTransaction') < patch.indexOf('linkBookingsByPhone'));
+  assert.match(usersSource, /const PHONE_CHANGE_MAX_ATTEMPTS = 5;/);
+  assert.match(usersSource, /const phoneChangeAttempts = new Map\(\);/);
+  assert.match(patch, /429,\s*'TOO_MANY_ATTEMPTS'/);
+  assert.ok(patch.indexOf('phoneChangeAttempts') < patch.indexOf('PHONE_IN_USE'));
+  // One counter for the whole app: users.js borrows auth.js's rather than keeping a copy of
+  // the sweep and the window that would have to be fixed twice.
+  assert.match(authSource, /export function rateLimited\(/);
+  assert.match(usersSource, /import \{ rateLimited \} from '\.\/auth\.js';/);
+});
+
+test('the number is stored folded both ways in, and indexed the way it is compared', () => {
+  const patch = handler(usersSource, "router.patch('/me'", 'const selectPasswordHash');
   // Stored folded as well as compared folded, on both paths.
   assert.match(authSource, /phone \? normalisePhone\(phone\) : null/);
   // `|| null`: an emptied field clears to NULL, the value every other empty phone holds.
   assert.match(patch, /column === 'phone' \? normalisePhone\(body\[column\]\) \|\| null : body\[column\]/);
-  // The lookup this adds is the only one that reaches users by anything but the id, and it
+  // phoneHeldByAnother is the only lookup that reaches users by anything but the id, and it
   // compares a folded column — so the index has to be on that same expression. A plain
   // index on the raw column could never serve it, and the old one is dropped, not left.
   assert.match(schemaSource, /DROP INDEX IF EXISTS idx_users_phone;/);
@@ -478,9 +487,9 @@ test('both ways in go through it, and the profile write is in the same transacti
   assert.match(schemaSource, /DROP INDEX IF EXISTS idx_users_phone_normalised;/);
   assert.match(schemaSource, /CREATE INDEX IF NOT EXISTS idx_users_phone_digits/);
   assert.match(schemaSource, /ON users\(\(regexp_replace\(regexp_replace\(coalesce\(phone/);
-  // Still unverified, and the source says so: an OTP is the step that would make the claim
-  // proof rather than an assertion.
-  assert.match(phoneSource, /INCOMPLETE BY DESIGN/);
+  // A SELECT and not a UNIQUE index, deliberately: rows written before this rule existed can
+  // already collide, and a constraint added over them would refuse to build on boot.
+  assert.doesNotMatch(schemaSource, /UNIQUE.*idx_users_phone_digits/);
 });
 
 // ------------------------------------------------------------------ migrations

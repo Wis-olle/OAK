@@ -8,12 +8,7 @@ import { sendResetMail } from '../lib/mailer.js';
 import { notifyUser } from '../lib/notify.js';
 // One rule for phone numbers, shared with the profile update and the console lookup:
 // every path that attaches a number to an account folds it the same way.
-import {
-  isValidPhone,
-  linkBookingsByPhone,
-  normalisePhone,
-  phoneHeldByAnother,
-} from '../lib/phone.js';
+import { isValidPhone, normalisePhone, phoneHeldByAnother } from '../lib/phone.js';
 import {
   CLAIM_STAFF_ROW,
   SPEND_STAFF_INVITE,
@@ -93,9 +88,10 @@ const INVITE_PREVIEW_MAX_ATTEMPTS = 10;
 const invitePreviewAttempts = new Map();
 // And five in the quarter of an hour for opening a technician page with no invitation behind
 // it, keyed on the caller alone for the same reason the preview is: there is nothing else to
-// key on until a body has been read. The calculus is not /register's, which is rationed
-// nowhere at all and can afford to be — a run of that mints hashes and customer rows nobody
-// but their holder ever sees, so what it costs is a little CPU. A SUCCESSFUL call on this path
+// key on until a body has been read. The calculus is not the one below it — a run of ordinary
+// registrations mints hashes and customer rows nobody but their holder ever sees, so what it
+// costs is a little CPU, and it is the phone number on them that is worth rationing rather
+// than the accounts. A SUCCESSFUL call on this path
 // mints a public page, published at birth and open to a search engine, under whatever name was
 // typed into the form. So what abuse buys here is pages carrying OAK's name, and five in a
 // quarter of an hour is far more than one person opening one career — and the tally is charged
@@ -103,6 +99,21 @@ const invitePreviewAttempts = new Map();
 // name or its missing tick published nothing at all.
 const STAFF_REGISTER_MAX_ATTEMPTS = 5;
 const staffRegisterAttempts = new Map();
+/* And twelve registrations CARRYING A PHONE NUMBER in the quarter of an hour, keyed on the
+   caller. Only the phone-bearing ones are counted, and that is the whole design: a
+   registration with no number in it tells the caller nothing they did not already know, while
+   one with a number answers a question they had no right to ask — 409 PHONE_IN_USE means "yes,
+   somebody here answers to this number", and nothing else on the site will say so. Left
+   uncounted, a script walks a contact list through this form and comes out the other side
+   knowing which of a person's friends hold an OAK account.
+
+   Counting only the phone-bearing ones is also what keeps the ceiling honest for everybody
+   else: sign-ups with no number — the smoke suite's dozens of them, a salon opening accounts
+   for its own staff — spend nothing here and can never be locked out by somebody else's
+   scanning. Twelve is comfortably more than any one person or test run has ever needed, and
+   far short of a contact list. */
+const REGISTER_PHONE_MAX_ATTEMPTS = 12;
+const registerPhoneAttempts = new Map();
 
 /** Record one attempt for `key` in `attempts`, and hand back what it has spent in the window. */
 function countAttempt(attempts, key) {
@@ -125,8 +136,13 @@ function countAttempt(attempts, key) {
   return entry.count;
 }
 
-/** Record one attempt for `key` in `attempts`; true once `max` in the window is spent. */
-function rateLimited(attempts, key, max) {
+/** Record one attempt for `key` in `attempts`; true once `max` in the window is spent.
+ *
+ * Exported for routes/users.js, which rations changes of phone number on the same shape and
+ * would otherwise carry a second copy of the counter above it. One implementation, so a fix
+ * to the sweep or the window never has to be made twice.
+ */
+export function rateLimited(attempts, key, max) {
   return countAttempt(attempts, key) > max;
 }
 
@@ -291,10 +307,23 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
     if (phone != null && typeof phone !== 'string') {
       throw httpError(400, 'VALIDATION_ERROR', 'Số điện thoại phải là chuỗi ký tự.');
     }
-    // Same rule the form applies: the number decides which counter bookings this account
-    // claims, so a string that is not a number never gets to try.
+    // Same rule the form applies: this number is how the salon reaches the person, so a
+    // string that is not a number never gets to be stored as one.
     if (phone && !isValidPhone(phone)) {
       throw httpError(400, 'VALIDATION_ERROR', 'Số điện thoại không hợp lệ.');
+    }
+    /* Charged here: past the shape check, so a mistyped number costs nothing, and before the
+       ~90ms of hashing below, so scanning never gets the server's bcrypt for free. Every
+       phone-bearing registration is charged whatever it goes on to answer — the 409 further
+       down is the answer being rationed, so a refusal that did not count would leave the
+       oracle wide open. */
+    if (phone && rateLimited(registerPhoneAttempts, req.ip, REGISTER_PHONE_MAX_ATTEMPTS)) {
+      console.warn(`register: too many phone numbers tried from ${req.ip}`);
+      throw httpError(
+        429,
+        'TOO_MANY_ATTEMPTS',
+        'Bạn đã thử quá nhiều số điện thoại. Vui lòng đợi 15 phút rồi thử lại.',
+      );
     }
     if (salonName != null && typeof salonName !== 'string') {
       throw httpError(400, 'VALIDATION_ERROR', 'Tên salon phải là chuỗi ký tự.');
@@ -343,7 +372,7 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
       await db.withTransaction(async (tx) => {
         // A number a live account already answers to is refused here rather than stored
         // beside it: two rows folding to one number leave the console unable to tell
-        // whose walk-in is whose, and lock the rightful holder out of their own claims.
+        // whose walk-in is whose, so neither holder is recognised at the counter again.
         if (phone && (await phoneHeldByAnother(tx, null, phone))) {
           throw httpError(
             409,
@@ -374,13 +403,6 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
         // rather than leaving somebody holding an account attached to nothing.
         if (afterInsert) {
           extra = await afterInsert(tx, userId);
-        }
-
-        // Whatever was booked over the counter under this number is this person's history,
-        // so it is theirs from the first sign-in rather than from their next visit. Customers
-        // only: a salon owner's number is a business line, not a claim on those bookings.
-        if (phone && accountRole === 'customer') {
-          await linkBookingsByPhone(tx, userId, phone);
         }
 
         if (accountRole === 'customer') {

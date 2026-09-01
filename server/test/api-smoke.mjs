@@ -4594,6 +4594,125 @@ async function groupAccountLifecycle() {
     'PHONE_IN_USE',
     'POST /api/auth/register with a number another live account answers to',
   );
+
+  /* -- and a number claims nothing that was booked under it -------------------- */
+
+  /* The takeover this closes: the counter records a visit under a phone number, and whoever
+     types that number into a sign-up form used to be handed the visit. The number is typed,
+     not verified, so it was proof of nothing — a contact list was a shopping list. Both ways
+     of attaching a number to an account are swept here, because both used to claim. */
+  const partner = session('partnerA');
+  const menu = ok(
+    await partner.fetch('/api/partner/services?limit=1'),
+    'a service for the counter to write the walk-ins against',
+  );
+  const counterDate = addDays(state.today, 6);
+  const counterWalkIn = async (phone, time, label) =>
+    ok(
+      await partner.fetch('/api/partner/bookings', {
+        method: 'POST',
+        json: {
+          service_id: menu[0].id,
+          date: counterDate,
+          time,
+          customer_name: 'Khách Vãng Lai',
+          customer_phone: phone,
+        },
+      }),
+      label,
+    );
+  const holds = async (client, bookingId, label) =>
+    ok(await client.fetch('/api/bookings/mine?limit=50'), label).some(
+      (booking) => booking.id === bookingId,
+    );
+
+  // 1. registering with the number.
+  const strangerPhone = `0771${String(stamp).slice(-6)}`;
+  const strangerBooking = await counterWalkIn(
+    strangerPhone, '19:45', 'POST /api/partner/bookings (a walk-in under a number nobody holds)',
+  );
+  const claimant = new Session();
+  ok(
+    await claimant.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi Doan So',
+        email: `claim${stamp}@oak.invalid`,
+        phone: strangerPhone,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/register with the number on somebody else’s walk-in',
+  );
+  assert(
+    !(await holds(claimant, strangerBooking.id, 'GET /api/bookings/mine (the claimant)')),
+    'a number typed at sign-up must not hand over the bookings taken under it',
+  );
+
+  // 2. adding the number to a profile that already exists — the same claim, one door along.
+  const laterPhone = `0772${String(stamp).slice(-6)}`;
+  const laterBooking = await counterWalkIn(
+    laterPhone, '19:50', 'POST /api/partner/bookings (a second walk-in nobody holds)',
+  );
+  const patcher = new Session();
+  ok(
+    await patcher.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi Them So',
+        email: `patchphone${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'register the account that will add the number afterwards',
+  );
+  ok(
+    await patcher.fetch('/api/users/me', { method: 'PATCH', json: { phone: laterPhone } }),
+    'PATCH /api/users/me (adding a phone number)',
+  );
+  assert(
+    !(await holds(patcher, laterBooking.id, 'GET /api/bookings/mine (the patcher)')),
+    'and adding it to a profile afterwards must not hand them over either',
+  );
+
+  /* -- nor may one account ask the field about number after number ------------- */
+
+  /* PHONE_IN_USE is an answer nothing else on the site gives — "somebody here holds this
+     number" — and from inside an account it is the cheap way to ask: one sign-in and a loop.
+     Five in the quarter of an hour is far more than a person editing their own profile. */
+  const prober = new Session();
+  ok(
+    await prober.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi Do So',
+        email: `probe${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'register the account that will walk numbers through the profile field',
+  );
+  const probeNumber = (attempt) => `0773${String(stamp).slice(-5)}${attempt}`;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    ok(
+      await prober.fetch('/api/users/me', { method: 'PATCH', json: { phone: probeNumber(attempt) } }),
+      `PATCH /api/users/me with number ${attempt} of the allowance`,
+    );
+  }
+  expectError(
+    await prober.fetch('/api/users/me', { method: 'PATCH', json: { phone: probeNumber(6) } }),
+    429,
+    'TOO_MANY_ATTEMPTS',
+    'the sixth number in the same quarter of an hour',
+  );
+  // The rest of the profile is not rationed with it: only the field that answers the question.
+  ok(
+    await prober.fetch('/api/users/me', { method: 'PATCH', json: { name: 'Nguoi Do So' } }),
+    'PATCH /api/users/me with no number in it, after the allowance is spent',
+  );
 }
 
 /* ============================================================================
@@ -8794,13 +8913,33 @@ async function groupStaffDeparture() {
 
   /* -- the calendar a departure leaves behind --------------------------------- */
 
+  /* The customer behind the number on the counter's booking, and she registers BEFORE the
+     counter writes it down. The order is the whole fixture: a number typed into a sign-up form
+     claims nothing backwards any more, so the account has to already exist for the console to
+     recognise the number as it goes in (routes/partner.js accountForPhone). */
+  const movedPhone = `0988${String(stamp).slice(-6)}`;
+  const strandedCustomer = new Session();
+  ok(
+    await strandedCustomer.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Khách Được Chuyển',
+        email: `moved${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        phone: movedPhone,
+        consent: true,
+      },
+    }),
+    'register the customer whose appointment changes hands',
+  );
+
   /* Three appointments and one leaving date, staged so the sweep has to tell them apart:
      one the cover can take, one she cannot because her own hour is already booked at exactly
      that time, and one that has already happened. */
   const sweepDate = addDays(state.today, 4);
   const handedOn = await walkIn(leaverRow.id, sweepDate, '10:00', 'the appointment somebody can take', {
     customer_name: 'Khách Được Chuyển',
-    customer_phone: `0988${String(stamp).slice(-6)}`,
+    customer_phone: movedPhone,
   });
   const stranded = await walkIn(leaverRow.id, sweepDate, '14:00', 'the appointment nobody is free for');
   await walkIn(coverRow.id, sweepDate, '14:00', 'the hour that makes the cover unavailable');
@@ -8828,24 +8967,6 @@ async function groupStaffDeparture() {
       json: { status: 'completed' },
     }),
     'PATCH the already-happened visit to completed',
-  );
-
-  /* The customer behind the number on the counter's booking. Registered after the walk-in so
-     the account is linked by the phone the way a real one is, and so that the only notices in
-     this bell are the ones the sweep writes. */
-  const strandedCustomer = new Session();
-  ok(
-    await strandedCustomer.fetch('/api/auth/register', {
-      method: 'POST',
-      json: {
-        name: 'Khách Được Chuyển',
-        email: `moved${stamp}@oak.invalid`,
-        password: 'Oak@1234',
-        phone: `0988${String(stamp).slice(-6)}`,
-        consent: true,
-      },
-    }),
-    'register the customer whose appointment changes hands',
   );
 
   /* Not even tomorrow. Recording a departure closes the row on the spot and nothing runs
@@ -9770,6 +9891,81 @@ async function groupStaffDeparture() {
 }
 
 /* ============================================================================
+ * 21 — the sign-up door, rationed
+ *
+ * LAST IN THE SUITE, and it has to be. This group deliberately spends the whole per-IP
+ * allowance for registrations carrying a phone number, and every request in this file comes
+ * from 127.0.0.1 — so any group ordered after it would meet a 429 on the first sign-up it
+ * tried with a number in the body. The allowance is a fixed fifteen-minute window held in
+ * the server's own memory; nothing here can give it back, and the process ending is what
+ * clears it. Add new groups ABOVE this one in main().
+ * ========================================================================= */
+
+async function groupRegisterThrottle() {
+  const stamp = Date.now();
+  const scanNumber = (attempt) => `0779${String(stamp).slice(-4)}${String(attempt).padStart(2, '0')}`;
+
+  /* Walked one sign-up at a time until the door shuts. The ceiling is not asserted as a
+     number: what has to be true is that a run of guesses ends somewhere, and reading the
+     constant back out of the server would only assert that it says what it says. */
+  let allowed = 0;
+  let refused = null;
+  for (let attempt = 1; attempt <= 20 && refused === null; attempt += 1) {
+    const response = await new Session().fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi Quet So',
+        email: `scan${stamp}x${attempt}@oak.invalid`,
+        phone: scanNumber(attempt),
+        password: 'Oak@1234',
+        consent: true,
+      },
+    });
+    if (response.status === 429) {
+      refused = response;
+    } else {
+      allowed += 1;
+    }
+  }
+  assert(allowed > 0, 'the first sign-ups carrying a number must go through');
+  assert(refused !== null, 'a run of sign-ups carrying phone numbers must be stopped somewhere');
+  expectError(refused, 429, 'TOO_MANY_ATTEMPTS', 'the sign-up past the phone allowance');
+
+  /* And what is rationed is the question, not the door. A sign-up with no number in it asks
+     nothing about anybody and is let through exactly as before — which is the only reason a
+     ceiling this low is affordable at all: the salon opening accounts for its own staff, and
+     every other group in this suite, never spends a single one of these. */
+  ok(
+    await new Session().fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi Khong So',
+        email: `noscan${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'a sign-up with no phone number is not rationed with the guesses',
+  );
+  // ...and letting that one through did not reopen the window for the guesses.
+  expectError(
+    await new Session().fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi Quet So',
+        email: `rescan${stamp}@oak.invalid`,
+        phone: scanNumber(99),
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    429,
+    'TOO_MANY_ATTEMPTS',
+    'a number tried again after an unrationed sign-up went through',
+  );
+}
+
+/* ============================================================================
  * Runner
  * ========================================================================= */
 
@@ -9810,6 +10006,8 @@ async function main() {
   await group('18 account lifecycle', groupAccountLifecycle);
   await group('19 staff persona', groupStaffPersona);
   await group('20 staff departure', groupStaffDeparture);
+  // Last, always: it spends the whole per-IP sign-up allowance and cannot give it back.
+  await group('21 sign-up throttle', groupRegisterThrottle);
 }
 
 let child = null;

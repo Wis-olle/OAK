@@ -665,13 +665,17 @@ const INSERT_WALK_IN_BOOKING = `
  *
  * Stored numbers carry whatever spacing the person who typed them used ('0901 234 567'),
  * so the column is folded by the same rule the counter's input is — lib/phone.js, the one
- * lib/phone.js's own linkBookingsByPhone uses, so the two can never disagree about which
+ * lib/phone.js's own PHONE_HELD_BY_ANOTHER uses, so the two can never disagree about which
  * account a number belongs to. Two accounts sharing a number is not a match: guessing
  * which of them sat in the chair would put one customer's appointment in another's list.
  *
- * Customers only, and only live ones — the same scoping routes/auth.js applies when it
- * links bookings at sign-up. A walk-in typed with the owner's own number would otherwise
- * land in the owner's appointment list and raise a customer notification on it.
+ * This is now the ONLY place a phone number attaches a booking to an account, and it is the
+ * one place it can be trusted: the number was read off the customer standing at the counter
+ * by the salon serving them, not typed into a public form by whoever knew it. Nothing on the
+ * customer's own side claims a booking by phone any more — see lib/phone.js.
+ *
+ * Customers only, and only live ones. A walk-in typed with the owner's own number would
+ * otherwise land in the owner's appointment list and raise a customer notification on it.
  */
 const selectUsersByPhone = db.prepare(`
   SELECT id FROM users

@@ -43,17 +43,19 @@ export function normalisedPhoneSql(column) {
   return `regexp_replace(regexp_replace(coalesce(${column}, ''), '[^0-9]', '', 'g'), '^84', '0')`;
 }
 
-// A booking taken at the counter carries a phone number and no account. Whoever proves they
-// own that number owns the history behind it.
-const LINK_BOOKINGS_BY_PHONE = `
-  UPDATE bookings SET user_id = ?
-  WHERE user_id IS NULL AND ${normalisedPhoneSql('customer_phone')} = ?
-`;
-// ...but "proves" is doing no work yet: the number is typed, not verified. Until the OTP
-// step lands, the one case worth refusing outright is the number somebody else's account
-// already answers to — that is where a claim stops being a mistake and becomes a theft,
-// and the refusal is loud (409) rather than silent, because the person typing it is owed
-// an answer either way.
+/* A booking taken at the counter carries a phone number and no account, and for a while
+   typing that number into a sign-up form claimed every one of them. It is not enough, and it
+   never was: the number is typed, not verified, so anybody who knows a person's number could
+   help themselves to that person's history. So nothing links a booking by phone any more, and
+   nothing will until a code sent to the number is checked. The salon's own console still
+   attaches a walk-in to an account it recognises (routes/partner.js accountForPhone) — that is
+   a number read off the customer standing at the counter, not one a stranger typed into a form.
+
+   What survives here is the one refusal: a number some other live account already answers to
+   is turned away out loud (409) rather than stored beside it, because one number answering for
+   two accounts is exactly what leaves that console lookup unable to tell whose walk-in is
+   whose. The person typing it is owed an answer either way.
+*/
 const PHONE_HELD_BY_ANOTHER = `
   SELECT 1 FROM users
   WHERE id <> ? AND deleted_at IS NULL AND ${normalisedPhoneSql('phone')} = ?
@@ -65,9 +67,9 @@ const PHONE_HELD_BY_ANOTHER = `
  *
  * `tx` is a db.withTransaction handle; `userId` is the account doing the claiming, or
  * null when it does not exist yet (a registration). Asked before the number is written
- * rather than only before the bookings are moved: two rows folding to one number make the
- * console's "which account is this walk-in?" lookup ambiguous, and would lock the rightful
- * holder out of ever linking a later counter booking of their own.
+ * rather than after it: two rows folding to one number make the console's "which account is
+ * this walk-in?" lookup ambiguous, and would leave the rightful holder unrecognised at the
+ * counter ever after.
  *
  * A SELECT, not a constraint: two registrations racing on the same number can both pass
  * and both write, and rows seeded or written before this check existed can already
@@ -81,29 +83,4 @@ export async function phoneHeldByAnother(tx, userId, phone) {
   }
   // 0 is no account's id, so a registration compares against every row.
   return Boolean(await tx.get(PHONE_HELD_BY_ANOTHER, userId ?? 0, normalised));
-}
-
-/**
- * Claim every account-less booking left under `phone` for `userId`.
- *
- * `tx` is a db.withTransaction handle; returns how many bookings changed hands.
- *
- * INCOMPLETE BY DESIGN: an unverified number is not proof of anything, so this can still
- * hand somebody the bookings of a stranger whose number they guessed and whose number is
- * on no account. Sending a code to the number and checking it is the missing step; until
- * it exists, the takeover is at least logged. The number already on another account is
- * refused earlier, by the callers, so it never reaches the write at all.
- */
-export async function linkBookingsByPhone(tx, userId, phone) {
-  const normalised = normalisePhone(phone);
-  if (!normalised) {
-    return 0;
-  }
-  const { changes } = await tx.run(LINK_BOOKINGS_BY_PHONE, userId, normalised);
-  // The number itself stays out of the log: it identifies a person, and a log is the one
-  // place a privacy page cannot promise anything about.
-  if (changes > 0) {
-    console.info(`phone-link: user ${userId} claimed ${changes} booking(s) by phone`);
-  }
-  return Number(changes);
 }
