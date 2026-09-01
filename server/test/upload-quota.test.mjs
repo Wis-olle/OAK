@@ -139,6 +139,22 @@ test('UPLOADS_DAILY_CAP=0 refuses a zero-byte reservation too', () => {
 /* Every upload screen posts what this returns and falls back to the raw file only when it
    answers null, so a page that could not find it on OAK would silently go back to sending
    phone-camera originals at the server's 1MB ceiling. */
+/* And it names what comes back from what came back: toDataURL may answer a type it was not
+   asked for, store-image.js reads nothing but the extension, and a row missing from the map
+   would post one type under another's name. */
+test('oak-api.js names a compressed picture after its own mime type', () => {
+  for (const [mime, filename] of [
+    ['image/webp', 'anh-oak.webp'],
+    ['image/jpeg', 'anh-oak.jpg'],
+    ['image/png', 'anh-oak.png'],
+  ]) {
+    assert.ok(
+      clientJs.includes(`'${mime}': '${filename}',`),
+      `oak-api.js no longer names ${mime} as ${filename}`,
+    );
+  }
+});
+
 test('oak-api.js hands OAK.compressImage to the pages', () => {
   assert.ok(
     /function compressImage\(file, options\)/.test(clientJs),

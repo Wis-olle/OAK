@@ -62,10 +62,11 @@ Lưu ý: script **chỉ đóng lối đăng nhập**. Sáu salon demo vẫn còn
 
 1. **New → Blueprint** từ chính repo này: service mới đọc `render.yaml` nên nhận `singapore`.
 2. Chép 5 biến đặt tay ở bảng trên (và `ADMIN_EMAILS` nếu có khai) sang service mới.
-3. Gọi `https://<service-mới>.onrender.com/api/health` — phải trả `{"success":true,...}`.
-4. Trỏ domain và monitor UptimeRobot (§8) sang service mới, rồi mới xoá service cũ.
+3. Chép cả `JWT_SECRET` từ tab **Environment** của service cũ sang service mới. `render.yaml` khai `generateValue: true` nên service mới tự sinh một khoá khác, và một khoá khác nghĩa là **mọi người đang đăng nhập đều bị đăng xuất** ngay lúc chuyển.
+4. Gọi `https://<service-mới>.onrender.com/api/health` — phải trả `{"success":true,...}`.
+5. Trỏ domain và monitor UptimeRobot (§8) sang service mới, rồi mới xoá service cũ.
 
-Database không đổi: cả hai service dùng chung một `DATABASE_URL`, nên không có bước migrate dữ liệu nào.
+Database không đổi: cả hai service dùng chung một `DATABASE_URL`, nên không có bước migrate dữ liệu nào. Trong lúc cả hai còn sống, chúng cùng đọc cùng ghi một database — vô hại, vì mọi câu lệnh lúc boot của `server/src/db.js` đều idempotent (`CREATE TABLE`/`CREATE INDEX ... IF NOT EXISTS`, và mỗi ràng buộc nằm trong khối `DO` tự kiểm tra `pg_constraint` trước khi thêm hay bỏ).
 
 ### Chạy test trước khi deploy
 
@@ -153,19 +154,23 @@ Script ghi đè `ui/assets/fonts/font-material-subset.woff2` — commit lại fi
 - **Backup**: gói free của Supabase **không có backup nào cả** — backup hằng ngày (giữ 7 ngày) là tính năng của gói Pro trở lên. Chừng nào còn ở free thì tự sao lưu, mỗi tuần một lần, bằng chuỗi kết nối **Session pooler** ở §1:
 
   ```powershell
-  pg_dump "<chuỗi Session pooler>" --no-owner --format=custom --file=oak-2026-09-01.dump
+  pg_dump "<chuỗi Session pooler>" --schema=public --no-owner --no-privileges --format=custom --file=oak-2026-09-01.dump
   ```
 
   Phục hồi vào một database trống:
 
   ```powershell
-  pg_restore --clean --no-owner -d "<chuỗi kết nối>" oak-2026-09-01.dump
+  pg_restore --clean --if-exists --no-owner --no-privileges -d "<chuỗi kết nối>" oak-2026-09-01.dump
   ```
+
+  Cả hai lệnh nói khá nhiều ra `stderr` mà không có gì hỏng (Supabase có sẵn các schema `auth`, `storage`, `extensions`... không thuộc về mình). Chỉ có **exit code khác 0 kèm một dòng lỗi gọi tên một đối tượng `public.*`** mới là hỏng thật; còn lại bỏ qua.
+
+  Phiên bản: `pg_dump` ở máy phải **bằng hoặc mới hơn** major version của server, nếu không nó từ chối ngay. Supabase đang chạy Postgres 17 nên container `oak-pg` (`postgres:17-alpine`) ở §3 là an toàn; một bản `pg_dump` 15 hay 16 cài sẵn trên máy thì không.
 
   Trên Windows, `pg_dump`/`pg_restore` đến từ bộ cài PostgreSQL (Command Line Tools) — hoặc mượn luôn bản trong container dev, tránh được cả cái bẫy dấu `>` của PowerShell làm hỏng file nhị phân:
 
   ```powershell
-  docker exec oak-pg pg_dump "<chuỗi Session pooler>" --no-owner --format=custom --file=/tmp/oak.dump
+  docker exec oak-pg pg_dump "<chuỗi Session pooler>" --schema=public --no-owner --no-privileges --format=custom --file=/tmp/oak.dump
   docker cp oak-pg:/tmp/oak.dump oak-2026-09-01.dump
   ```
 

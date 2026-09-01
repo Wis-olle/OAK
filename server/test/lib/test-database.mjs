@@ -4,23 +4,38 @@
 // rather than inside the suite that opens it.
 import pg from 'pg';
 
+/* The identity two spellings of one database share: host, port and database name, with a
+   trailing slash and everything else dropped. `postgresql://` and `postgres://` are the same
+   server, and `?sslmode=require` is a connection setting rather than a different database —
+   compared as written, either of those would read as a difference and clear the way. */
+function identity(parsed) {
+  const name = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+  return `${parsed.hostname}:${parsed.port}${name}`.toLowerCase();
+}
+
 /**
  * Whether `testUrl` names a database this file is allowed to drop. Two conditions, both
- * required: the database name ends in a whole `_test` word — `oak` and `oak_testing` are
- * somebody's data, not a fixture — and it is not the live URL the environment already
- * points at, when there is one.
+ * required: the database name ENDS in `_test` — `oak`, `oak_testing`, `oak_test-backup` and
+ * `oak_test.old` are somebody’s data rather than a fixture, and so is `oak_test/` with a
+ * slash after it — and it is not the live database the environment already points at,
+ * compared as identities rather than as text. A live URL that will not parse names no
+ * database, so it can match none.
  */
 export function isSafeTestDatabaseUrl(testUrl, liveUrl) {
-  let database;
+  let test;
   try {
-    database = new URL(testUrl).pathname;
+    test = new URL(testUrl);
   } catch {
     return false;
   }
-  if (!/_test\b/.test(database)) {
+  if (!/_test$/.test(test.pathname)) {
     return false;
   }
-  return !liveUrl || testUrl !== liveUrl;
+  try {
+    return identity(test) !== identity(new URL(liveUrl));
+  } catch {
+    return true;
+  }
 }
 
 /** Drop and recreate the public schema so the server boots into an empty database.

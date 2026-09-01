@@ -2,6 +2,10 @@
 # the same push regardless, so this is the record of whether the push was green.
 name: test
 
+# Nothing here writes anything back to the repository.
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -11,6 +15,7 @@ on:
 jobs:
   unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,6 +30,7 @@ jobs:
 
   smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:17-alpine
@@ -56,13 +62,15 @@ jobs:
 
   static:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
       - run: node tools/i18n/check-rules.js
-      - run: node tools/i18n/check-coverage.js
+      - name: i18n coverage (advisory)
+        run: node tools/i18n/check-coverage.js
       # The one build artefact that ships prebuilt and can silently go stale.
       - run: npm ci && npm run check:css
         working-directory: tools/tailwind
