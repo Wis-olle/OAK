@@ -179,6 +179,22 @@ Script ghi đè `ui/assets/fonts/font-material-subset.woff2` — commit lại fi
   Giữ file `.dump` ở ngoài repo: nó chứa toàn bộ dữ liệu người dùng.
 - **Thêm index mới cho `bookings`**: `SCHEMA` trong `server/src/db.js` chạy như **một transaction ngầm** lúc boot, nên mọi `CREATE INDEX` trong đó giữ `SHARE lock` trên bảng cho đến khi cả khối xong — trên một bảng `bookings` đã lớn thì đó là khoảng thời gian **không ai đặt được lịch**, ngay giữa lúc deploy. Những index hiện có đã được tạo từ khi bảng còn nhỏ nên không sao; index **mới** cho `bookings` (hay bất kỳ bảng nào đông ghi) thì chạy tay `CREATE INDEX CONCURRENTLY` trên database trước, rồi mới thêm dòng `CREATE INDEX IF NOT EXISTS` vào `SCHEMA` — lúc boot nó sẽ thấy index đã có và không khoá gì. `CONCURRENTLY` **không chạy được** bên trong transaction, nên nó không bao giờ thuộc về `SCHEMA`.
 - **Kho ảnh và trần tải lên**: gói free hiện tại của Supabase cho 1GB Storage, 500MB database, 5GB egress không qua cache và 5GB egress qua cache mỗi tháng — con số có thể đổi, kiểm tra lại <https://supabase.com/pricing> trước khi tính toán. Tài khoản đăng ký miễn phí nên OAK tự đặt ba mức: **1MB mỗi ảnh** cho `POST /api/uploads` (trang đã tự nén trong trình duyệt trước khi gửi), **20 ảnh/giờ mỗi tài khoản** (giới hạn tốc độ của một người, nên vẫn đếm theo số ảnh), và **`UPLOADS_DAILY_CAP` mặc định 500 cho toàn site mỗi ngày** — mức cuối là cầu dao ngắt cho cả nền tảng, không phải hạn mức của một người. Đơn vị của nó là **ảnh quy đổi 1MB**: ngân sách một ngày bằng con số này nhân 1MB, tức mặc định là 500MB, và một ảnh 5MB mà trang "Dán link salon" tải về từ website đối tác tốn 5 đơn vị chứ không phải 1 — kho đầy bằng byte chứ không bằng số tấm ảnh. Đặt biến môi trường này ở Render nếu một đợt cần thêm chỗ, hoặc đặt `0` để đóng hẳn cửa tải ảnh khi cần dọn kho. Hai mức sau tính chung cho cả hai cửa, vì cả hai cùng ghi vào một kho. Thư viện ảnh của mỗi salon tối đa 12 ảnh. Số cần theo dõi là **Storage usage** trong dashboard Supabase: gần 1GB là lúc phải dọn hoặc nâng gói, vì hết chỗ thì mọi salon đều không tải ảnh lên được nữa.
+- **Dọn ảnh không còn ai trỏ tới — hằng tháng**: ảnh được ghi một lần và không bao giờ bị ghi đè, mỗi tấm một `randomUUID` (`server/src/lib/store-image.js`), và từ trước đến nay **không có gì xóa ảnh cả**. Salon đổi ảnh bìa, kỹ thuật viên thay ảnh tác phẩm, bản nhập từ link tải về một thư viện rồi đối tác sửa lại — mỗi lần như vậy kho giữ thêm một tấm không ai trỏ tới nữa:
+
+  ```powershell
+  node tools/uploads-reconcile.mjs            # chỉ đếm, không xóa gì
+  node tools/uploads-reconcile.mjs --apply    # xóa thật
+  ```
+
+  Nó đọc mọi cột ảnh trong database (`salons.image`, `salon_photos.image`, `services.image`, `staff.image`/`portfolio`, `staff_profiles.image`/`portfolio`, `users.avatar`, `promotions.image`, `posts.image`) cộng `uploads.url`, liệt kê kho, và chỉ xóa những đối tượng **không ai trỏ tới và đã hơn 24 giờ tuổi** — ảnh vừa tải lên nằm trong kho trước khi biểu mẫu được lưu, nên một tấm mới tinh vẫn "chưa ai trỏ tới" mà vẫn đang sống. Nó cũng xóa các dòng `uploads` còn `url = ''` quá một giờ — đó là chỗ đã đặt trước cho một tấm ảnh không bao giờ tới, đang giữ ngân sách ngày mà không đổi lấy gì. Không có biến Supabase trong shell thì nó đọc `server/uploads` trên đĩa, đúng cách `store-image.js` chọn nơi ghi.
+- **Gắn `Cache-Control` cho ảnh cũ — một lần duy nhất**: Storage ghi header `Cache-Control` vào metadata của từng đối tượng **lúc tải lên**, không có thiết lập chung cho cả bucket. `store-image.js` xin một năm cho mọi ảnh mới, nhưng ảnh tải lên trước commit đó vẫn mang mặc định một giờ — và đó là những tấm ảnh đứng lâu nhất trên các trang salon, mỗi lượt xem đều tiêu vào hạn mức egress **không qua cache** (hạn mức nhỏ hơn). Chạy một lần, sau khi đã xuất đủ ba biến `SUPABASE_*` ra shell:
+
+  ```powershell
+  node tools/supabase-cache-control.mjs            # chỉ đếm
+  node tools/supabase-cache-control.mjs --apply    # tải về rồi ghi đè kèm header
+  ```
+
+  Chạy lại lần nữa vô hại: nó bỏ qua những đối tượng đã có đủ một năm. **Chạy `uploads-reconcile.mjs` trước**, để không tốn lượt tải về/tải lên cho những tấm sắp bị xóa.
 
 ---
 

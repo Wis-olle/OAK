@@ -9,6 +9,10 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
 import { startOfDayUTC } from '../src/lib/time.js';
+/* The reconcile sweep's pure half. It is importable precisely because it is pure: the
+   module opens no database and loads no driver until its main() runs, and main() runs
+   only when the file was started from the command line. */
+import { IMAGE_COLUMNS, objectNameOf, referencedNames } from '../../tools/uploads-reconcile.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const clientJs = fs.readFileSync(path.join(root, 'ui', 'assets', 'js', 'oak-api.js'), 'utf8');
@@ -164,4 +168,74 @@ test('oak-api.js hands OAK.compressImage to the pages', () => {
     /compressImage: compressImage,/.test(clientJs),
     'compressImage is defined but not exported on window.OAK',
   );
+});
+
+/* ------------------------------------------- what the reconcile sweep may not delete ----
+ *
+ * Nothing has ever deleted a stored picture, so a replaced cover, a swapped portfolio piece
+ * and an import the partner then edited away are all still in the bucket. tools/uploads-
+ * reconcile.mjs finds them by asking which object names the database still holds; everything
+ * that decides a picture's life hangs off that one answer, so it is the half worth pinning.
+ */
+
+test('an address is reduced to the object name under it, whichever shape it arrives in', () => {
+  // The two shapes this platform hands out, and they must reduce to the same name.
+  assert.equal(
+    objectNameOf('https://abc.supabase.co/storage/v1/object/public/uploads/9f2c-4a.jpg'),
+    '9f2c-4a.jpg',
+  );
+  assert.equal(objectNameOf('/uploads/9f2c-4a.jpg'), '9f2c-4a.jpg');
+  // A cache-buster or a fragment belongs to the address, not to the object.
+  assert.equal(objectNameOf('/uploads/9f2c-4a.jpg?v=2'), '9f2c-4a.jpg');
+  assert.equal(objectNameOf('/uploads/a%20b.jpg'), 'a b.jpg');
+  // And nothing at all is not a name, which is what keeps an empty column out of the set.
+  for (const nothing of [null, undefined, '', '/uploads/', 42]) {
+    assert.equal(objectNameOf(nothing), null, String(nothing));
+  }
+});
+
+test('the referenced set reads a single address and a portfolio array alike', () => {
+  const fixture = [
+    // users.avatar, salons.image, salon_photos.image — one address each.
+    'https://abc.supabase.co/storage/v1/object/public/uploads/avatar-1.jpg',
+    '/uploads/cover-2.webp',
+    null,
+    '',
+    // staff.portfolio / staff_profiles.portfolio — a JSON array in one TEXT column.
+    '["/uploads/work-3.jpg","/uploads/work-4.jpg"]',
+    // A column holding something that is not JSON at all names nothing, and throws nothing.
+    '[this is not json',
+    // A seeded picture on somebody else's host. Its last segment is read like any other,
+    // which is safe: no bucket object is called this, so at worst it keeps nothing alive.
+    'https://images.unsplash.com/photo-153.jpg',
+  ];
+
+  const names = referencedNames(fixture);
+  assert.deepEqual(
+    [...names].sort(),
+    ['avatar-1.jpg', 'cover-2.webp', 'photo-153.jpg', 'work-3.jpg', 'work-4.jpg'],
+  );
+  // The same address twice is one object; the set is what the sweep compares the bucket to.
+  assert.equal(referencedNames(['/uploads/a.jpg', '/uploads/a.jpg']).size, 1);
+});
+
+test('every column of the schema that can hold a picture is on the list', () => {
+  /* A column added to db.js and forgotten here is a column whose pictures the sweep deletes,
+     so this reads the schema rather than trusting the list. Every TEXT column named image,
+     avatar or portfolio has to appear, together with the table it belongs to. */
+  const schema = fs.readFileSync(path.join(root, 'server', 'src', 'db.js'), 'utf8');
+  const declared = new Set(IMAGE_COLUMNS.map(([table, column]) => `${table}.${column}`));
+  let table = null;
+  for (const line of schema.split('\n')) {
+    const created = /CREATE TABLE IF NOT EXISTS (\w+) \(/.exec(line);
+    if (created) {
+      table = created[1];
+    }
+    const column = /^\s{2}(image|avatar|portfolio) TEXT/.exec(line);
+    if (table && column) {
+      assert.ok(declared.has(`${table}.${column[1]}`), `${table}.${column[1]} is not swept`);
+    }
+  }
+  // And uploads.url, which is not called any of those and is the record of every write.
+  assert.ok(declared.has('uploads.url'));
 });
