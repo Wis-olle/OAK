@@ -182,9 +182,13 @@ Script ghi đè `ui/assets/fonts/font-material-subset.woff2` — commit lại fi
 - **Dọn ảnh không còn ai trỏ tới — hằng tháng**: ảnh được ghi một lần và không bao giờ bị ghi đè, mỗi tấm một `randomUUID` (`server/src/lib/store-image.js`), và từ trước đến nay **không có gì xóa ảnh cả**. Salon đổi ảnh bìa, kỹ thuật viên thay ảnh tác phẩm, bản nhập từ link tải về một thư viện rồi đối tác sửa lại — mỗi lần như vậy kho giữ thêm một tấm không ai trỏ tới nữa:
 
   ```powershell
+  $env:DATABASE_URL = "<chuỗi Session pooler ở §1>"   # database nào thì kho ấy
+  $env:SUPABASE_URL = "..."; $env:SUPABASE_SERVICE_ROLE_KEY = "..."; $env:SUPABASE_STORAGE_BUCKET = "uploads"
   node tools/uploads-reconcile.mjs            # chỉ đếm, không xóa gì
   node tools/uploads-reconcile.mjs --apply    # xóa thật
   ```
+
+  **`DATABASE_URL` và ba biến `SUPABASE_*` phải cùng một môi trường.** Danh sách "được giữ" đọc từ database, danh sách "đang có" đọc từ kho: ghép database máy dev với kho production thì mọi ảnh thật đều thành ảnh thừa và `--apply` xóa sạch, không lấy lại được. Không có `DATABASE_URL` thì công cụ dừng ngay chứ không tự đoán, và nó cũng từ chối chạy khi `DATABASE_URL` trỏ về `localhost` trong lúc `SUPABASE_URL` trỏ ra ngoài.
 
   Nó đọc mọi cột ảnh trong database (`salons.image`, `salon_photos.image`, `services.image`, `staff.image`/`portfolio`, `staff_profiles.image`/`portfolio`, `users.avatar`, `promotions.image`, `posts.image`), liệt kê kho, và chỉ xóa những đối tượng **không ai trỏ tới và đã hơn 24 giờ tuổi** — ảnh vừa tải lên nằm trong kho trước khi biểu mẫu được lưu, nên một tấm mới tinh vẫn "chưa ai trỏ tới" mà vẫn đang sống. Nó **không** tính `uploads.url` là "có người trỏ tới": bảng đó là sổ ghi mọi lần tải lên, dòng đã lưu thì không bao giờ bị xóa, nên mọi ảnh từng vào kho đều có tên ở đó — kể cả tấm bìa salon vừa thay sáng nay, đúng thứ cần dọn. Đọc cột đó thì tháng nào cũng ra "0 tấm thừa". Nó cũng xóa các dòng `uploads` còn `url = ''` quá một giờ — đó là chỗ đã đặt trước cho một tấm ảnh không bao giờ tới, đang giữ ngân sách ngày mà không đổi lấy gì. Không có biến Supabase trong shell thì nó đọc `server/uploads` trên đĩa, đúng cách `store-image.js` chọn nơi ghi.
 - **Gắn `Cache-Control` cho ảnh cũ — một lần duy nhất**: Storage ghi header `Cache-Control` vào metadata của từng đối tượng **lúc tải lên**, không có thiết lập chung cho cả bucket. `store-image.js` xin một năm cho mọi ảnh mới, nhưng ảnh tải lên trước commit đó vẫn mang mặc định một giờ — và đó là những tấm ảnh đứng lâu nhất trên các trang salon, mỗi lượt xem đều tiêu vào hạn mức egress **không qua cache** (hạn mức nhỏ hơn). Chạy một lần, sau khi đã xuất đủ ba biến `SUPABASE_*` ra shell:
@@ -194,7 +198,7 @@ Script ghi đè `ui/assets/fonts/font-material-subset.woff2` — commit lại fi
   node tools/supabase-cache-control.mjs --apply    # tải về rồi ghi đè kèm header
   ```
 
-  Chạy lại lần nữa vô hại: nó bỏ qua những đối tượng đã có đủ một năm. **Chạy `uploads-reconcile.mjs` trước**, để không tốn lượt tải về/tải lên cho những tấm sắp bị xóa.
+  Chạy lại lần nữa vô hại: nó bỏ qua những đối tượng đã có đủ một năm. **Chạy `uploads-reconcile.mjs` trước**, để không tốn lượt tải về/tải lên cho những tấm sắp bị xóa — lần chạy đó cần thêm `DATABASE_URL` của đúng môi trường này, xem gạch đầu dòng trên.
 
 ---
 

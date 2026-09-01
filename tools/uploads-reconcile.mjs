@@ -37,7 +37,8 @@
  *
  * Where it looks depends on the environment, exactly as lib/store-image.js decides where to
  * write: the Supabase bucket when SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set, and
- * server/uploads on disk when they are not.
+ * server/uploads on disk when they are not. DATABASE_URL has to name the database that
+ * belongs to whichever of the two — see main() for why there is no default.
  */
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -231,12 +232,30 @@ async function deleteObjects(names, storage) {
 async function main() {
   const apply = process.argv.includes('--apply');
   const { Client } = require('pg');
-  const connectionString =
-    process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/oak';
+  /* Named outright, never defaulted. The list of what to KEEP comes from the database and
+     the list of what EXISTS comes from the bucket, so the two have to describe the same
+     deployment — and a default would silently pair the dev machine's database, where the
+     production objects are referenced by nothing at all, with the production bucket. Every
+     picture on the site is then an orphan older than a day, and --apply deletes all of them.
+     Storage has no undo. So: say which database, and refuse the pairing that cannot be right. */
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    console.error('DATABASE_URL is not set — name the database whose rows describe this bucket.');
+    process.exit(1);
+  }
   const host = new URL(connectionString).hostname;
+  const local = host === 'localhost' || host === '127.0.0.1';
+  if (local && process.env.SUPABASE_URL) {
+    console.error(
+      `refusing: DATABASE_URL points at ${host} while SUPABASE_URL names a remote bucket. ` +
+        'A local database knows nothing about those objects and every one of them would ' +
+        'look orphaned. Point both at the same deployment.',
+    );
+    process.exit(1);
+  }
   const client = new Client({
     connectionString,
-    ssl: host === 'localhost' || host === '127.0.0.1' ? false : { rejectUnauthorized: false },
+    ssl: local ? false : { rejectUnauthorized: false },
   });
   await client.connect();
 
