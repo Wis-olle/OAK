@@ -30,18 +30,9 @@ import {
    gives a technician, and the register-with-token path takes that one after its commit. */
 import { createStaffProfile, ensureStaffProfile } from '../lib/staff-profile.js';
 import { slugify } from '../lib/text.js';
-import { todayISO } from '../lib/time.js';
-// The one offer OAK runs, spelled once for the seed, this route and the db.js backfill.
-// Imported under a name of its own: createAccount already has a `welcomeCode` of its
-// own — the code a new CUSTOMER is greeted with — and the two are different things.
-import {
-  WELCOME_DESCRIPTION,
-  WELCOME_IMAGE,
-  WELCOME_PERCENT,
-  WELCOME_TITLE,
-  welcomeCode as salonWelcomeCode,
-  welcomeWindow,
-} from '../lib/welcome-promotion.js';
+// The one offer OAK runs. The mint is the whole of the policy: it reads the column this
+// route writes, decides whether there is anything to write, and tells the owner if so.
+import { mintWelcomePromotion } from '../lib/welcome-promotion.js';
 import {
   COOKIE_NAME,
   COOKIE_OPTIONS,
@@ -158,38 +149,12 @@ const INSERT_USER =
 // at this point — salons.published defaults to 0 — because all it holds is a name; its owner
 // turns it on from the console once the profile has an address, hours, a service and a photo.
 const INSERT_SALON =
-  'INSERT INTO salons (owner_id, name, slug, city, verified, created_at) VALUES (?, ?, ?, ?, 1, ?)';
+  'INSERT INTO salons (owner_id, name, slug, city, verified, created_at, welcome_promo_opt_in) VALUES (?, ?, ?, ?, 1, ?, ?)';
 // The city a salon is born with, because the form that creates it asks for a name and
 // nothing else. A guess, not an answer — and exported so that the one place which has to
 // tell a guess apart from a city the owner typed (routes/import-salon.js, deciding whether
 // it may write a location over this one) reads the same string rather than its own copy.
 export const REGISTRATION_CITY = 'TP.HCM';
-// The welcome offer the salon joins with, written in the same transaction as the salon:
-// there is no state in which a salon exists without it. service_ids stays NULL — the
-// offer is on everything the salon does, and requireUsablePromotion reads the salon
-// scope, not a service list.
-const INSERT_WELCOME_PROMOTION = `
-  INSERT INTO promotions
-    (salon_id, code, type, title, description, discount_percent, image, starts_at, ends_at, active)
-  VALUES (?, ?, 'discount', ?, ?, ?, ?, ?, ?, 1)
-`;
-// The welcome offer a brand-new customer is greeted with: whichever platform-wide code is
-// closest to running out, so the one being wound down is the one that gets handed out.
-// A salon's own code is not offered — it would send a first-time visitor to one salon.
-// The same window bookings.js requireUsablePromotion checks at checkout, so a code named
-// here is never one that would be refused there: a promotion that has not started yet is
-// not offered, an open-ended one (no ends_at) is, and a combo is not — requireUsablePromotion
-// refuses type 'combo' at checkout, so offering one would be a code that cannot be spent.
-const SELECT_WELCOME_PROMOTION = `
-  SELECT code, discount_percent FROM promotions
-  WHERE salon_id IS NULL AND active = 1
-    AND type <> 'combo'
-    AND (starts_at IS NULL OR starts_at <= ?)
-    AND (ends_at IS NULL OR ends_at >= ?)
-    AND discount_percent IS NOT NULL
-  ORDER BY ends_at LIMIT 1
-`;
-
 /** Append -2, -3, ... until the slug is free. Runs inside the register transaction. */
 async function uniqueSalonSlug(tx, name) {
   const base = slugify(name) || 'salon';
@@ -234,6 +199,7 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
       salon_name: salonName,
       consent,
       marketing_opt_in: marketingOptIn,
+      welcome_promo_opt_in: welcomePromoOptIn,
     } = req.body ?? {};
 
     if (!name || !email || !password) {
@@ -332,7 +298,8 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
     const createdAt = new Date().toISOString();
 
     let userId;
-    // Reported back so dang-ky.html only promises a code when one was actually written.
+    // The salon's own welcome code, when the owner asked for one; null on every other
+    // registration, and reported back so a caller only ever promises a code that exists.
     let welcomeCode = null;
     // Whatever the role's own hook wants the reply to carry, and undefined for every role
     // that wants nothing. `...undefined` in an object literal is legal and adds no key at
@@ -383,18 +350,15 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
           // "chưa có thông báo nào" has nothing to come back for. dang-ky.html says so with
           // a toast on arrival, so the two are one message.
           // Not gated on marketing_opt_in: this is the one transactional hello that comes
-          // with signing up, not a campaign. That box governs the promotions sent later.
-          const today = todayISO();
-          const promotion = await tx.get(SELECT_WELCOME_PROMOTION, today, today);
-          welcomeCode = promotion ? promotion.code : null;
+          // with signing up, not a campaign. It names no code, because there is no code on
+          // OAK that is not one salon's own — every offer belongs to the salon paying for
+          // it, and handing a first-time visitor one of them would be choosing for them.
           await notifyUser(
             tx,
             userId,
             'Chào mừng bạn đến với OAK',
-            promotion
-              ? `Chào mừng ${trimmedName}! Nhập mã ${promotion.code} khi đặt lịch để giảm ${promotion.discount_percent}% cho buổi hẹn đầu tiên.`
-              : `Chào mừng ${trimmedName} — đặt lịch đầu tiên của bạn tại OAK.`,
-            promotion ? 'promotion' : 'general',
+            `Chào mừng ${trimmedName} — đặt lịch đầu tiên của bạn tại OAK.`,
+            'general',
           );
         }
 
@@ -409,24 +373,17 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
                 await uniqueSalonSlug(tx, partnerSalonName),
                 REGISTRATION_CITY,
                 createdAt,
+                // The tick on the form, and nothing else. The 20% comes out of the salon's
+                // own margin, so joining is no longer taken as agreeing to spend it.
+                welcomePromoOptIn === true ? 1 : 0,
               )
             ).lastInsertRowid,
           );
-          // Joining IS the offer: the salon's own 20% code is live from the day it signs
-          // up. Inside the transaction, so a code that could not be written takes the
-          // salon and the account down with it rather than leaving a salon without one.
-          const { starts_at: startsAt, ends_at: endsAt } = welcomeWindow(todayISO());
-          await tx.run(
-            INSERT_WELCOME_PROMOTION,
-            salonId,
-            salonWelcomeCode(salonId),
-            WELCOME_TITLE,
-            WELCOME_DESCRIPTION,
-            WELCOME_PERCENT,
-            WELCOME_IMAGE,
-            startsAt,
-            endsAt,
-          );
+          // Inside the same transaction as the salon, so a code that could not be written
+          // takes the salon and the account down with it rather than leaving an owner
+          // told about an offer that is not there. Writes nothing when the box was left
+          // alone — the mint reads the column it was just given.
+          welcomeCode = await mintWelcomePromotion(tx, salonId);
         }
       });
     } catch (error) {

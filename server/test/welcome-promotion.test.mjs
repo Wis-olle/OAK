@@ -1,29 +1,34 @@
-/* The one offer OAK runs: a salon joins and gets its own 20% code, good for 30 days.
+/* The one offer OAK runs: a salon may hand out its own 20% code, good for 30 days from
+   the day it asks. Asking is the whole of it — the discount comes out of the salon's own
+   till — so the tick on the form is what mints it and nothing else does.
 
-   The policy is a module, so it is imported and driven. The three paths that write it —
-   registration, the seed and the boot-time backfill — need a database, so they are pinned
-   by reading the source, as the other unit suites here do; none of this may open a
-   connection. The exception is the checkout gate, which is lifted out of bookings.js and
-   run against a row shaped exactly like the one those three write: an offer nobody can
-   spend is not an offer. */
+   The policy is a module, so it is imported and driven, mint included: it takes a
+   transaction, which a stand-in supplies. The two remaining paths that need a real
+   database — the seed and the boot-time sweep — are pinned by reading the source, as the
+   other unit suites here do; none of this may open a connection. So is the checkout gate,
+   except that it is lifted out of bookings.js and run against a row shaped exactly like
+   the one the mint writes: an offer nobody can spend is not an offer. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { slugify } from '../src/lib/text.js';
 import { addDaysISO, todayISO } from '../src/lib/time.js';
 import {
-  WELCOME_BACKFILL_CUTOFF,
   WELCOME_CODE_PREFIX,
   WELCOME_DAYS,
   WELCOME_DESCRIPTION,
   WELCOME_IMAGE,
   WELCOME_NOTICE_BODY,
   WELCOME_NOTICE_TITLE,
+  WELCOME_OWNER_NOTICE_TITLE,
   WELCOME_PERCENT,
   WELCOME_TITLE,
+  mintWelcomePromotion,
   welcomeCode,
+  welcomeOwnerNotice,
   welcomeWindow,
 } from '../src/lib/welcome-promotion.js';
+import * as welcomeModule from '../src/lib/welcome-promotion.js';
 import { readRepo as source } from './lib/read-source.mjs';
 
 const authSource = source('server/src/routes/auth.js');
@@ -135,7 +140,12 @@ function checkoutGate(row, today) {
     `${declaration(bookingsSource, 'async function requireUsablePromotion(')}
      requireUsablePromotion;`,
     {
-      selectPromotion: { get: async (code) => (code === row.code ? row : undefined) },
+      /* Keyed on the pair, the way the real statement is: the salon is part of the
+         lookup now rather than a column compared after the row comes back. */
+      selectPromotion: {
+        get: async (code, salonId) =>
+          code === row.code && salonId === row.salon_id ? row : undefined,
+      },
       todayISO: () => today,
       httpError: (status, code, message) =>
         Object.assign(new Error(message), { status, errorCode: code }),
@@ -173,17 +183,34 @@ test('it is live on the last day it promises, and dead the morning after', async
   );
 });
 
-test('a combo and a switched-off offer are both turned away at the till', async () => {
-  // Why the welcome offer is type 'discount' and not something a salon bundles: the gate
-  // turns a combo away, so writing one would hand every new salon a code nobody can use.
-  const combo = welcomeRow(4, '2026-08-25', { type: 'combo' });
-  await assert.rejects(
-    () => checkoutGate(combo, '2026-08-25')(combo.code, 4),
-    /Combo được đặt như một dịch vụ, không dùng như mã giảm giá\./,
-  );
+test('anything that is not a plain discount is turned away at the till', async () => {
+  /* Why the welcome offer is type 'discount': the gate accepts that and nothing else now.
+     A combo was priced as a service of its own and spending it as a code took the saving
+     twice; a flash sale was a discount with a countdown drawn round it. Neither can be
+     created any more, and a row left over from when they could is simply not spendable —
+     the same answer routes/promotions.js gives by not listing it. */
+  for (const type of ['combo', 'flash_sale']) {
+    const row = welcomeRow(4, '2026-08-25', { type });
+    await assert.rejects(
+      () => checkoutGate(row, '2026-08-25')(row.code, 4),
+      /Mã ưu đãi không hợp lệ hoặc đã hết hạn\./,
+      type,
+    );
+  }
   const off = welcomeRow(4, '2026-08-25', { active: 0 });
   await assert.rejects(
     () => checkoutGate(off, '2026-08-25')(off.code, 4),
+    /Mã ưu đãi không hợp lệ hoặc đã hết hạn\./,
+  );
+});
+
+test('a code that belongs to no salon at all is refused, platform-wide or not', async () => {
+  /* salon_id NULL used to mean "every salon honours this". Nothing writes such a row any
+     more and nothing lists one, so the gate stopped making the exception: an offer is the
+     property of the salon paying for it. */
+  const platform = welcomeRow(4, '2026-08-25', { code: 'OAKNEW20', salon_id: null });
+  await assert.rejects(
+    () => checkoutGate(platform, '2026-08-25')(platform.code, 4),
     /Mã ưu đãi không hợp lệ hoặc đã hết hạn\./,
   );
 });
@@ -194,7 +221,7 @@ test('a combo and a switched-off offer are both turned away at the till', async 
    what is under test is the real text of createAccount: the statements it fires, in the
    order it fires them, with the values it passes. Reading it was not enough — a regex
    agrees with an expression that throws the moment it is evaluated. */
-function registerPartner() {
+function registerPartner(optIn = true) {
   const statements = [];
   const SALON_ID = 42;
   let replied = null;
@@ -213,7 +240,13 @@ function registerPartner() {
               lastInsertRowid: sql.includes('INTO salons') ? SALON_ID : statements.length,
             };
           },
-          get: async () => undefined,
+          /* The mint asks two questions of the row it is about to give a code to: did this
+             salon ask for one, and has it got one already. Answered as the database would
+             answer for the salon this registration just wrote with the box ticked. */
+          get: async (sql, ...params) =>
+            sql.includes('welcome_promo_opt_in')
+              ? { owner_id: 1, welcome_promo_opt_in: optIn ? 1 : 0 }
+              : undefined,
           all: async () => [],
         }),
     },
@@ -228,16 +261,9 @@ function registerPartner() {
     registerIpLimited: () => false,
     notifyUser: async () => {},
     slugify,
-    todayISO,
-    welcomeWindow,
-    WELCOME_TITLE,
-    WELCOME_DESCRIPTION,
-    WELCOME_PERCENT,
-    WELCOME_IMAGE,
-    // Under BOTH names, so this passes whichever one auth.js reaches for — and still
-    // fails if the local `welcomeCode` in the handler is what the call resolves to.
-    welcomeCode,
-    salonWelcomeCode: welcomeCode,
+    // The real one, run on the recording transaction: what registration is asked to prove
+    // is that the salon's id reaches the mint, not that it can spell an INSERT.
+    mintWelcomePromotion,
     selectPublicUser: { get: async (id) => ({ id, role: 'partner' }) },
     issueCookie: () => {},
   };
@@ -251,8 +277,6 @@ function registerPartner() {
       'INSERT_USER',
       'INSERT_SALON',
       'REGISTRATION_CITY',
-      'INSERT_WELCOME_PROMOTION',
-      'SELECT_WELCOME_PROMOTION',
       'SELECT_SALON_BY_SLUG',
     ]
       .map((name) => constant(authSource, name))
@@ -270,6 +294,7 @@ function registerPartner() {
       password: 'Oak@1234',
       salon_name: 'Salon Mới',
       consent: true,
+      welcome_promo_opt_in: optIn,
     },
   };
   const res = { json: (payload) => { replied = payload; } };
@@ -281,7 +306,7 @@ function registerPartner() {
   }));
 }
 
-test('registering a partner really does write the offer, with the salon’s own code', async () => {
+test('a partner who ticks the box gets the offer, with the salon’s own code', async () => {
   const { statements, salonId, replied, failed } = await registerPartner();
   assert.equal(failed, null, `registration failed: ${failed?.message}`);
 
@@ -299,44 +324,116 @@ test('registering a partner really does write the offer, with the salon’s own 
   // In the same transaction, after the salon it belongs to.
   const salon = statements.findIndex(({ sql }) => sql.includes('INTO salons'));
   assert.ok(salon !== -1 && salon < statements.indexOf(promotion));
-  // And the handler's own `welcomeCode` — the customer greeting — is untouched by it:
-  // a partner is greeted with no code, and still gets an answer.
-  assert.deepEqual(replied.data.welcome_code, null);
+  // The tick itself is stored, so the console opens on what was asked for.
+  assert.equal(statements[salon].params.at(-1), 1);
+  // And the reply names the code that was really written, rather than promising one.
+  assert.equal(replied.data.welcome_code, 'MOI20-42');
 });
 
-test('a salon is never created without its offer: one transaction writes both', () => {
+test('a partner who leaves the box alone is given nothing to switch off', async () => {
+  /* The 20% is paid out of the salon's own margin, so joining is not taken as agreeing to
+     spend it. Nothing is written, nobody is notified, and the reply promises no code. */
+  const { statements, replied, failed } = await registerPartner(false);
+  assert.equal(failed, null, `registration failed: ${failed?.message}`);
+
+  assert.equal(statements.find(({ sql }) => sql.includes('INSERT INTO promotions')), undefined);
+  assert.equal(replied.data.welcome_code, null);
+  const salon = statements.find(({ sql }) => sql.includes('INTO salons'));
+  assert.equal(salon.params.at(-1), 0);
+});
+
+test('the offer and the salon are one commit, or neither happened', () => {
   const create = handler(authSource, 'async function createAccount(', "router.post('/register'");
   // `tx` exists only inside the transaction callback, and there is exactly one of those,
-  // so writing the offer through tx.run is what makes the two rows one commit: a salon
-  // that could not be given its code is a registration that never happened.
+  // so minting through it is what makes the two rows one commit: a salon that could not be
+  // given the code its owner asked for is a registration that never happened.
   assert.equal(create.match(/db\.withTransaction\(/g).length, 1);
   assert.match(create, /const salonId = Number\(\s*\(\s*await tx\.run\(\s*INSERT_SALON,/);
-  // The whole argument list, in order, because nothing can run this statement against a
-  // database here: a column and its value drifting apart is exactly what would not show.
-  // What each value IS is settled by running it, in the test above.
+  assert.match(create, /welcomeCode = await mintWelcomePromotion\(tx, salonId\);/);
+  // The tick reaches the column, and anything that is not an explicit true is a no.
+  assert.match(create, /welcomePromoOptIn === true \? 1 : 0,/);
+  assert.match(authSource, /INSERT INTO salons \([^)]*, welcome_promo_opt_in\)/);
+  // Salon-scoped, active, and a discount — the shape the gate above accepts. Written in
+  // the library now, which is the one place that writes it at all.
   assert.match(
-    create,
-    /await tx\.run\(\s*INSERT_WELCOME_PROMOTION,\s*salonId,\s*\w+\(salonId\),\s*WELCOME_TITLE,\s*WELCOME_DESCRIPTION,\s*WELCOME_PERCENT,\s*WELCOME_IMAGE,\s*startsAt,\s*endsAt,\s*\);/,
-  );
-  // The window is the salon's own first thirty days, taken from the policy.
-  assert.match(create, /welcomeWindow\(todayISO\(\)\)/);
-  // Salon-scoped, active, and a discount — the shape the gate above accepts.
-  assert.match(
-    authSource,
+    source('server/src/lib/welcome-promotion.js'),
     /INSERT INTO promotions\s*\n?\s*\(salon_id, code, type, title, description, discount_percent, image, starts_at, ends_at, active\)\s*\n?\s*VALUES \(\?, \?, 'discount', \?, \?, \?, \?, \?, \?, 1\)/,
   );
 });
 
-test('the customer greeting is left alone, and simply finds nothing to name', () => {
-  // Nothing platform-wide is live any more, so SELECT_WELCOME_PROMOTION returns no row and
-  // the greeting falls back to the sentence without a code. That branch has to stay.
+test('the customer greeting names no code, because no code is OAK’s to give', () => {
+  /* Every offer belongs to the salon paying for it, so a greeting that handed a first-time
+     visitor one would be choosing a salon for them. The platform-wide lookup that used to
+     do that is gone from the file, not merely unused. */
   const create = handler(authSource, 'async function createAccount(', "router.post('/register'");
-  assert.match(create, /const promotion = await tx\.get\(SELECT_WELCOME_PROMOTION, today, today\);/);
-  assert.match(create, /welcomeCode = promotion \? promotion\.code : null;/);
-  assert.match(authSource, /salon_id IS NULL AND active = 1/);
+  assert.match(create, /Chào mừng \$\{trimmedName\} — đặt lịch đầu tiên của bạn tại OAK\./);
+  assert.doesNotMatch(authSource, /SELECT_WELCOME_PROMOTION/);
+  assert.doesNotMatch(authSource, /salon_id IS NULL/);
+});
+
+// ------------------------------------------------------------------ the mint
+
+/** A recording transaction, answering the mint's two questions however the test says. */
+function mintOn({ optIn = 1, existing = false } = {}) {
+  const writes = [];
+  return {
+    writes,
+    tx: {
+      get: async (sql) => {
+        if (sql.includes('welcome_promo_opt_in')) {
+          return { owner_id: 9, welcome_promo_opt_in: optIn };
+        }
+        return existing ? { '?column?': 1 } : undefined;
+      },
+      run: async (sql, ...params) => {
+        writes.push({ sql, params });
+        return { changes: 1, lastInsertRowid: writes.length };
+      },
+    },
+  };
+}
+
+test('the mint writes the offer and tells the owner it exists', async () => {
+  const { writes, tx } = mintOn();
+
+  assert.equal(await mintWelcomePromotion(tx, 42), 'MOI20-42');
+  const promotion = writes.find(({ sql }) => sql.includes('INSERT INTO promotions'));
+  const notice = writes.find(({ sql }) => sql.includes('INSERT INTO notifications'));
+  assert.notEqual(promotion, undefined, 'the offer was not written');
+  assert.notEqual(notice, undefined, 'the owner was not told');
+  // Aimed at the owner of that salon, read off the row rather than passed in.
+  assert.equal(notice.params[0], 9);
+  assert.equal(notice.params[1], WELCOME_OWNER_NOTICE_TITLE);
+  assert.equal(notice.params[2], welcomeOwnerNotice('MOI20-42'));
+  // The sentence names the code, the percentage and the window, and nothing else.
+  assert.ok(notice.params[2].includes('MOI20-42'));
+  assert.ok(notice.params[2].includes(`${WELCOME_PERCENT}%`));
+  assert.ok(notice.params[2].includes(`${WELCOME_DAYS} ngày`));
+  /* And it does NOT say "cho buổi hẹn đầu tiên", which the retired platform code said:
+     bookings.js applies this one to any booking at the salon while the window is open, so
+     promising less than that would misdescribe what the owner agreed to. */
+  assert.ok(!notice.params[2].includes('buổi hẹn đầu tiên'));
+});
+
+test('the mint writes nothing for a salon that did not ask, and nothing twice', async () => {
+  const silent = mintOn({ optIn: 0 });
+  assert.equal(await mintWelcomePromotion(silent.tx, 42), null);
+  assert.deepEqual(silent.writes, []);
+
+  // Idempotent on the code, which is derived from the salon id: the console may save the
+  // same ticked box every day of the week without minting a second offer or a second notice.
+  const again = mintOn({ existing: true });
+  assert.equal(await mintWelcomePromotion(again.tx, 42), null);
+  assert.deepEqual(again.writes, []);
 });
 
 // ------------------------------------------------------------------ the seed
+
+test('the demo cohort ships opted in, so its codes are its own doing', () => {
+  // The seed writes the codes directly, so it writes the tick that goes with them: without
+  // it the console would show every demo salon an offer it never asked for.
+  assert.match(seedSource, /INSERT INTO salons \([^)]*, welcome_promo_opt_in\)[^']*VALUES \([^)]*, 1\)/);
+});
 
 test('the seed ships one offer per salon, generated rather than listed', () => {
   assert.doesNotMatch(seedSource, /const PROMOTIONS = \[/);
@@ -366,39 +463,32 @@ test('the backfill retires the old offers by code AND title, and nothing else', 
   assert.deepEqual(JSON.parse(listed), RETIRED_SEED_OFFERS);
 });
 
-test('the backfill catches up the old cohort, once, and never runs again', () => {
-  const sweep = dbSource.slice(dbSource.indexOf('INSERT INTO promotions'));
-  // Keyed on the derived code, so a second boot writes nothing...
+test('the cohort that already holds a code is recorded as having asked for one', () => {
+  const sweep = dbSource.slice(dbSource.indexOf('UPDATE salons s SET welcome_promo_opt_in'));
+  // Keyed on the derived code, which belongs to that salon and to no other, so the answer
+  // to "did this salon opt in?" is read off the offer it is already advertising.
   assert.match(
     sweep,
-    /AND NOT EXISTS \(SELECT 1 FROM promotions p WHERE p\.code = \$1::text \|\| s\.id::text\)/,
+    /EXISTS \(\s*\n?\s*SELECT 1 FROM promotions p\s*\n?\s*WHERE p\.salon_id = s\.id AND p\.code = \$1::text \|\| s\.id::text\s*\n?\s*\)/,
   );
-  // ...and two instances booting together do not both get past that check.
-  assert.match(sweep, /ON CONFLICT \(code\) DO NOTHING/);
-  // It reaches only salons older than the policy. Everything since is covered by the
-  // register hook, so a salon that deleted its offer on purpose keeps it deleted rather
-  // than being handed it back on the next deploy. A salon with no created_at is old.
-  assert.match(sweep, /WHERE \(s\.created_at IS NULL OR s\.created_at < \$8::text\)/);
-  assert.match(sweep, /WELCOME_BACKFILL_CUTOFF,/);
-  // The window it writes still opens today, not at created_at: dating an offer from a
-  // sign-up months back would expire it before anyone saw it.
-  assert.match(dbSource, /const welcomeWindowNow = welcomeWindow\(todayISO\(\)\);/);
-  assert.doesNotMatch(sweep, /welcomeWindow\(s\.created_at\)|created_at.*starts_at/);
-  // Every sweep runs after the seed, so a fresh database is right on its first boot.
+  // And free from the second boot: on a converged database it matches no row.
+  assert.match(sweep, /s\.welcome_promo_opt_in IS DISTINCT FROM 1/);
+  // After the seed, so a fresh database is right on its first boot rather than its second.
   assert.ok(dbSource.indexOf('await seed(db)') < dbSource.indexOf('RETIRED_SEED_OFFERS'));
 });
 
-test('the cutoff is a date the salon timestamps can actually be compared against', () => {
-  // salons.created_at is a full ISO timestamp in both writers, and the comparison is
-  // plain text: every timestamp ON the cutoff day sorts after the bare date, so "before
-  // the cutoff" means what it reads as. These are the strings the comparison decides on.
-  assert.match(WELCOME_BACKFILL_CUTOFF, /^\d{4}-\d{2}-\d{2}$/);
-  assert.ok('2026-08-25T23:59:59.999Z' < WELCOME_BACKFILL_CUTOFF);
-  assert.ok(!('2026-08-26T00:00:00.000Z' < WELCOME_BACKFILL_CUTOFF));
-  assert.ok(!('2027-01-01T00:00:00.000Z' < WELCOME_BACKFILL_CUTOFF));
-  // Both writers really do write that shape.
-  assert.match(authSource, /const createdAt = new Date\(\)\.toISOString\(\);/);
-  assert.match(seedSource, /created_at: '\d{4}-\d{2}-\d{2}T[\d:.]+Z',/);
+test('nothing hands a code to a salon that never asked for one', () => {
+  /* The sweep that used to give every salon older than the policy its offer is gone, and
+     so is the cutoff date that bounded it: under an opt-in rule a salon that did not ask
+     must not be handed a discount out of its own margin by a deploy. */
+  assert.doesNotMatch(dbSource, /INSERT INTO promotions/);
+  assert.doesNotMatch(dbSource, /WELCOME_BACKFILL_CUTOFF/);
+  assert.equal(Object.hasOwn(welcomeModule, 'WELCOME_BACKFILL_CUTOFF'), false);
+  // The column it now reads instead, defaulting to 0 — silence is not an opt-in.
+  assert.match(
+    dbSource,
+    /ALTER TABLE salons ADD COLUMN IF NOT EXISTS welcome_promo_opt_in INTEGER DEFAULT 0;/,
+  );
 });
 
 // ------------------------------------------------------------------ who gets listed
@@ -408,11 +498,18 @@ test('an unpublished salon does not get to advertise itself on the offers page',
   // either, and salons.published defaults to 0. Without this gate a sign-up would put an
   // arbitrary salon name on uu-dai.html on the spot.
   const listing = handler(promotionsSource, 'const selectActivePromotions', '`);');
-  assert.match(listing, /AND \(p\.salon_id IS NULL OR s\.published = 1\)/);
+  assert.match(listing, /JOIN salons s ON s\.id = p\.salon_id/);
+  assert.match(listing, /AND s\.published = 1/);
   // In the same statement as the window filter, not a separate pass a caller could skip.
   assert.ok(listing.includes('p.active = 1'));
+  /* And the same statement decides what an offer IS: a row still carrying one of the two
+     retired types is dead rather than deleted, so it is not advertised either. */
+  assert.match(listing, /p\.type = 'discount'/);
   // What makes the gate necessary: nothing in the register insert publishes the salon.
-  assert.match(authSource, /INSERT INTO salons \(owner_id, name, slug, city, verified, created_at\)/);
+  assert.match(
+    authSource,
+    /INSERT INTO salons \(owner_id, name, slug, city, verified, created_at, welcome_promo_opt_in\)/,
+  );
   assert.ok(!authSource.includes('INSERT INTO salons (owner_id, name, slug, city, verified, published'));
 });
 
@@ -442,7 +539,7 @@ test('a salon cannot take a code out of the family registration writes from', ()
   assert.equal(requirePromotionCode(null), null);
   assert.equal(requirePromotionCode('   '), null);
   // And the reservation is the same constant the code is built from, not a copy of it.
-  assert.match(partnerSource, /import \{ WELCOME_CODE_PREFIX \} from '\.\.\/lib\/welcome-promotion\.js';/);
+  assert.match(partnerSource, /import \{ WELCOME_CODE_PREFIX, mintWelcomePromotion \} from '\.\.\/lib\/welcome-promotion\.js';/);
   assert.ok(welcomeCode(99).startsWith(WELCOME_CODE_PREFIX));
 });
 

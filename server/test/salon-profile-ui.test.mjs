@@ -43,40 +43,26 @@ const SALON = {
   lng: null,
 };
 
-const COMBO = {
-  id: 7,
-  code: 'LALACOMBO480',
-  type: 'combo',
-  title: 'Combo Sơn gel + Chăm sóc chân',
-  sale_price: 480000,
-  service_ids: [12],
-  service_names: ['Combo Sơn Gel + Chăm Sóc Chân'],
+/* The one shape /api/promotions answers with now: a salon's own percentage code. */
+const WELCOME = {
+  id: 1,
+  code: 'MOI20-4',
+  title: 'Chào mừng salon mới - Giảm 20%',
+  discount_percent: 20,
   salon: { name: 'Lala Nail Studio', slug: 'lala-nail-studio' },
 };
 
-const DISCOUNT = {
+/* An offer written before the console settled on a percentage. The column is still there
+   and the page still reads it, so an old row keeps saying what it promised. */
+const AMOUNT = {
   id: 3,
   code: 'LALA100K',
-  type: 'discount',
   title: 'Giảm 100.000đ',
   discount_amount: 100000,
-  service_ids: [],
-  service_names: [],
   salon: { name: 'Lala Nail Studio', slug: 'lala-nail-studio' },
 };
 
-const PLATFORM = {
-  id: 1,
-  code: 'OAKWELCOME',
-  type: 'discount',
-  title: 'Chào mừng',
-  discount_percent: 20,
-  service_ids: [],
-  service_names: [],
-  salon: null,
-};
-
-const OTHER_SALON = { ...DISCOUNT, id: 5, salon: { name: 'Khác', slug: 'salon-khac' } };
+const OTHER_SALON = { ...AMOUNT, id: 5, salon: { name: 'Khác', slug: 'salon-khac' } };
 
 const withMeta = (rows, meta) => Object.assign(rows, { meta });
 
@@ -201,33 +187,32 @@ test('the hours table marks the row the reader is standing in', async () => {
   assert.match(html, /:aria-current="row.today \? 'date' : false"/);
 });
 
-test('the offers strip shows this salon and the whole platform, and nobody else', async () => {
-  const page = await salonPage({ promotions: [PLATFORM, DISCOUNT, OTHER_SALON, COMBO] });
-  assert.deepEqual([...page.salonPromotions()].map((promotion) => promotion.id), [1, 3, 7]);
+test('the offers strip shows this salon and nobody else', async () => {
+  /* Every offer belongs to one salon now — the platform-wide row this strip used to honour
+     as well cannot exist — so the filter is the slug and nothing else. */
+  const page = await salonPage({ promotions: [WELCOME, AMOUNT, OTHER_SALON] });
+  assert.deepEqual([...page.salonPromotions()].map((promotion) => promotion.id), [1, 3]);
 });
 
-test('a combo opens the service that IS the bundle; a code opens the wizard carrying it', async () => {
-  const page = await salonPage({ promotions: [COMBO, DISCOUNT], user: { id: 1 } });
-  // The same rule uu-dai.html keeps: a combo is booked, never applied as a code.
-  assert.equal(page.usesCode(COMBO), false);
-  assert.equal(page.promoUrl(COMBO), 'chi-tiet-dich-vu.html?id=12');
-  assert.equal(page.usesCode(DISCOUNT), true);
-  assert.equal(page.promoUrl(DISCOUNT), 'dat-lich.html?salon_id=4&promo=LALA100K');
+test('a code opens the wizard at this salon, carrying itself', async () => {
+  const page = await salonPage({ promotions: [WELCOME, AMOUNT], user: { id: 1 } });
+  assert.equal(page.promoUrl(WELCOME), 'dat-lich.html?salon_id=4&promo=MOI20-4');
+  assert.equal(page.promoLabel(WELCOME), 'Giảm 20%');
+  // The older shape still reads as what it promises, because the column is still read.
+  assert.equal(page.promoLabel(AMOUNT), 'Giảm 100000');
 });
 
 test('a guest sent to use a code signs in first, the way the offers page sends them', async () => {
   // Only a signed-in customer can have a code applied — carrying a guest straight into the
   // wizard ends at "Đăng nhập để áp dụng mã ưu đãi.", the dead end the offer exists to avoid.
-  const guest = await salonPage({ promotions: [COMBO, DISCOUNT] });
+  const guest = await salonPage({ promotions: [AMOUNT] });
   assert.equal(
-    guest.promoUrl(DISCOUNT),
+    guest.promoUrl(AMOUNT),
     'dang-nhap-nguoi-dung.html?next=' + encodeURIComponent('dat-lich.html?salon_id=4&promo=LALA100K'),
   );
-  // A combo is booked rather than applied, so it never needs the round trip.
-  assert.equal(guest.promoUrl(COMBO), 'chi-tiet-dich-vu.html?id=12');
 
-  const signedIn = await salonPage({ promotions: [DISCOUNT], user: { id: 1 } });
-  assert.equal(signedIn.promoUrl(DISCOUNT), 'dat-lich.html?salon_id=4&promo=LALA100K');
+  const signedIn = await salonPage({ promotions: [AMOUNT], user: { id: 1 } });
+  assert.equal(signedIn.promoUrl(AMOUNT), 'dat-lich.html?salon_id=4&promo=LALA100K');
 });
 
 test('a failed request is told apart from a salon that does not exist', async () => {
@@ -252,7 +237,7 @@ test('a failed request is told apart from a salon that does not exist', async ()
   // But the extras go the other way: a slow /api/promotions hides the offers strip, it does
   // not replace a salon that loaded perfectly well with an error panel.
   const noOffers = await salonPage({
-    promotions: [DISCOUNT],
+    promotions: [AMOUNT],
     fail: { url: '/api/promotions', code: 'NETWORK_ERROR' },
   });
   assert.equal(noOffers.salon.id, 4);

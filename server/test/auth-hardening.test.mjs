@@ -56,26 +56,26 @@ test('when it was agreed to is stored, and being marketed to is a separate answe
   );
 });
 
-test('every new customer is greeted, and with a code that can actually be spent', () => {
+test('every new customer is greeted, and the greeting names nobody else\'s code', () => {
   const create = handler(authSource, 'async function createAccount(', "router.post('/register'");
   // Not gated on marketing_opt_in: this is the one transactional hello that comes with
-  // signing up, not a campaign, and the spec asks for a 'promotion' notification on every
-  // new customer account. The offers box governs what is sent afterwards.
-  assert.match(create, /const promotion = await tx\.get\(SELECT_WELCOME_PROMOTION, today, today\);/);
-  assert.doesNotMatch(create, /marketingOptIn === true \? await tx\.get\(SELECT_WELCOME_PROMOTION/);
-  // The same window bookings.js requireUsablePromotion applies at checkout, combos and all,
-  // so a code named in the greeting is never one that would be refused at the till.
-  assert.match(authSource, /AND type <> 'combo'/);
-  assert.match(create, /promotion \? 'promotion' : 'general'/);
-  // ...and the reply says which of the two it was, because the greeting dang-ky.html
-  // raises names a code: without this it would promise one on a database where no
-  // platform-wide promotion is live, pointing at a notification that has none.
-  assert.match(create, /welcomeCode = promotion \? promotion\.code : null;/);
-  /* The key is spelled out here and cannot be displaced: `...extra` is whatever a role's own
-     afterInsert hook wanted the reply to carry, and it is spread FIRST, so a hook can add to
-     this body and a hook that one day returns a `welcome_code` of its own loses to the real
-     one rather than silently replacing it. For a customer registration there is no hook at all
-     and `...undefined` adds nothing. */
+  // signing up, not a campaign, so an account whose Thông báo is empty has something in it.
+  assert.match(create, /if \(accountRole === 'customer'\) \{/);
+  assert.match(create, /Chào mừng \$\{trimmedName\} — đặt lịch đầu tiên của bạn tại OAK\./);
+  /* And it names no discount code, because there is no code on OAK that is not one salon's
+     own: every offer is paid for by the salon running it, so handing a first-time visitor
+     one of them would be choosing a salon for them. The platform-wide lookup that used to
+     do exactly that is gone, and so is the branch that made the notice a 'promotion'. */
+  assert.doesNotMatch(authSource, /SELECT_WELCOME_PROMOTION/);
+  assert.doesNotMatch(authSource, /salon_id IS NULL/);
+  assert.doesNotMatch(create, /promotion \? 'promotion' : 'general'/);
+  /* welcome_code is the salon's own 20% code, reported to a partner registration that
+     asked for one and null everywhere else — so a caller only ever promises a code that
+     was really written. The key is spelled out here and cannot be displaced: `...extra` is
+     whatever a role's own afterInsert hook wanted the reply to carry, and it is spread
+     FIRST, so a hook that one day returns a `welcome_code` of its own loses to the real one
+     rather than silently replacing it. */
+  assert.match(create, /welcomeCode = await mintWelcomePromotion\(tx, salonId\);/);
   assert.match(create, /data: \{ \.\.\.extra, user, welcome_code: welcomeCode \}/);
 });
 

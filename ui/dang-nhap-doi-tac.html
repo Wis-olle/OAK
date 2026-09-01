@@ -166,6 +166,12 @@
 <input class="mt-1" id="register-marketing" type="checkbox" x-model="form.marketing">
 <span class="font-caption text-caption text-on-surface-variant">Nhận ưu đãi và tin khuyến mãi qua Thông báo (không bắt buộc).</span>
 </label>
+<!-- Asked, not assumed. The 20% comes out of the salon's own margin, so a salon that
+     never wanted to spend it is not handed a code it has to go and find to switch off. -->
+<label class="flex items-start gap-3 cursor-pointer" for="register-welcome-promo">
+<input class="mt-1" id="register-welcome-promo" type="checkbox" x-model="form.welcomePromo">
+<span class="font-caption text-caption text-on-surface-variant">Tặng khách mới 20% cho lần đầu (30 ngày). Chi phí ưu đãi do salon chịu, tắt được bất cứ lúc nào.</span>
+</label>
 <p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
 <button :disabled="busy" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="submit" x-text="busy ? 'Đang xử lý…' : 'Tạo tài khoản đối tác'">Tạo tài khoản đối tác</button>
 <button @click="show('menu')" class="w-full font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors" type="button">Quay lại</button>
@@ -243,7 +249,7 @@
             /* Its own flag, not `busy`: the submit button renames itself to "Đang xử lý…"
                off that one, and a password-reset request is not a sign-in attempt. */
             sending: false,
-            form: { name: '', salon_name: '', email: '', phone: '', password: '', confirm: '', consent: false, marketing: false },
+            form: { name: '', salon_name: '', email: '', phone: '', password: '', confirm: '', consent: false, marketing: false, welcomePromo: false },
 
             async init() {
                 const user = await OAK.me();
@@ -334,6 +340,7 @@
                             salon_name: this.form.salon_name,
                             consent: true,
                             marketing_opt_in: this.form.marketing,
+                            welcome_promo_opt_in: this.form.welcomePromo,
                         },
                     });
                     location.href = oakPartnerDestination();

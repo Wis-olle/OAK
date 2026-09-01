@@ -1,10 +1,13 @@
 /*
- * The one offer OAK runs: a salon that joins is handed its own 20% code, good for its
- * first 30 days. Three places write it — the seed (the demo cohort), registration (every
- * salon created from now on) and the db.js backfill (salons that predate the policy) — so
- * the numbers, the wording and the code itself live here once rather than three times.
+ * The one offer OAK runs: a salon may hand out its own 20% code, good for 30 days from the
+ * day it asks for one. Asking is the whole of it — the discount comes out of the salon's
+ * own till, so it is minted for an owner who ticked the box on the registration form or in
+ * the console and for nobody else. mintWelcomePromotion below is the one place that writes
+ * it; the seed writes the demo cohort's directly, and the numbers, the wording and the code
+ * itself live here once rather than in each of them.
  */
-import { addDaysISO } from './time.js';
+import { notifyUser } from './notify.js';
+import { addDaysISO, todayISO } from './time.js';
 
 export const WELCOME_PERCENT = 20;
 export const WELCOME_DAYS = 30;
@@ -28,15 +31,6 @@ export const WELCOME_NOTICE_TITLE = 'Ưu đãi 20% từ các salon mới';
 export const WELCOME_NOTICE_BODY =
   'Các salon vừa gia nhập OAK đang giảm 20% cho mọi dịch vụ trong 30 ngày đầu. Xem mã của từng salon tại trang Ưu đãi.';
 
-/* The day the policy went live. The db.js backfill only reaches salons older than this:
-   everything created from here on gets its offer inside the registration transaction, so
-   a salon can never exist without one, and a salon that deleted its offer on purpose
-   stays deleted instead of having it handed back on the next deploy. Compared against
-   salons.created_at, which both seed.js and registration write as a full ISO timestamp
-   ('2026-08-25T10:00:00.000Z'): text comparison against a bare date is then exactly
-   "created before this day", since every timestamp on the day itself sorts after it. */
-export const WELCOME_BACKFILL_CUTOFF = '2026-08-26';
-
 /** The code for one salon. Deterministic: the same salon always yields the same code. */
 export function welcomeCode(salonId) {
   return `${WELCOME_CODE_PREFIX}${salonId}`;
@@ -45,4 +39,66 @@ export function welcomeCode(salonId) {
 /** The window the offer runs for, from the day it is handed out. */
 export function welcomeWindow(startISO) {
   return { starts_at: startISO, ends_at: addDaysISO(startISO, WELCOME_DAYS) };
+}
+
+// What the owner is told the moment the code exists. Deliberately says nothing about a
+// first appointment: bookings.js applies the code to any booking at this salon for as long
+// as the window is open, so promising less than that would misdescribe what was agreed to.
+export const WELCOME_OWNER_NOTICE_TITLE = 'Mã ưu đãi chào mừng đã được tạo';
+
+/** The sentence under that title, naming the code this salon actually got. */
+export function welcomeOwnerNotice(code) {
+  return `Mã ${code} đã được tạo, giảm ${WELCOME_PERCENT}% cho mọi dịch vụ tại salon của bạn trong ${WELCOME_DAYS} ngày. Chi phí ưu đãi do salon chịu — bạn có thể tắt mã bất cứ lúc nào ở mục Ưu đãi.`;
+}
+
+// The row itself. Salon-scoped, active, and a discount, which is the only shape the till
+// accepts; service_ids stays out of it because the offer is on everything the salon does.
+const INSERT_WELCOME_PROMOTION = `
+  INSERT INTO promotions
+    (salon_id, code, type, title, description, discount_percent, image, starts_at, ends_at, active)
+  VALUES (?, ?, 'discount', ?, ?, ?, ?, ?, ?, 1)
+`;
+const SELECT_SALON_OPT_IN = 'SELECT owner_id, welcome_promo_opt_in FROM salons WHERE id = ?';
+// Keyed on the derived code rather than on a title, so "has this salon got one?" is a
+// lookup and running this twice writes once.
+const SELECT_EXISTING_WELCOME = 'SELECT 1 FROM promotions WHERE salon_id = ? AND code = ?';
+
+/**
+ * Give this salon its welcome code, if it asked for one and has not got one yet, and tell
+ * the owner it exists. Hands back the code it wrote, or null when it wrote nothing.
+ *
+ * Runs on the caller's transaction, because both call sites are already inside one: the
+ * registration that creates the salon, and the console save that ticks the box later. The
+ * two guards are what let either of them call it unconditionally — an owner who did not
+ * ask gets nothing, and an owner who asks twice is not given a second notice.
+ */
+export async function mintWelcomePromotion(tx, salonId) {
+  const salon = await tx.get(SELECT_SALON_OPT_IN, salonId);
+  if (!salon || Number(salon.welcome_promo_opt_in) !== 1) {
+    return null;
+  }
+  const code = welcomeCode(salonId);
+  if (await tx.get(SELECT_EXISTING_WELCOME, salonId, code)) {
+    return null;
+  }
+  const { starts_at: startsAt, ends_at: endsAt } = welcomeWindow(todayISO());
+  await tx.run(
+    INSERT_WELCOME_PROMOTION,
+    salonId,
+    code,
+    WELCOME_TITLE,
+    WELCOME_DESCRIPTION,
+    WELCOME_PERCENT,
+    WELCOME_IMAGE,
+    startsAt,
+    endsAt,
+  );
+  await notifyUser(
+    tx,
+    salon.owner_id,
+    WELCOME_OWNER_NOTICE_TITLE,
+    welcomeOwnerNotice(code),
+    'promotion',
+  );
+  return code;
 }

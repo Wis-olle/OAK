@@ -1050,7 +1050,7 @@ const FAVORITES = [
 const INSERT_USER =
   'INSERT INTO users (name, email, phone, password_hash, role, avatar, city, district, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
 const INSERT_SALON =
-  'INSERT INTO salons (owner_id, name, slug, description, address, district, city, phone, image, open_time, close_time, lat, lng, verified, featured, flagship, tags, amenities, tour_url, published, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 1, ?)';
+  'INSERT INTO salons (owner_id, name, slug, description, address, district, city, phone, image, open_time, close_time, lat, lng, verified, featured, flagship, tags, amenities, tour_url, published, created_at, welcome_promo_opt_in) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 1, ?, 1)';
 const INSERT_SALON_PHOTO =
   'INSERT INTO salon_photos (salon_id, image, caption, sort) VALUES (?, ?, ?, ?)';
 const INSERT_SERVICE =
@@ -1311,8 +1311,10 @@ export async function seed(db) {
       );
     }
 
-    // One offer per salon and nothing else: the same welcome code registration writes for
-    // a salon signing up today. service_ids stays NULL — it is on everything they do.
+    // One offer per salon and nothing else: the same welcome code a salon signing up
+    // today gets if it asks for one. service_ids stays NULL — it is on everything they do.
+    // The demo salons are seeded as having asked: the column says so, so the console shows
+    // the box ticked and lib/welcome-promotion.js does not offer them a second code.
     const welcome = welcomeWindow(todayISO());
     for (const salon of SALONS) {
       const salonId = salonIds.get(salon.slug);

@@ -87,26 +87,28 @@
 </div>
 <img fetchpriority="high" width="1024" height="572" alt="Bàn tay với bộ móng tông hồng nude bên cạnh hoa tươi" class="w-full h-[220px] object-cover object-center md:absolute md:inset-y-0 md:right-0 md:w-[46%] md:h-full md:[mask-image:linear-gradient(to_right,transparent,#000_96px)]" src="assets/images/img-064bab706d.jpg">
 </section>
-<!-- Platform-wide promotions -->
-<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-section-gap" x-cloak="" x-show="platform.length">
+<!-- Every offer on OAK: one salon's own code -->
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto" x-cloak="" x-show="promotions.length">
 <div class="flex justify-between items-end mb-8 border-b border-outline-variant/30 pb-4">
-<h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary">Ưu đãi từ OAK</h2>
-<span class="font-caption text-caption text-on-surface-variant hidden md:block">Áp dụng tại mọi salon trong hệ thống</span>
+<h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary">Ưu đãi từ các salon</h2>
+<span class="font-caption text-caption text-on-surface-variant hidden md:block">Mỗi mã chỉ áp dụng tại salon của mình</span>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
-<template :key="promotion.id" x-for="promotion in platform">
+<template :key="promotion.id" x-for="promotion in promotions">
 <article class="bg-surface-container-lowest rounded-lg border border-outline-variant/20 overflow-hidden flex flex-col group">
 <div class="relative aspect-[16/9] w-full overflow-hidden img-hover-zoom bg-surface-container">
 <img decoding="async" width="640" height="360" loading="lazy" :alt="promotion.title" :src="promotion.image" class="w-full h-full object-cover">
-<span class="absolute top-3 left-3 bg-tertiary-fixed text-on-tertiary-fixed-variant px-3 py-1 text-caption font-caption rounded-full" x-text="typeLabel(promotion)"></span>
 </div>
 <div class="p-6 flex flex-col flex-1 gap-3">
 <h3 class="font-headline-sm text-[20px] text-primary" x-text="promotion.title"></h3>
 <p class="font-body-md text-body-md text-on-surface-variant" x-text="promotion.description"></p>
 <span class="font-label-md text-label-md text-secondary" x-show="discountLabel(promotion)" x-text="discountLabel(promotion)"></span>
+<div class="flex flex-wrap gap-2">
+<span class="bg-surface-container-low text-on-surface-variant px-3 py-1 text-caption font-caption rounded-full">Mọi dịch vụ</span>
+</div>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
-<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="storefront">storefront</span>
-<span>Áp dụng toàn hệ thống OAK</span>
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="store">store</span>
+<a :href="salonUrl(promotion.salon)" class="hover:text-primary transition-colors" x-text="promotion.salon.name"></a>
 </p>
 <p class="font-caption text-caption text-on-surface-variant" x-text="'Hạn dùng đến ' + shortDate(promotion.ends_at)"></p>
 <p class="font-caption text-caption text-on-surface-variant flex items-center gap-1" x-show="promotion.code &amp;&amp; !user">
@@ -115,58 +117,6 @@
 </p>
 <div class="flex flex-wrap items-center gap-3 mt-auto pt-3">
 <button @click="copyCode(promotion.code)" class="code-chip flex items-center gap-2 px-4 py-2 text-primary font-label-md text-label-md uppercase tracking-wider active:scale-95 duration-200" type="button" x-show="promotion.code">
-<span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="content_copy">content_copy</span>
-<span x-text="promotion.code"></span>
-</button>
-<a @click="trackUse(promotion)" :href="useUrl(promotion)" class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200">Dùng ngay</a>
-</div>
-</div>
-</article>
-</template>
-</div>
-</section>
-<!-- Salon promotions and combos -->
-<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto" x-cloak="" x-show="salonOffers.length">
-<div class="flex justify-between items-end mb-8 border-b border-outline-variant/30 pb-4">
-<h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary">Ưu đãi từ các salon</h2>
-<span class="font-caption text-caption text-on-surface-variant hidden md:block">Chỉ áp dụng tại salon tương ứng</span>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
-<template :key="promotion.id" x-for="promotion in salonOffers">
-<article class="bg-surface-container-lowest rounded-lg border border-outline-variant/20 overflow-hidden flex flex-col group">
-<div class="relative aspect-[16/9] w-full overflow-hidden img-hover-zoom bg-surface-container">
-<img decoding="async" width="640" height="360" loading="lazy" :alt="promotion.title" :src="promotion.image" class="w-full h-full object-cover">
-<span class="absolute top-3 left-3 bg-tertiary-fixed text-on-tertiary-fixed-variant px-3 py-1 text-caption font-caption rounded-full" x-text="typeLabel(promotion)"></span>
-</div>
-<div class="p-6 flex flex-col flex-1 gap-3">
-<h3 class="font-headline-sm text-[20px] text-primary" x-text="promotion.title"></h3>
-<p class="font-body-md text-body-md text-on-surface-variant" x-text="promotion.description"></p>
-<div class="flex items-baseline gap-3" x-show="promotion.sale_price">
-<span class="font-headline-sm text-[20px] text-primary" x-text="OAK.fmtPrice(promotion.sale_price)"></span>
-<span class="font-caption text-caption text-on-surface-variant line-through" x-text="OAK.fmtPrice(promotion.original_price)"></span>
-</div>
-<span class="font-label-md text-label-md text-secondary" x-show="discountLabel(promotion)" x-text="discountLabel(promotion)"></span>
-<div class="flex flex-wrap gap-2">
-<span class="bg-surface-container-low text-on-surface-variant px-3 py-1 text-caption font-caption rounded-full">Mọi khách</span>
-<template :key="name" x-for="name in serviceChips(promotion)">
-<span class="bg-surface-container-low text-on-surface-variant px-3 py-1 text-caption font-caption rounded-full" x-text="name"></span>
-</template>
-</div>
-<p class="font-caption text-caption text-on-surface-variant flex items-center gap-1" x-show="comboServiceId(promotion)">
-<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="info">info</span>
-<span>Giá combo áp dụng khi đặt dịch vụ này</span>
-</p>
-<p class="font-caption text-caption text-on-surface-variant flex items-center gap-1">
-<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="store">store</span>
-<a :href="salonUrl(promotion.salon)" class="hover:text-primary transition-colors" x-text="promotion.salon.name"></a>
-</p>
-<p class="font-caption text-caption text-on-surface-variant" x-text="'Hạn dùng đến ' + shortDate(promotion.ends_at)"></p>
-<p class="font-caption text-caption text-on-surface-variant flex items-center gap-1" x-show="usesCode(promotion) &amp;&amp; !user">
-<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-icon="info">info</span>
-<span>Cần đăng nhập để áp dụng mã.</span>
-</p>
-<div class="flex flex-wrap items-center gap-3 mt-auto pt-3">
-<button @click="copyCode(promotion.code)" class="code-chip flex items-center gap-2 px-4 py-2 text-primary font-label-md text-label-md uppercase tracking-wider active:scale-95 duration-200" type="button" x-show="usesCode(promotion)">
 <span aria-hidden="true" class="material-symbols-outlined text-[16px]" data-icon="content_copy">content_copy</span>
 <span x-text="promotion.code"></span>
 </button>
@@ -267,9 +217,12 @@
 </div>
 </footer>
 <script>
-    /* Inline scripts run before deferred ones, so these factories exist by the time Alpine boots. */
-    const PROMOTION_TYPE_LABELS = { combo: 'Combo', flash_sale: 'Flash sale', discount: 'Mã giảm giá' };
+    /* Inline scripts run before deferred ones, so these factories exist by the time Alpine boots.
 
+       One shape of offer reaches this page: a salon's own percentage code, good at that
+       salon for the window it names. The bundle price and the countdown that used to need
+       a card apiece are gone from the console, and /api/promotions lists neither, so
+       nothing here has to ask what KIND of offer it is holding. */
     function oakPromotions() {
         return {
             promotions: [],
@@ -301,44 +254,8 @@
                 }
             },
 
-            get platform() {
-                return this.promotions.filter((promotion) => !promotion.salon);
-            },
-
-            get salonOffers() {
-                return this.promotions.filter((promotion) => promotion.salon);
-            },
-
-            typeLabel(promotion) {
-                return PROMOTION_TYPE_LABELS[promotion.type] || 'Ưu đãi';
-            },
-
-            /* A combo is booked, not applied: the server refuses a combo code pasted into
-               the promo field, so its card never offers one. */
-            isCombo(promotion) {
-                return promotion.type === 'combo';
-            },
-
-            /* The combo price is only a promise the page can keep when the offer points at
-               exactly one service — that service IS the bundle and already carries the
-               price. Nothing forces a salon to shape a combo that way, so an offer naming
-               several services resolves to null: no deep link, no price claim, just the
-               salon. */
-            comboServiceId(promotion) {
-                const ids = promotion.service_ids || [];
-                return this.isCombo(promotion) && ids.length === 1 ? ids[0] : null;
-            },
-
-            /* A resolved combo's chip would only repeat the card's own title. */
-            serviceChips(promotion) {
-                return this.comboServiceId(promotion) ? [] : promotion.service_names;
-            },
-
-            usesCode(promotion) {
-                return Boolean(promotion.code) && !this.isCombo(promotion);
-            },
-
-            /* Only for offers priced by a discount; combos show their sale price instead. */
+            /* discount_amount still reaches this page read-only: the console cannot write
+               one any more, but an offer that promised a sum of đồng still promises it. */
             discountLabel(promotion) {
                 if (promotion.discount_percent) {
                     return 'Giảm ' + promotion.discount_percent + '%';
@@ -360,14 +277,11 @@
 
             bookingUrl(promotion) {
                 const params = new URLSearchParams();
-                const salonId = promotion.salon ? this.salonIds[promotion.salon.slug] : null;
+                const salonId = this.salonIds[promotion.salon.slug];
                 if (salonId) {
                     params.set('salon_id', salonId);
                 }
-                const serviceId = this.comboServiceId(promotion);
-                if (serviceId) {
-                    params.set('service_id', serviceId);
-                } else if (this.usesCode(promotion)) {
+                if (promotion.code) {
                     params.set('promo', promotion.code);
                 }
                 const query = params.toString();
@@ -384,12 +298,12 @@
             },
 
             /* The one question this page exists to answer: which offers actually get taken
-               up. Kind and id only — no account, nothing that could name the visitor. */
+               up. The offer's id only — no account, nothing that could name the visitor. */
             trackUse(promotion) {
                 // Guarded like every other call site: a cached page may meet an older
                 // oak-api.js that has no track().
                 if (typeof OAK.track === 'function') {
-                    OAK.track('promo_use', { type: promotion.type, id: promotion.id });
+                    OAK.track('promo_use', { id: promotion.id });
                 }
             },
 

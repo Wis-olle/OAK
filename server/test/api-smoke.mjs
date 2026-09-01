@@ -4167,6 +4167,9 @@ async function groupAuthz() {
         // Registration takes an affirmative consent, so a caller that leaves it out is
         // refused — the form ticks it, and so does this.
         consent: true,
+        // And the welcome offer is asked for, not assumed: the 20% comes out of the
+        // salon's own margin, so the tick on the form is what mints the code.
+        welcome_promo_opt_in: true,
       },
     }),
     'POST /api/auth/register (partner)',
@@ -4182,6 +4185,17 @@ async function groupAuthz() {
   state.selfRegisteredSalonIds = [...(state.selfRegisteredSalonIds ?? []), ownSalon.id];
 
   assert(ownSalon.published === 0, 'self-registration: a new salon starts unlisted');
+
+  // Asked for on the form, so the reply names the code that was actually written.
+  assert(
+    registered.welcome_code === welcomeCode(ownSalon.id),
+    'self-registration: the reply must name the welcome code that was minted',
+    registered,
+  );
+  assert(
+    ownSalon.welcome_promo_opt_in === 1,
+    'self-registration: the tick must be stored on the salon',
+  );
 
   // The welcome offer is created in the same transaction as the salon, so it has to be
   // just as invisible while the salon is a draft: GET /api/promotions gates on the salon
@@ -4356,6 +4370,58 @@ async function groupAuthz() {
     ownOffer.discount_percent === WELCOME_PERCENT && ownOffer.salon?.name === salonName,
     'the welcome offer must carry its salon and its 20%',
     liveOffers,
+  );
+
+  /* A code belongs to the salon running it, so two salons may use the same word. Under
+     the old table-wide UNIQUE the first salon to name an offer TET2026 took it away from
+     every other salon on the platform — and told the second one its own code "đã được sử
+     dụng" by somebody it had never heard of. Both of these must be written. */
+  const shared = { title: 'Tết 2026', code: 'TET2026', discount_percent: 15,
+    starts_at: state.today, ends_at: addDays(state.today, 20) };
+  const applicantOffer = ok(
+    await applicant.fetch('/api/partner/promotions', { method: 'POST', json: shared }),
+    'POST /api/partner/promotions (TET2026, first salon)',
+  );
+  const demoOffer = ok(
+    await session('partnerA').fetch('/api/partner/promotions', { method: 'POST', json: shared }),
+    'POST /api/partner/promotions (TET2026, a second salon)',
+  );
+  assert(
+    applicantOffer.code === 'TET2026' && demoOffer.code === 'TET2026',
+    'two salons must be able to run the same code',
+  );
+
+  // Within one salon it is still one code, one offer: the index is on the pair.
+  expectError(
+    await applicant.fetch('/api/partner/promotions', { method: 'POST', json: shared }),
+    409,
+    'CODE_TAKEN',
+    'the same salon reusing its own code',
+  );
+
+  /* And MOI20- stays out of a salon's reach whatever the pair allows: MOI20-<id> is the
+     code the welcome offer of salon <id> needs, and a console-made one would be a code
+     that salon could never be given. */
+  for (const code of ['MOI20-99', 'moi20-1']) {
+    expectError(
+      await applicant.fetch('/api/partner/promotions', {
+        method: 'POST',
+        json: { ...shared, code },
+      }),
+      400,
+      'VALIDATION_ERROR',
+      `a partner-created ${code}`,
+    );
+  }
+
+  // Taken back down: the offers page is a public surface and these two were a test.
+  ok(
+    await applicant.fetch(`/api/partner/promotions/${applicantOffer.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/promotions/:id (TET2026, first salon)',
+  );
+  ok(
+    await session('partnerA').fetch(`/api/partner/promotions/${demoOffer.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/promotions/:id (TET2026, second salon)',
   );
 
   // The public menu carries the flag the console set, so the profile can print "từ ...".

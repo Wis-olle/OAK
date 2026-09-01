@@ -233,7 +233,7 @@
 <!-- Special Offers Section (Bento Grid Style) -->
 <div class="mb-section-gap">
 <div class="flex justify-between items-end mb-8">
-<h2 class="font-headline-md text-headline-md text-on-surface">Ưu đãi &amp; Combo</h2>
+<h2 class="font-headline-md text-headline-md text-on-surface">Ưu đãi</h2>
 <button @click="openPromotionForm(null)" class="text-secondary font-label-md text-label-md uppercase hover:underline">Thêm ưu đãi</button>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[250px]">
@@ -246,12 +246,8 @@
 </template>
 <div class="relative z-10 flex justify-between items-start gap-4">
 <div>
-<span :class="index === 0 ? 'bg-primary text-on-primary px-3 py-1 rounded-full' : 'text-secondary'" class="font-caption text-caption uppercase tracking-widest" x-text="typeLabel(promotion.type)"></span>
+<span :class="index === 0 ? 'bg-primary text-on-primary px-3 py-1 rounded-full' : 'text-secondary'" class="font-caption text-caption uppercase tracking-widest" x-text="promotion.code || 'Ưu đãi'"></span>
 <h3 :class="index === 0 ? 'font-headline-md text-headline-md mt-4 max-w-sm' : 'font-headline-sm text-headline-sm mt-2'" class="text-on-surface" x-text="promotion.title"></h3>
-</div>
-<div class="text-right shrink-0" x-show="promotion.sale_price">
-<span class="block font-body-md text-body-md text-on-surface-variant line-through" x-text="OAK.fmtPrice(promotion.original_price)"></span>
-<span class="block font-headline-sm text-headline-sm text-primary" x-text="OAK.fmtPrice(promotion.sale_price)"></span>
 </div>
 </div>
 <div class="relative z-10 mt-auto">
@@ -369,12 +365,8 @@
 <input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-name" required type="text" x-model="promotionForm.title"/>
 </div>
 <div class="space-y-1">
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-type">Loại ưu đãi</label>
-<select class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-type" required x-model="promotionForm.type">
-<template :key="item.key" x-for="item in promotionTypes()">
-<option :value="item.key" x-text="item.label"></option>
-</template>
-</select>
+<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-code">Mã ưu đãi</label>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-code" type="text" x-model="promotionForm.code"/>
 </div>
 </div>
 <div class="space-y-1">
@@ -391,38 +383,10 @@
 <input :min="promotionForm.starts_at" class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-end" required type="date" x-model="promotionForm.ends_at"/>
 </div>
 </div>
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-<div class="space-y-1">
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-original">Giá gốc (đ)</label>
-<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-original" min="0" step="1000" type="number" x-model="promotionForm.original_price"/>
-</div>
-<div class="space-y-1">
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-sale">Giá ưu đãi (đ)</label>
-<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-sale" min="0" step="1000" type="number" x-model="promotionForm.sale_price"/>
-</div>
-</div>
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
 <div class="space-y-1">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-percent">Giảm (%)</label>
-<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-percent" min="0" type="number" x-model="promotionForm.discount_percent"/>
-</div>
-<div class="space-y-1">
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-amount">Giảm (đ)</label>
-<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-amount" min="0" step="1000" type="number" x-model="promotionForm.discount_amount"/>
-</div>
-<div class="space-y-1">
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-code">Mã ưu đãi</label>
-<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-code" type="text" x-model="promotionForm.code"/>
-</div>
-</div>
-<div class="space-y-1">
-<label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-services">Dịch vụ áp dụng</label>
-<select class="w-full bg-surface-container-lowest border border-outline text-on-surface font-body-md text-body-md rounded px-4 py-2 focus:ring-0 focus:border-primary outline-none" id="promotion-services" multiple size="4" x-model="promotionForm.service_ids">
-<template :key="service.id" x-for="service in services">
-<option :value="service.id" x-text="service.name"></option>
-</template>
-</select>
-<p class="font-caption text-caption text-on-surface-variant">Giữ Ctrl để chọn nhiều dịch vụ.</p>
+<input class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md text-primary transition-colors" id="promotion-percent" max="100" min="1" required type="number" x-model="promotionForm.discount_percent"/>
+<p class="font-caption text-caption text-on-surface-variant">Khách nhập mã khi đặt lịch và được giảm ngần này trên giá dịch vụ.</p>
 </div>
 <div class="space-y-2">
 <label class="font-label-md text-caption uppercase tracking-wider text-on-surface-variant block" for="promotion-image">Ảnh ưu đãi</label>
@@ -512,12 +476,6 @@
     /* The five a salon may file a service under. The map above still holds 'amenity' so a
        row written before that stopped being allowed still reads as "Tiện ích" on its card. */
     var OAK_BOOKABLE_CATEGORIES = ['hair', 'nail', 'skincare', 'spa', 'eyelash'];
-    var OAK_PROMOTION_LABELS = {
-        discount: 'Giảm giá',
-        combo: 'Combo',
-        flash_sale: 'Flash Sale',
-    };
-
     /* Partner chrome shared by all four console pages: owner name/avatar, salon name, logout. */
     function oakPartnerChrome() {
         document.querySelectorAll('[data-oak-logout]').forEach(function (link) {
@@ -646,12 +604,6 @@
             allCategories() {
                 return OAK_BOOKABLE_CATEGORIES.map(function (key) {
                     return { key: key, label: OAK_CATEGORY_LABELS[key] };
-                });
-            },
-
-            promotionTypes() {
-                return Object.keys(OAK_PROMOTION_LABELS).map(function (key) {
-                    return { key: key, label: OAK_PROMOTION_LABELS[key] };
                 });
             },
 
@@ -834,10 +786,6 @@
                 }
             },
 
-            typeLabel(type) {
-                return OAK_PROMOTION_LABELS[type] || type;
-            },
-
             promotionMeta(promotion) {
                 var parts = [];
                 if (promotion.discount_percent) {
@@ -856,14 +804,9 @@
                     ? {
                           id: promotion.id,
                           title: promotion.title,
-                          type: promotion.type,
                           description: promotion.description || '',
                           code: promotion.code || '',
                           discount_percent: promotion.discount_percent || '',
-                          discount_amount: promotion.discount_amount || '',
-                          original_price: promotion.original_price || '',
-                          sale_price: promotion.sale_price || '',
-                          service_ids: promotion.service_ids.map(String),
                           image: promotion.image || '',
                           starts_at: promotion.starts_at,
                           ends_at: promotion.ends_at,
@@ -871,14 +814,9 @@
                     : {
                           id: null,
                           title: '',
-                          type: 'discount',
                           description: '',
                           code: '',
                           discount_percent: '',
-                          discount_amount: '',
-                          original_price: '',
-                          sale_price: '',
-                          service_ids: [],
                           image: '',
                           starts_at: '',
                           ends_at: '',
@@ -897,14 +835,9 @@
                 this.saving = true;
                 var body = {
                     title: form.title,
-                    type: form.type,
                     description: form.description || null,
                     code: form.code || null,
                     discount_percent: form.discount_percent,
-                    discount_amount: form.discount_amount,
-                    original_price: form.original_price,
-                    sale_price: form.sale_price,
-                    service_ids: form.service_ids.map(Number),
                     image: form.image || null,
                     starts_at: form.starts_at,
                     ends_at: form.ends_at,

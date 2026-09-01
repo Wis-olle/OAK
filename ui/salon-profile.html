@@ -265,12 +265,11 @@
 <p class="font-body-md text-body-md font-medium text-on-tertiary-fixed-variant" x-text="promotion.title"></p>
 <p class="font-caption text-caption text-on-tertiary-fixed-variant" x-show="promoLabel(promotion)" x-text="promoLabel(promotion)"></p>
 <div class="flex flex-wrap items-center gap-3">
-<button @click="copyCode(promotion.code)" class="inline-flex items-center gap-1 min-h-[44px] px-4 rounded-full border border-outline-variant text-on-tertiary-fixed-variant font-label-md text-label-md uppercase tracking-wide" type="button" x-show="usesCode(promotion)">
+<button @click="copyCode(promotion.code)" class="inline-flex items-center gap-1 min-h-[44px] px-4 rounded-full border border-outline-variant text-on-tertiary-fixed-variant font-label-md text-label-md uppercase tracking-wide" type="button" x-show="promotion.code">
 <span aria-hidden="true" class="material-symbols-outlined text-[16px]">content_copy</span>
 <span x-text="promotion.code"></span>
 </button>
-<a :href="promoUrl(promotion)" class="inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wide hover:bg-primary transition-colors" style="text-decoration:none" x-show="!comboServiceId(promotion)">Dùng ngay</a>
-<a :href="promoUrl(promotion)" class="inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wide hover:bg-primary transition-colors" style="text-decoration:none" x-show="comboServiceId(promotion)">Xem dịch vụ combo</a>
+<a :href="promoUrl(promotion)" class="inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wide hover:bg-primary transition-colors" style="text-decoration:none">Dùng ngay</a>
 </div>
 </div>
 </template>
@@ -897,28 +896,18 @@
                 return { open: false, label: 'Đã đóng', time: '' };
             },
 
-            /** This salon's own offers, plus the platform-wide ones every salon honours. */
+            /** This salon's own offers. Every offer on OAK belongs to one salon now, so
+                the list is filtered by slug and by nothing else. */
             salonPromotions() {
                 return this.promotions.filter(
-                    (promotion) => !promotion.salon || promotion.salon.slug === this.salon.slug,
+                    (promotion) => promotion.salon.slug === this.salon.slug,
                 );
             },
 
-            /* A combo is booked rather than applied, so its code is never offered; the rest
-               of this mirrors uu-dai.html, which is where these offers are listed in full. */
-            comboServiceId(promotion) {
-                const ids = promotion.service_ids || [];
-                return promotion.type === 'combo' && ids.length === 1 ? ids[0] : null;
-            },
-
-            usesCode(promotion) {
-                return Boolean(promotion.code) && promotion.type !== 'combo';
-            },
-
+            /* discount_amount still arrives read-only, for an offer written before the
+               console settled on a percentage; the rest mirrors uu-dai.html, which is
+               where these offers are listed in full. */
             promoLabel(promotion) {
-                if (promotion.sale_price) {
-                    return OAK.fmtPrice(promotion.sale_price);
-                }
                 if (promotion.discount_percent) {
                     return 'Giảm ' + promotion.discount_percent + '%';
                 }
@@ -928,15 +917,10 @@
                 return '';
             },
 
-            /** A combo is one bookable service, so its button opens that service; anything
-                else opens the wizard at this salon with the code already carried in. */
+            /** Opens the wizard at this salon with the code already carried in. */
             promoUrl(promotion) {
-                const serviceId = this.comboServiceId(promotion);
-                if (serviceId) {
-                    return 'chi-tiet-dich-vu.html?id=' + serviceId;
-                }
                 const params = new URLSearchParams({ salon_id: this.salon.id });
-                if (!this.usesCode(promotion)) {
+                if (!promotion.code) {
                     return 'dat-lich.html?' + params.toString();
                 }
                 params.set('promo', promotion.code);

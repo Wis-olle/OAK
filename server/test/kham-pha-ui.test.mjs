@@ -90,15 +90,15 @@ test('a platform-wide offer belongs to no salon and so badges no card', async ()
   assert.equal(JSON.stringify(page.promoLabels), '{}');
 });
 
-test('a combo has no discount to state, so it leaves the card bare', async () => {
+test('an offer with no discount on it states none, and leaves the card bare', async () => {
+  /* The badge is a claim about money off, so it is raised on the figures and never on the
+     mere existence of an offer. A row carrying neither is the shape the retired bundle
+     offers had, and it is still the shape a salon can write by leaving the box empty. */
   const page = await newSalons({
     promotions: [
       {
         id: 7,
-        type: 'combo',
-        title: 'Combo Sơn gel + Chăm sóc chân',
-        original_price: 600000,
-        sale_price: 480000,
+        title: 'Ưu đãi không nói giảm bao nhiêu',
         discount_percent: null,
         discount_amount: null,
         salon: LALA,

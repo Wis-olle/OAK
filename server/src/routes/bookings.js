@@ -54,8 +54,11 @@ const BOOKING_FROM = `
 const selectService = db.prepare(
   'SELECT id, salon_id, name, price, duration_min, active FROM services WHERE id = ?',
 );
+// By (code, salon) rather than by code alone, which is also how the table is keyed: two
+// salons may both call an offer TET2026, and which one is being spent is decided by which
+// salon is being booked, not by whichever of them typed the word first.
 const selectPromotion = db.prepare(
-  'SELECT code, salon_id, type, discount_percent, discount_amount, active, starts_at, ends_at FROM promotions WHERE code = ?',
+  'SELECT code, salon_id, type, discount_percent, discount_amount, active, starts_at, ends_at FROM promotions WHERE code = ? AND salon_id = ?',
 );
 // active = 1: a technician who has left keeps her row for the sake of the bookings and
 // reviews that point at it, and without this clause a customer holding an old link could
@@ -207,31 +210,28 @@ function toBookingDetail(row) {
 }
 
 /**
- * A promotion is usable only when it is active today and either platform-wide or owned by
- * the salon being booked. Anything else is rejected instead of silently ignored, so the
- * customer never sees a total that quietly dropped their code.
+ * A promotion is usable only when it is a discount, owned by the salon being booked, and
+ * active today. Anything else is rejected instead of silently ignored, so the customer
+ * never sees a total that quietly dropped their code.
+ *
+ * The type gate is what retires the two shapes the console no longer writes. A combo was
+ * priced as a service of its own — its price IS the bundle price, so spending it as a code
+ * took the saving twice — and a flash sale was a discount with a countdown drawn round it.
+ * Rows carrying either are left in the table and simply cannot be spent, which is the same
+ * answer routes/promotions.js gives by not listing them.
  */
 async function requireUsablePromotion(code, salonId) {
-  const promotion = await selectPromotion.get(code.trim());
+  const promotion = await selectPromotion.get(code.trim(), salonId);
   const today = todayISO();
   const usable =
     promotion &&
     promotion.active === 1 &&
+    promotion.type === 'discount' &&
     (!promotion.starts_at || promotion.starts_at <= today) &&
-    (!promotion.ends_at || today <= promotion.ends_at) &&
-    (promotion.salon_id === null || promotion.salon_id === salonId);
+    (!promotion.ends_at || today <= promotion.ends_at);
 
   if (!usable) {
     throw httpError(400, 'INVALID_PROMOTION', 'Mã ưu đãi không hợp lệ hoặc đã hết hạn.');
-  }
-  // A combo is priced as a service of its own, not as a discount on another one: its price
-  // is already the bundle price, so applying it as a code would take the saving twice.
-  if (promotion.type === 'combo') {
-    throw httpError(
-      400,
-      'INVALID_PROMOTION',
-      'Combo được đặt như một dịch vụ, không dùng như mã giảm giá.',
-    );
   }
   return promotion;
 }

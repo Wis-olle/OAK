@@ -47,7 +47,7 @@ import {
   weekdayOf,
 } from '../lib/time.js';
 import { isSafeMediaUrl } from '../lib/urls.js';
-import { WELCOME_CODE_PREFIX } from '../lib/welcome-promotion.js';
+import { WELCOME_CODE_PREFIX, mintWelcomePromotion } from '../lib/welcome-promotion.js';
 import { httpError, requireAuth, requirePartner } from '../middleware/auth.js';
 // The recovery hatch for a technician who has lost their password is auth.js's machinery —
 // its table, its TTL, its origin rule, its mailer — so it is imported rather than rebuilt.
@@ -64,7 +64,6 @@ const BOOKING_STATUSES = ['pending', 'confirmed', 'completed', 'cancelled', 'no_
 // — so a service filed there would be one nobody could ever reach. Rows written under it
 // before this keep it: nothing here rewrites them, they simply cannot be edited into it.
 const SERVICE_CATEGORIES = ['hair', 'nail', 'skincare', 'spa', 'eyelash'];
-const PROMOTION_TYPES = ['discount', 'combo', 'flash_sale'];
 
 // The only transitions a partner may drive. completed/cancelled list nothing, so those
 // two can never be reopened. 'no_show' is the exception on purpose: marking a customer
@@ -451,18 +450,17 @@ function serviceShape(row) {
   };
 }
 
+/* discount_amount is read back but never written: an offer is a percentage now, and the
+   rows that promise a sum of đồng were written before that. The owner can still read one,
+   switch it off and delete it — what they cannot do is make another. */
 function promotionShape(row) {
   return {
     id: row.id,
     code: row.code,
-    type: row.type,
     title: row.title,
     description: row.description,
     discount_percent: row.discount_percent,
     discount_amount: row.discount_amount,
-    original_price: row.original_price,
-    sale_price: row.sale_price,
-    service_ids: parseJsonArray(row.service_ids),
     image: row.image,
     starts_at: row.starts_at,
     ends_at: row.ends_at,
@@ -518,6 +516,9 @@ async function salonShape(row) {
     lead_time_min: row.lead_time_min,
     cancel_cutoff_hours: row.cancel_cutoff_hours,
     cancel_policy_text: row.cancel_policy_text,
+    // Whether the owner wants the 20% welcome code. The console reads it back so the box
+    // shows what is stored rather than what was last typed into it.
+    welcome_promo_opt_in: row.welcome_promo_opt_in,
     social_links: await socialLinksForSalon(row.id),
     created_at: row.created_at,
   };
@@ -2900,23 +2901,16 @@ const selectSalonPromotions = db.prepare(
   'SELECT * FROM promotions WHERE salon_id = ? ORDER BY starts_at DESC, id DESC',
 );
 const selectOwnedPromotion = db.prepare('SELECT * FROM promotions WHERE id = ? AND salon_id = ?');
+/* 'discount' is written as a literal rather than taken from the request: OAK runs one
+   kind of offer, a percentage off this salon's menu for a window it names. The two other
+   values the column allows were a bundle price and a countdown, each of which needed a
+   card of its own on three pages to say anything true about it. */
 const insertPromotion = db.prepare(`
   INSERT INTO promotions
-    (salon_id, code, type, title, description, discount_percent, discount_amount,
-     original_price, sale_price, service_ids, image, starts_at, ends_at, active)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    (salon_id, code, type, title, description, discount_percent, image, starts_at, ends_at, active)
+  VALUES (?, ?, 'discount', ?, ?, ?, ?, ?, ?, 1)
 `);
 const deletePromotion = db.prepare('DELETE FROM promotions WHERE id = ? AND salon_id = ?');
-
-/** service_ids is a JSON TEXT column, so the array is stringified at the boundary. */
-function requireServiceIdList(value, label) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  return JSON.stringify(
-    requireArray(value, label).map((id) => requireId(id, 'Mã dịch vụ không hợp lệ.')),
-  );
-}
 
 /**
  * A code of the salon's own choosing, minus the one shape it may not choose: the welcome
@@ -2939,14 +2933,9 @@ function requirePromotionCode(value) {
 
 const PROMOTION_COLUMNS = {
   title: (value) => requireText(value, 'tên ưu đãi'),
-  type: (value) => requireOneOf(value, PROMOTION_TYPES, 'Loại ưu đãi không hợp lệ.'),
   description: (value) => optionalText(value, 'Mô tả'),
   code: (value) => requirePromotionCode(value),
   discount_percent: (value) => optionalCount(value, 'Phần trăm giảm giá'),
-  discount_amount: (value) => optionalCount(value, 'Số tiền giảm'),
-  original_price: (value) => optionalCount(value, 'Giá gốc'),
-  sale_price: (value) => optionalCount(value, 'Giá ưu đãi'),
-  service_ids: (value) => requireServiceIdList(value, 'Danh sách dịch vụ'),
   image: (value) => optionalMediaUrl(value, 'Ảnh ưu đãi'),
   starts_at: (value) => requireDate(value, 'Ngày bắt đầu'),
   ends_at: (value) => requireDate(value, 'Ngày kết thúc'),
@@ -2963,10 +2952,14 @@ function requirePromotionRange(startsAt, endsAt) {
 /**
  * Let the UNIQUE index decide the duplicate case rather than a pre-check, the same
  * way registration does — a SELECT-then-INSERT would still lose the race.
+ *
+ * The index is on (salon_id, code), so this can only ever fire on a code THIS salon is
+ * already using; the message says so rather than blaming a stranger, which is what the
+ * old table-wide constraint made it do.
  */
 function asCodeTaken(error) {
-  if (error.code === '23505' && error.constraint === 'promotions_code_key') {
-    return httpError(409, 'CODE_TAKEN', 'Mã ưu đãi này đã được sử dụng.');
+  if (error.code === '23505' && error.constraint === 'promotions_salon_id_code_key') {
+    return httpError(409, 'CODE_TAKEN', 'Salon của bạn đang dùng mã này cho một ưu đãi khác.');
   }
   return error;
 }
@@ -2999,14 +2992,9 @@ router.post('/promotions', async (req, res, next) => {
           await insertPromotion.run(
             salon.id,
             PROMOTION_COLUMNS.code(body.code),
-            PROMOTION_COLUMNS.type(body.type),
             PROMOTION_COLUMNS.title(body.title),
             PROMOTION_COLUMNS.description(body.description),
             PROMOTION_COLUMNS.discount_percent(body.discount_percent),
-            PROMOTION_COLUMNS.discount_amount(body.discount_amount),
-            PROMOTION_COLUMNS.original_price(body.original_price),
-            PROMOTION_COLUMNS.sale_price(body.sale_price),
-            PROMOTION_COLUMNS.service_ids(body.service_ids),
             PROMOTION_COLUMNS.image(body.image),
             startsAt,
             endsAt,
@@ -3402,6 +3390,7 @@ const SALON_COLUMNS = {
     requireOneOf(toChoice(value), CANCEL_CUTOFF_CHOICES, 'Hạn hủy không hợp lệ.'),
   cancel_policy_text: (value) => optionalLimitedText(value, 'Chính sách hủy', CANCEL_POLICY_MAX),
   published: (value) => requireFlag(value, 'Hiển thị trên OAK'),
+  welcome_promo_opt_in: (value) => requireFlag(value, 'Ưu đãi chào mừng'),
 };
 
 function parseSocialLinks(value) {
@@ -3551,6 +3540,15 @@ router.patch('/salon', async (req, res, next) => {
         for (const link of socialLinks) {
           await tx.run(INSERT_SALON_SOCIAL_LINK, salon.id, link.platform, link.url);
         }
+      }
+      /* Ticking the box is what mints the code, so the offer is live the moment the
+         owner asks for it rather than at some later boot. Unconditional because the mint
+         is: it reads the column this save has just written, and does nothing for a salon
+         that did not ask or that already holds a code. Unticking takes nothing back —
+         the code exists and customers may be holding it, so it is switched off in the
+         offers list like any other. */
+      if (Object.hasOwn(body, 'welcome_promo_opt_in')) {
+        await mintWelcomePromotion(tx, salon.id);
       }
       // Only the fields publishing depends on are worth re-checking. A listed salon
       // saving its phone number or its cancellation policy takes nothing away, and
