@@ -23,6 +23,9 @@ const partnerHtml = page('dang-nhap-doi-tac.html');
 const privacyHtml = page('bao-mat.html');
 const headerSource = fs.readFileSync(path.join(root, 'ui/assets/js/oak-header.js'), 'utf8');
 const authSource = fs.readFileSync(path.join(root, 'server/src/routes/auth.js'), 'utf8');
+// The counter itself moved to a lib of its own once a second route needed it; the ALLOWANCE
+// this suite is about is still auth.js's.
+const rateLimitSource = fs.readFileSync(path.join(root, 'server/src/lib/rate-limit.js'), 'utf8');
 const middlewareSource = fs.readFileSync(path.join(root, 'server/src/middleware/auth.js'), 'utf8');
 const schemaSource = fs.readFileSync(path.join(root, 'server/src/db.js'), 'utf8');
 const mailerSource = fs.readFileSync(path.join(root, 'server/src/lib/mailer.js'), 'utf8');
@@ -773,13 +776,13 @@ test('the throttle refuses the work but never changes the answer', () => {
 });
 
 test('the window is a fixed 15 minutes at three attempts, swept without a timer', () => {
-  assert.match(authSource, /const RATE_WINDOW_MS = 15 \* 60 \* 1000;/);
+  assert.match(rateLimitSource, /const RATE_WINDOW_MS = 15 \* 60 \* 1000;/);
   assert.match(authSource, /const FORGOT_MAX_ATTEMPTS = 3;/);
   // Spent, not exceeded: the attempt is recorded and the ceiling read off what it now holds.
-  assert.match(authSource, /return countAttempt\(attempts, key\) > max;/);
+  assert.match(rateLimitSource, /return countAttempt\(attempts, key\) > max;/);
   // Pruned inside the call, so an idle process keeps nothing alive.
-  assert.match(authSource, /attempts\.delete\(seen\)/);
-  assert.doesNotMatch(authSource, /setInterval|setTimeout/);
+  assert.match(rateLimitSource, /attempts\.delete\(seen\)/);
+  assert.doesNotMatch(rateLimitSource, /setInterval|setTimeout/);
 });
 
 test('in production the reply goes out before the write, so timing says nothing', () => {

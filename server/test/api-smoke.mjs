@@ -4718,6 +4718,45 @@ async function groupAccountLifecycle() {
     await prober.fetch('/api/users/me', { method: 'PATCH', json: { name: 'Nguoi Do So' } }),
     'PATCH /api/users/me with no number in it, after the allowance is spent',
   );
+
+  /* -- and resubmitting one's own number is not asking anything ---------------- */
+
+  /* The regression this exists for. ho-so-ca-nhan.html and cai-dat-salon.html both post the
+     whole profile object, so the number already stored rides along on every save — and an
+     allowance charged on "the body carries a phone" would have refused the sixth save of an
+     AVATAR. Six saves, one number, none of them new: all six go through. Its own account,
+     whose per-account five are untouched, so a 429 here could only mean the resubmitted number
+     was being counted as a question. */
+  const resaver = new Session();
+  ok(
+    await resaver.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi Luu Lai',
+        email: `resave${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'register the account that saves its profile over and over',
+  );
+  const settledPhone = `0774${String(stamp).slice(-6)}`;
+  ok(
+    await resaver.fetch('/api/users/me', { method: 'PATCH', json: { phone: settledPhone } }),
+    'PATCH /api/users/me (the one number this account will keep)',
+  );
+  for (let save = 1; save <= 6; save += 1) {
+    // Written the way the page would send it back, spaces and all: what is compared is the
+    // number, not the spelling, so a form echoing '0774 123 456' is not a change either.
+    const echoed = save % 2 === 0 ? settledPhone : `${settledPhone.slice(0, 4)} ${settledPhone.slice(4)}`;
+    ok(
+      await resaver.fetch('/api/users/me', {
+        method: 'PATCH',
+        json: { name: `Nguoi Luu Lai ${save}`, phone: echoed },
+      }),
+      `PATCH /api/users/me resubmitting the stored number, save ${save}`,
+    );
+  }
 }
 
 /* ============================================================================
@@ -10070,26 +10109,56 @@ async function groupUploadQuota() {
 }
 
 /* ============================================================================
- * 21 — the sign-up door, rationed
+ * 21 — the two doors that answer "is this number taken", rationed together
  *
- * LAST IN THE SUITE, and it has to be. This group deliberately spends the whole per-IP
- * allowance for registrations carrying a phone number, and every request in this file comes
- * from 127.0.0.1 — so any group ordered after it would meet a 429 on the first sign-up it
- * tried with a number in the body. The allowance is a fixed fifteen-minute window held in
- * the server's own memory; nothing here can give it back, and the process ending is what
- * clears it. Add new groups ABOVE this one in main().
+ * LAST IN THE SUITE, and it has to be. This group deliberately spends the whole per-address
+ * allowance for asking whether a phone number is taken, and every request in this file comes
+ * from 127.0.0.1 — so any group ordered after it would meet a 429 on the first sign-up or
+ * profile save it tried with a number in it. The allowance is a fixed fifteen-minute window
+ * held in the server's own memory; nothing here can give it back, and the process ending is
+ * what clears it. Add new groups ABOVE this one in main().
+ *
+ * Skipped entirely against a server this suite did not start (OAK_TEST_BASE_URL): spending a
+ * shared server's allowance would lock real sign-ups out of it for the next quarter of an
+ * hour, and the window would still be shut when the next run of this suite arrived.
  * ========================================================================= */
 
 async function groupRegisterThrottle() {
+  if (EXTERNAL_URL) {
+    skip('the sign-up throttle: spending a shared server’s allowance would lock its own users out');
+    return;
+  }
+
   const stamp = Date.now();
   const scanNumber = (attempt) => `0779${String(stamp).slice(-4)}${String(attempt).padStart(2, '0')}`;
+
+  /* Opened BEFORE the budget is spent, and with no number on it, so that the last case below
+     has an account to save from: registering it afterwards would be fine (sign-ups without a
+     number are never rationed) but saving a number from a brand-new account would not prove
+     the budget is shared — it would prove only that this account had never saved one. */
+  const saver = new Session();
+  ok(
+    await saver.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi Luu So',
+        email: `saver${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'register the account that will try to save a number after the budget is gone',
+  );
 
   /* Walked one sign-up at a time until the door shuts. The ceiling is not asserted as a
      number: what has to be true is that a run of guesses ends somewhere, and reading the
      constant back out of the server would only assert that it says what it says. */
   let allowed = 0;
   let refused = null;
-  for (let attempt = 1; attempt <= 20 && refused === null; attempt += 1) {
+  // Walked well past the ceiling rather than up to it: what the earlier groups have already
+  // spent of the shared budget is not this group’s business to know, and a loop that stopped
+  // at the ceiling itself would pass or fail on that arithmetic.
+  for (let attempt = 1; attempt <= 40 && refused === null; attempt += 1) {
     const response = await new Session().fetch('/api/auth/register', {
       method: 'POST',
       json: {
@@ -10141,6 +10210,22 @@ async function groupRegisterThrottle() {
     429,
     'TOO_MANY_ATTEMPTS',
     'a number tried again after an unrationed sign-up went through',
+  );
+
+  /* And the other door onto the same question is shut by the same budget — the point of
+     sharing it. Rationed per account alone, this would be free: sign-ups with no number are
+     unlimited, so a script mints a throwaway account, spends its own five saves probing
+     numbers, discards it and opens another. This account has spent none of its own five. */
+  expectError(
+    await saver.fetch('/api/users/me', { method: 'PATCH', json: { phone: scanNumber(98) } }),
+    429,
+    'TOO_MANY_ATTEMPTS',
+    'saving a new number from an account that has never saved one, on a spent address',
+  );
+  // The rest of the profile is still savable: what is spent is the question, not the form.
+  ok(
+    await saver.fetch('/api/users/me', { method: 'PATCH', json: { name: 'Nguoi Luu Ten' } }),
+    'PATCH /api/users/me with no number in it, from the same spent address',
   );
 }
 

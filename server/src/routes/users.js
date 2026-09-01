@@ -5,6 +5,9 @@ import express from 'express';
 import { db } from '../db.js';
 import { isDistrictInCity } from '../lib/locations.js';
 import { isValidPhone, normalisePhone, phoneHeldByAnother } from '../lib/phone.js';
+// The counter every allowance in this codebase is kept with, and the per-address budget for
+// asking whether a number is taken — shared with the sign-up form, which asks the same thing.
+import { phoneLookupLimited, rateLimited } from '../lib/rate-limit.js';
 import { fromMinutes, nowMinutes, todayISO } from '../lib/time.js';
 import { isSafeMediaUrl } from '../lib/urls.js';
 import {
@@ -14,9 +17,6 @@ import {
   requireAuth,
   selectPublicUser,
 } from '../middleware/auth.js';
-// The same fixed-window counter /login and /register are rationed by, borrowed rather than
-// copied: this route needs one for the same reason /register does.
-import { rateLimited } from './auth.js';
 
 const router = express.Router();
 
@@ -24,8 +24,8 @@ const router = express.Router();
 // deliberately absent: changing those is not a profile edit.
 const EDITABLE_COLUMNS = ['name', 'phone', 'avatar', 'city', 'district'];
 
-// The allowance behind the 429 in PATCH /me, in the same quarter-hour window auth.js keeps.
-// Its own Map, so saving a number never spends a sign-in and a sign-in never spends a save.
+// The per-account half of the 429 in PATCH /me, in the quarter-hour window lib/rate-limit.js
+// keeps. Its own Map, so saving a number never spends a sign-in and a sign-in never spends a save.
 const PHONE_CHANGE_MAX_ATTEMPTS = 5;
 const phoneChangeAttempts = new Map();
 
@@ -80,14 +80,41 @@ router.patch('/me', requireAuth, async (req, res, next) => {
       throw httpError(400, 'VALIDATION_ERROR', 'Không có thông tin nào để cập nhật.');
     }
 
-    /* Five changes of number in the quarter of an hour, keyed on the account rather than the
-       caller: it is the account that gets the answer. A profile save carrying a number is the
-       other way to ask "does anybody here answer to this?", and it is the easier one to
-       automate — one sign-in and a loop, no new account per guess. The ceiling is what a
-       person editing their own profile could never meet; the reply is the same 429 the sign-in
-       throttle gives, because it is the same refusal. Charged after the field has been
-       validated above, so somebody mistyping their own number is not locked out for it. */
-    if (body.phone && rateLimited(phoneChangeAttempts, req.user.id, PHONE_CHANGE_MAX_ATTEMPTS)) {
+    /* A number that is not actually changing asks nothing and costs nothing. It has to be
+       said explicitly, because both profile forms post the whole object: ho-so-ca-nhan.html and
+       cai-dat-salon.html resubmit the stored number on every save, so charging on "the body
+       carries a phone" would ration saving one's own avatar. Both sides are folded before they
+       are compared — what is stored was written folded by this route and by the sign-up form,
+       but seeded rows still carry the spaces they were typed with, and a salon owner saving her
+       own seeded number is not asking anybody anything. */
+    const claimedPhone = 'phone' in body && body.phone ? body.phone : null;
+    const changedPhone =
+      claimedPhone && normalisePhone(claimedPhone) !== normalisePhone(req.user.phone)
+        ? claimedPhone
+        : null;
+
+    /* Two allowances, and a new number spends both.
+
+       The shared one first, keyed on the ADDRESS and spent from the same budget a sign-up
+       carrying a number spends: this door answers the identical question (409 PHONE_IN_USE),
+       and an allowance charged only to the account would be theatre — sign-ups without a
+       number are free, so a script mints a throwaway account, spends its five, discards it and
+       opens another. Charging the address is what makes that loop cost what doing it through
+       the sign-up form costs.
+
+       Then five per ACCOUNT, which is the cheaper limit and catches the lazier version of the
+       same loop from one sign-in. It is far above what a person editing their own profile could
+       ever meet. Both are charged after the field has been validated above, so somebody
+       mistyping their own number is not locked out for it. */
+    if (changedPhone && phoneLookupLimited(req.ip)) {
+      console.warn(`profile: too many phone numbers tried from ${req.ip}`);
+      throw httpError(
+        429,
+        'TOO_MANY_ATTEMPTS',
+        'Bạn đã thử quá nhiều số điện thoại. Vui lòng đợi 15 phút rồi thử lại.',
+      );
+    }
+    if (changedPhone && rateLimited(phoneChangeAttempts, req.user.id, PHONE_CHANGE_MAX_ATTEMPTS)) {
       console.warn(`profile: too many phone numbers tried by user ${req.user.id}`);
       throw httpError(
         429,
@@ -100,9 +127,9 @@ router.patch('/me', requireAuth, async (req, res, next) => {
       // Refused before the write, not after it: storing a number a live account already
       // answers to would leave two rows folding to one number — the console could no
       // longer tell whose walk-in is whose, and neither holder would be recognised at the
-      // counter again.
-      const claimedPhone = 'phone' in body && body.phone ? body.phone : null;
-      if (claimedPhone && (await phoneHeldByAnother(tx, req.user.id, claimedPhone))) {
+      // counter again. Asked only of a number that is actually changing: resubmitting one's
+      // own stored number is not a second account claiming it.
+      if (changedPhone && (await phoneHeldByAnother(tx, req.user.id, changedPhone))) {
         throw httpError(
           409,
           'PHONE_IN_USE',

@@ -20,6 +20,7 @@ const usersSource = source('server/src/routes/users.js');
 const phoneSource = source('server/src/lib/phone.js');
 const middlewareSource = source('server/src/middleware/auth.js');
 const partnerSource = source('server/src/routes/partner.js');
+const rateLimitSource = source('server/src/lib/rate-limit.js');
 const schemaSource = source('server/src/db.js');
 
 /** The handler of one route, up to whatever comes after it. */
@@ -97,16 +98,20 @@ test('the permission can be withdrawn, and only ever as a boolean', () => {
 
 // ------------------------------------------------------------------ login throttle
 
-/* The throttle itself, lifted out of auth.js and driven: what matters is what it counts,
-   not how it is spelled. It closes over one constant, which comes with it — and it is three
-   functions now rather than one: countAttempt does the recording, rateLimited is the record-
+/* The throttle itself, lifted out of lib/rate-limit.js and driven: what matters is what it
+   counts, not how it is spelled. It closes over one constant, which comes with it — and it is
+   three functions rather than one: countAttempt does the recording, rateLimited is the record-
    and-test the login and reset paths have always called, and refundAttempt gives one back for
-   the caller that has to charge before it knows what the call will cost. */
+   the caller that has to charge before it knows what the call will cost.
+
+   It reads from the lib rather than from auth.js because that is where it now lives: one
+   counter for every door in the app, so a fix to the sweep or the window is made once. Every
+   ALLOWANCE is still read out of the route that sets it, below. */
 const { rateLimited, refundAttempt, RATE_WINDOW_MS } = vm.runInNewContext(
-  `${authSource.match(/const RATE_WINDOW_MS = .*;/)[0]}
-   ${declaration(authSource, 'function countAttempt(')}
-   ${declaration(authSource, 'function rateLimited(')}
-   ${declaration(authSource, 'function refundAttempt(')}
+  `${rateLimitSource.match(/const RATE_WINDOW_MS = .*;/)[0]}
+   ${declaration(rateLimitSource, 'function countAttempt(')}
+   ${declaration(rateLimitSource, 'function rateLimited(')}
+   ${declaration(rateLimitSource, 'function refundAttempt(')}
    ({ rateLimited, refundAttempt, RATE_WINDOW_MS });`,
 );
 
@@ -150,7 +155,7 @@ test('the window reopens, and stale keys are swept by the call that reopens it',
   // idle process.
   assert.equal(attempts.has('idle|9.9.9.9'), false);
   assert.equal(attempts.size, 1);
-  assert.doesNotMatch(authSource, /setInterval|setTimeout/);
+  assert.doesNotMatch(rateLimitSource, /setInterval|setTimeout/);
 });
 
 /* POST /api/auth/staff/register's tokenless path, reduced to its throttle and driven on the
@@ -428,7 +433,7 @@ test('and both ways in refuse it out loud rather than storing it quietly', () =>
   assert.ok(create.indexOf('PHONE_IN_USE') < create.indexOf('INSERT_USER'), 'before the write');
 
   const patch = handler(usersSource, "router.patch('/me'", 'const selectPasswordHash');
-  assert.match(patch, /await phoneHeldByAnother\(tx, req\.user\.id, claimedPhone\)/);
+  assert.match(patch, /await phoneHeldByAnother\(tx, req\.user\.id, changedPhone\)/);
   assert.match(patch, /409,\s*'PHONE_IN_USE'/);
   assert.ok(patch.indexOf('PHONE_IN_USE') < patch.indexOf('UPDATE users SET'), 'before the write');
 });
@@ -440,36 +445,62 @@ test('and neither door will answer that question many times over', () => {
      the question, not on the door: a registration with no number in it spends nothing, which
      is what keeps a salon opening accounts for its own staff (and this suite) out of it. */
   const create = handler(authSource, 'async function createAccount(', "router.post('/register'");
-  assert.match(
-    create,
-    /if \(phone && rateLimited\(registerPhoneAttempts, req\.ip, REGISTER_PHONE_MAX_ATTEMPTS\)\)/,
-  );
-  assert.match(authSource, /const REGISTER_PHONE_MAX_ATTEMPTS = 12;/);
-  assert.match(authSource, /const registerPhoneAttempts = new Map\(\);/, 'its own tally');
+  assert.ok(create.includes('if (phone && phoneLookupLimited(req.ip))'));
   assert.match(create, /429,\s*'TOO_MANY_ATTEMPTS'/);
   // Vietnamese, like every other message a visitor can be shown.
   assert.match(create, /Vui lòng đợi 15 phút rồi thử lại/);
   // Charged before the ~90ms of hashing, so scanning never gets bcrypt for free...
-  assert.ok(create.indexOf('registerPhoneAttempts') < create.indexOf('bcrypt.hash'));
+  assert.ok(create.indexOf('phoneLookupLimited') < create.indexOf('bcrypt.hash'));
   // ...and before the refusal it rations, or the refusal would still be free.
-  assert.ok(create.indexOf('registerPhoneAttempts') < create.indexOf('PHONE_IN_USE'));
+  assert.ok(create.indexOf('phoneLookupLimited(req.ip)') < create.indexOf("'PHONE_IN_USE'"));
 
-  /* The same question asked from inside an account, which is the easier one to automate: one
-     sign-in and a loop, no new account per guess. Keyed on the account, because that is who
-     gets the answer. */
+  /* ONE budget across both doors, and this is the assertion that matters most here. The
+     profile field answers the same question the sign-up form does, and sign-ups without a
+     number are free — so an allowance charged only to the account would be theatre: mint a
+     throwaway account, spend its five, discard it, open another. Both are charged to the
+     ADDRESS, out of a tally neither route owns. */
+  assert.match(rateLimitSource, /const PHONE_LOOKUP_MAX_ATTEMPTS = 30;/);
+  assert.match(rateLimitSource, /const phoneLookupAttempts = new Map\(\);/);
+  assert.ok(rateLimitSource.includes('rateLimited(phoneLookupAttempts, ip, PHONE_LOOKUP_MAX_ATTEMPTS)'));
   const patch = handler(usersSource, "router.patch('/me'", 'const selectPasswordHash');
-  assert.match(
-    patch,
-    /if \(body\.phone && rateLimited\(phoneChangeAttempts, req\.user\.id, PHONE_CHANGE_MAX_ATTEMPTS\)\)/,
+  assert.ok(patch.includes('if (changedPhone && phoneLookupLimited(req.ip))'));
+  // And the account's own five on top of it, which is the cheaper limit of the two.
+  assert.ok(
+    patch.includes(
+      'if (changedPhone && rateLimited(phoneChangeAttempts, req.user.id, PHONE_CHANGE_MAX_ATTEMPTS))',
+    ),
   );
   assert.match(usersSource, /const PHONE_CHANGE_MAX_ATTEMPTS = 5;/);
   assert.match(usersSource, /const phoneChangeAttempts = new Map\(\);/);
   assert.match(patch, /429,\s*'TOO_MANY_ATTEMPTS'/);
-  assert.ok(patch.indexOf('phoneChangeAttempts') < patch.indexOf('PHONE_IN_USE'));
-  // One counter for the whole app: users.js borrows auth.js's rather than keeping a copy of
-  // the sweep and the window that would have to be fixed twice.
-  assert.match(authSource, /export function rateLimited\(/);
-  assert.match(usersSource, /import \{ rateLimited \} from '\.\/auth\.js';/);
+  assert.ok(patch.indexOf('phoneLookupLimited(req.ip)') < patch.indexOf("'PHONE_IN_USE'"));
+
+  // One counter for the whole app, in a lib both routes import: a route module is nobody's
+  // library, and a second copy of the sweep would have to be fixed twice.
+  assert.ok(
+    authSource.includes("import { phoneLookupLimited, rateLimited, refundAttempt } from '../lib/rate-limit.js';"),
+  );
+  assert.ok(usersSource.includes("import { phoneLookupLimited, rateLimited } from '../lib/rate-limit.js';"));
+  assert.ok(!usersSource.includes("from './auth.js'"), 'users.js imports no route module');
+  assert.doesNotMatch(authSource, /function (countAttempt|rateLimited|refundAttempt)\(/);
+});
+
+test('and a number that is not changing is not a question at all', () => {
+  /* ho-so-ca-nhan.html and cai-dat-salon.html both post the whole profile object, so the
+     stored number rides along on every save. Charged on "the body carries a phone", the sixth
+     save of an AVATAR would have been refused — and the 409 lookup would have run against the
+     saver's own number every time. Both are gated on the value actually being new. */
+  const patch = handler(usersSource, "router.patch('/me'", 'const selectPasswordHash');
+  assert.match(
+    patch,
+    /normalisePhone\(claimedPhone\) !== normalisePhone\(req\.user\.phone\)/,
+    'both sides folded: a seeded row still holds the spaces it was typed with',
+  );
+  // Every one of the three gates reads the same decision, rather than re-deriving it.
+  assert.equal((patch.match(/changedPhone &&/g) || []).length, 3);
+  assert.ok(patch.includes('if (changedPhone && (await phoneHeldByAnother(tx, req.user.id, changedPhone)))'));
+  // req.user carries the stored number for the comparison; middleware/auth.js selects it.
+  assert.match(middlewareSource, /SELECT id, name, email, phone,/);
 });
 
 test('the number is stored folded both ways in, and indexed the way it is compared', () => {

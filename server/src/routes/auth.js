@@ -9,6 +9,10 @@ import { notifyUser } from '../lib/notify.js';
 // One rule for phone numbers, shared with the profile update and the console lookup:
 // every path that attaches a number to an account folds it the same way.
 import { isValidPhone, normalisePhone, phoneHeldByAnother } from '../lib/phone.js';
+// The fixed-window counter behind every allowance below, and the one tally that is not
+// this file's alone: PATCH /api/users/me answers the same question a sign-up carrying a
+// number does, so both doors are charged to the same per-address budget.
+import { phoneLookupLimited, rateLimited, refundAttempt } from '../lib/rate-limit.js';
 import {
   CLAIM_STAFF_ROW,
   SPEND_STAFF_INVITE,
@@ -64,12 +68,8 @@ const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
    can keep killing the newest link a victim was sent, locking them out of their own reset;
    /login needs one because guessing a password is otherwise free. Fixed window, keyed on
    the address AND the caller, so one noisy client cannot deny every address and one address
-   cannot be attacked from a single client.
-
-   This is a mitigation, not a rate limiter: it lives in one process's memory, resets on
-   deploy, and a botnet with many source addresses walks past it. Production wants a real
-   limiter at the infrastructure layer or a shared store. */
-const RATE_WINDOW_MS = 15 * 60 * 1000;
+   cannot be attacked from a single client. The counter itself, and the window every tally
+   here shares, is lib/rate-limit.js. */
 const FORGOT_MAX_ATTEMPTS = 3;
 const forgotAttempts = new Map();
 // Ten in a quarter of an hour: far above a person mistyping their own password, far below
@@ -99,74 +99,18 @@ const invitePreviewAttempts = new Map();
 // name or its missing tick published nothing at all.
 const STAFF_REGISTER_MAX_ATTEMPTS = 5;
 const staffRegisterAttempts = new Map();
-/* And twelve registrations CARRYING A PHONE NUMBER in the quarter of an hour, keyed on the
-   caller. Only the phone-bearing ones are counted, and that is the whole design: a
-   registration with no number in it tells the caller nothing they did not already know, while
-   one with a number answers a question they had no right to ask — 409 PHONE_IN_USE means "yes,
-   somebody here answers to this number", and nothing else on the site will say so. Left
-   uncounted, a script walks a contact list through this form and comes out the other side
-   knowing which of a person's friends hold an OAK account.
+/* And a registration CARRYING A PHONE NUMBER spends from a budget that is not this file's:
+   lib/rate-limit.js holds it, and PATCH /api/users/me spends from the same one, because the
+   two doors answer the identical question. Only the phone-bearing sign-ups are counted, and
+   that is the whole design: a registration with no number in it tells the caller nothing they
+   did not already know, while one with a number answers a question they had no right to ask —
+   409 PHONE_IN_USE means "yes, somebody here answers to this number", and nothing else on the
+   site will say so. Left uncounted, a script walks a contact list through this form and comes
+   out the other side knowing which of a person's friends hold an OAK account.
 
-   Counting only the phone-bearing ones is also what keeps the ceiling honest for everybody
+   Counting only the phone-bearing ones is what keeps the allowance affordable for everybody
    else: sign-ups with no number — the smoke suite's dozens of them, a salon opening accounts
-   for its own staff — spend nothing here and can never be locked out by somebody else's
-   scanning. Twelve is comfortably more than any one person or test run has ever needed, and
-   far short of a contact list. */
-const REGISTER_PHONE_MAX_ATTEMPTS = 12;
-const registerPhoneAttempts = new Map();
-
-/** Record one attempt for `key` in `attempts`, and hand back what it has spent in the window. */
-function countAttempt(attempts, key) {
-  const now = Date.now();
-  // Swept here rather than on a timer: the Map is only ever walked on a call, so an idle
-  // process holds nothing and there is no interval keeping it awake. Whatever survives the
-  // sweep is in-window by definition.
-  for (const [seen, entry] of attempts) {
-    if (now - entry.windowStart >= RATE_WINDOW_MS) {
-      attempts.delete(seen);
-    }
-  }
-
-  const entry = attempts.get(key);
-  if (!entry) {
-    attempts.set(key, { count: 1, windowStart: now });
-    return 1;
-  }
-  entry.count += 1;
-  return entry.count;
-}
-
-/** Record one attempt for `key` in `attempts`; true once `max` in the window is spent.
- *
- * Exported for routes/users.js, which rations changes of phone number on the same shape and
- * would otherwise carry a second copy of the counter above it. One implementation, so a fix
- * to the sweep or the window never has to be made twice.
- */
-export function rateLimited(attempts, key, max) {
-  return countAttempt(attempts, key) > max;
-}
-
-/* Give back one attempt recorded for `key`, for a caller that took the charge before it knew
-   what the call would cost. The free-registration allowance rations PUBLISHED PAGES, and it
-   cannot wait to find out whether one appeared before charging: fifty requests arriving
-   together would all read a ceiling none of them had charged yet and all be let through. So it
-   charges at the door, which is the only thing a single-threaded event loop can do atomically,
-   and puts the charge back the moment it is clear no page came of it.
-
-   The entry can be gone by now — the window closed under a slow request and countAttempt swept
-   it — and there is nothing to give back then; the tally it belonged to is over. Removed at
-   zero rather than left at it, so an address that only ever mistypes holds nothing here and
-   starts its next window fresh. */
-function refundAttempt(attempts, key) {
-  const entry = attempts.get(key);
-  if (!entry) {
-    return;
-  }
-  entry.count -= 1;
-  if (entry.count <= 0) {
-    attempts.delete(key);
-  }
-}
+   for its own staff — spend nothing and can never be locked out by somebody else's scanning. */
 
 // Comparing against this on the miss path keeps a failed login as slow as a
 // successful one, so response time cannot be used to enumerate accounts.
@@ -317,7 +261,7 @@ async function createAccount(req, res, next, forcedRole, afterInsert) {
        phone-bearing registration is charged whatever it goes on to answer — the 409 further
        down is the answer being rationed, so a refusal that did not count would leave the
        oracle wide open. */
-    if (phone && rateLimited(registerPhoneAttempts, req.ip, REGISTER_PHONE_MAX_ATTEMPTS)) {
+    if (phone && phoneLookupLimited(req.ip)) {
       console.warn(`register: too many phone numbers tried from ${req.ip}`);
       throw httpError(
         429,

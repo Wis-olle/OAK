@@ -20,6 +20,7 @@ const source = (...parts) => fs.readFileSync(path.join(root, 'src', ...parts), '
 const authSource = source('routes', 'auth.js');
 const dbSource = source('db.js');
 const partnerSource = source('routes', 'partner.js');
+const rateLimitSource = source('lib', 'rate-limit.js');
 const staffMeSource = source('routes', 'staff-me.js');
 const usersSource = source('routes', 'users.js');
 const ui = (name) => fs.readFileSync(path.join(root, '..', 'ui', name), 'utf8');
@@ -1935,22 +1936,23 @@ test('a name too long to be addressed is refused at the door, and trimmed before
 
 test('opening a page with no invitation behind it is rationed; redeeming a link is not', () => {
   /* Its own tally and its own ceiling, beside the others in this file, because the calculus is
-     not theirs. /register is throttled nowhere at all and can afford to be — a run of it leaves
-     hashes and customer rows nobody but their holder ever sees. A successful call on the free
+     not theirs. /register rations only the sign-ups carrying a phone number, and can afford
+     to — a run of it leaves hashes and customer rows nobody but their holder ever sees. A successful call on the free
      staff path leaves a PUBLISHED page, open to a search engine, under whatever name was typed.
      So what abuse buys here is public pages carrying OAK's name rather than guesses at a
      password, and five in the quarter of an hour is far more than one person opening one
      career. */
   assert.match(authSource, /const STAFF_REGISTER_MAX_ATTEMPTS = 5;/);
   assert.match(authSource, /const staffRegisterAttempts = new Map\(\);/);
-  // The same fixed window as the rest, so there is one number to reason about.
-  assert.match(authSource, /const RATE_WINDOW_MS = 15 \* 60 \* 1000;/);
+  // The same fixed window as the rest, so there is one number to reason about — it lives in
+  // lib/rate-limit.js now, with the counter every door in the app shares.
+  assert.match(rateLimitSource, /const RATE_WINDOW_MS = 15 \* 60 \* 1000;/);
 
   /* The counting half lifted out and a refund beside it, with the three callers that came
      before untouched: rateLimited still counts and tests in one call, because a bad login and a
      reset request are worth exactly what they cost whether or not they succeed. */
-  assert.match(authSource, /function rateLimited\(attempts, key, max\) \{\s*\n\s*return countAttempt\(attempts, key\) > max;\s*\n\}/);
-  const refund = declaration(authSource, 'function refundAttempt(');
+  assert.match(rateLimitSource, /function rateLimited\(attempts, key, max\) \{\s*\n\s*return countAttempt\(attempts, key\) > max;\s*\n\}/);
+  const refund = declaration(rateLimitSource, 'function refundAttempt(');
   assert.match(refund, /entry\.count -= 1;/);
   // A window that closed under a slow request leaves nothing to give back, and the entry is
   // removed at zero rather than left sitting at it.
