@@ -251,7 +251,19 @@
       'Are you sure you want to cancel appointment $1? This cannot be undone.'],
     [/^Đã hủy lịch hẹn (.+)\.$/, 'Appointment $1 cancelled.'],
     [/^Đã cập nhật lịch hẹn (.+)\.$/, 'Appointment $1 updated.'],
-    [/^Đã tạo lịch hẹn (.+)\.$/, 'Appointment $1 created.'],
+    /* The saved-booking toast of the console calendar is two sentences: what became of the
+       hour, and — when a number typed at the counter did not attach to an account — what
+       became of the account. Each half is a sentence that page owns and the dictionary
+       answers on its own; only the pair is assembled at the moment of the save, so the tail
+       goes back through labelled() instead of this list carrying every combination. The code
+       is \S+ rather than .+ so the capture cannot swallow the sentence after it. */
+    [/^Đã tạo lịch hẹn (\S+)\.(?: (.+))?$/, function (all, code, note) {
+      return 'Appointment ' + code + ' created.' +
+        (note === undefined ? '' : ' ' + labelled(note));
+    }],
+    [/^(Lịch hẹn đã lưu, ngoài giờ mở cửa của salon\.) (.+)$/, function (all, saved, note) {
+      return labelled(saved) + ' ' + labelled(note);
+    }],
     // What a departure swept, in the one sentence each side is told it in. Both numbers are
     // the server's, so neither sentence can be a key. The salon owner is told who is holding
     // the hours nobody could take; the technician is told the same thing about the salon.

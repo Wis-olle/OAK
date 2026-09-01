@@ -179,6 +179,13 @@ const cases = [
     ['Đã hủy lịch hẹn OAK-12.', 'Appointment OAK-12 cancelled.'],
     ['Đã cập nhật lịch hẹn OAK-12.', 'Appointment OAK-12 updated.'],
     ['Đã tạo lịch hẹn OAK-12.', 'Appointment OAK-12 created.'],
+    // the same toast with the walk-in note behind it, in both of the shapes it is saved in
+    ['Đã tạo lịch hẹn OAK-12. Khách chưa từng hoàn tất lịch tại salon nên chưa gắn tài khoản.',
+        'Appointment OAK-12 created. This customer has never completed a visit at the salon, '
+        + 'so no account was attached.'],
+    ['Lịch hẹn đã lưu, ngoài giờ mở cửa của salon. Salon đã gắn tài khoản cho nhiều lịch vãng lai trong một giờ qua nên lịch này chưa gắn.',
+        'Appointment created outside the salon opening hours. The salon has attached accounts '
+        + 'to many walk-ins in the past hour, so this one was not attached.'],
     // what a departure swept, as the owner console says it and as the technician's page does
     ['3 lịch đã chuyển, 2 lịch cần bạn xử lý', '3 appointments moved, 2 need you to handle them'],
     ['1 lịch đã chuyển, 1 lịch cần bạn xử lý', '1 appointment moved, 1 needs you to handle it'],

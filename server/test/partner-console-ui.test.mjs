@@ -399,6 +399,45 @@ test('a booking made outside the salon hours is saved, and said out loud', async
   assert.doesNotMatch(calendarHtml, /warning === 'Giờ hẹn nằm ngoài/);
 });
 
+/* A number typed at the counter that named an account the salon has not earned the right to
+   write into: the booking is saved, unattached, and the counter is told why. */
+test('a walk-in the number did not attach says so in the page’s own words', async () => {
+  const state = calendar(async (path, options) => {
+    if (options && options.method === 'POST') {
+      const created = { id: 9, code: 'OAK-9', date: '2026-08-21', time: '09:00', status: 'confirmed', customer: { name: 'Khách vãng lai' } };
+      Object.defineProperty(created, 'meta', {
+        value: {
+          attach_code: 'NO_HISTORY',
+          attach_note: 'Khách chưa từng hoàn tất lịch tại salon nên chưa gắn tài khoản.',
+        },
+        enumerable: false,
+      });
+      return created;
+    }
+    if (path.endsWith('/history')) {
+      return [];
+    }
+    return withMeta([], { total: 0 });
+  });
+
+  state.resetForm();
+  state.form.service_id = '4';
+  state.form.time = '09:00';
+  await state.submitBooking();
+
+  const said = state.toasts.find((toast) => /OAK-9/.test(toast.message));
+  assert.equal(
+    said.message,
+    'Đã tạo lịch hẹn OAK-9. Khách chưa từng hoàn tất lịch tại salon nên chưa gắn tài khoản.',
+  );
+
+  /* Chosen on meta.attach_code, for the reason the hours line above it is: a sentence that
+     arrived from the server has no dictionary key, and welding one into a toast the rules
+     translate leaves half an English sentence with Vietnamese inside it. */
+  assert.match(calendarHtml, /OAK_ATTACH_NOTES\[meta\.attach_code\]/);
+  assert.doesNotMatch(calendarHtml, /meta\.attach_note/);
+});
+
 test('a walk-in with no hour is refused out loud, not swallowed', async () => {
   const calls = [];
   const state = calendar(async (path, options) => {

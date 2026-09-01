@@ -86,6 +86,8 @@
   "Chọn giờ trống": "Pick a free hour",
   "Chọn một giờ trống hoặc nhập giờ khác.": "Pick a free hour or enter another time.",
   "Lịch hẹn đã lưu, ngoài giờ mở cửa của salon.": "Appointment created outside the salon opening hours.",
+  "Khách chưa từng hoàn tất lịch tại salon nên chưa gắn tài khoản.": "This customer has never completed a visit at the salon, so no account was attached.",
+  "Salon đã gắn tài khoản cho nhiều lịch vãng lai trong một giờ qua nên lịch này chưa gắn.": "The salon has attached accounts to many walk-ins in the past hour, so this one was not attached.",
   "Hủy lịch hẹn này?": "Cancel this appointment?",
   "Lý do hủy": "Reason for cancelling",
   "Chọn lý do": "Choose a reason",

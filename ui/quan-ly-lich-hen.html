@@ -633,6 +633,16 @@
     };
     var OAK_WEEKDAY_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
+    /* Why a number typed at the counter did not put the booking into somebody's own OAK
+       list. The server names the reason and also says it in Vietnamese; the words below are
+       this page's own, because a sentence that arrives from the server is a sentence the
+       translator has no key for — it would sit in the middle of an English toast in
+       Vietnamese, or stop the toast around it from being recognised at all. */
+    var OAK_ATTACH_NOTES = {
+        NO_HISTORY: 'Khách chưa từng hoàn tất lịch tại salon nên chưa gắn tài khoản.',
+        TOO_MANY: 'Salon đã gắn tài khoản cho nhiều lịch vãng lai trong một giờ qua nên lịch này chưa gắn.',
+    };
+
     /* The console is a tab left open all day, so the pending queue is re-read on a timer.
        Only while somebody is looking at it: a hidden tab makes no request at all and
        catches up the moment it comes back into view. */
@@ -1476,9 +1486,11 @@
                 /* And why the number typed at the counter did not put this booking into
                    somebody's own OAK list. Appended rather than raised as a second message,
                    because only one is ever on screen at a time and the second would displace
-                   the first. The server's own sentence: it is the one that knows which of
-                   the reasons applied. */
-                return meta.attach_note ? line + ' ' + meta.attach_note : line;
+                   the first. Chosen on meta.attach_code for the same reason the line above is
+                   chosen on meta.warning_code: the sentence has to be one of this page's own
+                   to have an English twin. */
+                var note = OAK_ATTACH_NOTES[meta.attach_code];
+                return note ? line + ' ' + note : line;
             },
 
             // role="alert" reads it out; the caret has to follow, or a reader who tabs on
