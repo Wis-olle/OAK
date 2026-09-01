@@ -581,12 +581,17 @@
 </div>
 </section>
 <!-- Top-rated Salons Section (Bento/Asymmetric Layout) -->
-<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto order-1 md:order-2">
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto order-1 md:order-2" x-data="oakTopRatedSalons()">
 <div class="flex justify-between items-end mb-8 border-b border-outline-variant/30 pb-4">
-<h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary">Salon được đánh giá cao</h2>
+<!-- The heading is a claim about the list under it, so it waits for the list. sort=rating
+     orders by a rating that can be null for every row on a young platform, and "được đánh
+     giá cao" over three salons nobody has reviewed is the same kind of untruth featured=1
+     was. The confident wording stays while the skeleton is up, so nothing flickers on the
+     usual path — it only steps down once the answer is in and carries no rating at all. -->
+<h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary" x-text="heading()">Salon được đánh giá cao</h2>
 <a class="font-label-md text-label-md text-primary hover:text-secondary uppercase tracking-wider hidden md:block" href="ket-qua-tim-kiem.html">Xem tất cả</a>
 </div>
-<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter" x-data="oakTopRatedSalons()">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
 <!-- Load failure is its own state: the list is unknown, not empty -->
 <template x-if="error">
 <div class="md:col-span-12">
@@ -1051,6 +1056,13 @@
                 } finally {
                     this.loading = false;
                 }
+            },
+
+            /** What the strip may call itself, given what came back. */
+            heading() {
+                return this.loading || this.salons.some((salon) => Number(salon.rating) > 0)
+                    ? 'Salon được đánh giá cao'
+                    : 'Salon trên OAK';
             },
 
             salonUrl(salon) {

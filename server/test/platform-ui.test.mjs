@@ -148,6 +148,21 @@ test('on a phone the bookable salons come before the two-screen picture', () => 
   assert.match(home.slice(0, map), /<div class="flex flex-col gap-section-gap mb-section-gap">/);
 });
 
+test('the home strip only calls itself top-rated while something under it is rated', () => {
+  /* sort=rating orders by a rating that is null for every salon nobody has reviewed yet, so
+     on a young platform the strip can be three unrated names under a heading claiming they
+     were the best reviewed — the same untruth featured=1 told, arrived at a different way. */
+  const home = readUi('kham-pha.html');
+  const strip = home.slice(home.indexOf('function oakTopRatedSalons()'));
+  const heading = strip.slice(strip.indexOf('heading()'), strip.indexOf('salonUrl('));
+  assert.match(heading, /Salon được đánh giá cao/);
+  assert.match(heading, /Salon trên OAK/);
+  assert.match(heading, /Number\(salon\.rating\) > 0/);
+  // Confident while the skeleton is up, so the usual path never flickers down and back.
+  assert.match(heading, /this\.loading \|\|/);
+  assert.match(home, /<h2[^>]*x-text="heading\(\)"[^>]*>Salon được đánh giá cao<\/h2>/);
+});
+
 test('the console keeps a salon owner in the console', () => {
   for (const page of CONSOLE) {
     const source = readUi(page);

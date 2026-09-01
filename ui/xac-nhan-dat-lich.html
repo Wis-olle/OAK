@@ -167,7 +167,7 @@
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="payments">payments</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="OAK.TRUST.PAYMENT"></span>
 </li>
-<li class="flex items-start gap-3">
+<li class="flex items-start gap-3" x-cloak="" x-show="confirmNote()">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="info">info</span>
 <span class="font-body-md text-body-md text-on-surface-variant" x-text="confirmNote()"></span>
 </li>
@@ -412,10 +412,16 @@
             /* A salon that takes bookings automatically has already confirmed this one, and
                POST /api/bookings said so in the status it wrote. Telling that reader the salon
                is about to confirm would promise a step that has already happened; telling the
-               other one it is confirmed would be worse. Named statuses rather than "not
-               pending", so a cancelled booking is never told its hour was agreed. */
+               other one it is confirmed would be worse.
+               And a booking that left the line is told neither: there is no confirmation still
+               coming for an appointment that was cancelled, and none that was ever agreed for
+               one recorded as not attended. The empty string takes the whole line off the
+               list rather than leaving a bullet with nothing beside it. */
             confirmNote() {
                 const status = this.booking && this.booking.status;
+                if (status === 'cancelled' || status === 'no_show') {
+                    return '';
+                }
                 return status === 'confirmed' || status === 'completed'
                     ? 'Lịch đã được xác nhận, bạn được báo trong mục Thông báo'
                     : 'Salon sẽ xác nhận lịch, bạn được báo trong mục Thông báo';

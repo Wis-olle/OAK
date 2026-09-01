@@ -1167,7 +1167,24 @@ test('the panel says what registering freely gets you, and what it does not', ()
     loginHtml,
     /x-show="token">Hồ sơ của bạn trên trang salon đã công khai sẵn:/,
   );
-  assert.match(loginHtml, /Nhận hồ sơ không đưa thêm thông tin nào của bạn ra công khai/);
+  /* "của chiếc ghế này", not "của bạn": claiming does put more of HER in the open, because
+     careerOf() below ties this chair to every other one she holds. What it adds nothing to is
+     this chair, and that is the narrower claim the sentence is allowed to make. */
+  assert.match(loginHtml, /Nhận hồ sơ không đưa thêm thông tin nào của chiếc ghế này ra công khai/);
+  assert.doesNotMatch(loginHtml, /không đưa thêm thông tin nào của bạn/);
+
+  /* The enumeration is the SELECT list of selectSalonStaff in routes/salons.js, which serves
+     the rating and the years on an unclaimed row like everything else on it. */
+  for (const served of ['chức danh', 'chuyên môn', 'điểm đánh giá', 'số năm kinh nghiệm']) {
+    assert.match(loginHtml, new RegExp(served), served);
+  }
+
+  /* And the consequence she is actually consenting to: GET /api/staff/:id answers a claimed
+     row through careerOf(user_id), so a visitor who opens her chair at one salon is handed
+     every stint the account holds. A consent that left that out was the quiet half. */
+  assert.match(loginHtml, /nối chiếc ghế này vào trang nghề nghiệp của bạn/);
+  assert.match(loginHtml, /sẽ thấy cả những chiếc ghế khác bạn đã nhận/);
+  assert.match(staffSource, /careerOf\(row\.user_id\)/, 'the page promises a career the route stopped serving');
   assert.match(loginHtml, /x-show="token">Trang hồ sơ nghề nghiệp riêng của tôi vẫn là bản nháp/);
   // The "open a public profile" wording survives only where it is true: the free path.
   assert.match(
@@ -3394,12 +3411,30 @@ test('nothing she wrote is public until the press, and afterwards the page has a
   /* The address block says the page at that address is open, because it is: ho-so-chuyen-gia
      .html answers a `u=` slug off GET /api/technicians/:slug. It said "sắp mở" for as long as
      nothing resolved that slug, and a line that undersells a live page is the same kind of
-     wrong as one that oversells a page that is not — so it also hands her a way to open it. */
+     wrong as one that oversells a page that is not — so it also hands her a way to open it.
+
+     But published is not reachable: selectPublishedProfile asks published_at IS NOT NULL AND
+     hidden = 0, so with her own page switch on, that address 404s to everybody. Two sentences
+     under one gate each, and the link goes with the reachable one — a link that 404s teaches
+     her the page is broken rather than hidden, which is the opposite of what the switch said. */
   const address = handler(profileMeHtml, '>Địa chỉ trang của bạn</h3>', '</template>');
-  assert.match(address, /Trang tại địa chỉ này đang công khai/);
   assert.doesNotMatch(address, /sắp mở/);
-  assert.match(address, /hồ sơ của bạn tại từng salon cũng hiện những gì bạn vừa đăng/);
+
+  const [live] = address.match(/<p[^>]*x-show="!pageHidden"[^>]*>[^<]*<\/p>/) ?? [];
+  assert.ok(live, 'the public state has no sentence of its own');
+  assert.match(live, /Trang tại địa chỉ này đang công khai/);
+  assert.match(live, /hồ sơ của bạn tại từng salon cũng hiện những gì bạn vừa đăng/);
+
+  const [hiddenSentence] = address.match(/<p[^>]*x-show="pageHidden"[^>]*>[^<]*<\/p>/) ?? [];
+  assert.ok(hiddenSentence, 'a hidden page is told nothing about being hidden');
+  assert.match(hiddenSentence, /địa chỉ này chưa mở được cho ai/);
+  assert.match(hiddenSentence, /kể cả người có liên kết/);
+  assert.doesNotMatch(hiddenSentence, /đang công khai/);
+
+  // The way in is offered only while there is something at the other end of it.
   assert.match(address, /:href="pageUrl\(\)"/, 'the address is printed but cannot be opened');
+  const [link] = address.match(/<a [^>]*:href="pageUrl\(\)"[^>]*>/) ?? [];
+  assert.match(link, /x-show="!pageHidden"/, 'the link is offered for a page that 404s');
 
   const page = profilePage();
   await page.init();

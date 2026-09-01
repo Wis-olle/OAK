@@ -313,8 +313,10 @@
                     const [flagships, catalogue] = await Promise.all([
                         // One salon, not the three the other four category pages list: the
                         // section this feeds is an editorial bento about the room, built out
-                        // of that salon's own photos, not a way to choose between salons. A
-                        // deliberate exception to "three top-rated salons per category page".
+                        // of that salon's own photos, not a way to choose between salons. So
+                        // it asks s.flagship rather than sorting by rating the way they do —
+                        // a deliberate exception, and one that still reads a column only the
+                        // seed writes, which is a separate thing to answer for.
                         OAK.api('/api/salons?flagship=1&limit=1'),
                         OAK.api('/api/services?category=spa&limit=50'),
                     ]);

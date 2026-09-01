@@ -67,5 +67,6 @@
   "Lịch hẹn sau ngày này sẽ được chuyển cho đồng nghiệp phù hợp, hoặc chuyển chủ salon xử lý nếu không có ai nhận. Hồ sơ và lịch sử làm việc của bạn tại salon vẫn được giữ nguyên.": "Appointments after this date move to a suitable colleague, or to the salon owner to handle if nobody can take them. Your profile and your work history at this salon are kept as they are.",
   "Sau khi xác nhận, bạn không tự sửa được ngày này nữa — chỉ chủ salon mới hủy ghi nhận để bạn ghi lại.": "Once confirmed, you can no longer change this date yourself — only the salon owner can cancel the record so you can enter it again.",
   "Xác nhận nghỉ việc": "Confirm departure",
-  "Xem trang của bạn": "View your page"
+  "Xem trang của bạn": "View your page",
+  "Đây là địa chỉ riêng của trang bạn trên OAK. Bạn đang ẩn trang, nên địa chỉ này chưa mở được cho ai — kể cả người có liên kết — và hồ sơ của bạn tại từng salon quay lại hiện phần giới thiệu salon đang lưu. Bỏ ẩn ở phần Hiển thị công khai bên dưới là trang mở lại ngay.": "This is your page's own address on OAK. You are hiding the page, so this address opens for nobody — not even somebody holding the link — and your profile at each salon is back to showing the introduction the salon has on file. Turn the switch off under Public visibility below and the page opens again straight away."
 }

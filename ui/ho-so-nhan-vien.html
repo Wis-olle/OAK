@@ -246,7 +246,7 @@ Thông báo
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="content_copy">content_copy</span>
 Sao chép liên kết
 </button>
-<a :href="pageUrl()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors shrink-0" rel="noopener noreferrer" target="_blank">
+<a :href="pageUrl()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors shrink-0" rel="noopener noreferrer" target="_blank" x-cloak="" x-show="!pageHidden">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="open_in_new">open_in_new</span>
 Xem trang của bạn
 </a>
@@ -255,9 +255,14 @@ Xem trang của bạn
 <!-- Said plainly, because the address is real and the page at it now answers. It used to
      say the page was still to come, which stopped being true the day ho-so-chuyen-gia.html
      learned to read ?u= — and a line that undersells a live page is the same kind of wrong
-     as one that oversells a page that is not. So she gets the address, the state of it, and
-     a way to open it herself and see exactly what a reader sees. -->
-<p class="font-caption text-caption text-on-surface-variant mt-4">Đây là địa chỉ riêng của trang bạn trên OAK. Trang tại địa chỉ này đang công khai — ai có liên kết cũng mở được, và hồ sơ của bạn tại từng salon cũng hiện những gì bạn vừa đăng. Bạn ẩn trang lại lúc nào cũng được ở phần Hiển thị công khai bên dưới.</p>
+     as one that oversells a page that is not.
+     Published is not the same as reachable, though: selectPublishedProfile in
+     routes/technicians.js asks published_at IS NOT NULL AND hidden = 0, so while her own
+     hide switch is on this address answers 404 to everybody, herself included. One sentence
+     for each state, and the "open it yourself" link above goes with the reachable one —
+     handing her a link that 404s would teach her the page is broken rather than hidden. -->
+<p class="font-caption text-caption text-on-surface-variant mt-4" x-cloak="" x-show="!pageHidden">Đây là địa chỉ riêng của trang bạn trên OAK. Trang tại địa chỉ này đang công khai — ai có liên kết cũng mở được, và hồ sơ của bạn tại từng salon cũng hiện những gì bạn vừa đăng. Bạn ẩn trang lại lúc nào cũng được ở phần Hiển thị công khai bên dưới.</p>
+<p class="font-caption text-caption text-on-surface-variant mt-4" x-cloak="" x-show="pageHidden">Đây là địa chỉ riêng của trang bạn trên OAK. Bạn đang ẩn trang, nên địa chỉ này chưa mở được cho ai — kể cả người có liên kết — và hồ sơ của bạn tại từng salon quay lại hiện phần giới thiệu salon đang lưu. Bỏ ẩn ở phần Hiển thị công khai bên dưới là trang mở lại ngay.</p>
 </div>
 </template>
 </div>

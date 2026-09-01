@@ -154,6 +154,15 @@ test('the four pages of the booking path state the same three conditions', () =>
     bookingConfirmation(null).confirmNote(),
     'Salon sẽ xác nhận lịch, bạn được báo trong mục Thông báo',
   );
+
+  /* And a booking that left the line is told neither. There is no confirmation still coming
+     for an hour that was cancelled, and none was ever agreed for one recorded as not
+     attended — so the sentence is empty and x-show takes the whole row off the list, rather
+     than leaving a bullet standing beside nothing. */
+  for (const status of ['cancelled', 'no_show']) {
+    assert.equal(bookingConfirmation({ ...PENDING, status }).confirmNote(), '', status);
+  }
+  assert.match(confirmation, /<li[^>]*x-show="confirmNote\(\)"/, 'the empty note keeps its bullet');
 });
 
 test('no page promises what the codebase does not do', () => {
