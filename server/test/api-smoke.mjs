@@ -311,14 +311,25 @@ async function serverNowMinutes() {
  * assertion here — the list is right, it is merely slow, and locally it is not even slow.
  * The only way that regression fails a test is if the cost itself is asserted.
  *
- * null when the server was not asked to count, which in external mode is somebody else's
- * choice rather than a fault.
+ * Locally this suite starts the server itself with OAK_QUERY_COUNT=1, so a missing header
+ * there is a counter that has stopped reporting — and skipping on it would quietly retire
+ * the only assertions that can see a per-row walk grow back. It is only in external mode,
+ * where somebody else started the server, that the choice was never this suite’s to make;
+ * there, and only there, the answer is null and the caller steps around it.
  */
 async function queriesFor(pathname) {
   const response = await fetch(`${BASE_URL}${pathname}`);
-  await response.text();
+  const body = await response.text();
   const spent = response.headers.get('x-oak-queries');
-  return spent === null ? null : Number(spent);
+  if (spent === null) {
+    assert(
+      Boolean(EXTERNAL_URL),
+      `${pathname}: x-oak-queries is missing — the query counter is not reporting`,
+      { status: response.status, body },
+    );
+    return null;
+  }
+  return Number(spent);
 }
 
 /**
