@@ -15,7 +15,7 @@
 /* A visible keyboard focus ring, in two rules because form controls need a louder one.
 
    The :where() rule carries NO specificity, so anything with a focus style of its own
-   keeps winning: `.beauty-pin:focus` (which clears the ring and outlines the card
+   keeps winning: `.input-minimal:focus` (which drops the ring and thickens the underline
    instead) and every Tailwind `outline-none` / `focus:outline-none`. That is the right
    trade for links, buttons and [tabindex] elements, none of which the vendored bundle
    touches — for them this rule is simply the ring, and where a page styles focus itself
@@ -436,8 +436,8 @@ body.overflow-hidden [data-oak-skip] {
     display: none;
 }
 
-/* A reader who has asked their system for less motion gets it site-wide, instead of only on
-   the Beauty Map and the assistant's typing dots — the two places that had thought to ask.
+/* A reader who has asked their system for less motion gets it site-wide: this block is the
+   only place on the site that asks the question, so no page has to remember to ask it.
    Durations go to a hundredth of a millisecond rather than to zero so that transitionend
    and animationend still fire and nothing waiting on them hangs.
 

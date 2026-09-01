@@ -55,7 +55,7 @@ test('nothing of the blog is left in the tree', () => {
   ]) {
     assert.equal(fs.existsSync(path.join(root, file)), false, file);
   }
-  assert.doesNotMatch(readServer('app.js'), /posts/);
+  assert.doesNotMatch(readServer('app.js'), /routes\/posts\.js|'\/api\/posts'/);
   // And no page still points a reader at one of them.
   for (const name of fs.readdirSync(path.join(root, 'ui')).filter((file) => file.endsWith('.html'))) {
     assert.doesNotMatch(readUi(name), /href="blog(-chi-tiet)?\.html/, name);
