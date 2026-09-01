@@ -13,6 +13,7 @@ brush
 calendar_month
 calendar_today
 call
+campaign
 cancel
 chat_bubble
 check

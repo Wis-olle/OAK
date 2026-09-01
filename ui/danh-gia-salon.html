@@ -110,11 +110,19 @@
 <h1 class="font-headline-sm text-headline-sm text-primary truncate">Đánh giá</h1>
 </div>
 <div class="flex items-center gap-4 md:gap-6 shrink-0">
-<!-- The console bell answers "what needs me", so it stays inside the console: the
-     customer notification page has no way back to the partner pages. -->
+<!-- Two bells, because the console is asked two different questions. This one is "what
+     needs me today", and it stays inside the console. -->
 <a aria-label="Lịch chờ xác nhận" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100 relative" data-oak-pending-bell href="quan-ly-lich-hen.html?status=pending">
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="notifications">notifications</span>
 <span aria-hidden="true" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-error text-on-error font-caption text-[10px] hidden items-center justify-center" data-oak-pending-count></span>
+</a>
+<!-- And this one is OAK speaking to the salon: the placement it pinned, and the notice
+     điều khoản mục 7 promises at least thirty days before any fee. That notice is written to
+     the owner's bell, and until now no page in the console led to it — the channel the terms
+     name was one a partner could not open. It goes out to the shared notification page,
+     which now carries a way back here. -->
+<a aria-label="Thông báo từ OAK" class="text-on-surface-variant hover:text-secondary transition-all opacity-80 active:opacity-100" href="thong-bao.html">
+<span aria-hidden="true" class="material-symbols-outlined" data-icon="campaign">campaign</span>
 </a>
 <a aria-label="Tài khoản" class="flex items-center gap-3 pl-4 md:pl-6 border-l border-outline-variant/30" href="ho-so-ca-nhan.html">
 <span class="w-10 h-10 rounded-full bg-surface-variant overflow-hidden border border-outline-variant/20 shrink-0 flex items-center justify-center">

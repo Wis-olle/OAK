@@ -12908,6 +12908,21 @@ async function groupFeaturedAndAnnouncements() {
     'and the filter is empty again',
   );
 
+  /* And no bell rang for it. A date already behind us stores a placement that never ranks and
+     draws no chip, so announcing one would be a promise about a thing the owner can look for
+     and not find — with no way to take it back, because clearing a pin is deliberately
+     silent. The operator's own list still shows the typo; only the owner is spared it. */
+  const afterExpired = ok(
+    await ownerClient.fetch('/api/notifications'),
+    'the owner’s bell, after a pin dated in the past',
+  );
+  const systemNotices = (items) => items.filter((item) => item.type === 'system').length;
+  assert(
+    systemNotices(afterExpired) === systemNotices(ownerBell),
+    'a placement dated in the past rang the owner’s bell',
+    afterExpired,
+  );
+
   ok(
     await admin.fetch(`/api/admin/salons/${target.id}/featured`, {
       method: 'PATCH',

@@ -10,6 +10,7 @@
  */
 import express from 'express';
 import { db } from '../db.js';
+import { isFeatured } from '../lib/featured.js';
 import { notifyUser } from '../lib/notify.js';
 import { addDaysISO, formatDateVN, isISODate } from '../lib/time.js';
 import { httpError, requireAdmin, requireAuth } from '../middleware/auth.js';
@@ -84,6 +85,11 @@ router.get('/salons', async (req, res, next) => {
  * bought a placement and has to know it started and when it ends, while an operator undoing
  * their own typo would otherwise ring a bell about something that never happened. A pin that
  * simply expires rings nothing either — nothing runs on the day it does.
+ *
+ * Nor is she told about a date already behind us. A mistyped year stores a placement that
+ * never ranks and draws no chip, and a bell announcing one would be a promise about a thing
+ * the owner can look for and not find — with no way to take it back, since clearing is
+ * silent. The date is stored either way, so the operator's own list still shows the typo.
  */
 router.patch('/salons/:id/featured', async (req, res, next) => {
   try {
@@ -102,7 +108,7 @@ router.patch('/salons/:id/featured', async (req, res, next) => {
         throw httpError(404, 'NOT_FOUND', 'Không tìm thấy salon này.');
       }
       await tx.run(setFeaturedUntil, until, id);
-      if (until !== null) {
+      if (isFeatured(until)) {
         await notifyUser(
           tx,
           salon.owner_id,

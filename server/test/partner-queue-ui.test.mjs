@@ -243,11 +243,10 @@ test('both console pages start that poll and paint the same badge and title', ()
   assert.match(readUi('quan-ly-lich-hen.html'), /oakPendingTitle\(await OAK\.pendingBadge\(\)\)/);
 });
 
-test('the console bell stays in the console and is filled from one shared helper', () => {
+test('the pending bell stays in the console and is filled from one shared helper', () => {
   const client = readUi('assets/js/oak-api.js');
   for (const page of CONSOLE_PAGES) {
     const html = readUi(page);
-    assert.doesNotMatch(html, /thong-bao\.html/, page);
     assert.match(html, /data-oak-pending-bell href="quan-ly-lich-hen\.html\?status=pending"/, page);
     assert.match(html, /data-oak-pending-count/, page);
     // A name before the count arrives, and no per-page copy of the fetch or the label.
@@ -263,6 +262,32 @@ test('the console bell stays in the console and is filled from one shared helper
   assert.match(client, /todayISO: todayISO,\s*pendingBadge: pendingBadge,\s*setPendingBadge: setPendingBadge,/);
   // Found by data attribute, so the customer bell above cannot claim it and reset its href.
   assert.match(client, /var PENDING_BELL = '\[data-oak-pending-bell\]';/);
+});
+
+/* The console's other bell. Điều khoản mục 7 promises a fee is announced at least thirty days
+   ahead "qua Thông báo trong ứng dụng", and that notice is written to the owner's own bell — so
+   while no console page led to it, the channel the terms name was one a partner could not
+   open. It is a second bell rather than a second meaning for the first: one counts bookings
+   waiting on her, the other is OAK speaking to her, and a single glyph for both would leave
+   her unable to tell which of the two she is being called about. */
+test('every console page has a door to the notifications the terms promise', () => {
+  for (const page of CONSOLE_PAGES) {
+    const html = readUi(page);
+    assert.match(html, /aria-label="Thông báo từ OAK"[^>]*href="thong-bao\.html"/, page);
+    // The glyph is in the committed subset font, so it renders rather than showing its name.
+    assert.match(html, /data-icon="campaign">campaign<\/span>/, page);
+    // One door and not two: nothing else in the console points at the customer's inbox.
+    assert.equal(html.split('thong-bao.html').length - 1, 1, page);
+  }
+  const names = readRepo('tools/icons/icon-names.txt').split(/\r?\n/);
+  assert.ok(names.includes('campaign'));
+  /* And the page it opens leads back. That page is the customer's, with the customer's rail
+     down its side, so an owner who followed the bell would otherwise be left with the
+     browser's Back button; the way back is hers alone, not something a customer is shown. */
+  const inbox = readUi('thong-bao.html');
+  assert.match(inbox, /x-show="user &amp;&amp; user\.role === 'partner'"/);
+  assert.match(inbox, /Về Bảng điều khiển đối tác/);
+  assert.match(inbox, /href="tong-quan-doi-tac\.html"/);
 });
 
 test('arriving with ?status opens the same window the bell counted, and says so', () => {

@@ -62,11 +62,17 @@ test('the flag is really on the payload every card is drawn from', () => {
 });
 
 test('a paid placement is labelled where it ranks, not left to the ordering alone', () => {
-  for (const [name, page] of [
-    ['ket-qua-tim-kiem.html', readUi('ket-qua-tim-kiem.html')],
-    ['salon-profile.html', readUi('salon-profile.html')],
+  /* Every list the pin-first default order reaches, each binding the salon its own way: the
+     results grid and the profile read `salon`, the booking wizard's step-1 directory reads
+     `entry`. The wizard's grid is the one a customer meets on the way to paying, so a chip
+     missing there is the undisclosed advertisement in the place it matters most. */
+  for (const [name, chip] of [
+    ['ket-qua-tim-kiem.html', /x-show="salon\.featured"/],
+    ['salon-profile.html', /x-show="salon\.featured"/],
+    ['dat-lich.html', /x-show="entry\.featured"/],
   ]) {
-    assert.match(page, /x-show="salon\.featured"/, `${name} draws no chip`);
+    const page = readUi(name);
+    assert.match(page, chip, `${name} draws no chip`);
     assert.match(page, /Nổi bật/, `${name} does not name the placement`);
   }
 });
@@ -83,6 +89,33 @@ test('the fee notice is fanned out to living accounts only', () => {
     2,
     'an announcement reaches erased accounts',
   );
+});
+
+test('a pin dated in the past is stored, and announced to nobody', () => {
+  /* A mistyped year stores a placement that never ranks and draws no chip, so a bell about
+     it would be a promise about a thing the owner can look for and not find — with no way to
+     take it back, because clearing a pin is deliberately silent. The guard is the same
+     function the card and the SQL read, so the bell can never disagree with the chip. */
+  const admin = readServer('routes/admin.js');
+  assert.match(admin, /if \(isFeatured\(until\)\) \{\s*await notifyUser\(/);
+  /* And the day the sentence names is the last one she actually holds: featured_until is
+     exclusive, so a pin stored as the 1st was sold through the 30th, and an owner told the
+     stored date has been promised a day more than she paid for. */
+  assert.match(admin, /formatDateVN\(addDaysISO\(until, -1\)\)/);
+});
+
+test('a system notice reads as one, and points nowhere it cannot follow', () => {
+  /* The type both the fee notice and the placement bell are written as. It belongs to no
+     list, so the page must not offer an arrow — a row whose arrow lands somewhere that never
+     mentions it is worse than a row with none — and it must not fall through to the generic
+     bell the page's own rail is already drawn with. */
+  const page = readUi('thong-bao.html');
+  assert.match(page, /system: 'campaign',/);
+  const links = /var OAK_NOTIFICATION_LINKS = \{([\s\S]*?)\};/.exec(page)[1];
+  assert.doesNotMatch(links, /system:/);
+  // Which is only safe because the arrow is drawn from that map and withheld when it is empty.
+  assert.match(page, /linkFor\(type\) \{\s*return OAK_NOTIFICATION_LINKS\[type\] \|\| '';/);
+  assert.match(page, /x-show="destination\(item\)"/);
 });
 
 test('the partner is told what OAK charges before signing up, and it matches the terms', () => {

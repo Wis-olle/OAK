@@ -77,6 +77,13 @@ Cài đặt
 <div class="flex-1 min-w-0 max-w-4xl">
 <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-8 mb-8 border-b border-outline-variant/30 pb-4">
 <div>
+<!-- The rail beside this page is the customer's. A salon owner is sent here by the console
+     to read the fee notice the terms promise down this channel, and without this line the
+     way back to her own console is the browser's Back button. -->
+<a class="inline-flex items-center gap-2 mb-2 font-label-md text-label-md text-secondary hover:text-primary transition-colors" href="tong-quan-doi-tac.html" x-cloak="" x-show="user &amp;&amp; user.role === 'partner'">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="arrow_back">arrow_back</span>
+Về Bảng điều khiển đối tác
+</a>
 <h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">Thông báo</h1>
 <!-- Nothing until the count is real: the heading now stands before the reply does, and
      "Bạn đã đọc hết thông báo." would be a claim made about an inbox nobody has read yet. -->
@@ -235,9 +242,17 @@ Cài đặt
         reminder: 'alarm',
         review: 'star_rate',
         staff: 'event_available',
+        // The same glyph the console bell that sent her here is drawn with, so a salon owner
+        // who followed it recognises what she came for. The fallback below is a bell, which
+        // on a page whose own rail icon is a bell singles nothing out.
+        system: 'campaign',
     };
 
-    /* Where a row takes the reader. Every type the server sends is listed. */
+    /* Where a row takes the reader, for the types that have somewhere to go. Deliberately
+       partial: a 'system' notice — a fee announcement, a placement OAK pinned — is about the
+       platform and not about any one list, so it has no entry here: the arrow beside the row
+       is withheld rather than pointed at a page that would not mention it, and the notice is
+       read where it stands. */
     var OAK_NOTIFICATION_LINKS = {
         booking: 'lich-hen-cua-toi.html',
         promotion: 'uu-dai.html',
