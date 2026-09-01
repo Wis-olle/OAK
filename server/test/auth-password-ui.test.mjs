@@ -376,16 +376,16 @@ test('sign-up will not be sent until the two documents have actually been agreed
   assert.equal(state.errors.consent, undefined);
 });
 
-test('the offers box starts off, and both answers ride with the sign-up', async () => {
+test('the sign-up asks one thing, sends one thing, and leaves nothing behind', async () => {
   const calls = [];
-  // What the server reports it wrote, which is what the greeting is raised on — not on
-  // the tick, which is only a request for one.
-  let welcomeCode = null;
   const state = factory(registerHtml, 'var OAK_NEXT_PAGE =', 'oakRegister()', {
     stash: null,
     api: async (path, options) => {
       calls.push([path, options.body]);
-      return { user: { id: 9 }, welcome_code: welcomeCode };
+      /* The reply still carries the key — the route answers every registration with it —
+         but a customer sign-up can never mint a code now, so the page reads nothing off
+         it and the storage greeting that used to fire on it is gone. */
+      return { user: { id: 9 }, welcome_code: null };
     },
   });
 
@@ -402,18 +402,13 @@ test('the offers box starts off, and both answers ride with the sign-up', async 
      key is not sent at all rather than sent as false: the column defaults to 0, and a
      value nobody was asked for should not travel as though somebody had answered. */
   assert.ok(!('marketing_opt_in' in calls[0][1]), 'the sign-up still carries a marketing answer');
-  // Khám phá greets a new account with "the welcome code is in Thông báo". Nothing to
-  // point at here, so nothing is left behind for it to say.
+  /* Every offer belongs to the salon paying for it, so there is no platform code to greet
+     a new customer with. Nothing is stashed for Khám phá, on this sign-up or any other. */
   assert.deepEqual(state.stored, []);
-
-  // No platform-wide promotion was live, so the account got the plain hello and the
-  // greeting that names a code stays quiet rather than pointing at nothing.
   await state.submit();
-  assert.deepEqual(state.stored, [], 'no code written, no promise of one');
-
-  welcomeCode = 'OAKNEW20';
-  await state.submit();
-  assert.deepEqual(state.stored, [['oak-welcome', '1']]);
+  assert.deepEqual(state.stored, [], 'no code to point at, so no greeting is promised');
+  assert.doesNotMatch(registerHtml, /oakRememberWelcome|oak-welcome/);
+  assert.doesNotMatch(readUi('kham-pha.html'), /oak-welcome/);
 });
 
 test('the tick is what carries the consent now, not a sentence under the button', () => {

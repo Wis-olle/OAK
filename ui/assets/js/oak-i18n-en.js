@@ -1064,7 +1064,6 @@ window.OAK_I18N_EN = {
   "Xem": "View",
   "Đổi lịch": "Reschedule",
   "Bạn chưa đánh giá buổi vừa rồi": "You have not reviewed your last visit",
-  "Mã ưu đãi chào mừng đã có trong Thông báo": "Your welcome offer code is waiting in Notifications",
   "Mật khẩu đã cập nhật": "Password updated",
   "Salon trên OAK": "Salons on OAK",
   "Lịch của tôi - OAK Beauty": "My schedule - OAK Beauty",

@@ -201,31 +201,6 @@
     }
 
     /**
-     * Leave word for kham-pha.html that this reader has just signed up, so it can point at
-     * the welcome code the server wrote into Thông báo.
-     *
-     * Only when there is one to point at: the sentence it triggers names a discount code,
-     * so it is raised on what the server reports it actually wrote, not on the tick beside
-     * the request — with no live platform-wide promotion the reply carries no code and the
-     * account gets the plain hello instead. And only when there is nowhere else to be —
-     * somebody who came here mid-booking is going back to the wizard, and a message about
-     * an offer in another screen is in their way. Asked of the destination rather than of
-     * the parameter, so a malformed ?next — which lands on Khám phá anyway — is greeted
-     * there like any other sign-up. Storage throws outright in a locked-down browser, and
-     * a missing greeting is not worth failing a sign-up over.
-     */
-    function oakRememberWelcome(welcomeCode) {
-        if (!welcomeCode || oakRegisterDestination() !== 'kham-pha.html') {
-            return;
-        }
-        try {
-            sessionStorage.setItem('oak-welcome', '1');
-        } catch (error) {
-            /* nothing greets them on arrival, which is not worth a message of its own */
-        }
-    }
-
-    /**
      * The contact details dat-lich.html stashed on its way here, or {}.
      *
      * The wizard writes them under this key before sending a guest off to sign in, and
@@ -312,7 +287,7 @@
 
                 this.busy = true;
                 try {
-                    const created = await OAK.api('/api/auth/register', {
+                    await OAK.api('/api/auth/register', {
                         method: 'POST',
                         body: {
                             name: this.name.trim(),
@@ -322,7 +297,6 @@
                             consent: true,
                         },
                     });
-                    oakRememberWelcome(created.welcome_code);
                     location.href = oakRegisterDestination();
                 } catch (error) {
                     // A taken email belongs on the email field; anything else is a form-level error.

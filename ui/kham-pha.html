@@ -921,14 +921,12 @@
         };
     }
 
-    /* dang-ky.html leaves this behind when a fresh account lands here with nowhere else to
-       go. The welcome code the server just wrote into Thông báo is worth one sentence and
-       exactly one: the flag is spent on the way in, so a reload never says it twice. */
-    /* dat-lai-mat-khau.html leaves its own flag the same way: the panel that says the reset
-       worked is gone before it can be read, because the page is already moving here. */
+    /* dat-lai-mat-khau.html leaves a flag behind when it sends a reader here: the panel that
+       says the reset worked is gone before it can be read, because the page is already
+       moving. Worth one sentence and exactly one — the flag is spent on the way in, so a
+       reload never says it twice. */
     (function () {
         var flags = {
-            'oak-welcome': 'Mã ưu đãi chào mừng đã có trong Thông báo',
             'oak-password-reset': 'Mật khẩu đã cập nhật',
         };
         Object.keys(flags).forEach(function (key) {
