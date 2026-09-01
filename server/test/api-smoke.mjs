@@ -9941,6 +9941,15 @@ async function groupStaffDeparture() {
  * between one determined stranger and the whole storage bucket is a set of numbers. This
  * group is those numbers: what one picture may weigh, how many an account may post in an
  * hour, how many the site may accept in a day, and how many a gallery may hold.
+ *
+ * Everything that actually stores pictures is behind `if (!EXTERNAL_URL)`. Proving the hourly
+ * ceiling costs twenty-one uploads and proving it holds under a burst costs thirty more, and
+ * against a server this suite did not start those fifty-one come out of that deploy's own
+ * daily breaker — a run of this file would leave a shared site closer to UPLOADS_PAUSED than
+ * it found it, and two runs in a day could shut it. Against the server this suite spawns they
+ * cost a reset database. What is left running everywhere is the part that stores nothing: the
+ * stranger who is refused before their body is parsed, the picture that is too large, and the
+ * gallery ceiling, which reuses a url the seed already put there.
  * ========================================================================= */
 
 async function groupUploadQuota() {
@@ -9993,27 +10002,27 @@ async function groupUploadQuota() {
 
   /* -- twenty an hour, and the twenty-first waits ------------------------------ */
 
-  for (let index = 0; index < 20; index += 1) {
-    const uploaded = ok(
+  if (!EXTERNAL_URL) {
+    for (let index = 0; index < 20; index += 1) {
+      const uploaded = ok(
+        await uploader.fetch('/api/uploads', {
+          method: 'POST',
+          json: { filename: 'quota.png', data: PNG_1X1 },
+        }),
+        `POST /api/uploads (${index + 1} of the hour's twenty)`,
+      );
+      state.uploadedFiles.push(path.basename(uploaded.url));
+    }
+    expectError(
       await uploader.fetch('/api/uploads', {
         method: 'POST',
         json: { filename: 'quota.png', data: PNG_1X1 },
       }),
-      `POST /api/uploads (${index + 1} of the hour's twenty)`,
+      429,
+      'TOO_MANY_UPLOADS',
+      'POST /api/uploads once over the hourly allowance',
     );
-    state.uploadedFiles.push(path.basename(uploaded.url));
-  }
-  expectError(
-    await uploader.fetch('/api/uploads', {
-      method: 'POST',
-      json: { filename: 'quota.png', data: PNG_1X1 },
-    }),
-    429,
-    'TOO_MANY_UPLOADS',
-    'POST /api/uploads once over the hourly allowance',
-  );
 
-  if (!EXTERNAL_URL) {
     // The count is kept in the database and not in the process, because Render runs two of
     // them: twenty rows and no twenty-first is what the next instance would read too.
     const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
@@ -10033,6 +10042,129 @@ async function groupUploadQuota() {
     }
   }
 
+  /* -- twenty even when thirty arrive at once ---------------------------------- */
+
+  /* The ceiling above is only worth having if it holds when it is actually attacked, and an
+     attacker does not upload one picture at a time. Counting the rows, storing the bytes and
+     only then writing the row is check-then-act with a round trip to Supabase in the middle
+     of it: thirty requests read the same count and all thirty pass it. This is the case that
+     says they no longer do. The row is taken inside the transaction that counted, with no url
+     on it yet, so the twenty-first request is refused by rows the first twenty had already
+     written and had not yet finished storing. */
+  if (!EXTERNAL_URL) {
+    const burst = new Session();
+    ok(
+      await burst.fetch('/api/auth/register', {
+        method: 'POST',
+        json: {
+          name: 'Nguoi Tai Dong Loat',
+          email: `burst${stamp}@oak.invalid`,
+          password: 'Oak@1234',
+          consent: true,
+        },
+      }),
+      'POST /api/auth/register (an account at nought, to attack the ceiling with)',
+    );
+
+    const answers = await Promise.all(
+      Array.from({ length: 30 }, () =>
+        burst.fetch('/api/uploads', {
+          method: 'POST',
+          json: { filename: 'dong-loat.png', data: PNG_1X1 },
+        }),
+      ),
+    );
+    const accepted = answers.filter((answer) => answer.status === 200);
+    const refused = answers.filter((answer) => answer.status === 429);
+    assert(
+      accepted.length === 20,
+      `thirty uploads at once: expected exactly 20 accepted (got ${accepted.length})`,
+      answers.find((answer) => answer.status !== 200 && answer.status !== 429),
+    );
+    assert(
+      refused.length === 10,
+      `thirty uploads at once: expected exactly 10 refused (got ${refused.length})`,
+    );
+    assert(
+      refused.every((answer) => answer.body?.error?.code === 'TOO_MANY_UPLOADS'),
+      'thirty uploads at once: every refusal must be TOO_MANY_UPLOADS',
+      refused[0],
+    );
+    for (const answer of accepted) {
+      state.uploadedFiles.push(path.basename(answer.body.data.url));
+    }
+
+    /* And the twenty are twenty finished rows, not twenty rows plus reservations nobody
+       settled: a reservation counts while it is in flight, which is the whole trick, so one
+       left behind would quietly spend an hour of an account that got nothing for it. */
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      const rows = await directClient.query(
+        `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE url <> '') AS settled FROM uploads
+          WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+        [`burst${stamp}@oak.invalid`],
+      );
+      assert(
+        Number(rows.rows[0].total) === 20 && Number(rows.rows[0].settled) === 20,
+        `uploads table: expected 20 rows all carrying a url (got ${rows.rows[0].total} rows, ${rows.rows[0].settled} of them settled)`,
+      );
+    } finally {
+      await directClient.end();
+    }
+  }
+
+  /* -- and erasing the account leaves the picture countable -------------------- */
+
+  /* The row is what a later sweep of the storage bucket reconciles against, so it outlives
+     the account that wrote it; the name on it does not. Nothing a person can see would
+     notice if that link stayed behind, which is exactly why it is asserted here. */
+  if (!EXTERNAL_URL) {
+    const leaver = new Session();
+    ok(
+      await leaver.fetch('/api/auth/register', {
+        method: 'POST',
+        json: {
+          name: 'Nguoi Roi Di',
+          email: `leaver${stamp}@oak.invalid`,
+          password: 'Oak@1234',
+          consent: true,
+        },
+      }),
+      'POST /api/auth/register (an account that uploads and then erases itself)',
+    );
+    const left = ok(
+      await leaver.fetch('/api/uploads', {
+        method: 'POST',
+        json: { filename: 'cua-toi.png', data: PNG_1X1 },
+      }),
+      'POST /api/uploads (the picture that outlives the account)',
+    );
+    state.uploadedFiles.push(path.basename(left.url));
+    ok(
+      await leaver.fetch('/api/users/me', { method: 'DELETE', json: { password: 'Oak@1234' } }),
+      'DELETE /api/users/me (the account that had uploaded)',
+    );
+
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      const row = await directClient.query('SELECT user_id FROM uploads WHERE url = $1', [
+        left.url,
+      ]);
+      assert(
+        row.rows.length === 1,
+        'uploads table: the erased account\u2019s row must still stand',
+      );
+      assert(
+        row.rows[0].user_id === null,
+        `uploads table: expected user_id NULL after erasure (got ${row.rows[0].user_id})`,
+      );
+    } finally {
+      await directClient.end();
+    }
+  }
+
   /* -- a gallery holds twelve -------------------------------------------------- */
 
   const partner = session('partnerA');
@@ -10041,19 +10173,27 @@ async function groupUploadQuota() {
   // than assuming an empty one — which is also what makes it survive a second run against a
   // database nobody reset. The url is one already on the gallery: POST /photos stores a
   // string, and what these assertions are about is how many of them there may be.
+  assert(
+    typeof existing[0]?.image === 'string' && existing[0].image !== '',
+    'the seed must furnish partnerA with at least one gallery photo for this group to reuse',
+    { status: 200, body: existing },
+  );
   const reused = existing[0].image;
   const added = [];
-  for (let index = existing.length; index < 12; index += 1) {
-    const photo = ok(
-      await partner.fetch('/api/partner/photos', {
-        method: 'POST',
-        json: { image: reused, caption: 'Ảnh lấp đầy thư viện' },
-      }),
-      `POST /api/partner/photos (${index + 1} of 12)`,
-    );
-    added.push(photo.id);
-  }
   try {
+    // Inside the try that owns the cleanup, not above it: a run which fails half way up the
+    // shelf still has to take back the rows it did add, or it leaves behind exactly the
+    // twelve that make the next run of this group fail on its first insert.
+    for (let index = existing.length; index < 12; index += 1) {
+      const photo = ok(
+        await partner.fetch('/api/partner/photos', {
+          method: 'POST',
+          json: { image: reused, caption: 'Ảnh lấp đầy thư viện' },
+        }),
+        `POST /api/partner/photos (${index + 1} of 12)`,
+      );
+      added.push(photo.id);
+    }
     expectError(
       await partner.fetch('/api/partner/photos', { method: 'POST', json: { image: reused } }),
       400,

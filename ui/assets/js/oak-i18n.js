@@ -171,6 +171,14 @@
     [/^\+(\d+) Ảnh$/, function (all, count) {
       return '+' + plural(count, 'photo', 'photos');
     }],
+    // cai-dat-salon.html turning away a batch of pictures that would overrun the twelve its
+    // gallery holds. Both numbers are counted in the page as it stands, so the sentence is
+    // assembled at the moment of the refusal and can never be a dictionary key.
+    [/^Thư viện tối đa (\d+) ảnh, bạn chỉ thêm được (\d+) ảnh nữa\.$/,
+      function (all, cap, room) {
+        return 'The gallery holds at most ' + cap + ' photos; you can add ' +
+          plural(room, 'more photo', 'more photos') + '.';
+      }],
     [/^(\d+) lịch sắp tới$/, function (all, count) {
       return plural(count, 'upcoming appointment', 'upcoming appointments');
     }],

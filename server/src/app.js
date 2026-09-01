@@ -81,7 +81,9 @@ app.use('/api', (req, res, next) => {
 
 // Mounted BEFORE express.json() on purpose: the global parser's default 100kb limit
 // would reject a base64 image before the uploads route's own 2mb parser ran — and that
-// route puts requireAuth ahead of its parser, so a stranger's body is never read at all.
+// route puts requireAuth ahead of its parser, so a stranger's body is never parsed or
+// buffered. Node still drains the bytes off the socket, which it must to reuse the
+// connection; what the ordering closes is the 413 that would have told them the size.
 app.use('/api/uploads', uploadRoutes);
 
 app.use(express.json());

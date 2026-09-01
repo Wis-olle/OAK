@@ -507,7 +507,10 @@ function oakBlogFeed() {
             const generation = ++this.uploadGeneration;
             this.uploading = true;
             try {
-                let payload = await OAK.compressImage(file, { maxEdge: 1600 });
+                // Guarded: a cached page can meet an oak-api.js that predates compressImage.
+                let payload = typeof OAK.compressImage === 'function'
+                    ? await OAK.compressImage(file, { maxEdge: 1600 })
+                    : null;
                 if (!payload) {
                     const data = await new Promise((resolve, reject) => {
                         const reader = new FileReader();

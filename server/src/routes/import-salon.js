@@ -54,6 +54,7 @@ import {
 import { UnsafeUrlError, safeFetch } from '../lib/safe-fetch.js';
 import { SocialProfileError, validateSocialProfile } from '../lib/social-profile.js';
 import { MAX_IMAGE_BYTES, extensionForContentType, storeImage } from '../lib/store-image.js';
+import { releaseUpload, reserveUpload, settleUpload } from '../lib/upload-quota.js';
 import { httpError, requireAuth, requirePartner } from '../middleware/auth.js';
 import { REGISTRATION_CITY } from './auth.js';
 
@@ -337,9 +338,18 @@ async function geocode(query) {
  *
  * Never a hotlink: an <img> pointing at somebody else's CDN is their bandwidth, their
  * analytics on our readers, and a blank square on the profile the day they reorganise their
- * files. The bytes go through the same storage lib/store-image.js gives POST /api/uploads,
- * under the same 5MB ceiling and the same four types — anything else is skipped rather than
- * stored, and the answer says so with 'images_partial'.
+ * files. The bytes go through the same storage lib/store-image.js gives POST /api/uploads and
+ * are charged to the same allowance lib/upload-quota.js holds that route to, so the partner's
+ * own twenty an hour and the site-wide breaker cover this door too — a ceiling only one of
+ * two doors into a bucket honours is a ceiling with a way around it. The type ceiling is the
+ * one thing that differs: 5MB rather than a megabyte, because these are somebody's original
+ * files off their own website and no browser of ours shrank them first. Anything outside the
+ * four types is skipped rather than stored, and the answer says so with 'images_partial'.
+ *
+ * A refusal from the allowance is that same 'images_partial' and not an error: a gallery
+ * half brought across is the standing contract of this route — a download that times out
+ * already ends this way — and turning the partner's whole import into a 500 because the
+ * seventeenth picture met the hour's twentieth would throw away everything that did arrive.
  *
  * A gallery longer than the cap is not a failure and is not reported as one: 'capped' is its
  * own answer, because a partner told "some photos could not be fetched" when every download
@@ -352,11 +362,12 @@ async function geocode(query) {
  * control, and six orphaned JPEGs on the rare failed import cost less than that does on
  * every successful one. Nothing serves a file nothing references.
  */
-async function rehostImages(urls) {
+async function rehostImages(urls, userId) {
   const stored = [];
   let partial = false;
 
   for (const url of urls.slice(0, MAX_IMPORTED_IMAGES)) {
+    let reservation = null;
     try {
       const answer = await safeFetch(url, {
         maxBytes: MAX_IMAGE_BYTES,
@@ -367,9 +378,18 @@ async function rehostImages(urls) {
         partial = true;
         continue;
       }
-      stored.push(await storeImage(answer.buffer, extension));
+      // Taken after the download and before the store, the same order the upload route
+      // takes it in: what the allowance rations is bytes written into the bucket, and a
+      // picture that turned out to be a PDF never gets that far.
+      reservation = await reserveUpload(userId, answer.buffer.length);
+      const address = await storeImage(answer.buffer, extension);
+      await settleUpload(reservation, address);
+      stored.push(address);
     } catch (error) {
       console.error('partner/import: could not re-host an image:', error.message);
+      if (reservation !== null) {
+        await releaseUpload(reservation);
+      }
       partial = true;
     }
   }
@@ -888,7 +908,7 @@ router.post('/', async (req, res, next) => {
           ? source.images
           : source.images.slice(0, isEmpty(salon.image) ? 1 : 0);
     }
-    const { stored, partial, capped } = await rehostImages(wanted);
+    const { stored, partial, capped } = await rehostImages(wanted, req.user.id);
 
     const written = await db.withTransaction(async (tx) => {
       const result = await writeImport(tx, salon, source, {

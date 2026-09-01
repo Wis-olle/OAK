@@ -158,7 +158,7 @@ Thông báo
 </div>
 <div class="min-w-0">
 <p class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="uploading">Đang tải ảnh lên…</p>
-<p class="font-caption text-caption text-on-surface-variant">Ảnh trên trang hồ sơ nghề nghiệp của bạn. Tối đa 15MB.</p>
+<p class="font-caption text-caption text-on-surface-variant">Ảnh trên trang hồ sơ nghề nghiệp của bạn. Ảnh gốc tối đa 15MB, trang sẽ tự nén trước khi gửi.</p>
 </div>
 </div>
 <!-- Her own words for the job she does, and deliberately not the salon's two columns of the
@@ -961,7 +961,10 @@ Sao chép liên kết
                 callers ask for different edges. A file the browser cannot decode is posted
                 as it came, and the server answers for it. */
             async upload(file, maxEdge) {
-                let payload = await OAK.compressImage(file, { maxEdge });
+                // Guarded: a cached page can meet an oak-api.js that predates compressImage.
+                let payload = typeof OAK.compressImage === 'function'
+                    ? await OAK.compressImage(file, { maxEdge })
+                    : null;
                 if (!payload) {
                     const dataUrl = await new Promise((resolve, reject) => {
                         const reader = new FileReader();
@@ -985,7 +988,7 @@ Sao chép liên kết
                 // Only a ceiling on what is worth decoding: upload() shrinks the picture
                 // before it is posted, and what POST /api/uploads takes is decided after that.
                 if (file.size > 15 * 1024 * 1024) {
-                    OAK.toast('Ảnh quá lớn (tối đa 15MB). Hãy chọn ảnh nhỏ hơn.', 'error');
+                    OAK.toast('Ảnh gốc tối đa 15MB, trang sẽ tự nén trước khi gửi.', 'error');
                     return null;
                 }
                 return file;

@@ -271,6 +271,9 @@ router.delete('/me', requireAuth, async (req, res, next) => {
       await tx.run('DELETE FROM favorites WHERE user_id = ?', req.user.id);
       await tx.run('DELETE FROM notifications WHERE user_id = ?', req.user.id);
       await tx.run('DELETE FROM password_resets WHERE user_id = ?', req.user.id);
+      // The row stays — it is what a later reconciliation of the storage bucket reads — but
+      // the link to the person who posted the picture does not.
+      await tx.run('UPDATE uploads SET user_id = NULL WHERE user_id = ?', req.user.id);
       // The bookings stay — they are the salon's record of its own chair — but the
       // contact details copied onto them at booking time are this person's, and the
       // console falls back to them whenever the joined account column is null. Erasing

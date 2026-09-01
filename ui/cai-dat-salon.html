@@ -535,7 +535,7 @@
      it is picked, like the days off do, so it is deliberately outside the form. -->
 <section class="bg-surface-container-lowest p-6 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
 <h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Thư viện ảnh</h3>
-<p class="font-caption text-caption text-on-surface-variant mb-6">Ảnh không gian và tay nghề, hiện ngay trên trang salon. Ảnh được nén lại trước khi tải lên.</p>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Ảnh không gian và tay nghề, hiện ngay trên trang salon. Tối đa 12 ảnh, ảnh được nén lại trước khi tải lên.</p>
 <div class="grid grid-cols-2 gap-4 mb-6" x-show="photos.length > 0">
 <template :key="photo.id" x-for="(photo, index) in photos">
 <div class="relative aspect-square rounded-xl overflow-hidden bg-surface-variant">
@@ -556,10 +556,11 @@
 </div>
 <p class="font-body-md text-body-md text-on-surface-variant mb-6" x-show="photos.length === 0">Chưa có ảnh nào trong thư viện.</p>
 <p class="font-caption text-caption text-error mb-4" x-cloak x-show="photoError" x-text="photoError"></p>
-<label class="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors cursor-pointer">
+<p class="font-caption text-caption text-on-surface-variant mb-4" x-cloak x-show="atPhotoCap()">Thư viện đã đủ 12 ảnh. Hãy xóa bớt một ảnh trước khi thêm ảnh mới.</p>
+<label :class="atPhotoCap() ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary hover:text-primary cursor-pointer'" class="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider transition-colors">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">add_photo_alternate</span>
 <span x-text="photoBusy ? 'Đang tải ảnh…' : 'Thêm ảnh'">Thêm ảnh</span>
-<input @change="uploadPhotos($event)" accept="image/jpeg,image/png,image/webp" class="sr-only" multiple type="file"/>
+<input :disabled="photoBusy || atPhotoCap()" @change="uploadPhotos($event)" accept="image/jpeg,image/png,image/webp" class="sr-only" multiple type="file"/>
 </label>
 </section>
 
@@ -800,6 +801,11 @@
     /* The gallery shows a picture a few hundred pixels wide, so it is shrunk in the browser
        before it is posted — OAK.compressImage, shared with every other screen that uploads. */
     var PHOTO_MAX_EDGE = 1600;
+    /* The same twelve POST /api/partner/photos enforces. Held here as well so a batch that
+       would overrun it is refused before a single picture is stored: the server would refuse
+       the thirteenth too, but only after its bytes were already sitting in the bucket with
+       nothing pointing at them. */
+    var PHOTO_MAX = 12;
 
     /* Where the picker opens before a salon has any coordinates: District 1, HCMC. */
     var MAP_FALLBACK = { center: [10.776, 106.700], zoom: 13 };
@@ -862,6 +868,7 @@
             publishSaving: false,
             publishError: '',
             photos: [],
+            photoMax: PHOTO_MAX,
             photoBusy: false,
             photoError: '',
 
@@ -1085,6 +1092,10 @@
                 }
             },
 
+            atPhotoCap() {
+                return this.photos.length >= this.photoMax;
+            },
+
             async uploadPhotos(event) {
                 var files = Array.prototype.slice.call(event.target.files);
                 // Re-selecting the same files must still fire a change event.
@@ -1092,11 +1103,26 @@
                 if (files.length === 0 || this.photoBusy) {
                     return;
                 }
+                /* Counted before anything is read, because the alternative is bytes in the
+                   bucket that no row will ever point at: uploading each picture and letting
+                   the gallery refuse the ones past twelve leaves every one of them stored
+                   and orphaned. The whole batch is turned away instead, and says by how
+                   much it overran. */
+                if (this.photos.length + files.length > this.photoMax) {
+                    this.photoError = 'Thư viện tối đa ' + this.photoMax + ' ảnh, bạn chỉ thêm được '
+                        + (this.photoMax - this.photos.length) + ' ảnh nữa.';
+                    return;
+                }
                 this.photoBusy = true;
                 this.photoError = '';
                 try {
                     for (var index = 0; index < files.length; index += 1) {
-                        var payload = await OAK.compressImage(files[index], { maxEdge: PHOTO_MAX_EDGE });
+                        /* Guarded like every other call site: a page served from cache can meet
+                           an oak-api.js that predates compressImage, and the raw read below is
+                           exactly the fallback a null answer already means. */
+                        var payload = typeof OAK.compressImage === 'function'
+                            ? await OAK.compressImage(files[index], { maxEdge: PHOTO_MAX_EDGE })
+                            : null;
                         if (!payload) {
                             payload = await this.rawUpload(files[index]);
                         }
@@ -1109,12 +1135,16 @@
                             body: { image: uploaded.url },
                         });
                     }
-                    await this.loadPhotos();
                     OAK.toast('Đã thêm ảnh vào thư viện.');
                 } catch (error) {
                     this.photoError = error.message;
+                } finally {
+                    /* Re-read whether the batch finished or not: a run that failed on its
+                       fourth picture still added three, and a strip left showing the old
+                       list would be telling the salon those three are not there. */
+                    await this.loadPhotos();
+                    this.photoBusy = false;
                 }
-                this.photoBusy = false;
             },
 
             /* The picked file as it was, for a browser whose canvas cannot decode it. */
@@ -1575,7 +1605,7 @@
                 // Only a decode ceiling now: the picture is shrunk below before it is posted,
                 // and what the server will actually take is decided after that.
                 if (file.size > 15 * 1024 * 1024) {
-                    OAK.toast('Ảnh quá lớn (tối đa 15MB). Hãy chọn ảnh nhỏ hơn.', 'error');
+                    OAK.toast('Ảnh gốc tối đa 15MB, trang sẽ tự nén trước khi gửi.', 'error');
                     // Re-selecting the same file must still fire a change event.
                     event.target.value = '';
                     return;
@@ -1583,7 +1613,10 @@
                 this.uploading = true;
                 this.error = '';
                 try {
-                    var payload = await OAK.compressImage(file, { maxEdge: PHOTO_MAX_EDGE });
+                    // Guarded: a cached page can meet an oak-api.js that predates compressImage.
+                    var payload = typeof OAK.compressImage === 'function'
+                        ? await OAK.compressImage(file, { maxEdge: PHOTO_MAX_EDGE })
+                        : null;
                     if (!payload) {
                         var dataUrl = await new Promise(function (resolve, reject) {
                             var reader = new FileReader();

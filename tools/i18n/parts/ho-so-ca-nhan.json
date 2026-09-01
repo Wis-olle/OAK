@@ -25,7 +25,7 @@
   "Cài đặt": "Settings",
   "Trang đối tác": "Partner portal",
   "Đã cập nhật hồ sơ.": "Your profile has been updated.",
-  "Ảnh quá lớn (tối đa 15MB). Hãy chọn ảnh nhỏ hơn.": "Image is too large (15MB maximum). Please choose a smaller one.",
+  "Ảnh gốc tối đa 15MB, trang sẽ tự nén trước khi gửi.": "Original images up to 15MB; the page compresses them before sending.",
   "Không đọc được tệp ảnh.": "Could not read the image file.",
   "Đã cập nhật ảnh đại diện.": "Your profile photo has been updated.",
   "Hà Nội": "Hanoi",

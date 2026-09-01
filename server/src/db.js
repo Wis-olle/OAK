@@ -782,12 +782,22 @@ BEGIN
   END IF;
 END $$;
 
--- One row per picture POST /api/uploads has written, and the only place the platform knows
--- how much it is storing. Registration is free, so without a count there is nothing between
--- one determined account and the whole storage bucket; routes/uploads.js reads this table to
--- hold every account to a number of pictures per hour and the site as a whole to a number
--- per day. created_at is a UTC ISO-8601 string because both windows are read as plain text
--- comparisons, which those strings sort correctly under.
+-- One row per picture this platform has written into its storage bucket, and the only place
+-- it knows how much it is storing. Registration is free, so without a count there is nothing
+-- between one determined account and the whole bucket; lib/upload-quota.js reads this table
+-- to hold every account to a number of pictures per hour and the site as a whole to a number
+-- per day, and BOTH doors that store bytes charge it — POST /api/uploads, and the salon
+-- importer re-hosting a partner's own gallery. created_at is a UTC ISO-8601 string because
+-- both windows are read as plain text comparisons, which those strings sort correctly under.
+--
+-- A row is written BEFORE its bytes are, with an empty url, so that the requests arriving
+-- alongside it count it: an upload in flight is an upload spent, and only that makes the
+-- ceilings hold when two hundred arrive at once. url is filled in when the object lands, and
+-- the row is deleted if it never does.
+--
+-- user_id is nullable and is meant to be: an account holder who erases themselves leaves the
+-- row and takes the link to it, because what the row is for is reconciling the bucket, and
+-- that job does not need to know whose picture it was.
 --
 -- Nothing deletes from this table yet, deliberately. It is the record of what was written,
 -- not of what still exists: a picture whose salon deleted it, or whose upload succeeded and
@@ -803,6 +813,9 @@ CREATE TABLE IF NOT EXISTS uploads (
 );
 
 CREATE INDEX IF NOT EXISTS idx_uploads_user_created_at ON uploads(user_id, created_at);
+-- The per-account window narrows by user_id first; the site-wide day has no user to narrow
+-- by and would otherwise read the whole table on every upload.
+CREATE INDEX IF NOT EXISTS idx_uploads_created_at ON uploads(created_at);
 `;
 
 /** '... WHERE a = ? AND b = ?' -> '... WHERE a = $1 AND b = $2'. No SQL string literal

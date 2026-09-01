@@ -6,11 +6,52 @@ import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 import { startOfDayUTC } from '../src/lib/time.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const clientJs = fs.readFileSync(path.join(root, 'ui', 'assets', 'js', 'oak-api.js'), 'utf8');
+const quotaJs = fs.readFileSync(path.join(root, 'server', 'src', 'lib', 'upload-quota.js'), 'utf8');
+
+/* The lib itself imports db.js, which opens a pool and applies the schema on load, so it
+   cannot be imported into a file that is meant to run with no database in the room. The two
+   lines that read the environment are lifted out and run on their own instead — code rather
+   than a copy of it, so rewriting them in the lib is a test that fails here rather than a
+   ceiling that quietly stops meaning what this file says it means. */
+function dailyCapFor(value) {
+  const from = quotaJs.indexOf('const parsedDailyCap');
+  const to = quotaJs.indexOf('const HOUR_MS');
+  assert.ok(from !== -1 && to > from, 'upload-quota.js no longer parses UPLOADS_DAILY_CAP here');
+  const context = {
+    process: { env: value === undefined ? {} : { UPLOADS_DAILY_CAP: value } },
+    Number,
+    answer: null,
+  };
+  vm.runInNewContext(`${quotaJs.slice(from, to)}
+answer = UPLOADS_DAILY_CAP;`, context);
+  return context.answer;
+}
+
+test('an unset UPLOADS_DAILY_CAP is the default five hundred', () => {
+  assert.equal(dailyCapFor(undefined), 500);
+});
+
+test('an operator who sets UPLOADS_DAILY_CAP gets the number they set', () => {
+  assert.equal(dailyCapFor('2000'), 2000);
+});
+
+/* The one value `Number(x) || 500` got wrong, and the only one an operator would type on
+   purpose: zero closes the doors while the bucket is being cleared out by hand. Read as
+   "absent" it would have done the opposite of what was asked and raised the ceiling. */
+test('UPLOADS_DAILY_CAP=0 closes uploads rather than falling back to the default', () => {
+  assert.equal(dailyCapFor('0'), 0);
+});
+
+test('a cap that is not a number at all falls back to the default', () => {
+  assert.equal(dailyCapFor('nhieu'), 500);
+  assert.equal(dailyCapFor(''), 500);
+});
 
 /* uploads.created_at is a UTC ISO string and the cap is a Vietnamese calendar day, so the
    two are seven hours apart and the boundary has to be converted rather than matched as a

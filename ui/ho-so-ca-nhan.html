@@ -332,13 +332,16 @@ Cài đặt
                 // Only a ceiling on what is worth decoding: the picture is shrunk below before
                 // it is posted, and what POST /api/uploads takes is decided after that.
                 if (file.size > 15 * 1024 * 1024) {
-                    OAK.toast('Ảnh quá lớn (tối đa 15MB). Hãy chọn ảnh nhỏ hơn.', 'error');
+                    OAK.toast('Ảnh gốc tối đa 15MB, trang sẽ tự nén trước khi gửi.', 'error');
                     return;
                 }
 
                 this.uploading = true;
                 try {
-                    let payload = await OAK.compressImage(file, { maxEdge: 512 });
+                    // Guarded: a cached page can meet an oak-api.js that predates compressImage.
+                    let payload = typeof OAK.compressImage === 'function'
+                        ? await OAK.compressImage(file, { maxEdge: 512 })
+                        : null;
                     if (!payload) {
                         const dataUrl = await new Promise((resolve, reject) => {
                             const reader = new FileReader();

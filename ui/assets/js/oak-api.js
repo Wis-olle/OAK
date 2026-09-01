@@ -1103,14 +1103,39 @@
 
      WebP is asked for and not assumed: `toDataURL` answers with PNG when it cannot write
      the type it was handed, and a PNG re-encode of a photograph is larger than the JPEG
-     that came in. When the answer is not WebP the same canvas is re-encoded as JPEG, which
-     every browser can write, and the name carries .jpg instead — the server reads the
-     extension and nothing else from it.
+     that came in. Whether this browser can write one is settled once, on a canvas one pixel
+     square, and remembered — asked per picture, a browser without WebP would encode the
+     whole photograph as a PNG and then throw that PNG away, which is the slowest thing this
+     function could possibly do on the machines least able to afford it. Where the answer is
+     no the canvas is encoded as JPEG, which every browser can write, and the name carries
+     .jpg instead — the server reads the extension and nothing else from it.
 
-     null only when the image cannot be decoded at all. The caller then posts the raw file
-     and the server's own message explains anything it refuses. */
+     null whenever this cannot honestly hand back a smaller picture: a file the browser could
+     not decode, an image it decoded to nothing, a canvas it refused to draw on or to read
+     back. The caller then posts the raw file and the server's own message explains anything
+     it refuses — which is a worse outcome than compressing, and a far better one than
+     posting whatever a broken canvas returned. A zero-sized canvas answers `toDataURL` with
+     the string 'data:,' and nothing else in the chain would have questioned it: the server
+     would have decoded it to three bytes and stored them, and the person would have got a
+     blank square back for their photograph. So the encoded answer has to say it is an image
+     before it is believed. */
   var COMPRESS_MAX_EDGE = 1600;
   var COMPRESS_QUALITY = 0.82;
+  var webpSupport = null;
+
+  function canWriteWebp() {
+    if (webpSupport === null) {
+      try {
+        var probe = document.createElement('canvas');
+        probe.width = 1;
+        probe.height = 1;
+        webpSupport = probe.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+      } catch (error) {
+        webpSupport = false;
+      }
+    }
+    return webpSupport;
+  }
 
   function compressImage(file, options) {
     var settings = options || {};
@@ -1120,18 +1145,39 @@
       var url = URL.createObjectURL(file);
       var image = new Image();
       image.onload = function () {
-        var scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
-        var canvas = document.createElement('canvas');
-        canvas.width = Math.round(image.width * scale);
-        canvas.height = Math.round(image.height * scale);
-        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-        URL.revokeObjectURL(url);
-        var data = canvas.toDataURL('image/webp', quality);
-        if (data.indexOf('data:image/webp') === 0) {
-          resolve({ filename: 'anh-oak.webp', data: data });
-          return;
+        try {
+          if (!image.width || !image.height) {
+            URL.revokeObjectURL(url);
+            resolve(null);
+            return;
+          }
+          var scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.round(image.width * scale);
+          canvas.height = Math.round(image.height * scale);
+          var context = canvas.getContext('2d');
+          if (!context) {
+            URL.revokeObjectURL(url);
+            resolve(null);
+            return;
+          }
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          var webp = canWriteWebp();
+          var data = canvas.toDataURL(webp ? 'image/webp' : 'image/jpeg', quality);
+          if (data.indexOf('data:image/') !== 0) {
+            resolve(null);
+            return;
+          }
+          resolve({ filename: webp ? 'anh-oak.webp' : 'anh-oak.jpg', data: data });
+        } catch (error) {
+          /* getContext can answer null, and drawImage and toDataURL both throw on a canvas
+             the browser will not give back — one tainted by an image from elsewhere, or one
+             larger than this device's limit. The raw file is still a picture; a thrown
+             error here would have lost it. */
+          URL.revokeObjectURL(url);
+          resolve(null);
         }
-        resolve({ filename: 'anh-oak.jpg', data: canvas.toDataURL('image/jpeg', quality) });
       };
       image.onerror = function () {
         URL.revokeObjectURL(url);

@@ -949,6 +949,9 @@ function lift({
   safeFetch: fetcher,
   storeImage: store = async () => '/uploads/stored.jpg',
   waits = [],
+  reserveUpload = async () => 1,
+  settleUpload = async () => {},
+  releaseUpload = async () => {},
 }) {
   const from = routeJs.indexOf('const router = express.Router();');
   const to = routeJs.indexOf('export default router');
@@ -982,6 +985,9 @@ function lift({
     extensionForContentType: (type) =>
       ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' })[type] ?? null,
     storeImage: store,
+    reserveUpload,
+    settleUpload,
+    releaseUpload,
     REGISTRATION_CITY,
     setTimeout: (run, ms) => {
       waits.push(ms);
@@ -1098,6 +1104,83 @@ test('a KiotViet link fills the empty columns, the week, the menu and the galler
   assert.equal(record.params[1], 'https://booksalon.kiotviet.vn/4abf76ad');
   assert.equal(record.params[2], 'kiotviet');
   assert.match(record.params[3], /^\d{4}-\d{2}-\d{2}T/);
+});
+
+/* The importer is the second door into the storage bucket, and for one release it was the
+   unmetered one: a partner could pull six five-megabyte pictures across per import with no
+   row written and nothing counting them, while the browser upload beside it was held to
+   twenty an hour. These two cases are what says that door is now charged like the other.
+
+   There is no /api/partner/import case in the smoke suite to hang this on, so the coverage
+   lives here, against the reservation stubs the lift hands the route. */
+test('every picture the importer stores is charged to the partner like an upload', async () => {
+  const { db } = fakeDb({ ...REGISTERED_SALON });
+  const reserved = [];
+  const settled = [];
+  const handler = lift({
+    db,
+    safeFetch: kiotvietNetwork(),
+    reserveUpload: async (userId, bytes) => {
+      reserved.push({ userId, bytes });
+      return reserved.length;
+    },
+    settleUpload: async (id, url) => {
+      settled.push({ id, url });
+    },
+  });
+
+  const { body, error } = await call(handler, {
+    url: 'https://booksalon.kiotviet.vn/4abf76ad',
+    consent: true,
+  });
+
+  assert.equal(error, undefined);
+  // The logo and the background: one row apiece, charged to the partner making the import
+  // and carrying the weight of what was actually fetched.
+  assert.equal(reserved.length, 2);
+  assert.deepEqual(reserved.map((charge) => charge.userId), [7, 7]);
+  assert.deepEqual(reserved.map((charge) => charge.bytes), [10, 10]);
+  // And each row is pointed at the object once it exists, never before.
+  assert.deepEqual(settled, [
+    { id: 1, url: '/uploads/stored.jpg' },
+    { id: 2, url: '/uploads/stored.jpg' },
+  ]);
+  assert.equal(body.data.warnings.includes('images_partial'), false);
+});
+
+test('a picture the allowance refuses leaves a partial gallery, not a failed import', async () => {
+  const { db } = fakeDb({ ...REGISTERED_SALON });
+  let charges = 0;
+  const handler = lift({
+    db,
+    safeFetch: kiotvietNetwork(),
+    reserveUpload: async () => {
+      charges += 1;
+      if (charges > 1) {
+        throw Object.assign(new Error('Bạn đã tải quá nhiều ảnh, thử lại sau một giờ.'), {
+          status: 429,
+          code: 'TOO_MANY_UPLOADS',
+          isAppError: true,
+        });
+      }
+      return charges;
+    },
+  });
+
+  const { body, error } = await call(handler, {
+    url: 'https://booksalon.kiotviet.vn/4abf76ad',
+    consent: true,
+  });
+
+  // The import answers, and answers with what it managed: everything a salon's page gave up
+  // before the hour ran out is still written. A 429 raised out of the loop would have thrown
+  // away the address, the phone, the week and the menu along with the picture.
+  assert.equal(error, undefined);
+  assert.equal(body.success, true);
+  assert.equal(charges, 2);
+  assert.equal(body.data.warnings.includes('images_partial'), true);
+  assert.deepEqual(body.data.filled, ['address', 'phone', 'district', 'city', 'image']);
+  assert.equal(body.data.photos_added, 0);
 });
 
 test('nothing an import reads may replace something the salon already holds', async () => {

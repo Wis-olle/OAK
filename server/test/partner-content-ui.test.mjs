@@ -238,6 +238,48 @@ test('resetting the composer invalidates an abandoned image upload', async () =>
   assert.equal(state.uploading, false);
 });
 
+/* Every other stub here answers null, which exercises the FileReader fallback and nothing
+   else — so until this case there was no proof that the composer posts the SHRUNK picture
+   when one comes back. The whole point of compressing is what travels to the server, and a
+   composer that quietly posted the original instead would pass every other test in this file. */
+test('the composer posts the compressed picture, not the file that was picked', async () => {
+  const script = readUi('assets/js/oak-blog.js');
+  const posted = [];
+  class FakeFileReader {
+    readAsDataURL() {
+      this.result = 'data:image/png;base64,GOC=';
+      this.onload();
+    }
+  }
+  const context = {
+    URL,
+    FileReader: FakeFileReader,
+    document: {
+      getElementById: () => ({ value: '' }),
+      body: { classList: { add: () => {}, remove: () => {} } },
+      activeElement: null,
+      contains: () => false,
+    },
+    OAK: {
+      api: async (pathname, options) => {
+        posted.push(options.body);
+        return { url: '/uploads/anh-oak.webp' };
+      },
+      toast: () => {},
+      compressImage: async () => ({ filename: 'anh-oak.webp', data: 'data:image/webp;base64,AA' }),
+    },
+  };
+  vm.runInNewContext(`${script}
+result = oakBlogFeed();`, context);
+  const state = context.result;
+  state.$nextTick = (fn) => fn();
+
+  await state.uploadImage({ target: { files: [{ name: 'may-anh.jpg' }] } });
+
+  assert.deepEqual(posted, [{ filename: 'anh-oak.webp', data: 'data:image/webp;base64,AA' }]);
+  assert.equal(state.form.image, '/uploads/anh-oak.webp');
+});
+
 test('the blog delete icon is included in the shipped Material Symbols subset inputs', () => {
   const names = fs.readFileSync(path.join(root, 'tools', 'icons', 'icon-names.txt'), 'utf8').split(/\r?\n/);
   const font = fs.statSync(path.join(root, 'ui', 'assets', 'fonts', 'font-material-subset.woff2'));
