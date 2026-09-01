@@ -48,7 +48,9 @@ $env:PORT='3330'; $env:DATABASE_URL='postgres://postgres:postgres@localhost:5432
 
 ## Tài khoản demo / Demo accounts
 
-Every seeded account uses the password `Oak@1234`.
+Every seeded account uses the password `Oak@1234`. That is why the seed runs only when the
+`users` table is empty **and** `NODE_ENV` is not `production` — set `SEED_DEMO=1` to opt a
+production database in deliberately.
 
 | Email           | Role     | What they have                                       |
 | --------------- | -------- | ---------------------------------------------------- |

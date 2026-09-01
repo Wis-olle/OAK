@@ -50,7 +50,9 @@ Một biến **tùy chọn**: `ADMIN_EMAILS` — danh sách email (ngăn cách b
 
 Các biến còn lại đã có sẵn giá trị trong `render.yaml`, không cần khai trong dashboard — đáng chú ý là `TZ=Asia/Ho_Chi_Minh`: container Render chạy UTC, biến này đưa đồng hồ hệ thống của container về đúng quy ước sản xuất, cho mọi thứ đọc trực tiếp từ đồng hồ đó. ("Hôm nay" và "bây giờ" của phần đặt lịch do `server/src/lib/time.js` tự ép về múi giờ VN nên đúng kể cả khi thiếu biến này.)
 
-Sau đó **Save & Deploy** (hoặc push commit mới). Lần boot đầu tiên server tự tạo bảng và seed dữ liệu mẫu vào Supabase.
+Sau đó **Save & Deploy** (hoặc push commit mới). Lần boot đầu tiên server tự tạo bảng, nhưng **không** seed dữ liệu mẫu: mọi tài khoản demo dùng chung một mật khẩu in công khai trong `server/README.md`, nên `NODE_ENV=production` là đủ để server bỏ qua seed và ghi một dòng log nói vậy. Muốn có dữ liệu mẫu trên một database production thì tự khai `SEED_DEMO=1`.
+
+Nếu database đã được seed từ trước khi có chốt này, chạy [`tools/sql/lock-demo-accounts.sql`](tools/sql/lock-demo-accounts.sql) một lần trong Supabase SQL editor: script khoá cả mười tài khoản `@oak.vn` bằng một mật khẩu ngẫu nhiên không ai biết và xoá token mời nhân viên cố định, không xoá dữ liệu demo. Chạy lại nhiều lần vô hại.
 
 ---
 

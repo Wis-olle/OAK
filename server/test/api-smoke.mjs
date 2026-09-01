@@ -238,6 +238,9 @@ function spawnServer() {
       // Who may hide a post. An address, not a role: hoangyen@oak.vn is an ordinary
       // customer account, which is what makes the check worth testing.
       ADMIN_EMAILS: ADMIN_EMAIL,
+      // This suite uses the demo seed as its fixture, so it asks for the seed by name
+      // rather than depending on whatever NODE_ENV the shell happens to carry.
+      SEED_DEMO: '1',
     },
   });
   child.stdout.on('data', (chunk) => childOutput.push(String(chunk)));

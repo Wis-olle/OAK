@@ -1213,6 +1213,27 @@ const INSERT_COMMENT =
   'INSERT INTO post_comments (post_id, user_id, content, created_at) VALUES (?, ?, ?, ?)';
 
 /**
+ * Whether an empty database should be filled with the demo data above.
+ *
+ * Demo data is for a developer's machine, never for a production database: every account
+ * below shares one password that server/README.md prints in full, and the staff invite
+ * below is a constant, so a seeded production database hands the console of a published
+ * salon to anyone who reads the repo. The decision is a pure function so it can be proved
+ * without a database; db.js is its only caller.
+ *
+ * `userCount` comes from `SELECT COUNT(*)`, which pg hands back as a string unless a type
+ * parser is installed — db.js installs one, but Number() so both spellings answer alike.
+ * Only the literal '1' opts in: an unrecognised SEED_DEMO typed into a production
+ * dashboard meant something, but not necessarily this, and the safe reading is "no".
+ */
+export function shouldSeedDemo(env, userCount) {
+  if (Number(userCount) !== 0) {
+    return false;
+  }
+  return env.NODE_ENV !== 'production' || env.SEED_DEMO === '1';
+}
+
+/**
  * Insert the full demo data set. Called only when the users table is empty.
  */
 export async function seed(db) {

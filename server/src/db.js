@@ -11,7 +11,7 @@ import {
   WELCOME_TITLE,
   welcomeWindow,
 } from './lib/welcome-promotion.js';
-import { seed } from './seed.js';
+import { seed, shouldSeedDemo } from './seed.js';
 
 const { Pool, types } = pg;
 
@@ -886,8 +886,16 @@ await pool.query(
   [ERASED_NAME],
 );
 
-if ((await pool.query('SELECT COUNT(*) AS count FROM users')).rows[0].count === 0) {
+const userCount = (await pool.query('SELECT COUNT(*) AS count FROM users')).rows[0].count;
+if (shouldSeedDemo(process.env, userCount)) {
   await seed(db);
+} else if (Number(userCount) === 0) {
+  // An empty production database is the normal first boot of a real deploy, so this is a
+  // note rather than a warning — but it says how to ask for the demo data, because the one
+  // person who wanted it here would otherwise be left staring at an empty site.
+  console.info(
+    'seed: demo data skipped — NODE_ENV=production. Set SEED_DEMO=1 to seed this database anyway.',
+  );
 }
 
 // Backfills salons that predate per-weekday hours: the legacy whole-week pair becomes
