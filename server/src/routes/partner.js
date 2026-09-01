@@ -528,6 +528,10 @@ async function salonShape(row) {
     tour_url: row.tour_url,
     // Whether the public side of the platform lists this salon at all.
     published: row.published,
+    // And whether it ever has, which is a different question and the one the address answers
+    // to: the console offers a rename only while this is null, because after that the slug is
+    // frozen whether the switch is on today or not.
+    listed_at: row.listed_at,
     // How this salon takes online bookings. The customer-facing pages read the last two
     // as well, so the wording a visitor sees is the salon's own rather than the platform's.
     auto_confirm: row.auto_confirm,
@@ -3708,10 +3712,14 @@ router.patch('/salon', async (req, res, next) => {
        there, and a rename changes the name alone. A draft's address is nobody's yet, so a
        rename moves it, under the same unique-suffix rule registration mints by.
 
+       `listed_at` and not `published`, because the freeze is about what has been handed out
+       and unticking the box hands nothing back. A salon taken down for a week, renamed and
+       put back would otherwise answer at a new address with the old one 404 for good.
+
        Read from the row as it was BEFORE this save: a request that renames and publishes at
        once is renaming a draft, and the freeze starts with the salon being listed. */
     const renamedTo =
-      Object.hasOwn(body, 'name') && salon.published !== 1
+      Object.hasOwn(body, 'name') && salon.listed_at === null
         ? SALON_COLUMNS.name(body.name)
         : null;
     const movesSlug = renamedTo !== null && renamedTo !== salon.name;
@@ -3757,6 +3765,16 @@ router.patch('/salon', async (req, res, next) => {
         await tx.run(
           'UPDATE salons SET slug = ? WHERE id = ?',
           await uniqueSalonSlug(tx, renamedTo, salon.id),
+          salon.id,
+        );
+      }
+      /* The day the address stopped being nobody's. Stamped the first time the salon is
+         listed and never again — assertPublishable below can still refuse this save, and
+         the whole transaction goes with it, so nothing is frozen by a publish that failed. */
+      if (staysPublished && salon.listed_at === null) {
+        await tx.run(
+          'UPDATE salons SET listed_at = ? WHERE id = ? AND listed_at IS NULL',
+          new Date().toISOString(),
           salon.id,
         );
       }

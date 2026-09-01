@@ -859,6 +859,22 @@ BEGIN
   END IF;
 END $$;
 
+-- The day this salon first went on OAK — which is not the same question as whether it is on
+-- OAK now, and the slug freeze needs the first one. An address is frozen because customers,
+-- the sitemap and whatever the salon printed are holding it, and none of that is given back
+-- by unticking the box: an owner who takes the page down for a week, renames and puts it
+-- back would otherwise walk the salon to a new address and 404 every link already handed
+-- out, since nothing here redirects. Written the first time the switch goes on (PATCH
+-- /api/partner/salon) and never cleared.
+--
+-- The backfill stamps whatever is listed today, so the cohort that went live before this
+-- column existed is frozen too, and it is safe on every boot: it only ever fills a NULL on a
+-- salon that is published at that moment, and it can neither move a stamp nor mint one for a
+-- salon whose owner has since gone back to draft.
+ALTER TABLE salons ADD COLUMN IF NOT EXISTS listed_at TEXT;
+UPDATE salons SET listed_at = COALESCE(created_at, now()::text)
+WHERE published = 1 AND listed_at IS NULL;
+
 -- One row per picture this platform has written into its storage bucket, and the only place
 -- it knows how much it is storing. Registration is free, so without a count there is nothing
 -- between one determined account and the whole bucket; lib/upload-quota.js reads this table

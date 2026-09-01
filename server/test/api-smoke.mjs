@@ -12698,6 +12698,36 @@ async function groupSalonAddress() {
     await guest.fetch(`/api/salons/${renamed.slug}`),
     'and the address customers hold still answers after the rename',
   );
+
+  /* -- and taking the page down does not give the address back ----------------- */
+
+  /* Unticking the box is a plain checkbox in the console, so "take it down for a week, rename
+     it, put it back" is an ordinary afternoon. What it must not be is a new address: the old
+     one is in customers' history and in the sitemap, and nothing here redirects. */
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 0 } }),
+    'PATCH /api/partner/salon (back to draft for a week)',
+  );
+  const renamedWhileDown = ok(
+    await owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { name: `Tiệm Đóng Cửa ${stamp}` },
+    }),
+    'PATCH /api/partner/salon (renaming while it is down)',
+  );
+  assert(
+    renamedWhileDown.slug === renamed.slug,
+    'a salon that has been on OAK keeps its address even after it is taken back off',
+    renamedWhileDown,
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (and back on again)',
+  );
+  ok(
+    await guest.fetch(`/api/salons/${renamed.slug}`),
+    'so the address customers hold answers again the moment it is back',
+  );
 }
 
 /* ============================================================================

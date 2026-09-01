@@ -267,7 +267,7 @@
 <span>Đường dẫn trang salon</span>
 <span class="block text-primary break-all mt-1" x-text="publicUrl()"></span>
 </p>
-<p class="font-caption text-caption text-on-surface-variant mt-2" x-cloak x-show="slug &amp;&amp; published !== 1">Đường dẫn đi theo tên salon cho tới khi bạn bật hiển thị, sau đó được giữ nguyên.</p>
+<p class="font-caption text-caption text-on-surface-variant mt-2" x-cloak x-show="slug &amp;&amp; !listed">Đường dẫn đi theo tên salon cho tới khi bạn bật hiển thị, sau đó được giữ nguyên.</p>
 <p class="font-caption text-caption text-on-surface-variant mt-8 mb-2">
 <span>Điều kiện tối thiểu</span> <span x-text="(publishChecks().length - missingToPublish().length) + '/' + publishChecks().length"></span>
 </p>
@@ -859,6 +859,10 @@
                image. Both save on their own request the moment they change, so like the
                days off below they sit outside `form` and outside the dirty/undo state. */
             published: 0,
+            /* Whether the salon has EVER been listed, which is what the address answers to:
+               the slug is frozen from the first publish on, so unticking the box does not
+               put the rename note back up. */
+            listed: false,
             serviceCount: 0,
             /* The ids of the services the public side can see, or null when this page cannot
                be sure it holds all of them. See loadServiceCount. */
@@ -961,6 +965,7 @@
                     this.slug = salon.slug;
                     this.original = salon;
                     this.published = salon.published;
+                    this.listed = Boolean(salon.listed_at);
                     this.fill(salon);
                     await this.loadPhotos();
                     await this.loadServiceCount();
@@ -1098,6 +1103,7 @@
                     // Only this flag: the form may hold edits the owner has not saved yet,
                     // and fill() would throw them away.
                     this.published = saved.published;
+                    this.listed = Boolean(saved.listed_at);
                     OAK.toast(next === 1 ? 'Salon đã hiển thị trên OAK.' : 'Salon đã chuyển về chế độ nháp.');
                 } catch (error) {
                     this.publishError = error.message;
@@ -1127,6 +1133,7 @@
                     var salon = await OAK.api('/api/partner/salon');
                     this.original = salon;
                     this.published = salon.published;
+                    this.listed = Boolean(salon.listed_at);
                 } catch (error) {
                     /* the switch keeps what it had; the next load settles it */
                 }
@@ -1741,6 +1748,7 @@
                     this.slug = saved.slug;
                     this.original = saved;
                     this.published = saved.published;
+                    this.listed = Boolean(saved.listed_at);
                     this.fill(saved);
                     OAK.toast('Đã lưu thông tin salon.');
                 } catch (saveError) {
