@@ -47,19 +47,6 @@
 <script src="assets/js/oak-header.js"></script>
 <!-- Main Content Canvas -->
 <main class="pt-24 flex-grow pb-section-gap px-margin-mobile md:px-margin-desktop w-full max-w-container-max mx-auto flex flex-col items-center justify-center min-h-[90vh]" x-data="oakBookingConfirmation()">
-<!-- The old appointment of a reschedule that could not be cancelled. A standing banner,
-     not a toast: this is the one thing on the page the reader still has to act on, and
-     which of the two ways out applies depends on why the cancel was refused. -->
-<div class="w-full max-w-3xl bg-error-container text-on-error-container rounded-xl p-6 mb-6 flex items-start gap-3" x-cloak="" x-show="rescheduleFailed">
-<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="info">info</span>
-<div>
-<p class="font-body-md text-body-md mb-3">Lịch mới đã được đặt, nhưng lịch cũ chưa hủy được — vui lòng liên hệ salon hoặc kiểm tra Lịch hẹn của tôi.</p>
-<div class="flex flex-wrap gap-4">
-<a class="font-label-md text-label-md uppercase tracking-wider underline" href="lich-hen-cua-toi.html">Xem lịch hẹn của tôi</a>
-<a :href="'xac-nhan-dat-lich.html?id=' + rescheduleFailed" class="font-label-md text-label-md uppercase tracking-wider underline">Xem lịch hẹn cũ</a>
-</div>
-</div>
-</div>
 <!-- Load failure: the booking is gone, or the url carries no id -->
 <div class="w-full max-w-3xl bg-surface-container-lowest rounded-xl ambient-shadow p-8 text-center" x-cloak="" x-show="error">
 <p class="font-body-lg text-body-lg text-on-surface mb-6" x-text="error"></p>
@@ -378,13 +365,9 @@
         return {
             booking: null,
             error: '',
-            // Set by dat-lich.html when a reschedule booked the new appointment but could
-            // not cancel the one it was meant to replace: that one is still live.
-            rescheduleFailed: 0,
 
             async init() {
                 await OAK.requireLogin();
-                this.rescheduleFailed = Number(OAK.qs('reschedule_failed')) || 0;
                 const id = Number(OAK.qs('id')) || 0;
                 if (!id) {
                     this.error = 'Đường dẫn không có mã lịch hẹn.';

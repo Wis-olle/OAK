@@ -64,6 +64,16 @@ function bookingForm(api, search = '') {
      replaces them. */
   context.result.$root = { scrollIntoView: () => {}, querySelectorAll: () => [] };
   context.result.$nextTick = (fn) => fn();
+  /* x-ref="authPanel" is step 4's own sign-in panel, which submit() brings to a signed-out
+     visitor rather than leaving the page for. Both things it does to that node are recorded
+     rather than performed, because neither has any meaning outside a browser. */
+  const panel = {
+    scrolled: [],
+    focused: 0,
+    scrollIntoView: (options) => panel.scrolled.push(options),
+    querySelector: () => ({ focus: () => { panel.focused += 1; } }),
+  };
+  context.result.$refs = { authPanel: panel };
   return context.result;
 }
 
@@ -257,6 +267,33 @@ test('a guest is warned before the final click, without changing the submit path
   assert.match(html, /sessionStorage\.setItem\(OAK_BOOKING_FORM_KEY/);
 });
 
+test('the last click of the funnel stays inside the funnel when nobody is signed in', async () => {
+  const calls = [];
+  const state = readyToSubmit(bookingForm(async (path) => {
+    calls.push(path);
+    return { id: 91 };
+  }));
+  state.user = null;
+  let leftThePage = 0;
+  state.oak.requireLogin = async () => { leftThePage += 1; };
+
+  await state.submit();
+
+  /* Step 4 signs a visitor in where they are standing, and the two confirm buttons are a
+     screenful from that panel. Sending them to the login page instead was the last click
+     of the funnel navigating out of the funnel — and back through a round trip whose only
+     job was to return them to this same step. */
+  assert.equal(leftThePage, 0);
+  assert.equal(calls.length, 0);
+  assert.equal(state.$refs.authPanel.scrolled.length, 1);
+  assert.equal(state.$refs.authPanel.scrolled[0].behavior, 'smooth');
+  assert.equal(state.$refs.authPanel.focused, 1);
+  // The selection still goes into the url, because the panel keeps one door that does
+  // leave the page: a forgotten password needs the mail round trip the full page owns.
+  assert.match(state.urls.at(-1), /service_id=7/);
+  assert.match(html, /href="dang-nhap-nguoi-dung\.html">Quên mật khẩu\?<\/a>/);
+});
+
 test('the reschedule id and the promo code both survive the url the page rewrites', async () => {
   const state = bookingForm(
     async (path) => {
@@ -298,38 +335,39 @@ test('a booking that is not a reschedule cancels nothing', async () => {
   assert.equal(state.location.href, 'xac-nhan-dat-lich.html?id=91');
 });
 
-test('a reschedule cancels the appointment it replaces, but only once the new one exists', async () => {
+test('a reschedule is one request against the appointment it replaces, and never a cancel', async () => {
   const calls = [];
   const state = readyToSubmit(bookingForm(async (path, options) => {
-    calls.push(path + ' ' + ((options && options.method) || 'GET'));
-    return { id: 91 };
+    calls.push({ path, options });
+    return { id: 91, replaced_booking_id: 55 };
   }));
   state.reschedule = 55;
+  state.staffId = 3;
 
   await state.submit();
 
-  assert.deepEqual(calls, ['/api/bookings POST', '/api/bookings/55/cancel PATCH']);
-  // Nothing is stranded, so the confirmation page is not told to warn about anything.
+  /* One call, and it is the move. This used to POST the new appointment and then PATCH a
+     cancel onto the old one — and the salon's own cancel window could refuse that second
+     call, leaving the visitor holding two live appointments and no way to drop either. */
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/api/bookings/55/reschedule');
+  assert.equal(calls[0].options.method, 'PATCH');
+  /* Only the hour. The service, the note and the price already agreed come off the old
+     appointment on the server, so sending them here would be the client restating them.
+     Read key by key: the body is built inside the vm's own realm, and a deep-equal against
+     one of ours compares prototypes rather than what was sent. */
+  const sent = calls[0].options.body;
+  assert.deepEqual(Object.keys(sent).sort(), ['date', 'staff_id', 'time']);
+  assert.equal(sent.date, '2099-01-01');
+  assert.equal(sent.time, '09:00');
+  assert.equal(sent.staff_id, 3);
   assert.equal(state.location.href, 'xac-nhan-dat-lich.html?id=91');
 });
 
-test('a cancel that fails hands the stranded appointment to the confirmation page', async () => {
-  const state = readyToSubmit(bookingForm(async (path) => {
-    if (path === '/api/bookings') {
-      return { id: 91 };
-    }
-    throw new Error('Vui lòng hủy trước giờ hẹn ít nhất 2 tiếng.');
-  }));
-  state.reschedule = 55;
-
-  await state.submit();
-
-  // The new appointment is real, so the confirmation page is still where this ends — but
-  // it is told which old appointment is still standing, because a toast would not survive
-  // the navigation and this is the one thing left for the reader to act on.
-  assert.equal(state.location.href, 'xac-nhan-dat-lich.html?id=91&reschedule_failed=55');
-  assert.equal(state.toasts.length, 0);
-  assert.equal(state.formError, '');
+test('nothing in the page still knows how to strand an appointment', () => {
+  // The two-request move is gone, and so is everything that existed to explain its middle
+  // outcome: no cancel from here, and nothing handed to the confirmation page about one.
+  assert.doesNotMatch(html, /dropOldBooking|reschedule_failed/);
 });
 
 test('the reschedule notice is gated on the state the url sets, not on a step', () => {

@@ -1,4 +1,4 @@
-// Customer bookings: price quote, create, list, detail, cancel.
+// Customer bookings: price quote, create, list, detail, reschedule, cancel.
 import express from 'express';
 import { db } from '../db.js';
 import {
@@ -14,7 +14,7 @@ import {
 import { withBookingCode } from '../lib/booking-code.js';
 import { notifyStaff, notifyUser } from '../lib/notify.js';
 import { parsePagination } from '../lib/query.js';
-import { fromMinutes, isHHMM, isISODate, nowMinutes, toMinutes, todayISO } from '../lib/time.js';
+import { isHHMM, isISODate, nowMinutes, toMinutes, todayISO } from '../lib/time.js';
 import { httpError, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -74,6 +74,12 @@ const selectSalonListing = db.prepare('SELECT published, verified FROM salons WH
 // Also used inside transactions, so the text is kept alongside the pool statement.
 const SELECT_BOOKING = `SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM} WHERE b.id = ?`;
 const selectBooking = db.prepare(SELECT_BOOKING);
+// The two fields no card carries, wanted only where a booking is written a second time:
+// a reschedule opens a new row, and the details the salon was given are the ones on the
+// row being retired, not whatever the account happens to say today.
+const selectBookingContact = db.prepare(
+  'SELECT customer_name, customer_phone FROM bookings WHERE id = ?',
+);
 // source 'customer' is a literal in the column list, like the statuses the console writes:
 // this route is the one place a booking is made by the person who will sit in the chair, so
 // it is a property of the route and never of the request.
@@ -106,10 +112,14 @@ const CLOSE_STALE_BOOKING =
 // Fragments are constants picked by key, never assembled from request text.
 const MINE_FILTERS = {
   upcoming: {
-    // Today counts only from this minute on, in Vietnam time: an appointment at 09:00 read
-    // at 15:00 has happened, and listing it as "sắp tới" beside a Hủy button was an offer
-    // the server would refuse. Those fall to closePastBookings the day after.
-    where: "(b.date > ? OR (b.date = ? AND b.time >= ?)) AND b.status IN ('pending', 'confirmed')",
+    /* The whole of today, in Vietnam time, and not only the hours it has left. An
+       appointment at 09:00 read at 09:20 is under way, not over: it was in no tab at all
+       once — past holds only what has closed out — so a customer sitting in the chair
+       could not find the booking they were sitting in. It stays here until
+       closePastBookings settles it the day after. What the customer may still DO with it
+       is a separate question, and the screens ask it separately: an appointment that has
+       started offers neither Hủy nor Đổi lịch. */
+    where: "b.date >= ? AND b.status IN ('pending', 'confirmed')",
     order: 'b.date ASC, b.time ASC',
     fromToday: true,
   },
@@ -338,9 +348,7 @@ router.get('/mine', async (req, res, next) => {
       : ALL_BOOKINGS_FILTER;
     const { page, limit, offset } = parsePagination(req.query, DEFAULT_PAGE_SIZE);
     const today = todayISO();
-    const params = filter.fromToday
-      ? [req.user.id, today, today, fromMinutes(nowMinutes())]
-      : [req.user.id];
+    const params = filter.fromToday ? [req.user.id, today] : [req.user.id];
 
     const total = (
       await db
@@ -367,148 +375,263 @@ router.get('/mine', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
-  try {
-    const {
-      salon_id: salonIdInput,
-      service_id: serviceIdInput,
-      staff_id: staffIdInput,
-      date,
-      time,
-      note,
-      payment_method: paymentMethodInput,
-      promotion_code: promotionCode,
-      customer_name: customerName,
-      customer_phone: customerPhone,
-    } = req.body ?? {};
+/**
+ * Everything that has to be true before a booking row is written, asked on the pool.
+ *
+ * Lifted out of POST / whole, because moving an appointment asks exactly these questions
+ * of the hour it is moving to: the salon still has to be listed, open, off nobody's day
+ * off and given its lead time, and the technician still has to do that service and be
+ * free. A reschedule that carried its own copy of the list would be a second list to
+ * drift, and the one that drifted would be the one nobody looked at.
+ *
+ * Answers a plan rather than writing anything: the row itself is insertBookingIn()'s, on
+ * the caller's transaction and under the lock the caller holds.
+ */
+async function validateBookingRequest(user, body) {
+  const {
+    salon_id: salonIdInput,
+    service_id: serviceIdInput,
+    staff_id: staffIdInput,
+    date,
+    time,
+    note,
+    payment_method: paymentMethodInput,
+    promotion_code: promotionCode,
+    customer_name: customerName,
+    customer_phone: customerPhone,
+  } = body;
 
-    for (const value of [note, promotionCode, customerName, customerPhone]) {
-      if (value != null && typeof value !== 'string') {
-        throw httpError(400, 'VALIDATION_ERROR', 'Ghi chú và thông tin liên hệ phải là chuỗi ký tự.');
-      }
+  for (const value of [note, promotionCode, customerName, customerPhone]) {
+    if (value != null && typeof value !== 'string') {
+      throw httpError(400, 'VALIDATION_ERROR', 'Ghi chú và thông tin liên hệ phải là chuỗi ký tự.');
     }
+  }
 
-    const salonId = toId(salonIdInput);
-    const serviceId = toId(serviceIdInput);
-    if (salonId === null || serviceId === null) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Vui lòng chọn salon và dịch vụ.');
-    }
+  const salonId = toId(salonIdInput);
+  const serviceId = toId(serviceIdInput);
+  if (salonId === null || serviceId === null) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Vui lòng chọn salon và dịch vụ.');
+  }
 
-    // Trusting salon_id from the body would let a caller book a service under another
-    // salon's name, so the service's own salon_id is the authority.
-    const service = await selectService.get(serviceId);
-    if (!service || service.salon_id !== salonId) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Dịch vụ không thuộc salon đã chọn.');
-    }
-    // "Tạm ẩn dịch vụ" is the salon's alternative to deleting one, so a hidden
-    // service must stop taking bookings, not just drop out of the listings.
-    if (service.active !== 1) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Dịch vụ này hiện không nhận đặt lịch.');
-    }
-    /* The same switch every public listing reads (routes/salons.js, routes/search.js,
-       routes/services.js), asked here too because this route is reachable without any of
-       them: a salon that has switched itself off — or been unpublished automatically when a
-       write left it short — went on taking bookings from every link already handed out, and
-       its owner would find them in a console they had deliberately taken off the market. */
-    const listing = await selectSalonListing.get(salonId);
-    if (listing.published !== 1 || listing.verified !== 1) {
-      throw httpError(400, 'SALON_UNLISTED', 'Salon này hiện không nhận đặt lịch qua OAK.');
-    }
+  // Trusting salon_id from the body would let a caller book a service under another
+  // salon's name, so the service's own salon_id is the authority.
+  const service = await selectService.get(serviceId);
+  if (!service || service.salon_id !== salonId) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Dịch vụ không thuộc salon đã chọn.');
+  }
+  // "Tạm ẩn dịch vụ" is the salon's alternative to deleting one, so a hidden
+  // service must stop taking bookings, not just drop out of the listings.
+  if (service.active !== 1) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Dịch vụ này hiện không nhận đặt lịch.');
+  }
+  /* The same switch every public listing reads (routes/salons.js, routes/search.js,
+     routes/services.js), asked here too because this route is reachable without any of
+     them: a salon that has switched itself off — or been unpublished automatically when a
+     write left it short — went on taking bookings from every link already handed out, and
+     its owner would find them in a console they had deliberately taken off the market. */
+  const listing = await selectSalonListing.get(salonId);
+  if (listing.published !== 1 || listing.verified !== 1) {
+    throw httpError(400, 'SALON_UNLISTED', 'Salon này hiện không nhận đặt lịch qua OAK.');
+  }
 
-    if (!isISODate(date) || date < todayISO()) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Ngày hẹn không hợp lệ hoặc đã qua.');
-    }
-    if (!isHHMM(time)) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Giờ hẹn không hợp lệ.');
-    }
-    // Today is a valid date but only the hours it has left: an hour that has already
-    // started is as booked-in-the-past as yesterday is. Later days skip this entirely.
-    if (date === todayISO() && toMinutes(time) <= nowMinutes()) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Giờ hẹn hôm nay đã qua, vui lòng chọn giờ khác.');
-    }
-    // Ahead of the technician block, so it covers the walk-in path too: a booking with
-    // no technician reaches no slot check at all, and would otherwise take a day the
-    // salon has declared closed. For a named technician the clamped slots already say
-    // the same thing, but saying it here answers "the salon is shut" rather than the
-    // SLOT_TAKEN below, which would claim somebody else just took the hour.
-    if (!(await isSalonOpenFor(salonId, date, time, service.duration_min))) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Salon không mở cửa vào thời điểm này.');
-    }
-    // A declared day off is not a full calendar, so it answers 409 with its own reason
-    // rather than the SLOT_TAKEN below, which would send the customer hunting for an hour.
-    // Read once here and consulted again for the named technician further down.
-    const off = await timeOffOn(salonId, date);
-    if (off.salon) {
-      throw httpError(409, 'SALON_CLOSED', 'Salon nghỉ vào ngày này, vui lòng chọn ngày khác.');
-    }
-    // The salon's lead time, asked here because a booking with no technician reaches no
-    // slot list to have been filtered by it.
-    if (!(await respectsLeadTime(salonId, date, time))) {
+  if (!isISODate(date) || date < todayISO()) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Ngày hẹn không hợp lệ hoặc đã qua.');
+  }
+  if (!isHHMM(time)) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Giờ hẹn không hợp lệ.');
+  }
+  // Today is a valid date but only the hours it has left: an hour that has already
+  // started is as booked-in-the-past as yesterday is. Later days skip this entirely.
+  if (date === todayISO() && toMinutes(time) <= nowMinutes()) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Giờ hẹn hôm nay đã qua, vui lòng chọn giờ khác.');
+  }
+  // Ahead of the technician block, so it covers the walk-in path too: a booking with
+  // no technician reaches no slot check at all, and would otherwise take a day the
+  // salon has declared closed. For a named technician the clamped slots already say
+  // the same thing, but saying it here answers "the salon is shut" rather than the
+  // SLOT_TAKEN below, which would claim somebody else just took the hour.
+  if (!(await isSalonOpenFor(salonId, date, time, service.duration_min))) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Salon không mở cửa vào thời điểm này.');
+  }
+  // A declared day off is not a full calendar, so it answers 409 with its own reason
+  // rather than the SLOT_TAKEN below, which would send the customer hunting for an hour.
+  // Read once here and consulted again for the named technician further down.
+  const off = await timeOffOn(salonId, date);
+  if (off.salon) {
+    throw httpError(409, 'SALON_CLOSED', 'Salon nghỉ vào ngày này, vui lòng chọn ngày khác.');
+  }
+  // The salon's lead time, asked here because a booking with no technician reaches no
+  // slot list to have been filtered by it.
+  if (!(await respectsLeadTime(salonId, date, time))) {
+    throw httpError(
+      400,
+      'LEAD_TIME',
+      'Salon cần được báo trước lâu hơn cho khung giờ này, vui lòng chọn giờ khác.',
+    );
+  }
+
+  let staffId = null;
+  if (staffIdInput != null) {
+    staffId = toId(staffIdInput);
+    // One answer for a technician at another salon and for one who no longer works at
+    // this one: from out here both are simply not somebody this salon can be booked with,
+    // and telling them apart would say who used to work where.
+    if (staffId === null || !(await selectSalonStaff.get(staffId, salonId))) {
       throw httpError(
         400,
-        'LEAD_TIME',
-        'Salon cần được báo trước lâu hơn cho khung giờ này, vui lòng chọn giờ khác.',
+        'VALIDATION_ERROR',
+        'Kỹ thuật viên này hiện không nhận lịch tại salon đã chọn.',
       );
     }
 
-    let staffId = null;
-    if (staffIdInput != null) {
-      staffId = toId(staffIdInput);
-      // One answer for a technician at another salon and for one who no longer works at
-      // this one: from out here both are simply not somebody this salon can be booked with,
-      // and telling them apart would say who used to work where.
-      if (staffId === null || !(await selectSalonStaff.get(staffId, salonId))) {
-        throw httpError(
-          400,
-          'VALIDATION_ERROR',
-          'Kỹ thuật viên này hiện không nhận lịch tại salon đã chọn.',
-        );
-      }
-
-      // The rule, spelled once in lib/availability.js: no staff_services row, no booking.
-      if (!(await staffCanDo(db, staffId, serviceId))) {
-        throw httpError(
-          400,
-          'VALIDATION_ERROR',
-          'Kỹ thuật viên này không thực hiện dịch vụ đã chọn.',
-        );
-      }
-
-      // Their own day off gets its own answer for the same reason the salon's does: the
-      // slot list below is empty for that whole day, and SLOT_TAKEN would claim somebody
-      // just took the hour rather than that this technician is away.
-      if (off.staff.has(staffId)) {
-        throw httpError(
-          409,
-          'STAFF_OFF',
-          'Kỹ thuật viên này nghỉ vào ngày đã chọn, vui lòng chọn ngày hoặc kỹ thuật viên khác.',
-        );
-      }
-
-      // That technician's OWN calendar. getServiceSlots ORs availability across every
-      // staff who performs the service, so it answers "is somebody free?" — using it
-      // here let two customers book the same person at the same time.
-      const slot = (await getStaffSlots(staffId, serviceId, date)).find(
-        (candidate) => candidate.time === time,
+    // The rule, spelled once in lib/availability.js: no staff_services row, no booking.
+    if (!(await staffCanDo(db, staffId, serviceId))) {
+      throw httpError(
+        400,
+        'VALIDATION_ERROR',
+        'Kỹ thuật viên này không thực hiện dịch vụ đã chọn.',
       );
-      if (!slot || !slot.available) {
-        throw httpError(409, 'SLOT_TAKEN', 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.');
-      }
     }
 
-    const paymentMethod = paymentMethodInput ?? 'at_salon';
-    if (!PAYMENT_METHODS.includes(paymentMethod)) {
-      throw httpError(400, 'VALIDATION_ERROR', 'Hình thức thanh toán không hợp lệ.');
+    // Their own day off gets its own answer for the same reason the salon's does: the
+    // slot list below is empty for that whole day, and SLOT_TAKEN would claim somebody
+    // just took the hour rather than that this technician is away.
+    if (off.staff.has(staffId)) {
+      throw httpError(
+        409,
+        'STAFF_OFF',
+        'Kỹ thuật viên này nghỉ vào ngày đã chọn, vui lòng chọn ngày hoặc kỹ thuật viên khác.',
+      );
     }
 
-    // Recomputed here rather than read from the body: the client is never the price authority.
-    const { total } = await buildQuote(service, staffId, promotionCode);
-    const createdAt = new Date().toISOString();
-    // A salon that takes bookings automatically has already agreed to the hour its own
-    // calendar offered, so the booking is confirmed on the spot and never joins the
-    // console's "Cần xử lý" queue. A salon that turned that off still decides by hand.
-    const autoConfirm = (await selectSalonAutoConfirm.get(salonId))?.auto_confirm === 1;
-    const status = autoConfirm ? 'confirmed' : 'pending';
+    /* That technician's OWN calendar. getServiceSlots ORs availability across every
+       staff who performs the service, so it answers "is somebody free?" — using it
+       here let two customers book the same person at the same time.
+
+       A reschedule reads this list too, and its own appointment is still on it: an hour
+       that overlaps the one being moved comes back taken. That is the same grid the
+       customer picked the hour from, so it is the same answer either way round. */
+    const slot = (await getStaffSlots(staffId, serviceId, date)).find(
+      (candidate) => candidate.time === time,
+    );
+    if (!slot || !slot.available) {
+      throw httpError(409, 'SLOT_TAKEN', 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.');
+    }
+  }
+
+  const paymentMethod = paymentMethodInput ?? 'at_salon';
+  if (!PAYMENT_METHODS.includes(paymentMethod)) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Hình thức thanh toán không hợp lệ.');
+  }
+
+  // Recomputed here rather than read from the body: the client is never the price authority.
+  const { total } = await buildQuote(service, staffId, promotionCode);
+  // A salon that takes bookings automatically has already agreed to the hour its own
+  // calendar offered, so the booking is confirmed on the spot and never joins the
+  // console's "Cần xử lý" queue. A salon that turned that off still decides by hand.
+  const autoConfirm = (await selectSalonAutoConfirm.get(salonId))?.auto_confirm === 1;
+
+  return {
+    userId: user.id,
+    salonId,
+    serviceId,
+    service,
+    staffId,
+    date,
+    time,
+    note: note ?? null,
+    total,
+    autoConfirm,
+    status: autoConfirm ? 'confirmed' : 'pending',
+    paymentMethod,
+    customerName: customerName ?? user.name,
+    customerPhone: customerPhone ?? user.phone,
+  };
+}
+
+/**
+ * The row itself: the one place in this file a customer's booking is INSERTed.
+ *
+ * Runs on the caller's transaction, and the caller has already taken lockSalonDay() over
+ * the salon's day — the calendar reads in here are the second look that the lock is what
+ * makes worth taking, and a caller that skipped it would be back to the check-then-act
+ * the lock exists to replace.
+ *
+ * `exceptBookingId` is the appointment being moved, which is never in its own way.
+ */
+async function insertBookingIn(tx, plan, code, exceptBookingId = null) {
+  // The overlap the unique index cannot see: 10:00 and 10:30 of a 60-minute service
+  // are two different minutes and one technician in two places. Both kinds of clash
+  // are one answer to a customer — she is not the one who gets to overrule either.
+  if (
+    plan.staffId !== null &&
+    (await staffClashAt(
+      tx, plan.staffId, plan.date, plan.time, plan.service.duration_min, exceptBookingId,
+    )) !== null
+  ) {
+    throw httpError(409, 'SLOT_TAKEN', 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.');
+  }
+
+  // "Bất kỳ" is a choice of nobody in particular, not a booking against nobody:
+  // the hour has to be held on somebody's calendar or the grid keeps offering it.
+  // Chosen in here, on this transaction and under the caller's lock, so the pick and
+  // the row it is written into cannot drift apart.
+  const assigned =
+    plan.staffId ??
+    (await pickAvailableStaff(
+      tx, plan.salonId, plan.serviceId, plan.date, plan.time, plan.service.duration_min,
+    ));
+  if (assigned === null) {
+    throw httpError(409, 'SLOT_TAKEN', 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.');
+  }
+
+  const bookingId = Number(
+    (
+      await tx.run(
+        INSERT_BOOKING,
+        plan.userId,
+        plan.salonId,
+        plan.serviceId,
+        assigned,
+        code,
+        plan.date,
+        plan.time,
+        plan.status,
+        plan.note,
+        plan.total,
+        plan.customerName,
+        plan.customerPhone,
+        plan.paymentMethod,
+        new Date().toISOString(),
+      )
+    ).lastInsertRowid,
+  );
+  return { bookingId, assigned };
+}
+
+/**
+ * The two races a write that holds an hour can lose, said the way the customer's screen
+ * expects. Anything else comes back as it was.
+ */
+function placementError(error) {
+  // The idx_bookings_slot backstop: a second customer slipped past the availability
+  // pre-check while this request awaited. Same answer as the pre-check. A duplicate
+  // CODE (bookings_code_key) never reaches here — withBookingCode retries it.
+  if (error.code === '23505' && error.constraint === 'idx_bookings_slot') {
+    return httpError(409, 'SLOT_TAKEN', 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.');
+  }
+  // The salon's day was held by somebody else for longer than lockSalonDay waits. Not
+  // the same thing as a taken hour, and it must not be said as one: nothing is booked,
+  // and the same request a moment later is expected to work.
+  if (error.code === '55P03') {
+    return httpError(409, 'SLOT_BUSY', 'Salon đang nhận một lịch khác, thử lại sau vài giây.');
+  }
+  return error;
+}
+
+router.post('/', async (req, res, next) => {
+  try {
+    const plan = await validateBookingRequest(req.user, req.body ?? {});
 
     // The transaction sits INSIDE the code retry: a duplicate code aborts the whole
     // Postgres transaction, so each attempt has to start a fresh one.
@@ -523,69 +646,20 @@ router.post('/', async (req, res, next) => {
              read again — the second reader now sees the first one's booking.
 
              The salon's day and not the technician's, even when the customer named her: the
-             "Bất kỳ" branch below cannot know whose day it is about to fill until it has read
-             the whole roster, so a second key would leave those two writers racing each other
-             on exactly the overlap this exists to stop. */
-          await lockSalonDay(tx, salonId, date);
-          // The overlap the unique index cannot see: 10:00 and 10:30 of a 60-minute service
-          // are two different minutes and one technician in two places. Both kinds of clash
-          // are one answer to a customer — she is not the one who gets to overrule either.
-          if (
-            staffId !== null &&
-            (await staffClashAt(tx, staffId, date, time, service.duration_min)) !== null
-          ) {
-            throw httpError(
-              409,
-              'SLOT_TAKEN',
-              'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.',
-            );
-          }
-
-          // "Bất kỳ" is a choice of nobody in particular, not a booking against nobody:
-          // the hour has to be held on somebody's calendar or the grid keeps offering it.
-          // Chosen in here, on this transaction and under the lock above, so the pick and
-          // the row it is written into cannot drift apart.
-          const assigned =
-            staffId ??
-            (await pickAvailableStaff(tx, salonId, serviceId, date, time, service.duration_min));
-          if (assigned === null) {
-            throw httpError(
-              409,
-              'SLOT_TAKEN',
-              'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.',
-            );
-          }
-
-          const bookingId = Number(
-            (
-              await tx.run(
-                INSERT_BOOKING,
-                req.user.id,
-                salonId,
-                serviceId,
-                assigned,
-                generated,
-                date,
-                time,
-                status,
-                note ?? null,
-                total,
-                customerName ?? req.user.name,
-                customerPhone ?? req.user.phone,
-                paymentMethod,
-                createdAt,
-              )
-            ).lastInsertRowid,
-          );
+             "Bất kỳ" branch cannot know whose day it is about to fill until it has read the
+             whole roster, so a second key would leave those two writers racing each other on
+             exactly the overlap this exists to stop. */
+          await lockSalonDay(tx, plan.salonId, plan.date);
+          const { bookingId, assigned } = await insertBookingIn(tx, plan, generated);
 
           booking = await tx.get(SELECT_BOOKING, bookingId);
           await notifyUser(
             tx,
             req.user.id,
-            autoConfirm ? 'Lịch hẹn đã được xác nhận' : 'Đã ghi nhận yêu cầu đặt lịch',
-            autoConfirm
-              ? `Lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(date)} lúc ${time} đã được xác nhận.`
-              : `Lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(date)} lúc ${time} đã được ghi nhận.`,
+            plan.autoConfirm ? 'Lịch hẹn đã được xác nhận' : 'Đã ghi nhận yêu cầu đặt lịch',
+            plan.autoConfirm
+              ? `Lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(plan.date)} lúc ${plan.time} đã được xác nhận.`
+              : `Lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(plan.date)} lúc ${plan.time} đã được ghi nhận.`,
             'booking',
             bookingId,
           );
@@ -596,40 +670,28 @@ router.post('/', async (req, res, next) => {
           await notifyUser(
             tx,
             booking.salon_owner_id,
-            autoConfirm ? 'Lịch hẹn mới' : 'Lịch hẹn mới cần xác nhận',
-            autoConfirm
-              ? `Khách đã đặt lịch hẹn ${generated} ngày ${formatDate(date)} lúc ${time}, đã tự động xác nhận.`
-              : `Khách đã đặt lịch hẹn ${generated} ngày ${formatDate(date)} lúc ${time}, đang chờ bạn xác nhận.`,
+            plan.autoConfirm ? 'Lịch hẹn mới' : 'Lịch hẹn mới cần xác nhận',
+            plan.autoConfirm
+              ? `Khách đã đặt lịch hẹn ${generated} ngày ${formatDate(plan.date)} lúc ${plan.time}, đã tự động xác nhận.`
+              : `Khách đã đặt lịch hẹn ${generated} ngày ${formatDate(plan.date)} lúc ${plan.time}, đang chờ bạn xác nhận.`,
             'booking',
             bookingId,
           );
           /* And the technician whose day this hour just came out of. `assigned` rather than
-             `staffId`, so the "Bất kỳ" auto-pick is covered too: the customer chose nobody in
-             particular, but somebody is now expected at that hour and it is their calendar
-             that says so. notifyStaff no-ops on a row nobody has claimed. */
+             `plan.staffId`, so the "Bất kỳ" auto-pick is covered too: the customer chose
+             nobody in particular, but somebody is now expected at that hour and it is their
+             calendar that says so. notifyStaff no-ops on a row nobody has claimed. */
           await notifyStaff(
             tx,
             assigned,
             'Lịch hẹn mới trên lịch của bạn',
-            `Khách đã đặt lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(date)} lúc ${time}.`,
+            `Khách đã đặt lịch hẹn ${generated} tại ${booking.salon_name} ngày ${formatDate(plan.date)} lúc ${plan.time}.`,
             bookingId,
           );
         }),
       );
     } catch (error) {
-      // The idx_bookings_slot backstop: a second customer slipped past the availability
-      // pre-check while this request awaited. Same answer as the pre-check. A duplicate
-      // CODE (bookings_code_key) never reaches here — withBookingCode retries it.
-      if (error.code === '23505' && error.constraint === 'idx_bookings_slot') {
-        throw httpError(409, 'SLOT_TAKEN', 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.');
-      }
-      // The salon's day was held by somebody else for longer than lockSalonDay waits. Not
-      // the same thing as a taken hour, and it must not be said as one: nothing is booked,
-      // and the same request a moment later is expected to work.
-      if (error.code === '55P03') {
-        throw httpError(409, 'SLOT_BUSY', 'Salon đang nhận một lịch khác, thử lại sau vài giây.');
-      }
-      throw error;
+      throw placementError(error);
     }
 
     res.json({ success: true, data: toBookingDetail(booking) });
@@ -719,6 +781,155 @@ router.patch('/:id/cancel', async (req, res, next) => {
     });
 
     res.json({ success: true, data: toBookingDetail(await selectBooking.get(booking.id)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Move an appointment: one act, and one transaction.
+ *
+ * This used to be two requests from the browser — book the new hour, then cancel the old
+ * one — and the second of them could be refused on its own. A customer who moved an
+ * appointment inside the salon's cancel window was left holding two live bookings and no
+ * way to drop either from here, which is the worst of the three outcomes for everybody.
+ *
+ * So the cancel cutoff is not asked here. It is a rule about walking away, and a customer
+ * who moves an appointment is not walking away: the salon keeps the visit, which is the
+ * thing the window was protecting. What it must not become is a way to undo an hour that
+ * is already happening, and that is asked instead.
+ *
+ * The new hour is validated exactly as a fresh booking is, lead time included — from out
+ * here it IS a fresh booking. What comes along from the old one is what the customer is
+ * not being asked again: the service, the note, the number the salon was given, and the
+ * price already agreed.
+ */
+router.patch('/:id/reschedule', async (req, res, next) => {
+  try {
+    const old = await ownedBooking(req);
+    const { date, time, staff_id: staffIdInput } = req.body ?? {};
+
+    if (old.status !== 'pending' && old.status !== 'confirmed') {
+      throw httpError(400, 'INVALID_STATUS', 'Lịch hẹn này không thể đổi giờ.');
+    }
+    // The same line the customer's own list draws before it offers the button: an hour
+    // that has begun is not one there is still a choice about.
+    if (minutesUntilStart(old.date, old.time) <= 0) {
+      throw httpError(
+        400,
+        'BOOKING_STARTED',
+        'Lịch hẹn này đã bắt đầu, vui lòng liên hệ salon để thay đổi.',
+      );
+    }
+
+    const contact = await selectBookingContact.get(old.id);
+    const plan = {
+      ...(await validateBookingRequest(req.user, {
+        salon_id: old.salon_id,
+        service_id: old.service_id,
+        staff_id: staffIdInput,
+        date,
+        time,
+        note: old.note,
+        payment_method: old.payment_method,
+        customer_name: contact.customer_name,
+        customer_phone: contact.customer_phone,
+      })),
+      // The price the customer already agreed to, not a fresh quote: the work is the same
+      // work, and the promotion code that bought the discount is not on the row to apply
+      // again — re-quoting would put the appointment up in price for moving it.
+      total: old.total_price,
+    };
+
+    let booking;
+    try {
+      await withBookingCode((generated) =>
+        db.withTransaction(async (tx) => {
+          /* Both days, and in sorted order. The day being left has to be held as well as
+             the day being taken, and two customers swapping hours across the same pair of
+             dates would otherwise each hold the key the other is waiting for. Sorted, they
+             queue. One key when the move stays inside a day. */
+          for (const day of [...new Set([old.date, plan.date])].sort()) {
+            await lockSalonDay(tx, plan.salonId, day);
+          }
+          // The row being moved is still live in here, and an appointment is never in its
+          // own way — 10:00 to 10:30 on the same technician is a move, not a clash.
+          const { bookingId, assigned } = await insertBookingIn(tx, plan, generated, old.id);
+          /* And only now the old one goes, so nothing between these two lines can see the
+             hour given back before the new one is held. Appended, not replaced: the
+             customer's own words stay readable, and the salon looking at a cancelled row
+             can see where the hour went rather than only that it left. */
+          await tx.run(
+            CANCEL_BOOKING,
+            [old.note, `Đã đổi sang lịch hẹn ${generated}`].filter(Boolean).join('\n'),
+            old.id,
+          );
+
+          booking = await tx.get(SELECT_BOOKING, bookingId);
+          const from = `ngày ${formatDate(old.date)} lúc ${old.time}`;
+          const to = `ngày ${formatDate(plan.date)} lúc ${plan.time}`;
+          await notifyUser(
+            tx,
+            req.user.id,
+            'Lịch hẹn đã được dời',
+            `Lịch hẹn ${old.code} ${from} đã được dời sang ${to}, mã mới ${generated}. ` +
+              (plan.autoConfirm
+                ? 'Lịch mới đã được xác nhận.'
+                : 'Lịch mới đang chờ salon xác nhận.'),
+            'booking',
+            bookingId,
+          );
+          /* One notice to the salon, and not the cancellation's plus the new booking's: an
+             owner told both reads two customers, one of whom walked — and would go looking
+             for the hour to fill. What happened is that one appointment moved. */
+          await notifyUser(
+            tx,
+            booking.salon_owner_id,
+            'Khách đã dời lịch hẹn',
+            `Khách đã dời lịch hẹn ${old.code} ${from} sang ${to}, mã mới ${generated}.`,
+            'booking',
+            bookingId,
+          );
+          /* And the calendars the hour came out of and went into. One sentence when the
+             chair did not change and two when it did — the shape the console's own move
+             draws (routes/partner.js), because a technician must hear about one event
+             once. notifyStaff no-ops on a row nobody has claimed. */
+          if (assigned === old.staff_id) {
+            await notifyStaff(
+              tx,
+              assigned,
+              'Một lịch hẹn đã đổi giờ',
+              `Khách đã dời lịch hẹn ${old.code} tại ${booking.salon_name} ${from} sang ${to}, mã mới ${generated}.`,
+              bookingId,
+            );
+          } else {
+            await notifyStaff(
+              tx,
+              old.staff_id,
+              'Lịch hẹn đã gỡ khỏi lịch của bạn',
+              `Khách đã dời lịch hẹn ${old.code} tại ${booking.salon_name} ${from} sang một kỹ thuật viên khác.`,
+              bookingId,
+            );
+            await notifyStaff(
+              tx,
+              assigned,
+              'Lịch hẹn mới trên lịch của bạn',
+              `Khách đã dời lịch hẹn ${generated} tại ${booking.salon_name} sang ${to}.`,
+              bookingId,
+            );
+          }
+        }),
+      );
+    } catch (error) {
+      throw placementError(error);
+    }
+
+    // The appointment that no longer stands, named rather than left for the client to
+    // work out: it asked to move one booking and is being handed a different id back.
+    res.json({
+      success: true,
+      data: { ...toBookingDetail(booking), replaced_booking_id: old.id },
+    });
   } catch (error) {
     next(error);
   }

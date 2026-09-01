@@ -186,7 +186,7 @@ Cài đặt
 <button @click="cancel(booking)" class="btn-secondary flex-1 md:flex-none" type="button" x-show="tab === 'upcoming' &amp;&amp; !hasStarted(booking)">
                                     Hủy lịch
                                 </button>
-<a :href="rescheduleUrl(booking)" class="btn-secondary flex-1 md:flex-none" x-show="tab === 'upcoming' &amp;&amp; canCancel(booking)">
+<a :href="rescheduleUrl(booking)" class="btn-secondary flex-1 md:flex-none" x-show="tab === 'upcoming' &amp;&amp; !hasStarted(booking)">
                                     Đổi lịch
                                 </a>
 <a :href="'tel:' + (booking.salon.phone || '').replace(/\s/g, '')" @click="showPhone(booking.salon.phone)" class="btn-secondary flex-1 md:flex-none" x-show="booking.salon.phone">
@@ -241,13 +241,17 @@ Cài đặt
 </fieldset>
 <div class="flex flex-wrap justify-end gap-3">
 <button @click="closeCancel()" class="btn-secondary flex-1 sm:flex-none" type="button">Giữ lại</button>
-<!-- Past the deadline the server refuses, so the dialog offers the only thing that still
-     works — and only when the salon published a number to dial. -->
-<a :href="'tel:' + salonPhone()" class="btn-primary flex-1 sm:flex-none" x-cloak="" x-show="cancelExpired() &amp;&amp; salonPhone()">
+<!-- Past the deadline the server refuses a cancel, so calling the salon is what is left of
+     dropping the appointment — and only when the salon published a number to dial. It is
+     no longer the whole of what is left, though, which is why it steps back a rank here. -->
+<a :href="'tel:' + salonPhone()" class="btn-secondary flex-1 sm:flex-none" x-cloak="" x-show="cancelExpired() &amp;&amp; salonPhone()">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="call">call</span>
                 Gọi salon để hủy
             </a>
-<a :href="cancelTarget ? rescheduleUrl(cancelTarget) : '#'" class="btn-primary flex-1 sm:flex-none" x-cloak="" x-show="!cancelExpired() &amp;&amp; cancelReason === 'Muốn đổi giờ/KTV'">Đổi lịch thay vì hủy</a>
+<!-- Moving the appointment is one act on the server and the cancel window does not gate
+     it, so past the deadline this is the way out that still works from here — and the
+     salon keeps the visit, which beats the no-show that not turning up would leave. -->
+<a :href="cancelTarget ? rescheduleUrl(cancelTarget) : '#'" class="btn-primary flex-1 sm:flex-none" x-cloak="" x-show="cancelExpired() || cancelReason === 'Muốn đổi giờ/KTV'">Đổi lịch thay vì hủy</a>
 <button :disabled="cancelling" @click="confirmCancel()" class="btn-danger flex-1 sm:flex-none" type="button" x-show="!cancelExpired() &amp;&amp; cancelReason !== 'Muốn đổi giờ/KTV'" x-text="cancelling ? 'Đang hủy…' : 'Hủy lịch hẹn'"></button>
 </div>
 </div>
@@ -442,8 +446,8 @@ Cài đặt
                     + (booking.staff ? '&staff_id=' + booking.staff.id + '&rebook=1' : '');
             },
 
-            /** Same wizard as "Đặt lại", plus the booking the new one replaces: dat-lich.html
-                cancels that one once the replacement has actually been made. */
+            /** Same wizard as "Đặt lại", plus the booking the new one replaces: the server
+                takes the new hour and gives the old one back in one act. */
             rescheduleUrl(booking) {
                 return this.rebookUrl(booking) + '&reschedule=' + booking.id;
             },
@@ -492,10 +496,11 @@ Cài đặt
                     + ', ' + pad(at.getDate()) + '/' + pad(at.getMonth() + 1);
             },
 
-            /** Whether this appointment can still be dropped without calling the salon. It
-                gates "Đổi lịch" too: rescheduling ends in a cancel of this very booking, so
-                offering it past the deadline would leave the customer holding two live
-                appointments and no way to undo either one from here. */
+            /** Whether this appointment can still be dropped without calling the salon.
+                "Đổi lịch" is NOT gated on it: moving an appointment is one act on the
+                server, and the window is a rule about walking away — a customer who moves
+                one is not walking away, and a moved appointment beats the no-show that the
+                only other way out produces. */
             canCancel(booking) {
                 return Date.now() < this.cancelDeadlineAt(booking);
             },

@@ -467,7 +467,7 @@
 </div>
 <div class="flex gap-3 shrink-0">
 <a class="inline-flex items-center justify-center bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200" href="lich-hen-cua-toi.html">Xem</a>
-<a :href="rescheduleUrl(booking)" class="inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-variant/50 transition-colors active:scale-95 duration-200">Đổi lịch</a>
+<a :href="rescheduleUrl(booking)" class="inline-flex items-center justify-center border border-outline text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-variant/50 transition-colors active:scale-95 duration-200" x-show="!hasStarted(booking)">Đổi lịch</a>
 </div>
 </div>
 </template>
@@ -1024,6 +1024,16 @@
                     + '&salon_id=' + booking.salon.id
                     + (booking.staff ? '&staff_id=' + booking.staff.id + '&rebook=1' : '')
                     + '&reschedule=' + booking.id;
+            },
+
+            /* The upcoming list holds today whole, so the appointment named here can be one
+               already under way. Nothing is wrong with naming it — a reader still on the way
+               there wants to see it — but there is nothing left to move, and the server
+               refuses. Same line lich-hen-cua-toi.html draws before it offers the button. */
+            hasStarted(booking) {
+                const [year, month, day] = booking.date.split('-').map(Number);
+                const [hours, minutes] = booking.time.split(':').map(Number);
+                return Date.now() >= new Date(year, month - 1, day, hours, minutes).getTime();
             },
         };
     }

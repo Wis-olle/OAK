@@ -214,9 +214,13 @@ test('the salon owner is told about a booking the customer made or dropped', () 
   );
   // The owner id comes off the salon join, never off the request body.
   assert.match(route, /s\.owner_id AS salon_owner_id,/);
-  assert.equal(route.split('booking.salon_owner_id').length - 1, 2);
+  assert.equal(route.split('booking.salon_owner_id').length - 1, 3);
   assert.match(route, /'Lịch hẹn mới cần xác nhận',/);
   assert.match(route, /'Khách đã hủy lịch hẹn',/);
+  /* And a move is told as a move: ONE notice naming both hours, not the cancellation's plus
+     the new booking's. An owner handed those two reads two customers, one of whom walked,
+     and goes looking for an hour to fill that never came free. */
+  assert.match(route, /'Khách đã dời lịch hẹn',/);
 });
 
 test('"Đổi lịch" reopens the same wizard, naming the appointment it replaces', () => {
@@ -286,7 +290,11 @@ test('the cancel dialog asks why, and turns into the way to keep the appointment
   assert.equal(state.cancelReason, 'Bận đột xuất');
   assert.equal(state.cancelNote, '');
   // "Muốn đổi giờ/KTV" is not a cancellation: the red button gives way to the wizard.
-  assert.match(bookingsHtml, /x-show="!cancelExpired\(\) &amp;&amp; cancelReason === 'Muốn đổi giờ\/KTV'"/);
+  assert.match(bookingsHtml, /x-show="!cancelExpired\(\) &amp;&amp; cancelReason !== 'Muốn đổi giờ\/KTV'"/);
+  /* And past the deadline it is offered whatever the reader answered, because it is then
+     the only way out that still works from this page: the server refuses the cancel, but
+     moving the appointment is one act it does not gate on the window. */
+  assert.match(bookingsHtml, /x-show="cancelExpired\(\) \|\| cancelReason === 'Muốn đổi giờ\/KTV'"/);
   assert.match(bookingsHtml, /Đổi lịch thay vì hủy/);
   // The free-text box belongs to "Khác" alone.
   assert.match(bookingsHtml, /x-show="cancelReason === 'Khác'"/);
@@ -507,16 +515,21 @@ test('the composer opens for a booking or for an edit, and only the write path s
 
 // ------------------------------------------------------- reviewer follow-ups (round 2)
 
-test('"Đổi lịch" is withdrawn once the appointment can no longer be cancelled', () => {
+test('"Đổi lịch" stands until the appointment starts, and the cancel window does not touch it', () => {
   const state = myBookings(async () => []);
 
   assert.equal(state.canCancel(bookingIn(5)), true);
   assert.equal(state.canCancel(bookingIn(1)), false);
-  // Rescheduling ends in a cancel of this same booking, so the button may not outlive it:
-  // otherwise the customer ends up holding two live appointments.
-  assert.match(bookingsHtml, /x-show="tab === 'upcoming' &amp;&amp; canCancel\(booking\)"/);
-  // "Hủy lịch" deliberately stays until the appointment actually starts: its dialog is
-  // where the explanation — and the phone number — lives.
+  // An appointment an hour away can no longer be cancelled from here and can still be
+  // moved. Moving it is one act on the server, and the window is a rule about walking away
+  // — a customer who moves an appointment is not walking away, and the salon keeps the
+  // visit. Gating the button on canCancel() left the hour before an appointment with no
+  // way out but not turning up.
+  assert.equal(state.hasStarted(bookingIn(1)), false);
+  assert.equal(state.hasStarted(bookingIn(-1)), true);
+  assert.match(bookingsHtml, /x-show="tab === 'upcoming' &amp;&amp; !hasStarted\(booking\)"/);
+  // "Hủy lịch" draws the same line: its dialog is where the explanation — and the phone
+  // number — lives, so it opens right up to the start and says so there.
   assert.match(
     bookingsHtml,
     /@click="cancel\(booking\)"[^>]*x-show="tab === 'upcoming' &amp;&amp; !hasStarted\(booking\)"/,
@@ -573,32 +586,17 @@ test('a stale tab failure cannot raise an error over the tab that did load', asy
   assert.equal(state.loading, false);
 });
 
-test('the stranded old appointment reaches the confirmation page as a standing banner', async () => {
-  const state = myConfirmation(async () => ({ id: 91, status: 'pending' }), {
-    id: '91',
-    reschedule_failed: '55',
-  });
-
-  await state.init();
-
-  assert.equal(state.rescheduleFailed, 55);
-  // A banner, not a toast: it has to still be there when the reader looks for it.
-  assert.match(confirmationHtml, /x-show="rescheduleFailed"/);
-  assert.match(
-    confirmationHtml,
-    /Lịch mới đã được đặt, nhưng lịch cũ chưa hủy được — vui lòng liên hệ salon hoặc kiểm tra Lịch hẹn của tôi\./,
-  );
-  // Both ways out are offered, because which one applies depends on why the cancel failed.
-  assert.match(confirmationHtml, /href="lich-hen-cua-toi\.html">Xem lịch hẹn của tôi<\/a>/);
-  assert.match(confirmationHtml, /:href="'xac-nhan-dat-lich\.html\?id=' \+ rescheduleFailed"/);
-});
-
-test('an ordinary confirmation shows no banner', async () => {
+test('nothing can be stranded by a move, so the confirmation page no longer warns about it', async () => {
   const state = myConfirmation(async () => ({ id: 91, status: 'pending' }), { id: '91' });
 
   await state.init();
 
-  assert.equal(state.rescheduleFailed, 0);
+  assert.equal(state.booking.id, 91);
+  /* The banner this replaces existed because a move was two requests and the second one —
+     a cancel — could be refused on its own. The server takes both hours in one transaction
+     now: either the appointment moved or nothing did, and there is no third outcome for a
+     page to explain. The plumbing goes with it rather than sitting here unreachable. */
+  assert.doesNotMatch(confirmationHtml, /reschedule_failed|rescheduleFailed/);
 });
 
 test('the arrow marks the notification read before it navigates', async () => {

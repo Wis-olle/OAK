@@ -1409,6 +1409,227 @@ async function groupBookings() {
     'naming the technician a "Bất kỳ" booking was assigned to, at that same hour',
   );
 
+  /* -- moving an appointment: one act, or none of it --------------------------------- */
+
+  // This used to be the browser making two requests, and the second of them was a cancel
+  // the salon's own window could refuse — leaving the customer holding two live
+  // appointments and no way to drop either. One route now, one transaction.
+  const moveSlot = await findServiceSlot(service);
+  assert(moveSlot !== null, 'reschedule: needed a free slot to book the appointment to move');
+  const moving = ok(
+    await customer.fetch('/api/bookings', {
+      method: 'POST',
+      json: {
+        salon_id: state.lalaId,
+        service_id: service.id,
+        date: moveSlot.date,
+        time: moveSlot.time,
+        note: 'Ghi chú của khách',
+      },
+    }),
+    'POST /api/bookings (the appointment that will be moved)',
+  );
+  const moveTarget = await findServiceSlot(service, [moveSlot]);
+  assert(moveTarget !== null, 'reschedule: needed a second free slot to move onto');
+
+  const ownerBeforeMove = ok(
+    await partner.fetch('/api/notifications'),
+    'the owner feed before the move',
+  );
+  const customerBeforeMove = ok(
+    await customer.fetch('/api/notifications'),
+    'the customer feed before the move',
+  );
+  const movedResponse = await customer.fetch(`/api/bookings/${moving.id}/reschedule`, {
+    method: 'PATCH',
+    json: { date: moveTarget.date, time: moveTarget.time },
+  });
+  const moved = ok(movedResponse, 'PATCH /api/bookings/:id/reschedule');
+  assert(moved.id !== moving.id, 'reschedule: the reply must be the appointment that now stands', movedResponse);
+  assert(
+    moved.replaced_booking_id === moving.id,
+    'reschedule: the reply must name the appointment it replaced',
+    movedResponse,
+  );
+  assert(moved.code !== moving.code, 'reschedule: the new appointment carries a code of its own', movedResponse);
+  assert(
+    moved.date === moveTarget.date && moved.time === moveTarget.time,
+    'reschedule: expected the hour that was asked for',
+    movedResponse,
+  );
+  assert(
+    ['pending', 'confirmed'].includes(moved.status),
+    'reschedule: the new appointment must be a live one',
+    movedResponse,
+  );
+  // "Bất kỳ" is a choice of nobody in particular, not a booking against nobody — a move
+  // has to hold somebody's calendar for the same reason the first booking did.
+  assert(moved.staff !== null, 'reschedule: a move that names no technician must still land on one', movedResponse);
+  assert(moved.note === 'Ghi chú của khách', 'reschedule: the customer own words ride along', movedResponse);
+  assert(
+    moved.total_price === moving.total_price,
+    'reschedule: the price already agreed rides along rather than being re-quoted',
+    movedResponse,
+  );
+  assert(
+    moved.service.id === moving.service.id,
+    'reschedule: the service is not a thing this route changes',
+    movedResponse,
+  );
+
+  const retired = ok(
+    await customer.fetch(`/api/bookings/${moving.id}`),
+    'GET the appointment the move replaced',
+  );
+  assert(retired.status === 'cancelled', 'reschedule: the appointment it replaced must be cancelled');
+
+  const upcomingAfterMove = ok(
+    await customer.fetch('/api/bookings/mine?status=upcoming&limit=50'),
+    'GET /api/bookings/mine?status=upcoming after the move',
+  );
+  assert(
+    upcomingAfterMove.some((item) => item.id === moved.id),
+    'reschedule: the appointment that stands must be in the upcoming tab',
+  );
+  assert(
+    !upcomingAfterMove.some((item) => item.id === moving.id),
+    'reschedule: and the one it replaced must not be there beside it',
+  );
+
+  /* ONE notice to the salon, saying the hour moved. The cancellation's plus the new
+     booking's would read as two customers, one of whom walked — and the owner would go
+     looking for an hour to fill that never came free. */
+  const ownerAfterMove = ok(await partner.fetch('/api/notifications'), 'the owner feed after the move');
+  const moveNotices = ownerAfterMove.filter(
+    (item) => !ownerBeforeMove.some((seen) => seen.id === item.id),
+  );
+  assert(moveNotices.length === 1, 'reschedule: the salon must be told once, not twice');
+  assert(
+    moveNotices[0].title === 'Khách đã dời lịch hẹn',
+    'reschedule: and told that an appointment moved rather than that one was cancelled',
+  );
+  assert(
+    moveNotices[0].booking_id === moved.id,
+    'reschedule: the owner notice must open the appointment that now stands',
+  );
+  const customerAfterMove = ok(
+    await customer.fetch('/api/notifications'),
+    'the customer feed after the move',
+  );
+  const ownNotices = customerAfterMove.filter(
+    (item) => !customerBeforeMove.some((seen) => seen.id === item.id),
+  );
+  assert(ownNotices.length === 1, 'reschedule: the customer is told once as well');
+  assert(
+    ownNotices[0].title === 'Lịch hẹn đã được dời',
+    'reschedule: and the customer notice says the appointment moved',
+  );
+
+  // An hour whose every performer is already assigned, which is what anonSlot became
+  // above. Nothing about the appointment being moved may change over a refusal.
+  const takenResponse = await customer.fetch(`/api/bookings/${moved.id}/reschedule`, {
+    method: 'PATCH',
+    json: { date: anonBody.date, time: anonBody.time },
+  });
+  expectError(takenResponse, 409, 'SLOT_TAKEN', 'moving an appointment onto an hour with nobody free');
+  const afterRefusal = ok(
+    await customer.fetch(`/api/bookings/${moved.id}`),
+    'GET the appointment after a refused move',
+  );
+  assert(
+    afterRefusal.date === moveTarget.date &&
+      afterRefusal.time === moveTarget.time &&
+      afterRefusal.status === moved.status,
+    'a refused move must leave the appointment exactly where it was',
+  );
+
+  // Somebody else's appointment is not one to move, for the same reason it is not one to
+  // read: ownership is asked before anything else about it is.
+  expectError(
+    await session('customer2').fetch(`/api/bookings/${moved.id}/reschedule`, {
+      method: 'PATCH',
+      json: { date: moveTarget.date, time: moveTarget.time },
+    }),
+    403,
+    'FORBIDDEN',
+    "moving another customer's appointment",
+  );
+
+  /* Past the salon's cancel window and still movable. The window is a rule about walking
+     away, and a customer who moves an appointment is not walking away — the salon keeps
+     the visit, which is the thing the window was protecting. `imminent` is the booking the
+     cancel above was refused on, at half an hour from now against a two-hour cutoff. */
+  const rescueSlot = await findServiceSlot(service, [moveSlot, moveTarget]);
+  assert(rescueSlot !== null, 'reschedule inside the cutoff: needed a free slot to move onto');
+  const rescued = ok(
+    await customer.fetch(`/api/bookings/${imminent.id}/reschedule`, {
+      method: 'PATCH',
+      json: { date: rescueSlot.date, time: rescueSlot.time },
+    }),
+    'PATCH /api/bookings/:id/reschedule inside the salon cancel window',
+  );
+  assert(
+    rescued.date === rescueSlot.date && rescued.time === rescueSlot.time,
+    'reschedule inside the cutoff: expected the hour that was asked for',
+  );
+  assert(
+    ok(await customer.fetch(`/api/bookings/${imminent.id}`), 'GET the imminent appointment after the move')
+      .status === 'cancelled',
+    'reschedule inside the cutoff: the appointment it replaced still goes',
+  );
+
+  /* An appointment that has already begun. It stays in the upcoming tab — a customer
+     sitting in the chair must be able to find the booking they are sitting in — but there
+     is nothing left to decide about it, so the move is refused. Only the salon may put a
+     booking on an hour that has gone by, so that is how it gets there. */
+  const startedAt = new Date().getHours() * 60 + new Date().getMinutes() - 20;
+  if (startedAt >= 0) {
+    const begunSlot = await findServiceSlot(service, [moveSlot, moveTarget, rescueSlot]);
+    assert(begunSlot !== null, 'started-appointment case: needed a free slot to book first');
+    const begun = ok(
+      await customer.fetch('/api/bookings', {
+        method: 'POST',
+        json: {
+          salon_id: state.lalaId,
+          service_id: service.id,
+          date: begunSlot.date,
+          time: begunSlot.time,
+        },
+      }),
+      'POST /api/bookings (the appointment that will have started)',
+    );
+    // force, because today already carries the cancel-window booking half an hour out and
+    // these two can share a technician: the counter overruling an overlap is what force is.
+    ok(
+      await partner.fetch(`/api/partner/bookings/${begun.id}`, {
+        method: 'PATCH',
+        json: { date: state.today, time: hhmm(startedAt), force: true },
+      }),
+      'PATCH /api/partner/bookings/:id (onto an hour twenty minutes ago)',
+    );
+
+    const underWay = ok(
+      await customer.fetch('/api/bookings/mine?status=upcoming&limit=50'),
+      'GET /api/bookings/mine?status=upcoming with an appointment under way',
+    );
+    assert(
+      underWay.some((item) => item.id === begun.id),
+      'an appointment that started twenty minutes ago must still be in the upcoming tab',
+    );
+    expectError(
+      await customer.fetch(`/api/bookings/${begun.id}/reschedule`, {
+        method: 'PATCH',
+        json: { date: moveTarget.date, time: moveTarget.time },
+      }),
+      400,
+      'BOOKING_STARTED',
+      'moving an appointment that has already begun',
+    );
+  } else {
+    skip('an appointment cannot have started twenty minutes ago in the first twenty minutes of a day');
+  }
+
+
   // A day the salon declared closed is refused before any calendar is consulted, and the
   // message must say the salon is shut rather than that somebody took the hour. The slot
   // is read off the grid while the day is still open, so the only thing that changes
@@ -4356,6 +4577,35 @@ async function groupBookingLifecycle() {
     'GET /api/services/:id/availability?date=today with a day of lead time',
   );
   assert(shutToday.slots.length === 0, 'lead time: a full day of it leaves today with nothing');
+  /* A move is held to the notice too. The hour a reschedule asks for is validated exactly
+     as a fresh booking is — from the salon's side it IS a fresh booking — so moving an
+     appointment cannot be the way around a rule the salon set. And a refused move changes
+     nothing, which is the other half of what is asserted here. */
+  const leadStart = clock.getHours() * 60 + clock.getMinutes() + 60;
+  // Headroom for the longest service this salon sells, so the hour below is refused for
+  // the notice it sits inside and never for running past midnight.
+  if (leadStart + 180 <= 23 * 60 + 59) {
+    expectError(
+      await customer.fetch(`/api/bookings/${waiting.id}/reschedule`, {
+        method: 'PATCH',
+        json: { date: state.today, time: hhmm(leadStart) },
+      }),
+      400,
+      'LEAD_TIME',
+      'moving an appointment inside the notice the salon asks for',
+    );
+    const held = ok(
+      await customer.fetch(`/api/bookings/${waiting.id}`),
+      'GET the appointment after a move the lead time refused',
+    );
+    assert(
+      held.date === soonDate && held.time === soonTime && held.status === waiting.status,
+      'a move the lead time refused must leave the appointment exactly where it was',
+    );
+  } else {
+    skip('an hour from now no longer fits inside today, so the lead-time move cannot be posed');
+  }
+
   ok(
     await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { lead_time_min: 0 } }),
     'PATCH /api/partner/salon (lead time back to none)',

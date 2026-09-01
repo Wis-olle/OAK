@@ -398,9 +398,10 @@
 </div>
 <!-- The last click of the funnel used to leave the page and come back. It happens here
      instead: the name and phone above are what a new account is made from, so nothing
-     the visitor already typed is asked for twice (WCAG 3.3.7). The sidebar button stays
-     as the fallback for anyone who would rather use the full login page. -->
-<div class="space-y-6" x-cloak="" x-show="!loading &amp;&amp; !user">
+     the visitor already typed is asked for twice (WCAG 3.3.7). The confirm buttons now
+     bring the reader here rather than to the full sign-in page, which the link at the
+     bottom of this panel keeps a door to. -->
+<div class="space-y-6" x-cloak="" x-ref="authPanel" x-show="!loading &amp;&amp; !user">
 <h2 class="font-headline-sm text-headline-sm text-primary border-b border-outline-variant/20 pb-4">Đăng nhập để xác nhận</h2>
 <div class="flex flex-wrap gap-3">
 <button :class="authTab === 'login' ? 'border-primary text-primary' : 'border-outline-variant text-on-surface-variant'" @click="authTab = 'login'" class="min-h-[44px] px-5 py-2 border rounded-full font-label-md text-label-md hover:border-primary transition-colors" type="button">Đăng nhập</button>
@@ -431,6 +432,11 @@
 </div>
 <p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="authError" x-text="authError"></p>
 <button :disabled="authBusy || busy" @click="authSubmit()" class="bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-primary transition-colors active:scale-95 duration-200 disabled:opacity-60" type="button" x-text="authBusy ? 'Đang xử lý…' : (authTab === 'login' ? 'Đăng nhập &amp; xác nhận' : 'Tạo tài khoản &amp; xác nhận')">Đăng nhập &amp; xác nhận</button>
+<!-- The one thing this panel cannot do for itself: a forgotten password needs the mail
+     round trip that the full sign-in page owns. It is also the way out for anyone who
+     would simply rather use that page, which is why the wizard keeps a door to it now
+     that the sidebar button no longer leaves. -->
+<a class="font-caption text-caption text-on-surface-variant hover:text-primary underline transition-colors inline-block" href="dang-nhap-nguoi-dung.html">Quên mật khẩu?</a>
 </div>
 <div class="flex flex-wrap items-center gap-4">
 <button @click="goTo(3)" class="border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:border-primary hover:text-primary transition-colors active:scale-95 duration-200" type="button">Quay lại</button>
@@ -1334,20 +1340,22 @@
                 }
             },
 
-            /** Retire the appointment this one replaces, once the replacement actually exists.
-                A failure here is not fatal — the new booking stands — so it is reported
-                rather than thrown: the id of the appointment still standing, or 0. A toast
-                would not survive the navigation that follows, so the confirmation page
-                carries the warning instead. */
-            async dropOldBooking() {
-                if (!this.reschedule) {
-                    return 0;
+            /** Bring the step's own sign-in panel to the visitor rather than the visitor to
+                another page. The two confirm buttons are both a screenful from it — below lg
+                the sidebar sits after the whole form — so a button that quietly did nothing
+                visible is what this is instead of. Same scroll manners as the rest of the
+                page: a reader who asked for less motion gets none. */
+            showAuthPanel() {
+                const panel = this.$refs.authPanel;
+                if (!panel) {
+                    return;
                 }
-                try {
-                    await OAK.api('/api/bookings/' + this.reschedule + '/cancel', { method: 'PATCH' });
-                    return 0;
-                } catch (error) {
-                    return this.reschedule;
+                panel.scrollIntoView({ behavior: OAK.scrollBehavior(), block: 'center' });
+                // After the scroll is asked for, not before: focus moves the viewport on the
+                // browser's own terms, which is the jump the scroll above is choosing.
+                const field = panel.querySelector('#auth-email');
+                if (field) {
+                    field.focus();
                 }
             },
 
@@ -1457,43 +1465,59 @@
 
                 if (!this.user) {
                     history.replaceState(null, '', this.selectionUrl());
-                    // The url holds the selection, but not the note the visitor just wrote,
-                    // and login navigates the page away. Blocked storage only costs the note.
+                    /* The url holds the selection, but not the note the visitor just wrote.
+                       Signing in happens on this page now, so nothing normally navigates
+                       away — but the panel's own forgotten-password door does, and blocked
+                       storage only ever costs the note. */
                     try {
                         sessionStorage.setItem(OAK_BOOKING_FORM_KEY, JSON.stringify(this.form));
                     } catch (error) {
                         // Nothing to say: the visitor simply retypes it after logging in.
                     }
-                    await OAK.requireLogin();
+                    this.showAuthPanel();
                     return;
                 }
 
                 this.busy = true;
                 try {
-                    const booking = await OAK.api('/api/bookings', {
-                        method: 'POST',
-                        body: {
-                            salon_id: this.salon.id,
-                            service_id: this.service.id,
-                            staff_id: this.staffId,
-                            date: this.date,
-                            time: this.time,
-                            note: this.form.note.trim() || null,
-                            payment_method: 'at_salon',
-                            promotion_code: this.promo.trim() || null,
-                            customer_name: this.form.name.trim(),
-                            customer_phone: this.normalizedPhone(),
-                        },
-                    });
+                    /* A move is one request. It used to be two — book the new hour, then
+                       cancel the old one — and the salon's own cancel window could refuse
+                       that second call, leaving the visitor holding two live appointments
+                       and no way to drop either from here. The server takes both hours in
+                       one transaction now: either the appointment moved or nothing did.
+                       The service, the note and the price come off the old appointment
+                       there, so only the hour is sent. */
+                    const booking = this.reschedule
+                        ? await OAK.api('/api/bookings/' + this.reschedule + '/reschedule', {
+                            method: 'PATCH',
+                            body: {
+                                date: this.date,
+                                time: this.time,
+                                staff_id: this.staffId,
+                            },
+                        })
+                        : await OAK.api('/api/bookings', {
+                            method: 'POST',
+                            body: {
+                                salon_id: this.salon.id,
+                                service_id: this.service.id,
+                                staff_id: this.staffId,
+                                date: this.date,
+                                time: this.time,
+                                note: this.form.note.trim() || null,
+                                payment_method: 'at_salon',
+                                promotion_code: this.promo.trim() || null,
+                                customer_name: this.form.name.trim(),
+                                customer_phone: this.normalizedPhone(),
+                            },
+                        });
                     /* Counted where it is true — the appointment exists. An attempt the
                        server refused is not a booking, and counting it would flatter the
                        funnel this number is read in. */
                     if (typeof OAK.track === 'function') {
                         OAK.track('booking_submit');
                     }
-                    const stranded = await this.dropOldBooking();
-                    location.href = 'xac-nhan-dat-lich.html?id=' + booking.id
-                        + (stranded ? '&reschedule_failed=' + stranded : '');
+                    location.href = 'xac-nhan-dat-lich.html?id=' + booking.id;
                 } catch (error) {
                     this.formError = error.message;
                     // Somebody took the slot between loading it and confirming. The refreshed

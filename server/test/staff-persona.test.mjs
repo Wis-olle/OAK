@@ -2509,17 +2509,17 @@ test("a 'staff' notification can only be written by notifyStaff", () => {
   }
 });
 
-test('the nine things a technician is told about, each written once and in a transaction', () => {
+test('the ten things a technician is told about, each written once and in a transaction', () => {
   /* Every notice rides the transaction that made the change it announces, so a booking that
      rolled back cannot leave a technician looking at an appointment nobody has. The count per
-     file is the "exactly once per event" half: a second call anywhere is a second bell. Eleven
-     call sites for nine triggers, because the reassignment is two events in one save — one
-     technician loses the hour and another gains it. The three newest are the departure itself,
-     told to the technician whose stint the console just closed, the hour a colleague inherits
-     from it, and the departure being taken back: a row that went from "đã nghỉ" to working
-     again without a word would leave her to find it out from her own profile. */
+     file is the "exactly once per event" half: a second call anywhere is a second bell.
+     Fourteen call sites for ten triggers, because a reassignment is two events in one save —
+     one technician loses the hour and another gains it — and it happens on two doors now: the
+     console's own edit, and the customer moving her own appointment. That last one is the
+     newest trigger, and it branches: the chair that stayed is told the hour changed, once,
+     while a chair that changed is told the same pair the console's swap tells. */
   const sites = [
-    ['routes/bookings.js', bookingsSource, 2],
+    ['routes/bookings.js', bookingsSource, 5],
     ['routes/partner.js', partnerSource, 7],
     ['routes/reviews.js', reviewsSource, 1],
     ['lib/staff-departure.js', departureSource, 1],

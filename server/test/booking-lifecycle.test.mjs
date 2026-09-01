@@ -432,19 +432,36 @@ test('one key holds a salon day, it is taken first, and it does not wait for eve
   );
 
   /* And the lock is taken FIRST. A lock after the read it was meant to protect is
-     decoration: both transactions would have already decided the hour was free. */
-  const transaction = source.slice(source.indexOf('db.withTransaction(async (tx) => {'));
+     decoration: both transactions would have already decided the hour was free.
+
+     The calendar reads live in insertBookingIn(), the one place a customer's booking is
+     written — a create and a move ask the same questions of an hour, so they ask them in
+     the same function. What each caller has to be holding when it calls in there is
+     therefore the thing to pin, and it is pinned per route: a second door that skipped the
+     lock would be the whole bug back, on the route nobody was looking at. */
+  const placement = source.slice(source.indexOf('async function insertBookingIn'));
   assert.ok(
-    transaction.indexOf('lockSalonDay(tx') < transaction.indexOf('staffClashAt(tx'),
-    'the named-technician path must hold the day before it re-reads her calendar',
+    placement.indexOf('staffClashAt(tx') < placement.indexOf('lastInsertRowid'),
+    'the named-technician path must re-read her calendar before the row is written',
   );
   assert.ok(
-    transaction.indexOf('lockSalonDay(tx') < transaction.indexOf('pickAvailableStaff(tx'),
-    'and "Bất kỳ" must hold it before it picks from the roster',
+    placement.indexOf('pickAvailableStaff(tx') < placement.indexOf('lastInsertRowid'),
+    'and "Bất kỳ" must pick from the roster before it',
   );
+  for (const door of ["router.post('/'", "router.patch('/:id/reschedule'"]) {
+    const route = source.slice(source.indexOf(door));
+    assert.ok(
+      route.indexOf('lockSalonDay(tx') < route.indexOf('insertBookingIn(tx'),
+      `${door} must hold the salon's day before it writes into it`,
+    );
+  }
+  /* And the move holds BOTH days it touches, in sorted order: the one it leaves as well as
+     the one it takes. Two customers swapping hours across the same pair of dates would
+     otherwise each sit on the key the other is waiting for. */
+  assert.match(source, /for \(const day of \[\.\.\.new Set\(\[old\.date, plan\.date\]\)\]\.sort\(\)\) \{\s*await lockSalonDay\(tx, plan\.salonId, day\);/);
 });
 
-test('the three routes that hold an hour all answer a lost lock as SLOT_BUSY', () => {
+test('the four routes that hold an hour all answer a lost lock as SLOT_BUSY', () => {
   /* 55P03 is lock_not_available: the day was held by somebody else for longer than
      LOCK_TIMEOUT. Nothing is booked and the same request a moment later is expected to
      work, so it must not be said as a taken hour — a customer told "that hour has gone"
@@ -461,6 +478,13 @@ test('the three routes that hold an hour all answer a lost lock as SLOT_BUSY', (
       `${name} must say so as SLOT_BUSY`,
     );
   }
+  // Both customer doors read that answer out of the one function, so a create and a move
+  // cannot come to describe the same lost race in two different ways.
+  assert.equal(
+    (source.match(/throw placementError\(error\);/g) || []).length,
+    2,
+    'the create and the move must both go through the one mapper',
+  );
   // withBookingCode retries a duplicate CODE and nothing else, so a timed-out lock is not
   // silently attempted five times over — it comes straight back out.
   const codeSource = fs.readFileSync(

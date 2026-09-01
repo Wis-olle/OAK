@@ -1615,8 +1615,6 @@ window.OAK_I18N_EN = {
   "Kết nối HTTPS, mật khẩu được băm, salon chỉ thấy thông tin lịch bạn đặt.": "HTTPS throughout, passwords stored hashed, and a salon sees only the bookings made with it.",
   "T2–T7 giờ hành chính · Hotline 1900 6035": "Mon-Sat, office hours · Hotline 1900 6035",
   "Gọi hotline": "Call the hotline",
-  "Lịch mới đã được đặt, nhưng lịch cũ chưa hủy được — vui lòng liên hệ salon hoặc kiểm tra Lịch hẹn của tôi.": "Your new appointment is booked, but the old one could not be cancelled — please contact the salon or check My appointments.",
-  "Xem lịch hẹn cũ": "View the old appointment",
   "ghi nhận không đến": "recorded as a no-show",
   "Salon ghi nhận bạn không đến buổi hẹn này. Nếu có nhầm lẫn, vui lòng liên hệ salon.": "The salon recorded you as not having come to this appointment. If that is a mistake, please contact them.",
   "Yêu thích - OAK Beauty": "Favorites - OAK Beauty",
