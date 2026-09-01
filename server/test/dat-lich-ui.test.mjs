@@ -43,6 +43,13 @@ function bookingForm(api, search = '') {
     },
     // init() listens for the language switch so the note survives the reload it causes.
     window: { addEventListener: (name, handler) => context.listeners.push([name, handler]) },
+    /* checkContact() puts the caret on the first field it faulted. Recorded rather than
+       performed — there is no caret out here — but it has to answer, because the failing
+       branch is half of what that function is. */
+    focused: [],
+    document: {
+      getElementById: (id) => ({ focus: () => context.focused.push(id) }),
+    },
     listeners: [],
   };
   context.history = {
@@ -77,6 +84,7 @@ function bookingForm(api, search = '') {
     querySelector: () => ({ focus: () => { panel.focused += 1; } }),
   };
   context.result.$refs = { authPanel: panel };
+  context.result.focused = context.focused;
   return context.result;
 }
 
@@ -771,11 +779,11 @@ test('the reschedule banner names the appointment being replaced, and survives n
   assert.equal(state.form.name, 'Ngọc Anh');
   assert.equal(state.form.phone, '0901234567');
   assert.equal(state.form.note, 'Ghi chú cũ');
-  /* Locked, because they are being carried over rather than asked for — but only once
-     there is something to lock: a booking that somehow carries no number would otherwise
-     leave the reader in front of a required field they cannot fill. */
-  assert.ok(html.includes(':readonly="!!(reschedule &amp;&amp; form.name)"'));
-  assert.ok(html.includes(':readonly="!!(reschedule &amp;&amp; form.phone)"'));
+  /* Locked, because they are being carried over rather than asked for. Whether they have
+     arrived yet makes no difference to that: the route reads the pair off the appointment
+     being replaced and ignores whatever the request says, so there is nothing here for a
+     reader to fill in either way — which is also why checkContact() stands aside. */
+  assert.ok(html.includes(':readonly="!!reschedule"'));
 
   // A booking that cannot be read leaves the standing notice alone rather than erroring.
   const blind = bookingForm(async () => {
@@ -884,6 +892,80 @@ test('the service of a move is stated rather than offered', () => {
   // screen — the picker's would be the hidden one.
   assert.equal(html.match(/data-step-heading="2"/g).length, 2);
   assert.match(html, /Giữ nguyên dịch vụ của lịch cũ/);
+});
+
+test('the contact pair is not asked about on a move, because it is not being asked for', () => {
+  const state = bookingForm(async () => []);
+  state.form = { name: '', phone: '', note: '' };
+
+  // Off a move this is the rule it has always been.
+  assert.equal(state.checkContact(), false);
+  assert.equal(state.fieldErrors.name, 'Vui lòng nhập họ tên.');
+  assert.deepEqual(state.focused, ['customer-name']);
+
+  /* On one it stands aside. The fields are read-only and the route reads the pair off the
+     appointment being replaced, so an error here would be blocking the reader in front of
+     two boxes they cannot type in — over values the server is not going to read. */
+  state.reschedule = 55;
+  assert.equal(state.checkContact(), true);
+  assert.equal(state.fieldErrors.name, '');
+  assert.equal(state.fieldErrors.phone, '');
+});
+
+test('signing in inside a move reads the appointment first, and stops if it cannot be moved', async () => {
+  const asked = [];
+  const answer = { status: 'confirmed' };
+  const state = readyToSubmit(bookingForm(async (path) => {
+    asked.push(path);
+    if (path === '/api/auth/login') {
+      return { user: { id: 9, name: 'Ngọc Anh' } };
+    }
+    if (path === '/api/bookings/55') {
+      return liveBooking(answer);
+    }
+    return { id: 91 };
+  }));
+  state.user = null;
+  state.reschedule = 55;
+  state.form = { name: '', phone: '', note: '' };
+  state.auth = { email: 'ngocanh@example.com', password: 'Oak@1234' };
+
+  await state.authSubmit();
+
+  /* GET /api/bookings/:id needs the session that only just started, so a wizard opened
+     signed-out has been standing here with none of what a move carries over: no note, no
+     contact pair, and a sidebar showing a list price under the words "Giá đã chốt". It is
+     read here, before the quote and before anything is sent. */
+  assert.equal(asked[0], '/api/auth/login');
+  assert.equal(asked[1], '/api/bookings/55');
+  assert.equal(state.form.note, 'Ghi chú cũ');
+  assert.equal(state.form.name, 'Ngọc Anh');
+  assert.equal(state.quote.total, 280000);
+  // The quote endpoint is not asked at all on a move, and the move itself goes last.
+  assert.deepEqual(asked, ['/api/auth/login', '/api/bookings/55', '/api/bookings/55/reschedule']);
+  assert.equal(state.location.href, 'xac-nhan-dat-lich.html?id=91');
+
+  // And the same sign-in, on an appointment that turns out to be past moving: the wizard
+  // gives way to the standing refusal rather than sending a request that can only fail.
+  answer.status = 'cancelled';
+  const closed = readyToSubmit(bookingForm(async (path) => {
+    if (path === '/api/auth/login') {
+      return { user: { id: 9, name: 'Ngọc Anh' } };
+    }
+    if (path === '/api/bookings/55') {
+      return liveBooking(answer);
+    }
+    throw new Error('nothing else may be asked once the move is off');
+  }));
+  closed.user = null;
+  closed.reschedule = 55;
+  closed.auth = { email: 'ngocanh@example.com', password: 'Oak@1234' };
+
+  await closed.authSubmit();
+
+  assert.equal(closed.rescheduleClosed, true);
+  assert.equal(closed.location.href, '');
+  assert.equal(closed.busy, false);
 });
 
 test('a guest signs up inside the wizard and lands on the confirmation, never on another page', async () => {

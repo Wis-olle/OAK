@@ -399,12 +399,12 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-name">Họ và tên *</label>
-<input :aria-invalid="fieldErrors.name ? 'true' : null" :class="fieldErrors.name ? 'border-error' : 'border-outline'" @input="fieldErrors.name = ''" aria-describedby="customer-name-error" :readonly="!!(reschedule &amp;&amp; form.name)" autocapitalize="words" autocomplete="name" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" enterkeyhint="next" id="customer-name" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
+<input :aria-invalid="fieldErrors.name ? 'true' : null" :class="fieldErrors.name ? 'border-error' : 'border-outline'" @input="fieldErrors.name = ''" aria-describedby="customer-name-error" :readonly="!!reschedule" autocapitalize="words" autocomplete="name" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" enterkeyhint="next" id="customer-name" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
 <p class="font-body-md text-sm text-error mt-2" id="customer-name-error" x-cloak="" x-show="fieldErrors.name" x-text="fieldErrors.name"></p>
 </div>
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-phone">Số điện thoại *</label>
-<input :aria-invalid="fieldErrors.phone ? 'true' : null" :class="fieldErrors.phone ? 'border-error' : 'border-outline'" @input="fieldErrors.phone = ''" aria-describedby="customer-phone-help customer-phone-error" :readonly="!!(reschedule &amp;&amp; form.phone)" autocomplete="tel" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" id="customer-phone" inputmode="tel" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
+<input :aria-invalid="fieldErrors.phone ? 'true' : null" :class="fieldErrors.phone ? 'border-error' : 'border-outline'" @input="fieldErrors.phone = ''" aria-describedby="customer-phone-help customer-phone-error" :readonly="!!reschedule" autocomplete="tel" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" id="customer-phone" inputmode="tel" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
 <p class="font-caption text-caption text-on-surface-variant mt-2" id="customer-phone-help">Salon dùng số này để xác nhận lịch</p>
 <p class="font-body-md text-sm text-error mt-2" id="customer-phone-error" x-cloak="" x-show="fieldErrors.phone" x-text="fieldErrors.phone"></p>
 </div>
@@ -1464,6 +1464,17 @@
                 whether the pair is good. The phone pattern is the one dang-ky.html uses, so
                 a number this page takes is a number that page would take too. */
             checkContact() {
+                /* Not on a move. The pair is carried over from the appointment being
+                   replaced — the route reads it off that row and ignores whatever the
+                   request says — so the fields above are shown rather than asked for, and
+                   a rule about filling them in has nothing to be about. Left as it is on a
+                   move that has not read its old appointment yet: the fields are empty and
+                   read-only either way, and the only thing an error could do there is
+                   block the reader in front of a box they cannot type in. */
+                if (this.reschedule) {
+                    this.fieldErrors = { name: '', phone: '' };
+                    return true;
+                }
                 const errors = { name: '', phone: '' };
                 if (!this.form.name.trim()) {
                     errors.name = 'Vui lòng nhập họ tên.';
@@ -1541,6 +1552,18 @@
                     return;
                 } finally {
                     this.authBusy = false;
+                }
+
+                /* And now the appointment being moved, for the first time: reading it needs
+                   the session that only just started, so a wizard opened signed-out has been
+                   standing here with none of what a move carries over. Everything below and
+                   everything on the screen depends on it — the price beside the button is a
+                   list price until this lands, the note box is empty rather than holding what
+                   was written last time, and an appointment that can no longer be moved at
+                   all has been offering four steps and a confirm. */
+                await this.loadRescheduleOld();
+                if (this.rescheduleClosed) {
+                    return;
                 }
 
                 // The quote endpoint was out of reach a moment ago, so the sidebar is
