@@ -175,12 +175,30 @@ export async function unclaimedAdminEmails() {
   return named.filter((email) => !held.has(email));
 }
 
-/** Allow only the accounts ADMIN_EMAILS names. Expects requireAuth to have run first. */
-export function requireAdmin(req, res, next) {
+/** The one column requireAdmin needs that the public user shape deliberately does not carry. */
+const selectAccountErased = db.prepare('SELECT deleted_at FROM users WHERE id = ?');
+
+/**
+ * Allow only the accounts ADMIN_EMAILS names. Expects requireAuth to have run first.
+ *
+ * Belt and braces on the erased account, which in principle cannot get this far: erasing one
+ * rewrites its address to deleted+<id>@oak.invalid, so it stops matching the list, and bumps
+ * password_changed_at, so every session it held is already refused upstream. What the check
+ * is really for is the row surviving the erasure at all — DEPLOY.md §12 says never to erase an
+ * operator account but to change ADMIN_EMAILS and redeploy, and this is the gate holding the
+ * door shut for the deploy that does it the other way round. One extra SELECT on a route an
+ * operator opens a few times a month is not a cost worth reasoning about; widening the public
+ * user shape to carry deleted_at into every /api/auth/me answer would be.
+ */
+export async function requireAdmin(req, res, next) {
   if (!req.user) {
     return next(httpError(401, 'UNAUTHENTICATED', 'Bạn cần đăng nhập để tiếp tục.'));
   }
   if (!ADMIN_EMAILS.has(String(req.user.email || '').toLowerCase())) {
+    return next(httpError(403, 'FORBIDDEN', 'Chức năng này chỉ dành cho quản trị viên.'));
+  }
+  const account = await selectAccountErased.get(req.user.id);
+  if (!account || account.deleted_at != null) {
     return next(httpError(403, 'FORBIDDEN', 'Chức năng này chỉ dành cho quản trị viên.'));
   }
   return next();

@@ -83,8 +83,8 @@ const resetPage = (api, token, storage = true, next = undefined) =>
     },
     ...(storage ? { stash: null } : {}),
   });
-const loginPage = (api) =>
-  factory(loginHtml, 'const OAK_NEXT_PAGE =', 'oakCustomerLogin()', { api });
+const loginPage = (api, query) =>
+  factory(loginHtml, 'const OAK_NEXT_PAGE =', 'oakCustomerLogin()', { api, query });
 const registerPage = (stash) =>
   factory(registerHtml, 'var OAK_NEXT_PAGE =', 'oakRegister()', { stash });
 const settingsPage = (api) =>
@@ -97,6 +97,34 @@ function loginWithRefs(api) {
   state.$refs = { email: { focus: () => { state.focused += 1; } } };
   return state;
 }
+
+/** Sign in as `role`, with whatever ?next= the address bar carried, and report where it lands. */
+async function landsOn(role, next) {
+  const state = loginPage(async () => ({ user: { role } }), next === undefined ? {} : { next });
+  state.email = 'ai@example.com';
+  state.password = 'Oak@1234';
+  await state.submit();
+  return state.location.href;
+}
+
+test('a ?next= on this site is honoured for a partner too, not only for a customer', async () => {
+  /* The console's OAK bell leads to the customer notification page, which asks for a login
+     when the session has lapsed and comes back with ?next=thong-bao.html. Landing her on the
+     dashboard instead would leave her to find her own way back to the notice she clicked —
+     and that notice is the channel điều khoản mục 7 promises a fee is announced down. */
+  assert.equal(await landsOn('partner', 'thong-bao.html'), 'thong-bao.html');
+  assert.equal(await landsOn('customer', 'thong-bao.html'), 'thong-bao.html');
+  // Without one, each persona still starts where it always did.
+  assert.equal(await landsOn('partner'), 'tong-quan-doi-tac.html');
+  assert.equal(await landsOn('customer'), 'kham-pha.html');
+  /* A technician's schedule still overrides: the technician pages are the only ones her
+     account can open, so a ?next= she picked up elsewhere would land her on a locked door. */
+  assert.equal(await landsOn('staff', 'thong-bao.html'), 'lich-cua-toi.html');
+  /* And the gate is the same one it always was — a same-site page name and nothing else — so
+     widening it to partners widened no hole: an absolute url is still not a destination. */
+  assert.equal(await landsOn('partner', 'https://evil.example/steal'), 'tong-quan-doi-tac.html');
+  assert.equal(await landsOn('partner', '//evil.example'), 'tong-quan-doi-tac.html');
+});
 
 // ------------------------------------------------------------------ dat-lai-mat-khau
 

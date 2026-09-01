@@ -910,7 +910,9 @@ function menuDom(groups) {
     document: {
       querySelectorAll: (selector) =>
         selector === '[data-oak-unread]' ? [] : nodes.filter((node) => matches(node, selector)),
-      /* Only ever asked whether this page has a technician group to give. */
+      /* Asked whether this page has a technician group to give, and whether it is a console
+         page carrying the news bell. This menu is the customer bar, so the answer to the
+         second is null and initNotificationBell falls through to the rows below. */
       querySelector: (selector) =>
         nodes.find((node) => `[data-oak-auth="${node.attributes['data-oak-auth']}"]` === selector)
           || null,
@@ -957,7 +959,7 @@ async function unreadDot(user) {
   const bellScript = handler(
     apiJs,
     '  // What the menu button is called once something is waiting to be read.',
-    "  // The partner console's own bell,",
+    "  // The console's other bell,",
   );
   const context = {
     document: dom.document,

@@ -27,9 +27,10 @@ router.use(requireAuth, requireAdmin);
 const FANOUT_BATCH = 500;
 
 const ANNOUNCEMENT_AUDIENCES = ['partner', 'customer', 'all'];
-// What both notices below are filed under. 'system' is a type ui/thong-bao.html knows
-// nothing about, which is exactly right: the row is read where it stands and there is no
-// page to send the reader to.
+// What both notices below are filed under. 'system' is a type ui/thong-bao.html DRAWS — with
+// the same glyph as the console bell that leads there — but deliberately does not LINK: the
+// notice is about the platform rather than about any one list, so the row is read where it
+// stands and no arrow points at a page that would never mention it.
 const SYSTEM_NOTIFICATION_TYPE = 'system';
 const TITLE_MAX = 120;
 const BODY_MAX = 1000;

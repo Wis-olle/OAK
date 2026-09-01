@@ -30,6 +30,7 @@ window.OAK_I18N_EN = {
   "Thông báo": "Notifications",
   "Lịch chờ xác nhận": "Pending appointments",
   "Thông báo từ OAK": "Notifications from OAK",
+  "Thông báo từ OAK — có thông báo mới": "Notifications from OAK — new notifications",
   "Lịch hẹn của tôi": "My appointments",
   "Lịch hẹn": "Appointments",
   "Hồ sơ": "Profile",

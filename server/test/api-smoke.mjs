@@ -12776,6 +12776,24 @@ async function groupFeaturedAndAnnouncements() {
     'GET /api/admin/salons as an ordinary partner',
   );
 
+  /* Before it is claimed, the boot log says so by name. ADMIN_EMAILS names an address that
+     sign-up does not verify, so between the deploy that sets it and the registration that
+     takes it, whoever registers it first becomes the operator — and nothing in the code can
+     close that, only make the wrong order visible. This child was spawned with the seat
+     unclaimed against a database that had just been dropped, so the warning is exactly what
+     that looks like in production, and it is the only evidence an operator gets. */
+  if (EXTERNAL_URL) {
+    skip('the boot log belongs to a server this run did not start');
+  } else {
+    const boot = childOutput.join('');
+    assert(
+      boot.includes(`ADMIN_EMAILS: chưa có tài khoản nào cho ${ADMIN_EMAIL}`) &&
+        boot.includes('ai đăng ký địa chỉ này trước sẽ nắm quyền vận hành') &&
+        boot.includes('(DEPLOY.md §12)'),
+      'an unclaimed operator seat boots silently',
+    );
+  }
+
   const admin = new Session();
   ok(
     await admin.fetch('/api/auth/register', {

@@ -587,3 +587,29 @@ test('every column added here is added the way an existing database can take it'
     assert.fail(`not idempotent: ${statement}`);
   }
 });
+
+test('the operator gate refuses an erased row as well as an unnamed address', () => {
+  /* An erased account cannot in principle reach this: erasure rewrites its address to
+     deleted+<id>@oak.invalid, so it stops matching ADMIN_EMAILS, and bumps
+     password_changed_at, so every session it held is refused upstream. The row itself
+     survives — that is the point of the soft delete — and DEPLOY.md §12 tells an operator
+     never to erase an operator account but to change ADMIN_EMAILS and redeploy. This is the
+     gate holding shut for the deploy that does it the other way round. */
+  assert.match(middlewareSource, /const selectAccountErased = db\.prepare\('SELECT deleted_at FROM users WHERE id = \?'\);/);
+  assert.match(middlewareSource, /export async function requireAdmin\(req, res, next\)/);
+  assert.match(
+    middlewareSource,
+    /const account = await selectAccountErased\.get\(req\.user\.id\);\s*if \(!account \|\| account\.deleted_at != null\) \{/,
+  );
+  /* And it is read with its own statement rather than by widening the public user shape:
+     selectPublicUser answers /api/auth/me on every page of the site, and deleted_at is not
+     something every one of those answers should start carrying for one gate's sake. */
+  const publicUser = /const selectPublicUser = db\.prepare\(\s*'([^']+)'/.exec(middlewareSource)[1];
+  assert.doesNotMatch(publicUser, /deleted_at/);
+});
+
+test('DEPLOY.md tells an operator to retire a seat by renaming it, never by erasing it', () => {
+  const deploy = source('DEPLOY.md');
+  assert.match(deploy, /ADMIN_EMAILS/);
+  assert.match(deploy, /đổi sang địa chỉ khác rồi redeploy/);
+});

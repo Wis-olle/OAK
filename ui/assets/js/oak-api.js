@@ -800,9 +800,31 @@
   // What the menu button is called once something is waiting to be read.
   var UNREAD_MENU = 'Menu — có thông báo mới';
 
+  /* The partner console's news bell — OAK speaking to the salon, as against the pending bell
+     further down which counts bookings waiting on her. Found by data attribute and not by its
+     Vietnamese aria-label, because that label is a different sentence from the customer bell's
+     and because a console href must never be sent back to the page it already points at. */
+  var NEWS_BELL = '[data-oak-news-bell]';
+  var NEWS_UNREAD = 'Thông báo từ OAK — có thông báo mới';
+
   /** English for a name written after oak-i18n.js has made its pass; Vietnamese otherwise. */
   function translated(text) {
     return window.OAKI18N && window.OAKI18N.label ? window.OAKI18N.label(text) : text;
+  }
+
+  /**
+   * The mark, hung where the bell it belongs to says to hang it. The two "Thông báo" entries
+   * oak-header.js writes into the menu each name their own spot through data-oak-dot: across
+   * a full-width menu entry a corner lands nowhere near the words. The default behind it is
+   * for a bell drawn as a lone glyph, which is what the console's news bell is.
+   */
+  function unreadDot(bell) {
+    bell.classList.add('relative');
+    var dot = document.createElement('span');
+    dot.className = (bell.getAttribute('data-oak-dot') || 'absolute top-0 right-0') +
+      ' w-2 h-2 rounded-full bg-error';
+    dot.setAttribute('aria-label', 'Có thông báo mới');
+    bell.appendChild(dot);
   }
 
   /**
@@ -815,6 +837,18 @@
    * the load it belongs to.
    */
   function initNotificationBell(user) {
+    /* The console's news bell first, because it is the only door in the console to the notice
+       điều khoản mục 7 promises — a door that cannot say something arrived is one a salon owner
+       has to think to open. The count is every unread note on the account, which is the same
+       count the customer bell draws from: one inbox, read through whichever door she came to.
+       A control with an aria-label is announced by that label alone and never by the dot
+       inside it, so the news has to reach the name too. */
+    var news = document.querySelector(NEWS_BELL);
+    if (news && user.unread_count) {
+      unreadDot(news);
+      news.setAttribute('aria-label', translated(NEWS_UNREAD));
+    }
+
     // The customer menu and the technician menu each carry a row of this name, and only one
     // of the two is on screen. Taking the first in document order would hang the mark inside
     // the group initAuthMenu just put away, where nobody would ever see it — so the first one
@@ -840,17 +874,7 @@
       return;
     }
 
-    bell.classList.add('relative');
-    var dot = document.createElement('span');
-    // The bells answering to this name are the two "Thông báo" entries oak-header.js writes
-    // into the menu, one per persona, and each names its own spot through data-oak-dot:
-    // across a full-width menu entry a corner lands nowhere near the words. The default
-    // behind it is for a bell drawn as a lone glyph. Nothing in the partner console answers
-    // here — it counts pending bookings on a bell of its own, further down.
-    dot.className = (bell.getAttribute('data-oak-dot') || 'absolute top-0 right-0') +
-      ' w-2 h-2 rounded-full bg-error';
-    dot.setAttribute('aria-label', 'Có thông báo mới');
-    bell.appendChild(dot);
+    unreadDot(bell);
 
     // On the customer bar the bell itself lives inside the menu, so news of an unread note
     // would only ever be seen once the reader opened it. The mark on the button says so
@@ -865,7 +889,7 @@
     });
   }
 
-  // The partner console's own bell, which counts something else entirely: bookings still
+  // The console's other bell, which counts something else entirely: bookings still
   // waiting for the owner's decision. It is found by a data attribute and not by a
   // Vietnamese aria-label, so initNotificationBell above can never claim it and send its
   // href back to the customer notifications page.

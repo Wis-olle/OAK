@@ -160,13 +160,17 @@
 
     const OAK_NEXT_PAGE = /^[\w-]+\.html(\?.*)?$/;
 
-    /** Partners always land on their dashboard and technicians on their schedule; everyone
-        else on ?next= when it names a page here. */
+    /** Where signing in lands: ?next= when it names a page on this site, otherwise the page
+        the persona starts from. A partner is sent here by anything of hers that needs a login
+        — the console's OAK bell among them, which leads to a notification page — and dropping
+        her on the dashboard instead would make her find her own way back to what she clicked.
+        A technician's schedule is the one destination that still overrides, because the
+        technician pages are the only ones her account can open at all. */
     function oakLoginDestination(role) {
-        if (role === 'partner') return 'tong-quan-doi-tac.html';
         if (role === 'staff') return 'lich-cua-toi.html';
         const next = OAK.qs('next');
-        return next && OAK_NEXT_PAGE.test(next) ? next : 'kham-pha.html';
+        const wanted = next && OAK_NEXT_PAGE.test(next) ? next : '';
+        return wanted || (role === 'partner' ? 'tong-quan-doi-tac.html' : 'kham-pha.html');
     }
 
     /** Carry ?next= across to the register page so the round trip keeps its destination. */

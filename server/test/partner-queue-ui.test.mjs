@@ -278,7 +278,21 @@ test('every console page has a door to the notifications the terms promise', () 
     assert.match(html, /data-icon="campaign">campaign<\/span>/, page);
     // One door and not two: nothing else in the console points at the customer's inbox.
     assert.equal(html.split('thong-bao.html').length - 1, 1, page);
+    /* And the hook the unread mark is hung from. A door that cannot say something arrived is
+       one an owner has to think to open, which for a notice she is promised thirty days
+       before a fee is the difference between told and technically told. */
+    assert.match(html, /data-oak-news-bell/, page);
   }
+  /* Drawn by one shared function rather than by six copies: the console has no header script
+     of its own, so the mark comes from the same initNotificationBell the customer bar uses,
+     off the same unread_count /api/auth/me already answered with. */
+  const client = readUi('assets/js/oak-api.js');
+  assert.match(client, /var NEWS_BELL = '\[data-oak-news-bell\]';/);
+  assert.match(client, /var news = document\.querySelector\(NEWS_BELL\);\s*if \(news && user\.unread_count\) \{/);
+  // The same dot both bells hang, so the console's can never drift from the customer's.
+  assert.equal(client.split('unreadDot(').length - 1, 3);
+  // A control with an aria-label is announced by that label alone, never by the dot inside it.
+  assert.match(client, /news\.setAttribute\('aria-label', translated\(NEWS_UNREAD\)\)/);
   const names = readRepo('tools/icons/icon-names.txt').split(/\r?\n/);
   assert.ok(names.includes('campaign'));
   /* And the page it opens leads back. That page is the customer's, with the customer's rail
