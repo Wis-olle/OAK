@@ -10042,15 +10042,24 @@ async function groupUploadQuota() {
     }
   }
 
-  /* -- twenty even when thirty arrive at once ---------------------------------- */
+  /* -- twenty even when thirteen and ten arrive at once ------------------------ */
 
   /* The ceiling above is only worth having if it holds when it is actually attacked, and an
      attacker does not upload one picture at a time. Counting the rows, storing the bytes and
      only then writing the row is check-then-act with a round trip to Supabase in the middle
-     of it: thirty requests read the same count and all thirty pass it. This is the case that
-     says they no longer do. The row is taken inside the transaction that counted, with no url
-     on it yet, so the twenty-first request is refused by rows the first twenty had already
-     written and had not yet finished storing. */
+     of it: every request in a wave reads the same count and every one of them passes it.
+     This is the case that says they no longer do. The row is taken inside the transaction
+     that counted, with no url on it yet, so a request is refused by rows its neighbours had
+     already written and had not yet finished storing.
+
+     THE NUMBERS ARE DELIBERATELY UNROUND — do not tidy them. The pool is max: 5, so requests
+     arrive in waves of five, and against a ceiling of twenty that alignment hides the bug
+     this case exists to catch: unserialised waves would read 0, 5, 10, 15, admit exactly
+     twenty and refuse the rest, and the tick would be green with no lock in the code at all.
+     So the account is first primed with SEVEN uploads, leaving THIRTEEN of its allowance,
+     and THIRTEEN is not a multiple of five. A burst of TWENTY-THREE then has to split 13/10,
+     and an over-admitting server lands on 15 or 20 instead — visibly wrong rather than
+     accidentally right. */
   if (!EXTERNAL_URL) {
     const burst = new Session();
     ok(
@@ -10066,8 +10075,20 @@ async function groupUploadQuota() {
       'POST /api/auth/register (an account at nought, to attack the ceiling with)',
     );
 
+    // The seven that break the alignment. Sequential, so they are simply seven rows.
+    for (let index = 0; index < 7; index += 1) {
+      const primed = ok(
+        await burst.fetch('/api/uploads', {
+          method: 'POST',
+          json: { filename: 'don-le.png', data: PNG_1X1 },
+        }),
+        `POST /api/uploads (${index + 1} of the seven that leave thirteen)`,
+      );
+      state.uploadedFiles.push(path.basename(primed.url));
+    }
+
     const answers = await Promise.all(
-      Array.from({ length: 30 }, () =>
+      Array.from({ length: 23 }, () =>
         burst.fetch('/api/uploads', {
           method: 'POST',
           json: { filename: 'dong-loat.png', data: PNG_1X1 },
@@ -10077,26 +10098,27 @@ async function groupUploadQuota() {
     const accepted = answers.filter((answer) => answer.status === 200);
     const refused = answers.filter((answer) => answer.status === 429);
     assert(
-      accepted.length === 20,
-      `thirty uploads at once: expected exactly 20 accepted (got ${accepted.length})`,
+      accepted.length === 13,
+      `twenty-three uploads at once on an allowance of thirteen: expected exactly 13 accepted (got ${accepted.length})`,
       answers.find((answer) => answer.status !== 200 && answer.status !== 429),
     );
     assert(
       refused.length === 10,
-      `thirty uploads at once: expected exactly 10 refused (got ${refused.length})`,
+      `twenty-three uploads at once on an allowance of thirteen: expected exactly 10 refused (got ${refused.length})`,
     );
     assert(
       refused.every((answer) => answer.body?.error?.code === 'TOO_MANY_UPLOADS'),
-      'thirty uploads at once: every refusal must be TOO_MANY_UPLOADS',
+      'twenty-three uploads at once: every refusal must be TOO_MANY_UPLOADS',
       refused[0],
     );
     for (const answer of accepted) {
       state.uploadedFiles.push(path.basename(answer.body.data.url));
     }
 
-    /* And the twenty are twenty finished rows, not twenty rows plus reservations nobody
-       settled: a reservation counts while it is in flight, which is the whole trick, so one
-       left behind would quietly spend an hour of an account that got nothing for it. */
+    /* Seven and thirteen, and every one of the twenty a finished row rather than a
+       reservation nobody settled: a reservation counts while it is in flight, which is the
+       whole trick, so one left behind would quietly spend an hour of an account that got
+       nothing for it. */
     const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
     await directClient.connect();
     try {
@@ -10209,17 +10231,43 @@ async function groupUploadQuota() {
   /* -- and a day for the whole site -------------------------------------------- */
 
   if (!EXTERNAL_URL) {
-    // The server this suite spawns is given no UPLOADS_DAILY_CAP, so the breaker sits at its
-    // default of 500 — far more pictures than the suite posts. The day is filled from the
-    // outside instead, with rows that carry a url nothing else uses so they can be taken
-    // back out again; leaving them would stop every later group from uploading anything.
+    /* The server this suite spawns is given no UPLOADS_DAILY_CAP, so the breaker sits at its
+       default of 500 — five hundred megabytes, far more than the suite posts. The day is
+       filled from the outside instead, with rows that carry a url nothing else uses so they
+       can be taken back out again; leaving them would stop every later group from uploading
+       anything.
+
+       The breaker is spent in BYTES, and the two cases below are the same five hundred
+       megabytes arriving as two very different piles of pictures. That is the whole reason
+       it counts bytes: the salon importer stores originals at up to five megabytes, so a
+       hundred of its pictures fills a day that five hundred browser-shrunk ones would only
+       just have filled. Counted in rows, the first case would have read "a hundred, a fifth
+       of the way there" and waved the next one through — with the bucket already carrying
+       half a gigabyte it had no more room for. */
+    const megabyte = 1024 * 1024;
     const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
     await directClient.connect();
     try {
       await directClient.query(
         `INSERT INTO uploads (user_id, url, bytes, created_at)
-         SELECT NULL, 'smoke-daily-cap', 0, $1 FROM generate_series(1, 500)`,
-        [new Date().toISOString()],
+         SELECT NULL, 'smoke-daily-cap', $2, $1 FROM generate_series(1, 100)`,
+        [new Date().toISOString(), 5 * megabyte],
+      );
+      expectError(
+        await session('customer').fetch('/api/uploads', {
+          method: 'POST',
+          json: { filename: 'hom-nay.png', data: PNG_1X1 },
+        }),
+        429,
+        'UPLOADS_PAUSED',
+        'POST /api/uploads after a hundred importer-sized pictures have spent the day',
+      );
+      await directClient.query(`DELETE FROM uploads WHERE url = 'smoke-daily-cap'`);
+
+      await directClient.query(
+        `INSERT INTO uploads (user_id, url, bytes, created_at)
+         SELECT NULL, 'smoke-daily-cap', $2, $1 FROM generate_series(1, 500)`,
+        [new Date().toISOString(), megabyte],
       );
       expectError(
         await session('customer').fetch('/api/uploads', {

@@ -793,7 +793,10 @@ END $$;
 -- A row is written BEFORE its bytes are, with an empty url, so that the requests arriving
 -- alongside it count it: an upload in flight is an upload spent, and only that makes the
 -- ceilings hold when two hundred arrive at once. url is filled in when the object lands, and
--- the row is deleted if it never does.
+-- the row is deleted if it never does. Whoever writes that reconciliation sweep: a row still
+-- carrying url = '' more than an hour after its created_at is an abandoned reservation — a
+-- process that died between taking the allowance and storing the bytes — and it should be
+-- deleted, since it is holding budget against a picture nobody will ever find in the bucket.
 --
 -- user_id is nullable and is meant to be: an account holder who erases themselves leaves the
 -- row and takes the link to it, because what the row is for is reconciling the bucket, and

@@ -388,7 +388,20 @@ async function rehostImages(urls, userId) {
     } catch (error) {
       console.error('partner/import: could not re-host an image:', error.message);
       if (reservation !== null) {
-        await releaseUpload(reservation);
+        /* Wrapped, because the loop's contract is that one bad picture costs that picture
+           and nothing else — however the giving-back itself goes. A store that failed and
+           then a DELETE that failed too (a pooler recycling the connection underneath it) is
+           two accidents in a row, and letting the second one out of here would throw away an
+           import that had already read the address, the phone, the week and the whole menu.
+           The reservation left standing costs the day one picture's worth of budget. */
+        try {
+          await releaseUpload(reservation);
+        } catch (releaseError) {
+          console.error(
+            'partner/import: a reservation could not be given back:',
+            releaseError.message,
+          );
+        }
       }
       partial = true;
     }

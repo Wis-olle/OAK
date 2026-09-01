@@ -19,38 +19,66 @@ const quotaJs = fs.readFileSync(path.join(root, 'server', 'src', 'lib', 'upload-
    lines that read the environment are lifted out and run on their own instead — code rather
    than a copy of it, so rewriting them in the lib is a test that fails here rather than a
    ceiling that quietly stops meaning what this file says it means. */
-function dailyCapFor(value) {
-  const from = quotaJs.indexOf('const parsedDailyCap');
+function ceilingsFor(value) {
+  const from = quotaJs.indexOf('const MAX_UPLOAD_BYTES');
   const to = quotaJs.indexOf('const HOUR_MS');
-  assert.ok(from !== -1 && to > from, 'upload-quota.js no longer parses UPLOADS_DAILY_CAP here');
+  assert.ok(from !== -1 && to > from, 'upload-quota.js no longer sets its ceilings here');
   const context = {
     process: { env: value === undefined ? {} : { UPLOADS_DAILY_CAP: value } },
     Number,
     answer: null,
   };
-  vm.runInNewContext(`${quotaJs.slice(from, to)}
-answer = UPLOADS_DAILY_CAP;`, context);
+  vm.runInNewContext(
+    `${quotaJs.slice(from, to)}
+answer = { cap: UPLOADS_DAILY_CAP, budget: DAILY_BYTE_BUDGET, unit: MAX_UPLOAD_BYTES };`,
+    context,
+  );
   return context.answer;
 }
 
+const MB = 1024 * 1024;
+
 test('an unset UPLOADS_DAILY_CAP is the default five hundred', () => {
-  assert.equal(dailyCapFor(undefined), 500);
+  assert.equal(ceilingsFor(undefined).cap, 500);
 });
 
 test('an operator who sets UPLOADS_DAILY_CAP gets the number they set', () => {
-  assert.equal(dailyCapFor('2000'), 2000);
+  assert.equal(ceilingsFor('2000').cap, 2000);
 });
 
 /* The one value `Number(x) || 500` got wrong, and the only one an operator would type on
    purpose: zero closes the doors while the bucket is being cleared out by hand. Read as
    "absent" it would have done the opposite of what was asked and raised the ceiling. */
 test('UPLOADS_DAILY_CAP=0 closes uploads rather than falling back to the default', () => {
-  assert.equal(dailyCapFor('0'), 0);
+  const { cap, budget } = ceilingsFor('0');
+  assert.equal(cap, 0);
+  // And a budget of nothing refuses every picture, however small: reserveUpload asks whether
+  // this one still fits, and nothing fits in nothing.
+  assert.equal(budget, 0);
 });
 
 test('a cap that is not a number at all falls back to the default', () => {
-  assert.equal(dailyCapFor('nhieu'), 500);
-  assert.equal(dailyCapFor(''), 500);
+  assert.equal(ceilingsFor('nhieu').cap, 500);
+  assert.equal(ceilingsFor('').cap, 500);
+});
+
+/* The breaker guards a bucket, and a bucket fills with bytes. Counted in pictures it would
+   have been blind to the door that matters most: the salon importer stores originals at up
+   to 5MB, so five hundred of ITS pictures is two and a half gigabytes against a bucket that
+   holds one — and the breaker would never once have tripped. The cap keeps its name and its
+   feel; its unit is a one-megabyte picture. */
+test('the daily cap is spent in bytes, one megabyte to the picture', () => {
+  const { budget, unit } = ceilingsFor(undefined);
+  assert.equal(unit, MB);
+  assert.equal(budget, 500 * MB);
+});
+
+test('an importer picture at five megabytes costs the day five of the five hundred', () => {
+  const { budget, unit } = ceilingsFor(undefined);
+  // What store-image.js lets the importer through at, which is the whole reason for this.
+  const importerPicture = 5 * MB;
+  assert.equal(importerPicture / unit, 5);
+  assert.equal(Math.floor(budget / importerPicture), 100);
 });
 
 /* uploads.created_at is a UTC ISO string and the cap is a Vietnamese calendar day, so the

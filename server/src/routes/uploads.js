@@ -4,7 +4,12 @@
 import path from 'node:path';
 import express from 'express';
 import { ALLOWED_EXTENSIONS, storeImage } from '../lib/store-image.js';
-import { releaseUpload, reserveUpload, settleUpload } from '../lib/upload-quota.js';
+import {
+  MAX_UPLOAD_BYTES,
+  releaseUpload,
+  reserveUpload,
+  settleUpload,
+} from '../lib/upload-quota.js';
 import { httpError, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -12,19 +17,11 @@ const router = express.Router();
 // Browsers hand out images as data URLs; accepting the prefix saves every caller a slice().
 const DATA_URL_PREFIX = /^data:image\/[a-z.+-]+;base64,/i;
 
-/* What one picture may weigh once it is decoded. Every screen that uploads now re-draws the
-   file to a few hundred pixels and re-encodes it in the browser first (OAK.compressImage in
-   oak-api.js), so a megabyte is far more room than what actually arrives; a caller that
-   posts a phone camera's original is turned away here with a message that says so.
-   Deliberately not store-image.js's MAX_IMAGE_BYTES, which stays at 5MB: that ceiling also
-   governs the salon importer re-hosting pictures off a salon's own website, where no
-   browser of ours compressed anything first. */
-const MAX_UPLOAD_BYTES = 1024 * 1024;
-
-/* How many pictures one account may write in an hour and the site as a whole in a day is
-   lib/upload-quota.js, and it is deliberately not here: the salon importer writes into the
-   same bucket through the same reservation, so a count kept beside this one door would be a
-   count the other door walked straight past. */
+/* What one picture may weigh, how many an account may write in an hour, and how many bytes
+   the site as a whole may write in a day all live in lib/upload-quota.js, and deliberately
+   not here: the salon importer writes into the same bucket through the same reservation, so
+   a ceiling kept beside this one door would be a ceiling the other door walked straight
+   past. MAX_UPLOAD_BYTES sits there with them because the day's budget is counted in it. */
 
 /* requireAuth runs before the body parser rather than after it, and the parser sits on this
    one route rather than on the router, so that nothing is ever parsed or buffered for a
@@ -33,14 +30,14 @@ const MAX_UPLOAD_BYTES = 1024 * 1024;
    and turned into an object. What that ordering really closes is the size oracle. An
    unauthenticated POST is answered 401 by a middleware that looked at a cookie, rather than
    413 by a parser that in refusing the body told the caller exactly how large a body this
-   route would have taken. 2mb because base64 inflates bytes by a third — the 1MB image above
+   route would have taken. 2mb because base64 inflates bytes by a third — MAX_UPLOAD_BYTES
    arrives as roughly 1.37MB of text — and the rest is slack for the filename and the JSON
    around it.
 
    Open to every signed-in role, deliberately, where the audit asked for it to be closed to
    all but partner and staff accounts: a customer's own avatar comes through here too, and
    the customer side is most of the site. What that finding was really after is a ceiling,
-   and the two in lib/upload-quota.js are it — shutting customers out would take away a
+   and the ones in lib/upload-quota.js are it — shutting customers out would take away a
    feature without taking away the risk, since a partner account is exactly as free to
    register as a customer one. */
 router.post('/', requireAuth, express.json({ limit: '2mb' }), async (req, res, next) => {
@@ -75,10 +72,17 @@ router.post('/', requireAuth, express.json({ limit: '2mb' }), async (req, res, n
       // The client's filename is used only to read the extension, never to build the path.
       url = await storeImage(buffer, extension);
     } catch (error) {
-      // Nothing was written, so nothing is owed: the reservation goes back before the
-      // failure travels on, or a bucket that was merely unreachable for a moment would
-      // spend the caller's hour anyway.
-      await releaseUpload(reservation);
+      /* Nothing was written, so nothing is owed: the reservation goes back before the
+         failure travels on, or a bucket that was merely unreachable for a moment would
+         spend the caller's hour anyway. Wrapped so that a database that has gone down in
+         the same breath cannot replace the storage failure with its own — what the caller
+         has to be told is why their picture did not go anywhere, and `throw error` must
+         always be the storage error. */
+      try {
+        await releaseUpload(reservation);
+      } catch (releaseError) {
+        console.error('uploads: a reservation could not be given back:', releaseError.message);
+      }
       throw error;
     }
     await settleUpload(reservation, url);

@@ -1107,8 +1107,10 @@
      square, and remembered — asked per picture, a browser without WebP would encode the
      whole photograph as a PNG and then throw that PNG away, which is the slowest thing this
      function could possibly do on the machines least able to afford it. Where the answer is
-     no the canvas is encoded as JPEG, which every browser can write, and the name carries
-     .jpg instead — the server reads the extension and nothing else from it.
+     no the canvas is encoded as JPEG, which every browser can write. But the name is read
+     back off the bytes rather than off the probe, because the probe only settles what was
+     worth asking for and a fallback can still happen on the picture itself — the server
+     reads the extension and nothing else from it.
 
      null whenever this cannot honestly hand back a smaller picture: a file the browser could
      not decode, an image it decoded to nothing, a canvas it refused to draw on or to read
@@ -1163,13 +1165,20 @@
           }
           context.drawImage(image, 0, 0, canvas.width, canvas.height);
           URL.revokeObjectURL(url);
-          var webp = canWriteWebp();
-          var data = canvas.toDataURL(webp ? 'image/webp' : 'image/jpeg', quality);
+          var data = canvas.toDataURL(canWriteWebp() ? 'image/webp' : 'image/jpeg', quality);
           if (data.indexOf('data:image/') !== 0) {
             resolve(null);
             return;
           }
-          resolve({ filename: webp ? 'anh-oak.webp' : 'anh-oak.jpg', data: data });
+          /* The probe decides what to ASK for; the bytes decide what it is CALLED. toDataURL
+             is specified to fall back silently to another type it can write rather than to
+             refuse, and a browser whose one-pixel probe managed WebP can still fall back on a
+             real photograph. Naming the file from the probe would then post PNG bytes as
+             .webp — storeImage reads that extension and nothing else, so Supabase would serve
+             them under Content-Type image/webp and the salon would get a broken square for a
+             picture that uploaded without a word of complaint. */
+          var isWebp = data.indexOf('data:image/webp') === 0;
+          resolve({ filename: isWebp ? 'anh-oak.webp' : 'anh-oak.jpg', data: data });
         } catch (error) {
           /* getContext can answer null, and drawImage and toDataURL both throw on a canvas
              the browser will not give back — one tainted by an image from elsewhere, or one

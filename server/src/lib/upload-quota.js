@@ -11,31 +11,53 @@
  * slowest attacker, and 1GB of Supabase Storage is about a thousand pictures at the size
  * POST /api/uploads accepts.
  *
- * Twenty an hour per account is well past anything a real screen asks for — the largest
- * single act on the site is filling a twelve-picture salon gallery — and low enough that
- * one account working without pause needs months to fill the bucket by itself.
+ * Twenty an hour per account is a rate limit on a PERSON and stays a count of pictures:
+ * it is well past anything a real screen asks for — the largest single act on the site is
+ * filling a twelve-picture salon gallery — and low enough that one account working without
+ * pause needs months to fill the bucket by itself. What it rations is how fast somebody may
+ * work, and that is measured in acts, not in megabytes.
  *
- * The daily number is not a quota but a circuit breaker: it does not care who is uploading,
- * it simply stops the site as a whole from writing more than this many pictures in one
- * Vietnamese calendar day, so a run spread across a hundred fresh accounts costs a day
- * rather than the bucket. UPLOADS_DAILY_CAP raises it from the environment for the day a
- * real campaign needs the room, and setting it to 0 shuts the doors entirely, which is what
- * an operator wants while they are clearing the bucket out by hand. Number.parseInt and an
- * explicit finite check rather than `Number(x) || 500`, because that idiom reads 0 as
- * absent and hands back the default — the one value an operator would only ever type on
- * purpose.
+ * The daily number is not a quota but a circuit breaker on the BUCKET, and a bucket fills
+ * with bytes rather than with pictures — so that is what it counts. The distinction is not
+ * academic: the two doors admit sizes that differ fivefold, one megabyte from a browser that
+ * has already shrunk the picture and five from the importer pulling a partner's originals
+ * off their own website. Five hundred pictures through the first door is half a gigabyte and
+ * the breaker means what it says; five hundred through the second is two and a half, against
+ * a bucket that holds one, and the breaker would never have tripped at all.
  *
- * Both are counted out of the `uploads` table rather than a counter in memory: Render runs
- * two instances and restarts them whenever it pleases, so anything kept in a process would
- * be half-blind to begin with and reset on every deploy.
+ * So UPLOADS_DAILY_CAP is spent against DAILY_BYTE_BUDGET, which is the cap multiplied by
+ * MAX_UPLOAD_BYTES. The environment variable keeps its name, its default of 500 and its
+ * feel — it still reads as "about this many pictures a day" — but its unit is now
+ * picture-equivalents of one megabyte, and a five-megabyte import costs five of them. An
+ * operator raising it for a campaign is buying the same thing they always were: a gigabyte
+ * is a thousand.
+ *
+ * Setting it to 0 shuts the doors entirely, which is what an operator wants while they are
+ * clearing the bucket out by hand. Number.parseInt and an explicit finite check rather than
+ * `Number(x) || 500`, because that idiom reads 0 as absent and hands back the default — the
+ * one value an operator would only ever type on purpose.
+ *
+ * Both are read out of the `uploads` table rather than a counter in memory: Render runs two
+ * instances and restarts them whenever it pleases, so anything kept in a process would be
+ * half-blind to begin with and reset on every deploy.
  */
 import { db } from '../db.js';
 import { httpError } from '../middleware/auth.js';
 import { startOfDayUTC, todayISO } from './time.js';
 
+/* What one picture may weigh once it is decoded, and the unit the day's budget is counted
+   in. Every screen that uploads re-draws the file to a few hundred pixels and re-encodes it
+   in the browser first (OAK.compressImage in oak-api.js), so a megabyte is far more room
+   than what actually arrives through POST /api/uploads; a caller that posts a phone camera's
+   original is turned away with a message that says so. Deliberately not store-image.js's
+   MAX_IMAGE_BYTES, which stays at 5MB and governs the salon importer, where no browser of
+   ours compressed anything first — an importer picture simply costs the day more. */
+const MAX_UPLOAD_BYTES = 1024 * 1024;
+
 const UPLOADS_PER_HOUR = 20;
 const parsedDailyCap = Number.parseInt(process.env.UPLOADS_DAILY_CAP ?? '', 10);
 const UPLOADS_DAILY_CAP = Number.isFinite(parsedDailyCap) ? parsedDailyCap : 500;
+const DAILY_BYTE_BUDGET = UPLOADS_DAILY_CAP * MAX_UPLOAD_BYTES;
 const HOUR_MS = 60 * 60 * 1000;
 
 /* created_at is written as new Date().toISOString() rather than in Vietnam time on purpose:
@@ -43,7 +65,10 @@ const HOUR_MS = 60 * 60 * 1000;
    on a TEXT column and idx_uploads_user_created_at serves the per-account one directly.
    idx_uploads_created_at serves the site-wide one, which has no user to narrow it by. */
 const COUNT_SINCE = 'SELECT COUNT(*) AS total FROM uploads WHERE user_id = ? AND created_at > ?';
-const COUNT_TODAY = 'SELECT COUNT(*) AS total FROM uploads WHERE created_at >= ?';
+/* SUM rather than COUNT, and COALESCE because a day with no uploads in it yet sums to
+   null. A reservation carries its weight from the moment it is written, so bytes in flight
+   are bytes spent here exactly as they are in the per-account count. */
+const SUM_TODAY = "SELECT COALESCE(SUM(bytes), 0) AS total FROM uploads WHERE created_at >= ?";
 const INSERT_UPLOAD = 'INSERT INTO uploads (user_id, url, bytes, created_at) VALUES (?, ?, ?, ?)';
 const settleStatement = db.prepare('UPDATE uploads SET url = ? WHERE id = ?');
 const releaseStatement = db.prepare('DELETE FROM uploads WHERE id = ?');
@@ -78,8 +103,8 @@ async function reserveUpload(userId, bytes) {
       throw httpError(429, 'TOO_MANY_UPLOADS', 'Bạn đã tải quá nhiều ảnh, thử lại sau một giờ.');
     }
 
-    const { total: today } = await tx.get(COUNT_TODAY, startOfDayUTC(todayISO()));
-    if (Number(today) >= UPLOADS_DAILY_CAP) {
+    const { total: today } = await tx.get(SUM_TODAY, startOfDayUTC(todayISO()));
+    if (Number(today) + bytes > DAILY_BYTE_BUDGET) {
       throw httpError(429, 'UPLOADS_PAUSED', 'OAK tạm ngưng nhận ảnh hôm nay, thử lại ngày mai.');
     }
 
@@ -101,4 +126,12 @@ async function releaseUpload(id) {
   await releaseStatement.run(id);
 }
 
-export { UPLOADS_DAILY_CAP, UPLOADS_PER_HOUR, releaseUpload, reserveUpload, settleUpload };
+export {
+  DAILY_BYTE_BUDGET,
+  MAX_UPLOAD_BYTES,
+  UPLOADS_DAILY_CAP,
+  UPLOADS_PER_HOUR,
+  releaseUpload,
+  reserveUpload,
+  settleUpload,
+};
