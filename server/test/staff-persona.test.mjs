@@ -4625,6 +4625,8 @@ function rosterPage(api) {
   const sent = [];
   const toasts = [];
   const context = {
+    // The owner saying no to "vẫn lưu?": the only browser dialog this page raises.
+    window: { confirm: () => false },
     OAK: {
       requirePartner: async () => {},
       qs: () => null,
@@ -4864,6 +4866,42 @@ test('a start date the owner only looked at is never sent back', async () => {
   const cleared = clearing.sent.filter((call) => call.method === 'PATCH')[0];
   assert.ok(Object.hasOwn(cleared.body, 'started_at'));
   assert.equal(cleared.body.started_at, null);
+});
+
+/* Three saves go out behind one Lưu, and only the working week can come back asking a
+   question. It goes first for that reason: an owner who answers no to "vẫn lưu?" is left with
+   nothing written, rather than with a technician whose name changed on a roster still showing
+   the old one and a week that never moved. */
+test('a declined “vẫn lưu?” leaves the whole edit unsaved, the name included', async () => {
+  const list = rosterList([{ ...CHAIR, id: 5, claimed: true }]);
+  const api = async (endpoint) => {
+    if (endpoint === '/api/partner/staff') {
+      return list;
+    }
+    if (endpoint === '/api/partner/staff/5/schedule') {
+      const refusal = new Error('2 lịch hẹn đang nằm trong ca này.');
+      refusal.code = 'BOOKINGS_AFFECTED';
+      refusal.details = [];
+      throw refusal;
+    }
+    if (endpoint.startsWith('/api/partner/staff/5')) {
+      return detailOf(5);
+    }
+    return assert.fail(`unexpected call: ${endpoint}`);
+  };
+
+  const page = rosterPage(api);
+  await page.load();
+  await page.openStaff(page.staff[0]);
+  page.form.name = 'KTV B';
+  await page.submitStaff();
+
+  assert.deepEqual(
+    page.sent.map((call) => call.endpoint),
+    ['/api/partner/staff/5/schedule'],
+    'the week is asked first, and a refused week must not leave a saved name behind it',
+  );
+  assert.ok(page.formError.length > 0, 'and the form says why it is still open');
 });
 
 test('a row being created carries whatever date the form was opened with', async () => {

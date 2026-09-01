@@ -1211,15 +1211,20 @@
                         if ((this.form.started_at || null) !== (this.form.started_at_was || null)) {
                             profile.started_at = this.form.started_at || null;
                         }
-                        await OAK.api('/api/partner/staff/' + this.form.id, {
-                            method: 'PATCH',
-                            body: profile,
-                        });
+                        /* The working week goes first because it is the only one of the three
+                           that can come back asking a question. Sent second, a declined
+                           question would leave the name saved and the week not, with the
+                           roster behind the modal still showing the old name — half a save
+                           the owner was never told about. */
                         await OAK.api('/api/partner/staff/' + this.form.id + '/schedule', {
                             method: 'PUT',
                             /* force only on the second attempt, once the owner has seen which
                                appointments the shift being taken away would close. */
                             body: { schedule: this.schedulePayload(), force: force === true },
+                        });
+                        await OAK.api('/api/partner/staff/' + this.form.id, {
+                            method: 'PATCH',
+                            body: profile,
                         });
                         await OAK.api('/api/partner/staff/' + this.form.id + '/services', {
                             method: 'PUT',
