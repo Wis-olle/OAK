@@ -1095,6 +1095,52 @@
     );
   }
 
+  /* A picture is shown a few hundred pixels wide and a phone camera hands over four
+     thousand, so it is re-drawn to `maxEdge` and re-encoded before it leaves the browser.
+     POST /api/uploads accepts one megabyte decoded, which is generous for what this
+     produces and far under what an untouched camera file weighs, so every screen that
+     uploads goes through here first.
+
+     WebP is asked for and not assumed: `toDataURL` answers with PNG when it cannot write
+     the type it was handed, and a PNG re-encode of a photograph is larger than the JPEG
+     that came in. When the answer is not WebP the same canvas is re-encoded as JPEG, which
+     every browser can write, and the name carries .jpg instead — the server reads the
+     extension and nothing else from it.
+
+     null only when the image cannot be decoded at all. The caller then posts the raw file
+     and the server's own message explains anything it refuses. */
+  var COMPRESS_MAX_EDGE = 1600;
+  var COMPRESS_QUALITY = 0.82;
+
+  function compressImage(file, options) {
+    var settings = options || {};
+    var maxEdge = settings.maxEdge || COMPRESS_MAX_EDGE;
+    var quality = settings.quality || COMPRESS_QUALITY;
+    return new Promise(function (resolve) {
+      var url = URL.createObjectURL(file);
+      var image = new Image();
+      image.onload = function () {
+        var scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        var data = canvas.toDataURL('image/webp', quality);
+        if (data.indexOf('data:image/webp') === 0) {
+          resolve({ filename: 'anh-oak.webp', data: data });
+          return;
+        }
+        resolve({ filename: 'anh-oak.jpg', data: canvas.toDataURL('image/jpeg', quality) });
+      };
+      image.onerror = function () {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      image.src = url;
+    });
+  }
+
   /* One set of promises, said the same way wherever they are said. They are claims about
      how OAK works — what it costs to change your mind, when a person answers — so a page
      that words them its own way is a page that quietly promises something else.
@@ -1128,6 +1174,7 @@
     fmtRange: fmtRange,
     fmtTime: fmtTime,
     bookingStatus: bookingStatus,
+    compressImage: compressImage,
     BOOKING_STATUSES: BOOKING_STATUSES,
     todayISO: todayISO,
     pendingBadge: pendingBadge,

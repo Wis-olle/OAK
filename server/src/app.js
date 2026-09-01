@@ -80,7 +80,8 @@ app.use('/api', (req, res, next) => {
 });
 
 // Mounted BEFORE express.json() on purpose: the global parser's default 100kb limit
-// would reject a 5MB base64 upload before the uploads router's own 8mb parser ran.
+// would reject a base64 image before the uploads route's own 2mb parser ran — and that
+// route puts requireAuth ahead of its parser, so a stranger's body is never read at all.
 app.use('/api/uploads', uploadRoutes);
 
 app.use(express.json());

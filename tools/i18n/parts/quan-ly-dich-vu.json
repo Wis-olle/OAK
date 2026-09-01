@@ -70,7 +70,7 @@
 
   "Ngày kết thúc phải sau ngày bắt đầu.": "The end date must be after the start date.",
   "Không đọc được tệp ảnh.": "Could not read the image file.",
-  "Ảnh vượt quá dung lượng tối đa 5MB.": "Image exceeds the 5MB maximum size.",
+  "Ảnh quá lớn (tối đa 15MB). Hãy chọn ảnh nhỏ hơn.": "Image is too large (15MB maximum). Please choose a smaller one.",
   "Đã lưu dịch vụ.": "Service saved.",
   "Đã xóa dịch vụ.": "Service deleted.",
   "Đã lưu ưu đãi.": "Offer saved.",

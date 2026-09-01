@@ -213,7 +213,11 @@ test('resetting the composer invalidates an abandoned image upload', async () =>
       activeElement: null,
       contains: () => false,
     },
-    OAK: { api: () => upload, toast: () => {} },
+    // compressImage answers null where there is no canvas to re-draw on, which is the same
+    // answer a browser that could not decode the file gives — so the composer falls through
+    // to FakeFileReader above, and this test is left asking what it asked before: which
+    // upload the form accepts once the composer has moved on.
+    OAK: { api: () => upload, toast: () => {}, compressImage: async () => null },
   };
   vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
   const state = context.result;

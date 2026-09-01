@@ -507,15 +507,17 @@ function oakBlogFeed() {
             const generation = ++this.uploadGeneration;
             this.uploading = true;
             try {
-                const data = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = () => reject(new Error('Không đọc được tệp ảnh.'));
-                    reader.readAsDataURL(file);
-                });
-                const upload = await OAK.api('/api/uploads', {
-                    method: 'POST', body: { filename: file.name, data },
-                });
+                let payload = await OAK.compressImage(file, { maxEdge: 1600 });
+                if (!payload) {
+                    const data = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = () => reject(new Error('Không đọc được tệp ảnh.'));
+                        reader.readAsDataURL(file);
+                    });
+                    payload = { filename: file.name, data };
+                }
+                const upload = await OAK.api('/api/uploads', { method: 'POST', body: payload });
                 if (generation !== this.uploadGeneration) {
                     return;
                 }

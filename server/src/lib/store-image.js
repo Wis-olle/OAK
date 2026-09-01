@@ -45,9 +45,19 @@ const supabase =
     : null;
 const SUPABASE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'uploads';
 
+// A year, because a stored name is a fresh randomUUID: the bytes under one never change, so
+// there is nothing a shorter life could correct. It is worth asking for — on the Supabase
+// free plan egress that a cache answered is a separate and larger allowance than egress that
+// reached the bucket, and without this header every view of every picture spends the smaller
+// one. Serving from local disk is unaffected; the static mount sets its own headers.
+const CACHE_CONTROL_SECONDS = '31536000';
+
 async function uploadToSupabase(storedName, buffer, contentType) {
   const storage = supabase.storage.from(SUPABASE_BUCKET);
-  let { error } = await storage.upload(storedName, buffer, { contentType });
+  let { error } = await storage.upload(storedName, buffer, {
+    contentType,
+    cacheControl: CACHE_CONTROL_SECONDS,
+  });
 
   // A missing bucket is a one-time setup gap, not a real failure: create it public
   // (the URLs we hand out are unauthenticated) and retry once. createBucket's own
@@ -55,7 +65,10 @@ async function uploadToSupabase(storedName, buffer, contentType) {
   // a concurrent upload created the bucket first, and the retry settles it either way.
   if (error && (error.status === 404 || /bucket not found/i.test(error.message ?? ''))) {
     await supabase.storage.createBucket(SUPABASE_BUCKET, { public: true });
-    ({ error } = await storage.upload(storedName, buffer, { contentType }));
+    ({ error } = await storage.upload(storedName, buffer, {
+      contentType,
+      cacheControl: CACHE_CONTROL_SECONDS,
+    }));
   }
 
   if (error) {

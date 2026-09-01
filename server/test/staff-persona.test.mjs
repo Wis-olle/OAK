@@ -2668,6 +2668,11 @@ function profilePage({
         return { name: 'KTV Số Liệu' };
       },
       toast: (message, type) => toasts.push([message, type]),
+      // The real one re-draws the file on a canvas, which there is none of here. null is the
+      // answer it gives a browser that could not decode the picture, so the page takes the
+      // FileReader path below — which is the one these tests are about: what the page posts
+      // and in what order, not how many pixels wide it posted it.
+      compressImage: async () => null,
       fmtDate: (value) => value,
       fmtRange: (from, to) => `${from} – ${to}`,
       todayISO: () => today,

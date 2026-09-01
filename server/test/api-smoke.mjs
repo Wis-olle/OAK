@@ -4076,7 +4076,12 @@ async function groupBookingLifecycle() {
   // into tomorrow by itself near midnight — "today at 23:45" had already started when the
   // suite ran in the last quarter of an hour of a day. Only the salon may move a booking
   // onto an hour that close.
-  const soon = new Date(Date.now() + 30 * 60 * 1000);
+  //
+  // Forty-five and not thirty: group 06 parks its own cancel-window booking on today at
+  // now+30 and never releases it, so the same minute here can land both on one technician
+  // and idx_bookings_slot answers SLOT_TAKEN. Three quarters of an hour is a minute nobody
+  // else claims and still far inside the 24h cutoff the assertions below need.
+  const soon = new Date(Date.now() + 45 * 60 * 1000);
   const pad = (value) => String(value).padStart(2, '0');
   const soonDate = `${soon.getFullYear()}-${pad(soon.getMonth() + 1)}-${pad(soon.getDate())}`;
   const soonTime = `${pad(soon.getHours())}:${pad(soon.getMinutes())}`;
@@ -9891,6 +9896,180 @@ async function groupStaffDeparture() {
 }
 
 /* ============================================================================
+ * 20b — what an upload costs
+ *
+ * The route is open to every signed-in account and an account is free, so the only thing
+ * between one determined stranger and the whole storage bucket is a set of numbers. This
+ * group is those numbers: what one picture may weigh, how many an account may post in an
+ * hour, how many the site may accept in a day, and how many a gallery may hold.
+ * ========================================================================= */
+
+async function groupUploadQuota() {
+  const stamp = Date.now();
+
+  /* -- an unauthenticated body is never read ---------------------------------- */
+
+  // 1.5MB of base64 from a stranger. 401 is the whole assertion: it says requireAuth
+  // answered before the body parser ran. A 413 here would mean the server had read the
+  // megabytes first, and had told an anonymous caller how large a body it would take.
+  expectError(
+    await new Session().fetch('/api/uploads', {
+      method: 'POST',
+      json: { filename: 'nguoi-la.png', data: 'A'.repeat(1_500_000) },
+    }),
+    401,
+    'UNAUTHENTICATED',
+    'POST /api/uploads with a 1.5MB body and no session',
+  );
+
+  /* -- a signed-in account, and the ceiling on one picture --------------------- */
+
+  // Registered with no phone number in the body, so it spends none of the per-IP allowance
+  // group 21 goes on to measure.
+  const uploader = new Session();
+  ok(
+    await uploader.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi Tai Anh',
+        email: `uploader${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'POST /api/auth/register (an account to upload with)',
+  );
+
+  // The same 1.5MB, now signed in: ~1.12MB decoded, comfortably inside the route's 2mb
+  // parser and past the megabyte it will store.
+  expectError(
+    await uploader.fetch('/api/uploads', {
+      method: 'POST',
+      json: { filename: 'qua-to.png', data: 'A'.repeat(1_500_000) },
+    }),
+    400,
+    'FILE_TOO_LARGE',
+    'POST /api/uploads with a decoded image over 1MB',
+  );
+
+  /* -- twenty an hour, and the twenty-first waits ------------------------------ */
+
+  for (let index = 0; index < 20; index += 1) {
+    const uploaded = ok(
+      await uploader.fetch('/api/uploads', {
+        method: 'POST',
+        json: { filename: 'quota.png', data: PNG_1X1 },
+      }),
+      `POST /api/uploads (${index + 1} of the hour's twenty)`,
+    );
+    state.uploadedFiles.push(path.basename(uploaded.url));
+  }
+  expectError(
+    await uploader.fetch('/api/uploads', {
+      method: 'POST',
+      json: { filename: 'quota.png', data: PNG_1X1 },
+    }),
+    429,
+    'TOO_MANY_UPLOADS',
+    'POST /api/uploads once over the hourly allowance',
+  );
+
+  if (!EXTERNAL_URL) {
+    // The count is kept in the database and not in the process, because Render runs two of
+    // them: twenty rows and no twenty-first is what the next instance would read too.
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      const counted = await directClient.query(
+        `SELECT COUNT(*) AS total FROM uploads
+          WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+        [`uploader${stamp}@oak.invalid`],
+      );
+      assert(
+        Number(counted.rows[0].total) === 20,
+        `uploads table: expected exactly 20 rows for the account (got ${counted.rows[0].total})`,
+      );
+    } finally {
+      await directClient.end();
+    }
+  }
+
+  /* -- a gallery holds twelve -------------------------------------------------- */
+
+  const partner = session('partnerA');
+  const existing = ok(await partner.fetch('/api/partner/photos'), 'GET /api/partner/photos');
+  // The seed already furnishes this salon, so the group fills the rest of the shelf rather
+  // than assuming an empty one — which is also what makes it survive a second run against a
+  // database nobody reset. The url is one already on the gallery: POST /photos stores a
+  // string, and what these assertions are about is how many of them there may be.
+  const reused = existing[0].image;
+  const added = [];
+  for (let index = existing.length; index < 12; index += 1) {
+    const photo = ok(
+      await partner.fetch('/api/partner/photos', {
+        method: 'POST',
+        json: { image: reused, caption: 'Ảnh lấp đầy thư viện' },
+      }),
+      `POST /api/partner/photos (${index + 1} of 12)`,
+    );
+    added.push(photo.id);
+  }
+  try {
+    expectError(
+      await partner.fetch('/api/partner/photos', { method: 'POST', json: { image: reused } }),
+      400,
+      'PHOTO_LIMIT',
+      'POST /api/partner/photos with a full gallery',
+    );
+  } finally {
+    for (const id of added) {
+      await partner.fetch(`/api/partner/photos/${id}`, { method: 'DELETE' });
+    }
+  }
+
+  /* -- and a day for the whole site -------------------------------------------- */
+
+  if (!EXTERNAL_URL) {
+    // The server this suite spawns is given no UPLOADS_DAILY_CAP, so the breaker sits at its
+    // default of 500 — far more pictures than the suite posts. The day is filled from the
+    // outside instead, with rows that carry a url nothing else uses so they can be taken
+    // back out again; leaving them would stop every later group from uploading anything.
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      await directClient.query(
+        `INSERT INTO uploads (user_id, url, bytes, created_at)
+         SELECT NULL, 'smoke-daily-cap', 0, $1 FROM generate_series(1, 500)`,
+        [new Date().toISOString()],
+      );
+      expectError(
+        await session('customer').fetch('/api/uploads', {
+          method: 'POST',
+          json: { filename: 'hom-nay.png', data: PNG_1X1 },
+        }),
+        429,
+        'UPLOADS_PAUSED',
+        'POST /api/uploads with the day already spent',
+      );
+    } finally {
+      await directClient.query(`DELETE FROM uploads WHERE url = 'smoke-daily-cap'`);
+      await directClient.end();
+    }
+  }
+
+  // And the breaker really was the only thing in the way: with the day given back, the same
+  // account uploads again.
+  const recovered = ok(
+    await session('customer').fetch('/api/uploads', {
+      method: 'POST',
+      json: { filename: 'hom-nay.png', data: PNG_1X1 },
+    }),
+    'POST /api/uploads after the day is given back',
+  );
+  state.uploadedFiles.push(path.basename(recovered.url));
+}
+
+/* ============================================================================
  * 21 — the sign-up door, rationed
  *
  * LAST IN THE SUITE, and it has to be. This group deliberately spends the whole per-IP
@@ -10006,6 +10185,7 @@ async function main() {
   await group('18 account lifecycle', groupAccountLifecycle);
   await group('19 staff persona', groupStaffPersona);
   await group('20 staff departure', groupStaffDeparture);
+  await group('20b upload quota', groupUploadQuota);
   // Last, always: it spends the whole per-IP sign-up allowance and cannot give it back.
   await group('21 sign-up throttle', groupRegisterThrottle);
 }

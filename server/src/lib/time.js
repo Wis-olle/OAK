@@ -5,6 +5,9 @@
  */
 
 const APP_TZ = 'Asia/Ho_Chi_Minh';
+// The same zone written as the fixed offset it is: Vietnam has kept no daylight saving
+// since 1975, so a wall-clock day there can be turned into an instant with plain text.
+const APP_UTC_OFFSET = '+07:00';
 const ISO_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const HHMM_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MINUTES_PER_HOUR = 60;
@@ -71,6 +74,19 @@ function vnParts() {
 export function todayISO() {
   const { year, month, day } = vnParts();
   return `${year}-${month}-${day}`;
+}
+
+/**
+ * The instant a Vietnamese calendar day begins, written the way a UTC timestamp column is
+ * written: '2026-09-02' -> '2026-09-01T17:00:00.000Z'.
+ *
+ * A row stamped with new Date().toISOString() cannot be dated by its own text — one written
+ * at 01:00 in Vietnam carries the previous day in UTC — so a query counting "everything from
+ * today" has to compare against this boundary rather than match a date prefix, which would
+ * silently see nothing at all between midnight and 07:00.
+ */
+export function startOfDayUTC(iso) {
+  return new Date(`${iso}T00:00:00${APP_UTC_OFFSET}`).toISOString();
 }
 
 export function nowMinutes() {

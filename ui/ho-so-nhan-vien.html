@@ -158,7 +158,7 @@ Thông báo
 </div>
 <div class="min-w-0">
 <p class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="uploading">Đang tải ảnh lên…</p>
-<p class="font-caption text-caption text-on-surface-variant">Ảnh trên trang hồ sơ nghề nghiệp của bạn. Tối đa 5MB.</p>
+<p class="font-caption text-caption text-on-surface-variant">Ảnh trên trang hồ sơ nghề nghiệp của bạn. Tối đa 15MB.</p>
 </div>
 </div>
 <!-- Her own words for the job she does, and deliberately not the salon's two columns of the
@@ -956,18 +956,22 @@ Sao chép liên kết
                 }
             },
 
-            /** Read the file as a data URL and store it; the caller points a column at it. */
-            async upload(file) {
-                const dataUrl = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = () => reject(new Error('Không đọc được tệp ảnh.'));
-                    reader.readAsDataURL(file);
-                });
-                return OAK.api('/api/uploads', {
-                    method: 'POST',
-                    body: { filename: file.name, data: dataUrl },
-                });
+            /** Shrink the file to `maxEdge` and store it; the caller points a column at it.
+                The avatar is worn at 112px and a portfolio picture fills a card, so the two
+                callers ask for different edges. A file the browser cannot decode is posted
+                as it came, and the server answers for it. */
+            async upload(file, maxEdge) {
+                let payload = await OAK.compressImage(file, { maxEdge });
+                if (!payload) {
+                    const dataUrl = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = () => reject(new Error('Không đọc được tệp ảnh.'));
+                        reader.readAsDataURL(file);
+                    });
+                    payload = { filename: file.name, data: dataUrl };
+                }
+                return OAK.api('/api/uploads', { method: 'POST', body: payload });
             },
 
             /** The file a picker handed over, or null. Cleared off the input first, so picking
@@ -978,10 +982,10 @@ Sao chép liên kết
                 if (!file) {
                     return null;
                 }
-                // Same ceiling as POST /api/uploads: past it the body parser fails first, with
-                // a message that says nothing about the size.
-                if (file.size > 5 * 1024 * 1024) {
-                    OAK.toast('Ảnh vượt quá dung lượng tối đa 5MB.', 'error');
+                // Only a ceiling on what is worth decoding: upload() shrinks the picture
+                // before it is posted, and what POST /api/uploads takes is decided after that.
+                if (file.size > 15 * 1024 * 1024) {
+                    OAK.toast('Ảnh quá lớn (tối đa 15MB). Hãy chọn ảnh nhỏ hơn.', 'error');
                     return null;
                 }
                 return file;
@@ -999,7 +1003,7 @@ Sao chép liên kết
 
                 this.uploading = true;
                 try {
-                    const upload = await this.upload(file);
+                    const upload = await this.upload(file, 512);
                     await this.patchPortfolio({ image: upload.url });
                     OAK.toast('Đã cập nhật ảnh đại diện.');
                 } catch (error) {
@@ -1028,7 +1032,7 @@ Sao chép liên kết
                 this.portfolioBusy = true;
                 this.portfolioError = '';
                 try {
-                    const upload = await this.upload(file);
+                    const upload = await this.upload(file, 1600);
                     await this.patchPortfolio({ portfolio: this.me.portfolio.concat(upload.url) });
                 } catch (error) {
                     this.portfolioError = error.message;

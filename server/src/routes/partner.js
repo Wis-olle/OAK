@@ -2870,6 +2870,15 @@ const selectOwnedPhoto = db.prepare(
 const selectNextPhotoPosition = db.prepare(
   'SELECT COALESCE(MAX(sort), 0) + 1 AS position FROM salon_photos WHERE salon_id = ?',
 );
+/* How many pictures a gallery may hold at once. A visitor scrolls a strip, not an archive,
+   and the number is also the only thing standing between one salon and an unbounded share
+   of the storage bucket: POST /api/uploads holds an account to a rate, but a rate spent
+   every hour still adds up if nothing ever says the gallery is full. Twelve is comfortably
+   more than any seeded salon shows and small enough to stay a strip. */
+const SALON_PHOTO_MAX = 12;
+const countSalonPhotos = db.prepare(
+  'SELECT COUNT(*) AS total FROM salon_photos WHERE salon_id = ?',
+);
 const insertSalonPhoto = db.prepare(
   'INSERT INTO salon_photos (salon_id, image, caption, sort) VALUES (?, ?, ?, ?)',
 );
@@ -2901,6 +2910,14 @@ router.post('/photos', async (req, res, next) => {
       throw httpError(400, 'VALIDATION_ERROR', 'Đường dẫn ảnh không hợp lệ.');
     }
     const caption = optionalLimitedText(body.caption, 'Chú thích ảnh', PHOTO_CAPTION_MAX);
+    const { total } = await countSalonPhotos.get(salon.id);
+    if (Number(total) >= SALON_PHOTO_MAX) {
+      throw httpError(
+        400,
+        'PHOTO_LIMIT',
+        `Thư viện tối đa ${SALON_PHOTO_MAX} ảnh; hãy xóa bớt trước khi thêm.`,
+      );
+    }
     const { position } = await selectNextPhotoPosition.get(salon.id);
     const photoId = Number(
       (await insertSalonPhoto.run(salon.id, image, caption, position)).lastInsertRowid,

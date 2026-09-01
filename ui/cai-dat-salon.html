@@ -797,35 +797,9 @@
         }
         return key === '' || (' ' + placeKey(address) + ' ').indexOf(' ' + key + ' ') !== -1;
     }
-    /* The gallery shows a picture a few hundred pixels wide and a phone camera hands over
-       four thousand, so it is re-drawn to this edge and re-encoded before it leaves the
-       browser. A browser that cannot write WebP falls through to the original file. */
+    /* The gallery shows a picture a few hundred pixels wide, so it is shrunk in the browser
+       before it is posted — OAK.compressImage, shared with every other screen that uploads. */
     var PHOTO_MAX_EDGE = 1600;
-    var PHOTO_QUALITY = 0.82;
-
-    function compressPhoto(file) {
-        return new Promise(function (resolve) {
-            var url = URL.createObjectURL(file);
-            var image = new Image();
-            image.onload = function () {
-                var scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(image.width, image.height));
-                var canvas = document.createElement('canvas');
-                canvas.width = Math.round(image.width * scale);
-                canvas.height = Math.round(image.height * scale);
-                canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-                URL.revokeObjectURL(url);
-                var data = canvas.toDataURL('image/webp', PHOTO_QUALITY);
-                resolve(data.indexOf('data:image/webp') === 0
-                    ? { filename: 'anh-salon.webp', data: data }
-                    : null);
-            };
-            image.onerror = function () {
-                URL.revokeObjectURL(url);
-                resolve(null);
-            };
-            image.src = url;
-        });
-    }
 
     /* Where the picker opens before a salon has any coordinates: District 1, HCMC. */
     var MAP_FALLBACK = { center: [10.776, 106.700], zoom: 13 };
@@ -1122,7 +1096,7 @@
                 this.photoError = '';
                 try {
                     for (var index = 0; index < files.length; index += 1) {
-                        var payload = await compressPhoto(files[index]);
+                        var payload = await OAK.compressImage(files[index], { maxEdge: PHOTO_MAX_EDGE });
                         if (!payload) {
                             payload = await this.rawUpload(files[index]);
                         }
@@ -1143,7 +1117,7 @@
                 this.photoBusy = false;
             },
 
-            /* The picked file as it was, for a browser whose canvas cannot write WebP. */
+            /* The picked file as it was, for a browser whose canvas cannot decode it. */
             rawUpload(file) {
                 return new Promise(function (resolve, reject) {
                     var reader = new FileReader();
@@ -1598,8 +1572,10 @@
                 if (!file) {
                     return;
                 }
-                if (file.size > 5 * 1024 * 1024) {
-                    OAK.toast('Ảnh vượt quá dung lượng tối đa 5MB.', 'error');
+                // Only a decode ceiling now: the picture is shrunk below before it is posted,
+                // and what the server will actually take is decided after that.
+                if (file.size > 15 * 1024 * 1024) {
+                    OAK.toast('Ảnh quá lớn (tối đa 15MB). Hãy chọn ảnh nhỏ hơn.', 'error');
                     // Re-selecting the same file must still fire a change event.
                     event.target.value = '';
                     return;
@@ -1607,15 +1583,19 @@
                 this.uploading = true;
                 this.error = '';
                 try {
-                    var dataUrl = await new Promise(function (resolve, reject) {
-                        var reader = new FileReader();
-                        reader.onload = function () { resolve(reader.result); };
-                        reader.onerror = function () { reject(new Error('Không đọc được tệp ảnh.')); };
-                        reader.readAsDataURL(file);
-                    });
+                    var payload = await OAK.compressImage(file, { maxEdge: PHOTO_MAX_EDGE });
+                    if (!payload) {
+                        var dataUrl = await new Promise(function (resolve, reject) {
+                            var reader = new FileReader();
+                            reader.onload = function () { resolve(reader.result); };
+                            reader.onerror = function () { reject(new Error('Không đọc được tệp ảnh.')); };
+                            reader.readAsDataURL(file);
+                        });
+                        payload = { filename: file.name, data: dataUrl };
+                    }
                     var uploaded = await OAK.api('/api/uploads', {
                         method: 'POST',
-                        body: { filename: file.name, data: dataUrl },
+                        body: payload,
                     });
                     this.form.image = uploaded.url;
                     OAK.toast('Đã tải ảnh lên, nhớ bấm Lưu thay đổi.', 'info');

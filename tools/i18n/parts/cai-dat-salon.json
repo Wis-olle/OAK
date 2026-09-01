@@ -117,7 +117,7 @@
   "Mọi thay đổi chưa lưu sẽ bị mất.": "All unsaved changes will be lost.",
   "Ở lại": "Stay",
   "Rời trang": "Leave page",
-  "Ảnh vượt quá dung lượng tối đa 5MB.": "Image exceeds the 5MB maximum size.",
+  "Ảnh quá lớn (tối đa 15MB). Hãy chọn ảnh nhỏ hơn.": "Image is too large (15MB maximum). Please choose a smaller one.",
   "Không đọc được tệp ảnh.": "Could not read the image file.",
   "Đã tải ảnh lên, nhớ bấm Lưu thay đổi.": "Image uploaded — remember to click Save changes.",
   "Vui lòng nhập tên salon.": "Please enter the salon name.",
