@@ -70,7 +70,9 @@ Database không đổi: cả hai service dùng chung một `DATABASE_URL`, nên 
 
 ### Chạy test trước khi deploy
 
-Render gói free không có `preDeployCommand`, nên trên Render không có bước chạy test nào chặn một bản deploy hỏng. Cổng kiểm tra nằm ở GitHub Actions — [`.github/workflows/test.yml`](.github/workflows/test.yml) chạy unit test, smoke test (Postgres 17 dựng làm service container) và các bộ kiểm tra i18n/CSS trên mỗi push và pull request vào `main`. Render vẫn deploy commit đó dù workflow đỏ, nên đọc tab **Actions** trước khi tin một bản deploy.
+Render gói free không có `preDeployCommand`, nên cổng kiểm tra được đặt thẳng vào `buildCommand`: `npm ci && npm run test:unit`. Unit test đỏ thì build hỏng, và build hỏng thì Render giữ nguyên bản đang chạy — đây là thứ duy nhất chặn được một bản deploy hỏng trên gói free. Bộ unit không mở database và không mở socket nào (nó đọc mã nguồn, đọc markup và chạy các hàm được tách ra), chạy khoảng ba giây, và `node:test` có sẵn trong Node nên không cần cài thêm gì.
+
+Smoke test cần một Postgres riêng nên vẫn ở GitHub Actions — [`.github/workflows/test.yml`](.github/workflows/test.yml) chạy unit test, smoke test (Postgres 17 dựng làm service container) và các bộ kiểm tra i18n/CSS trên mỗi push và pull request vào `main`. Những thứ đó Render không chạy, nên vẫn đọc tab **Actions** trước khi tin một bản deploy.
 
 Nhân tiện, kiểm tra `ADMIN_EMAILS` trong Render: nó **không được** là một địa chỉ demo (bộ smoke test dùng `hoangyen@oak.vn`), nếu không thì quyền ẩn/hiện bài blog nằm ở một tài khoản mà script trên vừa khoá.
 

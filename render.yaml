@@ -13,7 +13,15 @@ services:
       paths:
         - server/**
         - ui/**
-    buildCommand: npm ci
+    # The unit suite runs as part of the build, so a red one fails the deploy. The free plan
+    # has no preDeployCommand and Render deploys a commit whether or not GitHub Actions went
+    # green, so without this there was nothing at all between a broken push and production.
+    # Affordable here because `npm run test:unit` opens no database and no socket: it reads
+    # source and markup and drives lifted functions, and takes about three seconds. The smoke
+    # suite needs a Postgres of its own and stays in CI. NODE_ENV=production narrows nothing —
+    # server/package.json declares no devDependencies, so `npm ci` installs the same tree
+    # either way and node:test is built into Node.
+    buildCommand: npm ci && npm run test:unit
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
