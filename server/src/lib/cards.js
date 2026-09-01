@@ -8,8 +8,17 @@
 
 import { parseJsonArray } from './query.js';
 
+/* auto_confirm rides along on the card, and it is the cheapest column here — a plain integer
+   beside three correlated subqueries. It has to: every page on the booking path tells the
+   reader what happens after they press the button, and until it was carried they all said the
+   forgiving half of it ("you will be told when the salon confirms") because they had no way to
+   know that for a salon with auto_confirm on the confirming has already happened. The wizard
+   in particular reads its salon three different ways — a card off this list, a service's
+   nested salon, or the detail — so a flag on only one of them would be a sentence that changed
+   depending on which door the reader came through. */
 export const SALON_CARD_COLUMNS = `
   s.id, s.slug, s.name, s.address, s.district, s.city, s.image, s.verified, s.tags, s.lat, s.lng,
+  s.auto_confirm,
   (SELECT ROUND(AVG(r.rating), 1) FROM reviews r WHERE r.salon_id = s.id) AS rating,
   (SELECT COUNT(*) FROM reviews r WHERE r.salon_id = s.id) AS review_count,
   (SELECT MIN(sv.price) FROM services sv
@@ -26,6 +35,9 @@ export function toSalonCard(row) {
     city: row.city,
     image: row.image,
     verified: Boolean(row.verified),
+    // The column is born 1 and older rows may hold null; anything that is not a 1 is a salon
+    // that confirms by hand, which is the half of the pair a page is safe to promise.
+    auto_confirm: row.auto_confirm === 1,
     tags: parseJsonArray(row.tags),
     rating: row.rating ?? 0,
     review_count: row.review_count ?? 0,
@@ -43,7 +55,8 @@ export const SERVICE_CARD_COLUMNS = `
   sv.category, sv.subcategory,
   s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name, s.district AS salon_district,
   s.cancel_cutoff_hours AS salon_cancel_cutoff_hours,
-  s.cancel_policy_text AS salon_cancel_policy_text
+  s.cancel_policy_text AS salon_cancel_policy_text,
+  s.auto_confirm AS salon_auto_confirm
 `;
 
 export function toServiceCard(row) {
@@ -64,6 +77,7 @@ export function toServiceCard(row) {
       district: row.salon_district,
       cancel_cutoff_hours: row.salon_cancel_cutoff_hours,
       cancel_policy_text: row.salon_cancel_policy_text,
+      auto_confirm: row.salon_auto_confirm === 1,
     },
   };
 }

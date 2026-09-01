@@ -5215,6 +5215,29 @@ async function groupBookingLifecycle() {
     'booking payload: expected the salon own cancel policy',
   );
 
+  /* And what the customer side is allowed to say about it BEFORE the booking exists. Three
+     pages tell the reader what happens after the button — "Lịch được xác nhận ngay" against
+     "Salon sẽ xác nhận" — and they read their salon through three different shapes: the
+     detail, a card off the directory, and the salon nested in a service. The flag has to be
+     on all three or the page's answer would depend on which door the reader came through. */
+  const manualShapes = async (expected, label) => {
+    const detail = ok(await guest.fetch(`/api/salons/${state.lalaId}`), `GET /api/salons/:id (${label})`);
+    assert(detail.auto_confirm === expected, `salon detail: auto_confirm must be ${expected}`);
+    const list = ok(await guest.fetch('/api/salons?limit=50'), `GET /api/salons (${label})`);
+    const card = list.find((salon) => salon.id === state.lalaId);
+    assert(card !== undefined, 'the salon must be in the public directory');
+    assert(card.auto_confirm === expected, `salon card: auto_confirm must be ${expected}`);
+    const service = ok(
+      await guest.fetch(`/api/services/${manualSlot.service.id}`),
+      `GET /api/services/:id (${label})`,
+    );
+    assert(
+      service.salon.auto_confirm === expected,
+      `service payload: salon.auto_confirm must be ${expected}`,
+    );
+  };
+  await manualShapes(false, 'confirming by hand');
+
   /* -- the cutoff the salon set, not the platform default --------------------- */
 
   // Half an hour from now: always still ahead, always well inside 24 hours, and it rolls
@@ -5592,6 +5615,8 @@ async function groupBookingLifecycle() {
     }),
     'PATCH /api/partner/salon (restore what the lifecycle group started from)',
   );
+  // And the flag flips back on all three public shapes, so the pages say the other sentence.
+  await manualShapes(true, 'confirming automatically');
 }
 
 /* ============================================================================

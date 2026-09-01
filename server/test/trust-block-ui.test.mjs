@@ -21,6 +21,7 @@ const salon = readUi('salon-profile.html');
 const service = readUi('chi-tiet-dich-vu.html');
 const wizard = readUi('dat-lich.html');
 const api = fs.readFileSync(path.join(root, 'ui/assets/js/oak-api.js'), 'utf8');
+const cards = fs.readFileSync(path.join(root, 'server/src/lib/cards.js'), 'utf8');
 
 /* The factory is inline in the page, so lift it out of its <script> to drive it here. */
 const TRUST_CANCEL_POLICY = 'Hủy/đổi miễn phí đến trước 2 tiếng';
@@ -129,15 +130,30 @@ test('the four pages of the booking path state the same three conditions', () =>
     assert.match(page, /Điều kiện đặt lịch/);
   }
 
-  /* The third condition is the one that differs, because what the page knows differs. Before
-     the booking exists none of these three holds an auto_confirm flag — the wizard's `salon`
-     is a card and the service page's is a card inside a service — so they promise only the
-     half that is true either way. "Salon xác nhận lịch" promised a step that a salon with
-     auto_confirm on has already taken by the time the reader reaches the next screen. */
+  /* The third condition is the one that differs by SALON, and all three pages now know which
+     salon they are looking at: auto_confirm rides on the card, on the detail and on a
+     service's nested salon (lib/cards.js), so each of them tells the two apart instead of
+     promising the half that is true either way. It used to say only "you will be told when it
+     is confirmed", which was safe and was also not an answer to the question the reader is
+     actually asking — am I booked, or am I waiting? — and gave a salon with auto_confirm on
+     no way to say that the waiting is over before the next screen. */
   for (const page of [salon, service, wizard]) {
-    assert.match(page, /Bạn được báo trong mục Thông báo ngay khi lịch được xác nhận/);
+    assert.match(page, /Lịch được xác nhận ngay/, 'the auto-confirm half');
+    assert.match(page, /Salon sẽ xác nhận, bạn được báo trong Thông báo/, 'the by-hand half');
+    // Both halves are gated on the flag, so neither can be shown for the other kind of salon
+    // and neither is on screen before the payload has said which kind this is.
+    assert.match(page, /x-show="[^"]*!(?:salon|service\.salon)\.auto_confirm"/);
     assert.doesNotMatch(page, /Salon xác nhận lịch, bạn được báo/);
+    assert.doesNotMatch(page, /Bạn được báo trong mục Thông báo ngay khi lịch được xác nhận/);
   }
+
+  /* And the flag is really on the payload, on all three shapes the three pages read a salon
+     through. A page branching on a key the server never sends would silently show the
+     by-hand half to every salon, which is exactly the sentence this replaced. */
+  assert.match(cards, /^\s*s\.auto_confirm,$/m);
+  assert.match(cards, /auto_confirm: row\.auto_confirm === 1,/);
+  assert.match(cards, /s\.auto_confirm AS salon_auto_confirm/);
+  assert.match(cards, /auto_confirm: row\.salon_auto_confirm === 1,/);
 
   // And the confirmation page does know: POST /api/bookings wrote 'confirmed' or 'pending'.
   assert.match(confirmation, /x-text="confirmNote\(\)"/);
@@ -172,9 +188,18 @@ test('no page promises what the codebase does not do', () => {
     // nobody answers at 3am; and a booking is not confirmed the moment it is made.
     assert.doesNotMatch(page, /hạng thẻ/, name);
     assert.doesNotMatch(page, /Hỗ trợ 24\/7/, name);
-    assert.doesNotMatch(page, /xác nhận ngay/, name);
     assert.doesNotMatch(page, /Đã xác minh/, name);
     assert.doesNotMatch(page, /xét duyệt/, name);
+    /* "xác nhận ngay" used to be on this list, because a booking was NOT confirmed the moment
+       it was made. It is, for a salon with auto_confirm on — POST /api/bookings writes
+       'confirmed' for one — so the claim is true where the page is allowed to make it. What
+       is refused now is making it about a salon nobody asked: every node carrying the promise
+       is gated on the flag the payload carries. (gioi-thieu.html names both kinds in one
+       sentence and promises neither, which is why the test is about this node and not about
+       the words appearing anywhere on a page.) */
+    for (const promise of page.matchAll(/<[^>]*>Lịch được xác nhận ngay/g)) {
+      assert.match(promise[0], /x-show="[^"]*auto_confirm"/, `${name}: ${promise[0]}`);
+    }
   }
 });
 

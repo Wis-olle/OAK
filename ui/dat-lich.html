@@ -532,7 +532,14 @@
 </div>
 <div class="flex items-start gap-2">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] mt-0.5 text-on-tertiary/80" data-icon="info">info</span>
-<span class="font-caption text-caption text-on-tertiary/70 leading-relaxed">Bạn được báo trong mục Thông báo ngay khi lịch được xác nhận</span>
+<!-- The third condition, and the only one of the three that differs by salon. The
+     payload carries auto_confirm on the card, on the detail and on a service's nested
+     salon (lib/cards.js), so whichever door the reader arrived through the sentence is
+     the true one. Before the salon has loaded neither shows, rather than the page
+     guessing: an unconditional "salon xác nhận" promised a step a salon with
+     auto_confirm on had already taken by the next screen. -->
+<span class="font-caption text-caption text-on-tertiary/70 leading-relaxed" x-cloak="" x-show="salon &amp;&amp; salon.auto_confirm">Lịch được xác nhận ngay</span>
+<span class="font-caption text-caption text-on-tertiary/70 leading-relaxed" x-cloak="" x-show="salon &amp;&amp; !salon.auto_confirm">Salon sẽ xác nhận, bạn được báo trong Thông báo</span>
 </div>
 <a class="inline-flex items-center gap-1 font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80 hover:text-on-tertiary transition-colors" href="dieu-khoan.html#huy-lich">Xem điều khoản</a>
 </div>

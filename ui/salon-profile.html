@@ -250,7 +250,10 @@
 </li>
 <li class="flex items-start gap-3">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="info">info</span>
-<span class="font-body-md text-body-md text-on-surface-variant">Bạn được báo trong mục Thông báo ngay khi lịch được xác nhận</span>
+<!-- Told apart rather than promised in the forgiving half: salon.auto_confirm rides on
+     the payload (lib/cards.js), so this salon says what this salon does. -->
+<span class="font-body-md text-body-md text-on-surface-variant" x-cloak="" x-show="salon &amp;&amp; salon.auto_confirm">Lịch được xác nhận ngay</span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-cloak="" x-show="salon &amp;&amp; !salon.auto_confirm">Salon sẽ xác nhận, bạn được báo trong Thông báo</span>
 </li>
 </ul>
 <a class="inline-flex items-center gap-1 mt-4 font-label-md text-label-md uppercase tracking-wide text-primary hover:opacity-70 transition-opacity" href="dieu-khoan.html#huy-lich">Xem điều khoản</a>
