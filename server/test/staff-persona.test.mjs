@@ -1755,8 +1755,12 @@ test('the console hands a refusal on in the words the server refused it in', () 
   assert.match(setStatus, /catch \(error\) \{\s*OAK\.toast\(error\.message, 'error'\);/);
   // …and the edit form — the only place in the console a booking changes technician — puts
   // it in front of the caret instead, where a refused save is being read.
-  const submit = handler(consoleHtml, 'async submitBooking() {', 'showFormError(message) {');
-  assert.match(submit, /catch \(error\) \{\s*this\.showFormError\(error\.message\);/);
+  const submit = handler(consoleHtml, 'async submitBooking(force) {', 'showFormError(message) {');
+  assert.match(submit, /catch \(error\) \{[\s\S]*?this\.showFormError\(error\.message\);/);
+  /* One refusal is answerable rather than final — a technician already booked for part of
+     that hour, which the counter may overrule — and it is asked in the server's own sentence
+     too, because that sentence is the half saying WHAT would be booked over. */
+  assert.match(submit, /window\.confirm\(error\.message \+ ' Vẫn lưu\?'\)/);
   assert.doesNotMatch(consoleHtml, /Có lỗi xảy ra/);
 
   /* The early-finish refusal is one a partner can actually walk into: "Không đến" is gated

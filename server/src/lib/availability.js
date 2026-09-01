@@ -103,6 +103,65 @@ const STAFF_BOOKINGS_SQL = `
 `;
 const selectStaffBookings = db.prepare(STAFF_BOOKINGS_SQL);
 
+// The same rows with one taken out, for a booking that is being MOVED: an appointment must
+// not be found clashing with the hour it is already sitting on. IS DISTINCT FROM rather than
+// <>, so a null id — a create, which has no row yet — simply excludes nothing.
+const OTHER_STAFF_BOOKINGS_SQL = `${STAFF_BOOKINGS_SQL} AND b.id IS DISTINCT FROM ?`;
+
+/*
+ * The one lock every write that holds an hour takes first.
+ *
+ * Postgres reads at READ COMMITTED here, so two transactions checking the same calendar
+ * before either commits both see it empty and both write into it — and idx_bookings_slot,
+ * UNIQUE(staff_id, date, time), only catches the pair that chose the SAME minute. 10:00 and
+ * 10:30 of a 60-minute service are two different minutes and one double-booked technician.
+ * Render's cold start makes that the ordinary case rather than the rare one: requests queue
+ * while the instance wakes and are released together.
+ *
+ * An advisory lock rather than SELECT ... FOR UPDATE because the thing being reserved is a
+ * DAY, not a row — a booking that does not exist yet cannot be locked, and the free hour it
+ * is about to take is exactly what has to be held. hashtext() turns the key into the bigint
+ * the lock is really on; two unrelated days that collide there cost each other one wait and
+ * never a wrong answer. xact, so it is released by COMMIT or ROLLBACK with nothing to unlock
+ * by hand.
+ *
+ * Two key shapes, because the two writes contend over different things: a named technician
+ * holds her own day, and "Bất kỳ" holds the salon's, since it is about to read the whole
+ * roster and pick from it. They do not exclude each other — a named booking and a "Bất kỳ"
+ * booking racing for overlapping hours at one salon can still both commit, and the unique
+ * index catches only the identical minute. Narrowing that further means the named path
+ * taking the salon key too, which serialises every booking a busy salon takes; the pair
+ * kept here is the one where the contention is real.
+ */
+const ADVISORY_LOCK_SQL = 'SELECT pg_advisory_xact_lock(hashtext(?))';
+
+/** Hold one technician's day for the rest of `tx`. */
+export async function lockStaffDay(tx, staffId, date) {
+  await tx.get(ADVISORY_LOCK_SQL, `staff:${staffId}:${date}`);
+}
+
+/** Hold one salon's whole day for the rest of `tx` — what picking from a roster needs. */
+export async function lockSalonDay(tx, salonId, date) {
+  await tx.get(ADVISORY_LOCK_SQL, `salon:${salonId}:${date}`);
+}
+
+/**
+ * Is this technician free for the WHOLE service starting at `time`, on `tx`'s own view?
+ *
+ * The overlap question the unique index cannot ask. Read on the caller's transaction and
+ * meant to be called under lockStaffDay above — on its own it is the same check-then-act
+ * the index was standing in for. `exceptBookingId` is the row being moved, which is not in
+ * its own way.
+ */
+export async function isStaffFreeAt(tx, staffId, date, time, durationMin, exceptBookingId = null) {
+  const start = toMinutes(time);
+  if (start === null) {
+    return false;
+  }
+  const rows = await tx.all(OTHER_STAFF_BOOKINGS_SQL, staffId, date, exceptBookingId);
+  return isFree(toRanges(rows), start, durationMin || FALLBACK_DURATION_MIN);
+}
+
 // The salon's own online-booking settings. Only lead_time_min matters in here; the
 // cancel cutoff is a rule about undoing a booking, not about offering an hour.
 const SALON_SETTINGS_SQL = 'SELECT lead_time_min FROM salons WHERE id = ?';
@@ -379,14 +438,14 @@ export async function getStaffSlots(staffId, serviceId, date, knownOff = null, l
  * onto whoever comes first. Null when nobody is free, which the caller answers as
  * SLOT_TAKEN — the same answer a named technician gets.
  *
- * What the transaction does NOT give is isolation between two of them:
- * idx_bookings_slot is UNIQUE(staff_id, date, time), so it rejects a second booking at the
- * SAME start time and nothing else. Two READ COMMITTED transactions booking 10:00 and 10:30
- * of the same 60-minute service can each read the roster before the other commits, pick the
- * same technician and both insert — an overlap no index covers, and the named-technician
- * path has the same hole because getStaffSlots is read outside the transaction. Closing it
- * needs a SELECT … FOR UPDATE over the candidate's bookings in here, or an exclusion
- * constraint over a tsrange; ticketed, not done.
+ * What the transaction does not give on its own is isolation between two of them, which is
+ * why the caller takes lockSalonDay() above before calling in here: at READ COMMITTED two
+ * of these can each read the roster before the other commits, pick the same technician for
+ * 10:00 and 10:30 of a 60-minute service, and both insert — two different minutes, so
+ * idx_bookings_slot never sees them. Under the salon's day key they queue instead, and the
+ * second one reads the first one's booking. Nothing in here takes the lock itself: the
+ * INSERT that follows has to be inside the same transaction as the pick, so the lock belongs
+ * to whoever owns both.
  */
 export async function pickAvailableStaff(tx, salonId, serviceId, date, time, durationMin) {
   const duration = durationMin || FALLBACK_DURATION_MIN;

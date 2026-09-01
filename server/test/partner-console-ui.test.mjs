@@ -25,8 +25,13 @@ function withMeta(rows, meta) {
   return rows;
 }
 
-/** Lift a page's inline factory out of its <script> and drive it here. */
-function factory(html, { from, until, create }, api) {
+/**
+ * Lift a page's inline factory out of its <script> and drive it here.
+ *
+ * `confirmed` is the answer the counter gives to the one browser dialog the console raises —
+ * a clash it may overrule. The questions it was asked come back on `state.confirmations`.
+ */
+function factory(html, { from, until, create }, api, confirmed = false) {
   const tail = html.slice(html.indexOf(from));
   const script = tail.slice(0, tail.lastIndexOf(until));
   const context = {
@@ -56,20 +61,29 @@ function factory(html, { from, until, create }, api) {
       BOOKING_STATUSES,
     },
     toasts: [],
+    confirmations: [],
+  };
+  context.window = {
+    confirm: (question) => {
+      context.confirmations.push(question);
+      return confirmed;
+    },
   };
   vm.runInNewContext(`${script}\nresult = ${create};`, context);
   // Alpine supplies these two; nothing here needs a real DOM behind them.
   context.result.$nextTick = (fn) => fn();
   context.result.$refs = {};
   context.result.toasts = context.toasts;
+  context.result.confirmations = context.confirmations;
   return context.result;
 }
 
-const calendar = (api) =>
+const calendar = (api, confirmed) =>
   factory(
     calendarHtml,
     { from: 'var OAK_BOOKING_CLASSES', until: 'oakPartnerChrome();', create: 'oakPartnerBookings()' },
     api,
+    confirmed,
   );
 
 const dashboard = (api) =>
@@ -621,4 +635,89 @@ test('the reviews page wears the console shell, and answers under the salon name
   );
   assert.equal(reviewsHtml.match(/aria-current="page"/g).length, 1, 'exactly one current item');
   assert.match(reviewsHtml, />Phản hồi từ</);
+});
+
+/* ------------------------------------------------------------ booking over a clash */
+
+/** A walk-in POST that refuses the first time and saves when the body carries force. */
+function clashingCounter(sent) {
+  return async (path, options) => {
+    const method = (options && options.method) || 'GET';
+    if (method === 'POST' && path === '/api/partner/bookings') {
+      sent.push(options.body);
+      if (!options.body.force) {
+        const refusal = new Error('Kỹ thuật viên đã có lịch chồng giờ, vui lòng chọn giờ khác.');
+        refusal.code = 'SLOT_TAKEN';
+        throw refusal;
+      }
+      const created = {
+        id: 11,
+        code: 'OAK-11',
+        date: '2026-08-21',
+        time: '10:30',
+        status: 'confirmed',
+        customer: { name: 'Khách vãng lai' },
+      };
+      Object.defineProperty(created, 'meta', {
+        value: { warning: 'Kỹ thuật viên đã có lịch chồng giờ, vui lòng chọn giờ khác.' },
+        enumerable: false,
+      });
+      return created;
+    }
+    if (path.endsWith('/history')) {
+      return [];
+    }
+    return withMeta([], { total: 0 });
+  };
+}
+
+test('a clash the counter overrules is asked once and then saved', async () => {
+  const sent = [];
+  const state = calendar(clashingCounter(sent), true);
+
+  state.resetForm();
+  state.form.service_id = '4';
+  state.form.time = '10:30';
+  await state.submitBooking();
+
+  // The server's own sentence is the question — it is the half that says WHAT would be
+  // booked over, and the page has no way to know which of the two rules answered.
+  assert.equal(state.confirmations.length, 1, 'asked once, never in a loop');
+  assert.match(state.confirmations[0], /chồng giờ.*Vẫn lưu\?$/);
+  assert.equal(sent.length, 2, 'the same save goes out twice: once asked, once forced');
+  assert.equal(sent[0].force, undefined, 'the first attempt must not force anything');
+  assert.equal(sent[1].force, true);
+  // Compared as sorted entries: the page builds these objects in the vm's own realm, so a
+  // deep-equal against one of ours compares prototypes, and the key order differs anyway.
+  const fields = (body) => JSON.stringify(Object.entries({ ...body }).sort());
+  assert.equal(
+    fields({ ...sent[0], force: true }),
+    fields(sent[1]),
+    'and the forced save is the same booking, not a second one typed again',
+  );
+
+  assert.equal(state.detail.id, 11, 'the booking is made');
+  assert.equal(state.formError, '');
+  assert.equal(state.saving, false);
+  /* The forced save carries a meta.warning like an out-of-hours one does, but it is a
+     different warning and must not borrow that sentence: the counter has just been asked
+     about the clash and answered it. */
+  const said = state.toasts.at(-1);
+  assert.equal(said.message, 'Đã tạo lịch hẹn OAK-11.');
+  assert.notEqual(said.tone, 'error');
+});
+
+test('a clash the counter declines leaves the appointment where it was', async () => {
+  const sent = [];
+  const state = calendar(clashingCounter(sent), false);
+
+  state.resetForm();
+  state.form.service_id = '4';
+  state.form.time = '10:30';
+  await state.submitBooking();
+
+  assert.equal(state.confirmations.length, 1);
+  assert.equal(sent.length, 1, 'a no is a no: nothing is forced behind the counter’s back');
+  assert.match(state.formError, /chồng giờ/, 'and the reason stays on screen to act on');
+  assert.equal(state.saving, false);
 });

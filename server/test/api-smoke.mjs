@@ -1599,10 +1599,14 @@ async function groupBookings() {
         'PATCH /api/partner/bookings/:id (confirm it before its day goes by)',
       );
     }
+    // An hour of its own, eight apart from the other one's: both of these were assigned a
+    // technician by "Bất kỳ" and can perfectly well be the same person, and the console now
+    // refuses to stack two overlapping appointments on one calendar. Which hour of yesterday
+    // they land on is nothing to the sweep, which reads the date.
     ok(
       await partner.fetch(`/api/partner/bookings/${booking.id}`, {
         method: 'PATCH',
-        json: { date: yesterday },
+        json: { date: yesterday, time: kind === 'confirmed' ? '08:00' : '16:00' },
       }),
       `PATCH /api/partner/bookings/:id (move the ${kind} one into yesterday)`,
     );
@@ -4220,11 +4224,12 @@ async function groupBookingLifecycle() {
   // suite ran in the last quarter of an hour of a day. Only the salon may move a booking
   // onto an hour that close.
   //
-  // Forty-five and not thirty: group 06 parks its own cancel-window booking on today at
-  // now+30 and never releases it, so the same minute here can land both on one technician
-  // and idx_bookings_slot answers SLOT_TAKEN. Three quarters of an hour is a minute nobody
-  // else claims and still far inside the 24h cutoff the assertions below need.
-  const soon = new Date(Date.now() + 45 * 60 * 1000);
+  // Two and a quarter hours and not three quarters: group 06 parks its own cancel-window
+  // booking on today at now+30 and never releases it, and the console now refuses an
+  // OVERLAP rather than only the identical minute — the longest service this salon sells
+  // runs 90 minutes, so now+30 can reach now+120 and any earlier minute here can land both
+  // on one technician. Still far inside the 24h cutoff the assertions below need.
+  const soon = new Date(Date.now() + 135 * 60 * 1000);
   const pad = (value) => String(value).padStart(2, '0');
   const soonDate = `${soon.getFullYear()}-${pad(soon.getMonth() + 1)}-${pad(soon.getDate())}`;
   const soonTime = `${pad(soon.getHours())}:${pad(soon.getMinutes())}`;
@@ -5871,7 +5876,9 @@ async function groupStaffPersona() {
         service_id: service.id,
         staff_id: minhAnh.id,
         date: bookingDate,
-        time: '08:25',
+        // Two hours clear of the 08:05 already on this technician's calendar above: the
+        // counter refuses an overlap now, and 08:25 was inside a 30-minute service.
+        time: '10:05',
         customer_name: 'Lê Văn Tuấn',
         customer_phone: '0977 300 400',
       },
@@ -8309,7 +8316,9 @@ async function groupStaffPersona() {
         service_id: service.id,
         staff_id: chairRow.id,
         date: bookingDate,
-        time: '10:15',
+        // Clear of the 10:05 above, because the reassignment below moves that booking onto
+        // this very row and the console refuses to stack two overlapping hours on one.
+        time: '12:15',
         customer_name: 'Khách Của Ghế Trống',
       },
     }),
@@ -8421,11 +8430,14 @@ async function groupStaffPersona() {
     leavingNotice,
   );
 
-  // The same save from the other end: the hour arrives, moved, and that is one notice too.
+  /* The same save from the other end: the hour arrives, moved, and that is one notice too.
+     Back onto the hour it was created at rather than onto a later one, because that hour is
+     the one this technician is provably free for — the console refuses an overlap now, and
+     the grid around it belongs to the bookings 3b left there. */
   ok(
     await partner.fetch(`/api/partner/bookings/${movedAway.id}`, {
       method: 'PATCH',
-      json: { time: '11:25', staff_id: personaRow.id },
+      json: { time: '11:05', staff_id: personaRow.id },
     }),
     'PATCH moving the hour back onto the technician in one save',
   );
@@ -8436,7 +8448,7 @@ async function groupStaffPersona() {
   )[0];
   assert(
     arrivingNotice.title === 'Lịch hẹn mới trên lịch của bạn' &&
-      arrivingNotice.body.includes('11:25'),
+      arrivingNotice.body.includes('11:05'),
     'the arriving technician is told what she is expected at, once',
     arrivingNotice,
   );
@@ -10637,6 +10649,308 @@ async function groupUploadQuota() {
 }
 
 /* ============================================================================
+ * 20c — one hour, one technician
+ *
+ * A technician cannot be in two places at once, and until now the platform only half knew
+ * it. idx_bookings_slot is UNIQUE(staff_id, date, time): it refuses a second booking at the
+ * SAME minute and sees nothing else, so 10:00 and 10:30 of a 60-minute service were two rows
+ * it was perfectly happy with. The customer wizard's slot check ran on the pool before the
+ * transaction opened, so two customers could both pass it; the console had no check at all.
+ * Render releases queued requests together after a cold start, which makes "two at once" the
+ * ordinary case rather than the rare one, and a customer who arrives to a salon that cannot
+ * serve her does not come back.
+ *
+ * Staged on a salon opened here, with exactly ONE technician who performs exactly ONE
+ * service, because "exactly one" is what makes the counting below mean anything: against the
+ * seeded rosters a refused booking could always be a second technician quietly taking the
+ * work, which is the right answer to a different question.
+ * ========================================================================= */
+
+async function groupDoubleBooking() {
+  const stamp = Date.now();
+  const owner = new Session();
+  ok(
+    await owner.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Chủ Salon Một Ghế',
+        email: `onechair${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        role: 'partner',
+        salon_name: `Salon Một Ghế ${stamp}`,
+        consent: true,
+      },
+    }),
+    'register the owner of the one-chair salon',
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: weekClosedOn(-1) } }),
+    'open the one-chair salon round the clock',
+  );
+  const salon = ok(await owner.fetch('/api/partner/salon'), 'the one-chair salon');
+
+  // Sixty minutes, so 10:00 and 10:30 are two different minutes and one impossible day.
+  const service = ok(
+    await owner.fetch('/api/partner/services', {
+      method: 'POST',
+      json: { category: 'nail', name: 'Bộ móng một tiếng', price: 300000, duration_min: 60 },
+    }),
+    'POST /api/partner/services (the hour-long service)',
+  );
+  const solo = ok(
+    await owner.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: {
+        name: 'KTV Duy Nhất',
+        schedule: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+          weekday, start: '00:00', end: '23:59', is_off: 0,
+        })),
+        service_ids: [service.id],
+      },
+    }),
+    'POST /api/partner/staff (the only technician)',
+  );
+  // And live, because half of what follows knocks on the customer's own door: an address
+  // and a photo are the rest of what a salon needs before OAK will list it.
+  ok(
+    await owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { address: '1 Một Ghế, Quận 1', image: 'assets/images/img-d469cbe2a5.jpg' },
+    }),
+    'PATCH /api/partner/salon (what the one-chair salon still needs to go live)',
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (the one-chair salon goes live)',
+  );
+
+  // Registered without a phone number, so none of this spends the per-IP sign-up allowance
+  // group 21 goes on to measure.
+  const customerAt = async (label) => {
+    const client = new Session();
+    ok(
+      await client.fetch('/api/auth/register', {
+        method: 'POST',
+        json: {
+          name: label,
+          email: `${label.toLowerCase()}${stamp}@oak.invalid`,
+          password: 'Oak@1234',
+          consent: true,
+        },
+      }),
+      `register ${label}`,
+    );
+    return client;
+  };
+
+  const booking = (date, time, extra = {}) => ({
+    salon_id: salon.id,
+    service_id: service.id,
+    date,
+    time,
+    ...extra,
+  });
+
+  /* -- the overlap the unique index never saw ---------------------------------- */
+
+  const namedDay = addDays(state.today, 5);
+  const first = await customerAt('KhachDauTien');
+  const second = await customerAt('KhachThuHai');
+  ok(
+    await first.fetch('/api/bookings', {
+      method: 'POST',
+      json: booking(namedDay, '10:00', { staff_id: solo.id }),
+    }),
+    'POST /api/bookings at 10:00 on the only technician',
+  );
+  expectError(
+    await second.fetch('/api/bookings', {
+      method: 'POST',
+      json: booking(namedDay, '10:30', { staff_id: solo.id }),
+    }),
+    409,
+    'SLOT_TAKEN',
+    'POST /api/bookings at 10:30, half way through the hour she is already working',
+  );
+
+  /* -- and the same pair arriving together ------------------------------------- */
+
+  /* The case the index cannot answer at all: two DIFFERENT minutes, so nothing about them is
+     unique, and both requests read the calendar before either has written to it. Sequentially
+     the wizard's own pre-check is enough; sent together it is check-then-act with a round trip
+     in the middle of it, which is exactly the shape a cold-started instance releases in
+     batches. Exactly one 200 — never two, and never nought. */
+  const raceDay = addDays(state.today, 6);
+  const racers = [await customerAt('KhachChayDua'), await customerAt('KhachChayDuaHai')];
+  const namedRace = await Promise.all([
+    racers[0].fetch('/api/bookings', {
+      method: 'POST',
+      json: booking(raceDay, '10:00', { staff_id: solo.id }),
+    }),
+    racers[1].fetch('/api/bookings', {
+      method: 'POST',
+      json: booking(raceDay, '10:30', { staff_id: solo.id }),
+    }),
+  ]);
+  assert(
+    namedRace.filter((one) => one.status === 200).length === 1,
+    `two overlapping hours sent at once must leave exactly one booking (got ${namedRace
+      .map((one) => one.status)
+      .join(', ')})`,
+    namedRace.find((one) => one.status !== 200),
+  );
+  assert(
+    namedRace.every((one) => one.status === 200 || one.body?.error?.code === 'SLOT_TAKEN'),
+    'and the one that lost is told the hour is taken, not handed a 500',
+    namedRace.find((one) => one.status !== 200),
+  );
+
+  /* -- "Bất kỳ" is a choice of nobody, not a licence to overbook the one there is -- */
+
+  /* Four customers, one hour, one eligible technician. Sent together, each of them reads a
+     roster with a free hour on it and picks the same person — the pick already happens inside
+     the transaction, but at READ COMMITTED that is no help on its own. Under the salon's day
+     key they queue, and the second one reads the first one's booking and finds nobody free. */
+  const anyDay = addDays(state.today, 7);
+  const crowd = await Promise.all([1, 2, 3, 4].map((index) => customerAt(`KhachBatKy${index}`)));
+  const anyRace = await Promise.all(
+    crowd.map((client) =>
+      client.fetch('/api/bookings', { method: 'POST', json: booking(anyDay, '10:00') }),
+    ),
+  );
+  assert(
+    anyRace.filter((one) => one.status === 200).length === 1,
+    `four "Bất kỳ" bookings of one hour must leave exactly one (got ${anyRace
+      .map((one) => one.status)
+      .join(', ')})`,
+    anyRace.find((one) => one.status !== 200),
+  );
+  assert(
+    anyRace.every((one) => one.status === 200 || one.body?.error?.code === 'SLOT_TAKEN'),
+    'and the three that lost are all told the hour is taken',
+    anyRace.find((one) => one.status !== 200 && one.body?.error?.code !== 'SLOT_TAKEN'),
+  );
+
+  /* The same wave at two overlapping minutes rather than one, which is the half of it the
+     unique index could never have caught even by accident: 10:00 and 10:30 are two distinct
+     (staff, date, time) triples, so only the day key and the re-read under it stand between
+     them and one technician booked twice over. */
+  const anyOverlapDay = addDays(state.today, 8);
+  const overlapCrowd = await Promise.all(
+    [1, 2].map((index) => customerAt(`KhachChongGio${index}`)),
+  );
+  const anyOverlapRace = await Promise.all([
+    overlapCrowd[0].fetch('/api/bookings', {
+      method: 'POST',
+      json: booking(anyOverlapDay, '10:00'),
+    }),
+    overlapCrowd[1].fetch('/api/bookings', {
+      method: 'POST',
+      json: booking(anyOverlapDay, '10:30'),
+    }),
+  ]);
+  assert(
+    anyOverlapRace.filter((one) => one.status === 200).length === 1,
+    `two overlapping "Bất kỳ" hours sent at once must leave exactly one (got ${anyOverlapRace
+      .map((one) => one.status)
+      .join(', ')})`,
+    anyOverlapRace.find((one) => one.status !== 200),
+  );
+
+  /* -- the counter is told before it books over her, and may still say yes ------ */
+
+  const counterDay = addDays(state.today, 9);
+  const walkIn = (date, time, extra = {}) => ({
+    service_id: service.id,
+    staff_id: solo.id,
+    date,
+    time,
+    customer_name: 'Khách Tại Quầy',
+    ...extra,
+  });
+  ok(
+    await owner.fetch('/api/partner/bookings', { method: 'POST', json: walkIn(counterDay, '09:00') }),
+    'POST /api/partner/bookings (the hour the counter starts from)',
+  );
+  expectError(
+    await owner.fetch('/api/partner/bookings', { method: 'POST', json: walkIn(counterDay, '09:30') }),
+    409,
+    'SLOT_TAKEN',
+    'POST /api/partner/bookings half way through an hour she is already working',
+  );
+  const forcedResponse = await owner.fetch('/api/partner/bookings', {
+    method: 'POST',
+    json: walkIn(counterDay, '09:30', { force: true }),
+  });
+  ok(forcedResponse, 'POST /api/partner/bookings with force on the same overlapping hour');
+  assert(
+    String(forcedResponse.body.meta?.warning ?? '').includes('chồng giờ'),
+    'a forced overlap is saved, and the reply says what it was booked over',
+    forcedResponse,
+  );
+
+  /* -- moving one, which is never in its own way -------------------------------- */
+
+  const mover = ok(
+    await owner.fetch('/api/partner/bookings', { method: 'POST', json: walkIn(counterDay, '14:00') }),
+    'POST /api/partner/bookings (the one that gets moved about)',
+  );
+  ok(
+    await owner.fetch(`/api/partner/bookings/${mover.id}`, {
+      method: 'PATCH',
+      json: { date: counterDay, time: '14:00' },
+    }),
+    'PATCH /api/partner/bookings/:id onto the hour it already has',
+  );
+  expectError(
+    await owner.fetch(`/api/partner/bookings/${mover.id}`, {
+      method: 'PATCH',
+      json: { time: '09:15' },
+    }),
+    409,
+    'SLOT_TAKEN',
+    'PATCH /api/partner/bookings/:id onto an hour she is already working',
+  );
+  const forcedMove = await owner.fetch(`/api/partner/bookings/${mover.id}`, {
+    method: 'PATCH',
+    json: { time: '09:15', force: true },
+  });
+  ok(forcedMove, 'PATCH /api/partner/bookings/:id onto that hour with force');
+  assert(
+    String(forcedMove.body.meta?.warning ?? '').includes('chồng giờ'),
+    'and the move that was forced says so too',
+    forcedMove,
+  );
+
+  /* -- a day the salon has declared closed -------------------------------------- */
+
+  const closedDay = addDays(state.today, 10);
+  ok(
+    await owner.fetch('/api/partner/time-off', {
+      method: 'POST',
+      json: { date_from: closedDay, date_to: closedDay, reason: 'Nghỉ lễ' },
+    }),
+    'POST /api/partner/time-off (the whole salon)',
+  );
+  expectError(
+    await owner.fetch('/api/partner/bookings', { method: 'POST', json: walkIn(closedDay, '10:00') }),
+    409,
+    'SLOT_TAKEN',
+    'POST /api/partner/bookings on a day the salon declared closed',
+  );
+  const forcedOnClosedDay = await owner.fetch('/api/partner/bookings', {
+    method: 'POST',
+    json: walkIn(closedDay, '10:00', { force: true }),
+  });
+  ok(forcedOnClosedDay, 'POST /api/partner/bookings on that closed day with force');
+  assert(
+    String(forcedOnClosedDay.body.meta?.warning ?? '').includes('Salon nghỉ'),
+    'a salon working through its own day off is told which rule it went past',
+    forcedOnClosedDay,
+  );
+}
+
+/* ============================================================================
  * 21 — the two doors that answer "is this number taken", rationed together
  *
  * LAST IN THE SUITE, and it has to be. This group deliberately spends the whole per-address
@@ -10799,6 +11113,7 @@ async function main() {
   await group('19 staff persona', groupStaffPersona);
   await group('20 staff departure', groupStaffDeparture);
   await group('20b upload quota', groupUploadQuota);
+  await group('20c one hour, one technician', groupDoubleBooking);
   // Last, always: it spends the whole per-IP sign-up allowance and cannot give it back.
   await group('21 sign-up throttle', groupRegisterThrottle);
 }

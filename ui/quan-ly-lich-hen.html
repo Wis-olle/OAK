@@ -1346,7 +1346,12 @@
                 }
             },
 
-            async submitBooking() {
+            /* `force` is the second pass of the same save: the server refused because the
+               technician is already busy for part of that hour, or because the salon has
+               declared the day off, and the counter answered the question below with yes.
+               Asked once — a second refusal on a forced save is a real error and is shown
+               as one. */
+            async submitBooking(force) {
                 // The hour lives in a chip when the free hours are on show, and a hidden
                 // input cannot raise the browser's own "please fill this in" bubble. Say
                 // it here instead, or a day with no free hours swallows the submit whole.
@@ -1364,6 +1369,9 @@
                     // create path reads it as "Chưa phân công" exactly as before.
                     staff_id: this.form.staff_id ? Number(this.form.staff_id) : null,
                 };
+                if (force) {
+                    body.force = true;
+                }
                 if (!this.editingId) {
                     body.service_id = Number(this.form.service_id);
                     body.customer_name = this.form.customer_name || null;
@@ -1400,11 +1408,21 @@
                     // sentence is the page's own, and so has an English twin like the
                     // rest of them. Success colour — the booking WAS saved.
                     OAK.toast(
-                        created.meta && created.meta.warning
+                        !force && created.meta && created.meta.warning
                             ? 'Lịch hẹn đã lưu, ngoài giờ mở cửa của salon.'
                             : 'Đã tạo lịch hẹn ' + created.code + '.',
                     );
                 } catch (error) {
+                    /* A clash the counter may overrule: it is standing in front of the
+                       customer and the server's sentence says what it would be booking over,
+                       so that sentence is the question rather than a wording of this page's
+                       own. The plain browser dialog because this page has never needed one
+                       and a styled dialog for a single question is a modal inside a modal. */
+                    if (error.code === 'SLOT_TAKEN' && !force
+                        && window.confirm(error.message + ' Vẫn lưu?')) {
+                        await this.submitBooking(true);
+                        return;
+                    }
                     this.showFormError(error.message);
                 } finally {
                     this.saving = false;

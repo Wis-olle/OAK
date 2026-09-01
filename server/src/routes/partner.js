@@ -2,7 +2,15 @@
 import { randomBytes } from 'node:crypto';
 import express from 'express';
 import { db } from '../db.js';
-import { getServiceSlots, getStaffSlots, isSalonOpenFor, staffCanDo } from '../lib/availability.js';
+import {
+  getServiceSlots,
+  getStaffSlots,
+  isSalonOpenFor,
+  isStaffFreeAt,
+  lockStaffDay,
+  staffCanDo,
+  timeOffOn,
+} from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
 import { recordEvent } from '../lib/events.js';
 import { notifyStaff, notifyUser } from '../lib/notify.js';
@@ -838,6 +846,36 @@ async function assertStaffCanDo(staffId, serviceId) {
   }
 }
 
+/**
+ * What stands between this technician and this hour, in the words the counter is shown, or
+ * null when nothing does.
+ *
+ * The console used to hear about a clash only from idx_bookings_slot, which is
+ * UNIQUE(staff_id, date, time) — it sees the identical minute and nothing else, so a 60-minute
+ * service typed at 10:30 over one already running from 10:00 saved without a word and put one
+ * technician in two places. And a day the salon had declared closed was refused to customers
+ * and taken silently at the counter.
+ *
+ * The calendar half is read on `tx` and under lockStaffDay, so what it sees cannot change
+ * before the write that follows it. The day off is handed in already answered, because it is
+ * a fact about the date rather than a race — and a read of the POOL from inside a transaction
+ * would have this request holding one connection while queueing for a second, which is how a
+ * five-connection pool wedges itself under exactly the burst this whole change is about.
+ *
+ * Deliberately NOT asked here: the salon's opening hours and its lead time. The counter is
+ * allowed to stay open late for one customer and to take a booking starting in ten minutes —
+ * those are warnings on this route and always have been, not refusals.
+ */
+async function bookingConflict(tx, closed, staffId, date, time, durationMin, exceptBookingId) {
+  if (closed) {
+    return 'Salon nghỉ ngày này, vui lòng chọn ngày khác.';
+  }
+  if (!(await isStaffFreeAt(tx, staffId, date, time, durationMin, exceptBookingId))) {
+    return 'Kỹ thuật viên đã có lịch chồng giờ, vui lòng chọn giờ khác.';
+  }
+  return null;
+}
+
 router.post('/bookings', async (req, res, next) => {
   try {
     const salon = await ownedSalon(req);
@@ -875,6 +913,17 @@ router.post('/bookings', async (req, res, next) => {
     // two together, and until now every booking taken at the counter lost the link.
     const userId = await accountForPhone(customerPhone);
 
+    /* The counter's override. It is standing in front of the customer and knows things this
+       table does not — the technician agreed to stay, the "closed" day is being worked after
+       all — so a refusal it disagrees with has to have a way through, and the reply then says
+       which rule was gone past instead of pretending there was none. Without it the console
+       would be back to typing the same hour until the index gave way. */
+    const force = body.force === true;
+    // Read out here: it needs no lock, and nothing inside a transaction may go back to the
+    // pool for a second connection. A walk-in with no technician is asked nothing at all.
+    const closed = staffId === null ? false : (await timeOffOn(salon.id, date)).salon;
+    let conflict = null;
+
     // Price comes from the service row, never from the request: the counter must not
     // be able to post an arbitrary total.
     //
@@ -886,6 +935,20 @@ router.post('/bookings', async (req, res, next) => {
     try {
       await withBookingCode((code) =>
         db.withTransaction(async (tx) => {
+          /* A walk-in with no technician holds nobody's calendar, so there is nothing here
+             to be free of. With one, the day is held before it is read: this route has no
+             pre-check at all, and two people at two screens of the same console are exactly
+             as able to collide as two customers are. */
+          if (staffId !== null) {
+            await lockStaffDay(tx, staffId, date);
+            conflict = await bookingConflict(
+              tx, closed, staffId, date, time, service.duration_min, null,
+            );
+            if (conflict !== null && !force) {
+              throw httpError(409, 'SLOT_TAKEN', conflict);
+            }
+          }
+
           bookingId = Number(
             (
               await tx.run(
@@ -947,13 +1010,15 @@ router.post('/bookings', async (req, res, next) => {
     // A warning, never a refusal: a salon that stays open late for one customer is not
     // making a mistake, it is doing its job. The console says so and saves it anyway.
     const outsideHours = !(await isSalonOpenFor(salon.id, date, time, service.duration_min));
+    // One line, and the overridden refusal outranks the hours note: the counter has just
+    // been asked about the first and only ever told about the second.
+    const warning =
+      conflict ?? (outsideHours ? 'Giờ hẹn nằm ngoài giờ mở cửa của salon.' : null);
 
     res.json({
       success: true,
       data: bookingShape(booking),
-      ...(outsideHours
-        ? { meta: { warning: 'Giờ hẹn nằm ngoài giờ mở cửa của salon.' } }
-        : {}),
+      ...(warning === null ? {} : { meta: { warning } }),
     });
   } catch (error) {
     next(error);
@@ -1132,6 +1197,33 @@ router.patch('/bookings/:id', async (req, res, next) => {
       }
     }
 
+    /* The chair and the hour this save LEAVES the appointment on, asked the way the clock
+       guards above ask: off the body, so one request that moves the date and the technician
+       together is judged on where it lands rather than on where it came from. Only a save
+       that touches one of those three needs asking at all — a plain status change goes
+       through whatever pairing the row already carries, and a booking taken before this rule
+       existed must still be markable completed.
+
+       And only a booking that is still going to happen holds an hour: STAFF_BOOKINGS_SQL
+       counts pending and confirmed rows, so re-dating a cancelled or completed one is a
+       correction to the record and can clash with nothing. */
+    const leftStatus = Object.hasOwn(patch, 'status') ? patch.status : booking.status;
+    const slotStaffId = Object.hasOwn(patch, 'staff_id') ? patch.staff_id : booking.staff_id;
+    const checksSlot =
+      slotStaffId !== null &&
+      (leftStatus === 'pending' || leftStatus === 'confirmed') &&
+      (Object.hasOwn(patch, 'date') ||
+        Object.hasOwn(patch, 'time') ||
+        Object.hasOwn(patch, 'staff_id'));
+    const slot = checksSlot ? startsAt() : null;
+    const slotDuration = checksSlot
+      ? (newService ?? (await selectOwnedService.get(booking.service_id, salon.id))).duration_min
+      : 0;
+    // The counter's override, the same one POST /bookings takes.
+    const force = body.force === true;
+    const closed = checksSlot && (await timeOffOn(salon.id, slot.date)).salon;
+    let conflict = null;
+
     const notification = body.status
       ? BOOKING_NOTIFICATIONS[body.status]
       : moved
@@ -1142,6 +1234,19 @@ router.patch('/bookings/:id', async (req, res, next) => {
 
     try {
       await db.withTransaction(async (tx) => {
+        /* Before the UPDATE and under the technician's day lock, excluding this booking so
+           the hour it already holds is not counted against itself — moving an appointment
+           onto its own time is a no-op, not a clash. */
+        if (checksSlot) {
+          await lockStaffDay(tx, slotStaffId, slot.date);
+          conflict = await bookingConflict(
+            tx, closed, slotStaffId, slot.date, slot.time, slotDuration, bookingId,
+          );
+          if (conflict !== null && !force) {
+            throw httpError(409, 'SLOT_TAKEN', conflict);
+          }
+        }
+
         await tx.run(
           `UPDATE bookings SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`,
           ...values,
@@ -1269,6 +1374,7 @@ router.patch('/bookings/:id', async (req, res, next) => {
     res.json({
       success: true,
       data: bookingShape(await selectOwnedBooking.get(bookingId, salon.id)),
+      ...(conflict === null ? {} : { meta: { warning: conflict } }),
     });
   } catch (error) {
     next(error);

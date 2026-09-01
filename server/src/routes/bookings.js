@@ -4,6 +4,9 @@ import { db } from '../db.js';
 import {
   getStaffSlots,
   isSalonOpenFor,
+  isStaffFreeAt,
+  lockSalonDay,
+  lockStaffDay,
   pickAvailableStaff,
   respectsLeadTime,
   staffCanDo,
@@ -514,12 +517,33 @@ router.post('/', async (req, res, next) => {
     try {
       await withBookingCode((generated) =>
         db.withTransaction(async (tx) => {
+          /* Before anything in here reads a calendar. The slot check above ran on the pool
+             and answered the customer quickly, which is what it is for; between it and this
+             INSERT another request can have taken the hour, and on a cold-started instance
+             that is the ordinary case rather than the rare one. So the day is held, and then
+             read again — the second reader now sees the first one's booking.
+
+             A named technician holds her own day; "Bất kỳ" holds the salon's, because
+             pickAvailableStaff is about to read the whole roster to choose from it. */
+          if (staffId === null) {
+            await lockSalonDay(tx, salonId, date);
+          } else {
+            await lockStaffDay(tx, staffId, date);
+            // The overlap the unique index cannot see: 10:00 and 10:30 of a 60-minute
+            // service are two different minutes and one technician in two places.
+            if (!(await isStaffFreeAt(tx, staffId, date, time, service.duration_min))) {
+              throw httpError(
+                409,
+                'SLOT_TAKEN',
+                'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.',
+              );
+            }
+          }
+
           // "Bất kỳ" is a choice of nobody in particular, not a booking against nobody:
           // the hour has to be held on somebody's calendar or the grid keeps offering it.
-          // Chosen in here, on this transaction, so the pick and the row it is written
-          // into cannot drift apart. idx_bookings_slot catches a second booking at the same
-          // (staff, date, time) and answers 409; two overlapping start times on one
-          // technician are not covered by any index — see pickAvailableStaff().
+          // Chosen in here, on this transaction and under the lock above, so the pick and
+          // the row it is written into cannot drift apart.
           const assigned =
             staffId ??
             (await pickAvailableStaff(tx, salonId, serviceId, date, time, service.duration_min));
