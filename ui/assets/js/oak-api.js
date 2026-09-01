@@ -34,9 +34,15 @@
     return pageName() + location.search;
   }
 
-  function apiError(code, message) {
+  /* `details` is whatever the refusal could not say in a sentence — today only the list of
+     appointments a closed day would strand (BOOKINGS_AFFECTED), which the console has to be
+     able to put in front of the owner row by row. Absent on every other error. */
+  function apiError(code, message, details) {
     var error = new Error(message);
     error.code = code;
+    if (details !== undefined) {
+      error.details = details;
+    }
     return error;
   }
 
@@ -279,6 +285,7 @@
       throw apiError(
         envelope.code || 'UNKNOWN_ERROR',
         envelope.message || 'Đã có lỗi xảy ra, vui lòng thử lại sau.',
+        envelope.details,
       );
     }
 

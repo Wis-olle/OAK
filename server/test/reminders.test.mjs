@@ -18,13 +18,19 @@ const NOW_MIN = 10 * 60 + 30;
  * A transaction over `bookings`: the SELECT hides whatever already has a reminder, and the
  * INSERT notify.js writes puts one there. Returns what was asked and what was written.
  */
-function sweeper(bookings) {
+function sweeper(bookings, closures = []) {
   const written = [];
   const asked = [];
   const reminded = (id) => written.some((row) => row.bookingId === id);
 
   const tx = {
     all: async (sql, ...params) => {
+      /* The second statement the sweep runs: the closures overlapping its window. Filtered
+         the way the SQL filters, so a row outside the window is invisible here too. */
+      if (sql.includes('time_off')) {
+        const [from, to] = params;
+        return closures.filter((off) => off.date_to >= from && off.date_from <= to);
+      }
       asked.push(params);
       const [fromDate, , fromTime, toDate, , toTime] = params;
       /* The statement's own clauses, in JavaScript: the window it asked for, and its
@@ -53,6 +59,9 @@ function sweeper(bookings) {
 const BOOKING = {
   id: 7,
   user_id: 3,
+  // Which salon and whose calendar, so a declared day off can be matched against it.
+  salon_id: 1,
+  staff_id: 5,
   code: 'OAK-4K7P2M',
   date: '2026-08-24',
   time: '10:00',
@@ -193,4 +202,39 @@ test('a salon that takes cancellations up to the hour still gets the two-hour fl
 
   const roomToAct = sweeper([startingIn(3 * 60, { cancel_cutoff_hours: 0 })]);
   assert.equal(await roomToAct.run(), 1);
+});
+
+/* ------------------------------------------------------- days the salon is shut ---- */
+
+/* A holiday or a leave declared AFTER the appointments inside it were made cancels nothing:
+   the console asks the owner to ring those customers instead. Until then the reminder must
+   stay in: "your appointment is at 10:00 tomorrow, cancel free until 08:00" is a promise
+   about an hour that no longer exists, and it is worse than silence — the customer acts on
+   it and turns up at a closed door. */
+const CLOSURE = { salon_id: 1, staff_id: null, date_from: '2026-08-24', date_to: '2026-08-24' };
+
+test('a booking inside a salon closure is not reminded about', async () => {
+  const { run, written } = sweeper([BOOKING], [CLOSURE]);
+
+  assert.equal(await run(), 0);
+  assert.equal(written.length, 0);
+});
+
+test('a technician’s own day off silences her bookings and nobody else’s', async () => {
+  const hers = { ...CLOSURE, staff_id: 5 };
+  assert.equal(await sweeper([BOOKING], [hers]).run(), 0);
+  assert.equal(await sweeper([{ ...BOOKING, staff_id: 9 }], [hers]).run(), 1);
+});
+
+test('a closure at another salon, or on another day, changes nothing here', async () => {
+  assert.equal(await sweeper([BOOKING], [{ ...CLOSURE, salon_id: 2 }]).run(), 1);
+  assert.equal(
+    await sweeper([BOOKING], [{ ...CLOSURE, date_from: '2026-08-25', date_to: '2026-08-25' }]).run(),
+    1,
+  );
+});
+
+test('a closure spanning the day covers it, edges included', async () => {
+  const week = { ...CLOSURE, date_from: '2026-08-24', date_to: '2026-08-30' };
+  assert.equal(await sweeper([BOOKING], [week]).run(), 0);
 });

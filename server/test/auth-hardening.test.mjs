@@ -394,9 +394,23 @@ test('a typed number claims nothing: no booking changes hands for one', () => {
      an account — the one place it can be trusted, because the salon read it off the customer
      in front of them. It answers only when exactly one live customer holds the number, which
      is also why PHONE_IN_USE has to keep refusing a second claim on one. */
-  assert.match(partnerSource, /async function accountForPhone\(phone\)/);
+  assert.match(partnerSource, /async function accountForPhone\(phone, salonId\)/);
   assert.match(partnerSource, /role = 'customer' AND deleted_at IS NULL/);
-  assert.match(partnerSource, /matches\.length === 1 \? matches\[0\]\.id : null/);
+  assert.match(partnerSource, /matches\.length !== 1/);
+
+  /* And one match is no longer enough on its own. A number is typed, not verified, so the
+     salon has to have earned the account before it may write into it: a finished visit at
+     THIS salon, and no more than twenty such links an hour across the salon. Neither
+     refuses the booking — only the link. */
+  assert.match(partnerSource, /SELECT 1 FROM bookings\s+WHERE user_id = \? AND salon_id = \? AND status = 'completed'/);
+  assert.match(partnerSource, /const WALK_IN_ATTACH_PER_HOUR = 20;/);
+  assert.match(
+    partnerSource,
+    /source = 'partner' AND user_id IS NOT NULL AND created_at > \?/,
+  );
+  // And the console is told which of the two applied, rather than left to guess.
+  assert.match(partnerSource, /attach_code: 'NO_HISTORY'/);
+  assert.match(partnerSource, /attach_code: 'TOO_MANY'/);
 });
 
 test('a number already answering for somebody else is spotted before it is stored', async () => {

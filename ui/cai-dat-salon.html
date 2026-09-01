@@ -796,6 +796,19 @@
     var SHAPED_FIELDS = ['amenities', 'hours', 'auto_confirm', 'lead_time_min',
         'cancel_cutoff_hours', 'welcome_promo_opt_in'];
 
+    /* The refusal a closed day gets when appointments already stand inside it
+       (BOOKINGS_AFFECTED) comes back with every one of them on error.details, and this is
+       what the owner is asked before the same save is sent again with force. The list goes
+       into the dialog itself: window.confirm takes a string and not a node, which is also
+       why it stays Vietnamese on the English site — the translator only ever sees nodes.
+       Nothing is cancelled either way; the owner rings them, or moves them. */
+    function affectedQuestion(rows) {
+        return 'Vẫn lưu? Bạn cần dời hoặc hủy ' + rows.length + ' lịch này:\n'
+            + rows.map(function (row) {
+                return row.code + ' · ' + row.date + ' ' + row.time + ' · ' + row.customer_name;
+            }).join('\n');
+    }
+
     /** Keep the salon's own value in the list even when it is not one of the presets. */
     function withCurrent(options, current) {
         return current && options.indexOf(current) === -1 ? [current].concat(options) : options;
@@ -1563,7 +1576,7 @@
                 return from + ' - ' + row.date_to.slice(8) + '/' + row.date_to.slice(5, 7);
             },
 
-            async addTimeOff() {
+            async addTimeOff(force) {
                 this.timeOffError = '';
                 if (!this.timeOffForm.date_from) {
                     this.timeOffError = 'Vui lòng chọn ngày bắt đầu.';
@@ -1577,6 +1590,7 @@
                             date_from: this.timeOffForm.date_from,
                             date_to: this.timeOffForm.date_to || this.timeOffForm.date_from,
                             reason: this.timeOffForm.reason || null,
+                            force: force === true,
                         },
                     });
                     this.timeOffForm = { date_from: '', date_to: '', reason: '' };
@@ -1586,6 +1600,11 @@
                     await this.loadTimeOff();
                     OAK.toast('Đã thêm ngày nghỉ.');
                 } catch (error) {
+                    if (error.code === 'BOOKINGS_AFFECTED' && !force
+                        && window.confirm(affectedQuestion(error.details || []))) {
+                        await this.addTimeOff(true);
+                        return;
+                    }
                     this.timeOffError = error.message;
                 }
                 this.timeOffSaving = false;
@@ -1654,7 +1673,7 @@
                 event.target.value = '';
             },
 
-            async save() {
+            async save(force) {
                 if (!this.form.name.trim()) {
                     this.error = 'Vui lòng nhập tên salon.';
                     return;
@@ -1697,6 +1716,9 @@
                                     is_off: day.is_off ? 1 : 0,
                                 };
                             }),
+                            /* Set only on the second attempt: the owner has just been shown
+                               which appointments a new week would close and said save anyway. */
+                            force: force === true,
                         },
                     });
                     this.slug = saved.slug;
@@ -1705,6 +1727,11 @@
                     this.fill(saved);
                     OAK.toast('Đã lưu thông tin salon.');
                 } catch (saveError) {
+                    if (saveError.code === 'BOOKINGS_AFFECTED' && !force
+                        && window.confirm(affectedQuestion(saveError.details || []))) {
+                        await this.save(true);
+                        return;
+                    }
                     this.error = saveError.message;
                     OAK.toast(saveError.message, 'error');
                 }

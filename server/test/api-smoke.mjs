@@ -384,6 +384,32 @@ async function findServiceSlot(service, skip = []) {
   return null;
 }
 
+/**
+ * The first hour ONE named technician is still free for `service`, scanning forward from
+ * tomorrow and skipping any (date, time) in `skip`.
+ *
+ * A move that names no technician keeps the chair it already has, so an hour some OTHER
+ * performer of the service happens to be free at is not one that appointment can go to —
+ * and findServiceSlot above, which asks the service-wide question, cannot tell the two
+ * apart. Which of them it returns depends on what the group booked before it, so a case
+ * that needs a movable hour has to ask the technician.
+ */
+async function findSlotForStaff(staffId, service, skip = []) {
+  const grid = await session('guest').fetch(
+    `/api/staff/${staffId}/availability?from=${addDays(state.today, 1)}&days=7` +
+      `&service_id=${service.id}`,
+  );
+  for (const day of grid.body?.data?.week ?? []) {
+    for (const slot of day.slots) {
+      const taken = skip.some((one) => one.date === day.date && one.time === slot.time);
+      if (slot.available && !taken) {
+        return { date: day.date, time: slot.time };
+      }
+    }
+  }
+  return null;
+}
+
 /** The first (service, date, time) triple that is genuinely bookable, scanning forward. */
 async function findBookableSlot(salonId) {
   const guest = session('guest');
@@ -1634,7 +1660,9 @@ async function groupBookings() {
     }),
     'POST /api/bookings (the appointment that will be moved)',
   );
-  const moveTarget = await findServiceSlot(service, [moveSlot]);
+  // Free for the technician this booking landed on, not merely for the service: the move
+  // below names nobody, and a move that names nobody keeps the chair it has.
+  const moveTarget = await findSlotForStaff(moving.staff.id, service, [moveSlot]);
   assert(moveTarget !== null, 'reschedule: needed a second free slot to move onto');
 
   const ownerBeforeMove = ok(
@@ -2040,10 +2068,13 @@ async function groupBookings() {
     time: openSlot.time,
   };
 
+  /* force, because this salon is carrying appointments on that weekday and a save that
+     would strand them is now refused unless the owner says they are in hand — which is
+     exactly what this line is saying. Group 20e is where that refusal itself is pinned. */
   ok(
     await partner.fetch('/api/partner/salon', {
       method: 'PATCH',
-      json: { hours: weekClosedOn(hoursWeekday) },
+      json: { hours: weekClosedOn(hoursWeekday), force: true },
     }),
     'PATCH /api/partner/salon (closing that weekday)',
   );
@@ -2112,6 +2143,9 @@ async function groupBookings() {
         hours: weekClosedOn(-1).map((day) =>
           day.weekday === hoursWeekday ? { ...day, start: '08:00', end: '14:00' } : day,
         ),
+        // Narrowing a day is a save that can strand what is already booked past the new
+        // closing time; the refusal it would otherwise get is pinned in group 20e.
+        force: true,
       },
     }),
     'PATCH /api/partner/salon (an 08:00-14:00 window on that day)',
@@ -3787,8 +3821,13 @@ async function groupPartner() {
     end: '21:00',
     is_off: weekday === 0 || weekday === 6 ? 1 : 0,
   }));
+  // force for the same reason as above: this salon already holds appointments outside the
+  // narrower week being written, and what is under test here is the week, not the refusal.
   const withHours = ok(
-    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: workweek } }),
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { hours: workweek, force: true },
+    }),
     'PATCH /api/partner/salon (hours)',
   );
   assert(withHours.hours.length === 7, 'partner salon hours: expected one row per weekday');
@@ -3906,10 +3945,12 @@ async function groupPartner() {
     time: bookable.time,
   };
 
+  // force: the day being closed is one this salon is already booked on, and the refusal
+  // that would otherwise stop the save is pinned in group 20e rather than here.
   ok(
     await partner.fetch('/api/partner/salon', {
       method: 'PATCH',
-      json: { hours: weekClosedOn(weekdayOf(bookable.date)) },
+      json: { hours: weekClosedOn(weekdayOf(bookable.date)), force: true },
     }),
     'PATCH /api/partner/salon (closing a day that had slots)',
   );
@@ -3980,8 +4021,13 @@ async function groupPartner() {
 
   // Back to the week this salon was carrying before the group touched it, read from the
   // API rather than rebuilt from the seed's own hours.
+  // force: the group booked hours outside this narrower week while it was open round the
+  // clock, and putting the week back is exactly the save that would strand them.
   const restoredHours = ok(
-    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: salon.hours } }),
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { hours: salon.hours, force: true },
+    }),
     'PATCH /api/partner/salon (restore hours)',
   );
   assert(
@@ -5315,6 +5361,9 @@ async function groupBookingLifecycle() {
         lead_time_min: before.lead_time_min,
         cancel_cutoff_hours: before.cancel_cutoff_hours,
         cancel_policy_text: before.cancel_policy_text,
+        // force: the group booked hours outside this week while the salon was open round
+        // the clock, and putting the week back is the save that would strand them.
+        force: true,
       },
     }),
     'PATCH /api/partner/salon (restore what the lifecycle group started from)',
@@ -6521,19 +6570,25 @@ async function groupStaffPersona() {
     }),
     'register the customer who will claim a profile',
   );
+  /* Booked by the customer herself rather than typed at the counter. A number typed at a
+     counter no longer attaches a booking to an account that has never finished a visit at
+     that salon (group 20d), and what this case is about is an account that already HAS a
+     history when it steps behind the counter — so the history is made the way a customer
+     makes one. */
+  const upgradeSlot = await findStaffBookableSlot(state.lalaId);
+  assert(upgradeSlot !== null, 'the upgrade case needed a bookable hour at Lala');
   ok(
-    await partner.fetch('/api/partner/bookings', {
+    await upgrading.fetch('/api/bookings', {
       method: 'POST',
       json: {
-        service_id: service.id,
-        staff_id: minhAnh.id,
-        date: bookingDate,
-        time: '08:05',
-        customer_name: 'Khách Lên Nhân Viên',
-        customer_phone: upgradingPhone,
+        salon_id: state.lalaId,
+        service_id: upgradeSlot.service.id,
+        staff_id: upgradeSlot.staffId,
+        date: upgradeSlot.date,
+        time: upgradeSlot.time,
       },
     }),
-    'POST /api/partner/bookings (history for the upgrading account)',
+    'the upgrading account books a visit of its own',
   );
   const beforeUpgrade = ok(
     await upgrading.fetch('/api/bookings/mine?status=upcoming'),
@@ -9943,10 +9998,39 @@ async function groupStaffDeparture() {
      one the cover can take, one she cannot because her own hour is already booked at exactly
      that time, and one that has already happened. */
   const sweepDate = addDays(state.today, 4);
-  const handedOn = await walkIn(leaverRow.id, sweepDate, '10:00', 'the appointment somebody can take', {
-    customer_name: 'Khách Được Chuyển',
-    customer_phone: movedPhone,
-  });
+  /* And she books it herself. A number typed at a counter no longer writes an appointment
+     into an account that has never finished a visit at that salon (group 20d), so the one
+     appointment this sweep has to tell a CUSTOMER about has to be one the customer made.
+     The salon is lifted onto OAK for exactly that request and put straight back, because
+     everything else here is about a draft salon's own console. */
+  ok(
+    await leaverSalon.owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { address: '4 Chia Tay, Quận 1', image: 'assets/images/img-d469cbe2a5.jpg' },
+    }),
+    'PATCH /api/partner/salon (what Salon Chia Tay still needs to go live)',
+  );
+  ok(
+    await leaverSalon.owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (Salon Chia Tay goes live)',
+  );
+  const handedOn = ok(
+    await strandedCustomer.fetch('/api/bookings', {
+      method: 'POST',
+      json: {
+        salon_id: leaverSalon.salon.id,
+        service_id: service.id,
+        staff_id: leaverRow.id,
+        date: sweepDate,
+        time: '10:00',
+      },
+    }),
+    'POST /api/bookings (the appointment somebody can take)',
+  );
+  ok(
+    await leaverSalon.owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 0 } }),
+    'PATCH /api/partner/salon (Salon Chia Tay back to draft)',
+  );
   const stranded = await walkIn(leaverRow.id, sweepDate, '14:00', 'the appointment nobody is free for');
   await walkIn(coverRow.id, sweepDate, '14:00', 'the hour that makes the cover unavailable');
   /* On shift all week and free at that hour, and still not a candidate for it: she does not
@@ -9966,7 +10050,9 @@ async function groupStaffDeparture() {
     }),
     'POST /api/partner/staff (free at the hour, wrong trade)',
   );
-  const alreadyDone = await walkIn(leaverRow.id, state.today, '11:00', 'the visit that has already happened');
+  /* The first minute of today, so this visit has already happened whatever hour the suite
+     is run at: nothing may be completed before it has begun. */
+  const alreadyDone = await walkIn(leaverRow.id, state.today, '00:00', 'the visit that has already happened');
   ok(
     await leaverSalon.owner.fetch(`/api/partner/bookings/${alreadyDone.id}`, {
       method: 'PATCH',
@@ -11968,6 +12054,393 @@ async function groupDoubleBooking() {
 }
 
 /* ============================================================================
+ * 20d — the number typed at the counter, and whose list it may write into
+ *
+ * A phone number is not a password. Anybody may type any number at any counter, and until
+ * now one that happened to match an OAK account wrote a confirmed appointment into that
+ * person's own list and rang their bell about it — a stranger's salon, a stranger's hour.
+ * Two things now stand in the way: the account has to have finished a visit at THIS salon
+ * before, and one salon may attach twenty walk-ins in an hour and no more. Neither refuses
+ * the booking; both refuse the LINK, which is the only part of it that reaches anybody
+ * outside the salon, and the reply says which of the two applied.
+ *
+ * Staged on a salon opened here, because the whole question is "has this customer been to
+ * THIS salon" and the seeded rosters already answer yes for everybody.
+ * ========================================================================= */
+
+async function groupWalkInAttach() {
+  const stamp = Date.now();
+  const owner = new Session();
+  ok(
+    await owner.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Chủ Salon Ghi Sổ',
+        email: `counter${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        role: 'partner',
+        salon_name: `Salon Ghi Sổ ${stamp}`,
+        consent: true,
+      },
+    }),
+    'register the owner of the counter salon',
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: weekClosedOn(-1) } }),
+    'open the counter salon round the clock',
+  );
+  const salon = ok(await owner.fetch('/api/partner/salon'), 'the counter salon');
+  const service = ok(
+    await owner.fetch('/api/partner/services', {
+      method: 'POST',
+      json: { category: 'nail', name: 'Sơn gel nhanh', price: 150000, duration_min: 30 },
+    }),
+    'POST /api/partner/services (the counter menu)',
+  );
+  const staff = ok(
+    await owner.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: {
+        name: 'KTV Quầy',
+        schedule: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+          weekday, start: '00:00', end: '23:59', is_off: 0,
+        })),
+        service_ids: [service.id],
+      },
+    }),
+    'POST /api/partner/staff (the counter roster)',
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { address: '2 Ghi Sổ, Quận 1', image: 'assets/images/img-d469cbe2a5.jpg' },
+    }),
+    'PATCH /api/partner/salon (what the counter salon still needs)',
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (the counter salon goes live)',
+  );
+
+  /* Two accounts with numbers on them. Exactly two: every sign-up carrying a number spends
+     one of the per-address allowance group 21 goes on to measure, so nothing here asks that
+     question more often than the cases need. */
+  const regularPhone = `0788${String(stamp).slice(-6)}`;
+  const strangerPhone = `0789${String(stamp).slice(-6)}`;
+  const regular = new Session();
+  ok(
+    await regular.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Khach Quen Thuoc',
+        email: `regular${stamp}@oak.invalid`,
+        phone: regularPhone,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'register the customer who will become a regular here',
+  );
+  const stranger = new Session();
+  ok(
+    await stranger.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Nguoi La',
+        email: `stranger${stamp}@oak.invalid`,
+        phone: strangerPhone,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'register the customer this salon has never served',
+  );
+
+  const day = addDays(state.today, 4);
+  /* One helper for every walk-in below: no technician on purpose, so nothing here is about
+     a clash — a row with staff_id NULL holds nobody's calendar. */
+  const counterBooking = (time, name, phone) =>
+    owner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: { service_id: service.id, date: day, time, customer_name: name, customer_phone: phone },
+    });
+
+  /* -- a number that matches an account this salon has never served ------------- */
+
+  const unlinkedResponse = await counterBooking('09:00', 'Người Lạ Ở Quầy', strangerPhone);
+  const unlinked = ok(unlinkedResponse, 'POST /api/partner/bookings with a stranger’s number');
+  assert(
+    unlinkedResponse.body.meta?.attach_code === 'NO_HISTORY',
+    'a number with no completed visit here must not attach, and must say why',
+    unlinkedResponse,
+  );
+  assert(
+    String(unlinkedResponse.body.meta?.attach_note ?? '').length > 0,
+    'and the reason must be a sentence the console can show',
+    unlinkedResponse,
+  );
+  assert(
+    unlinked.customer.name === 'Người Lạ Ở Quầy',
+    'the booking keeps the name typed at the counter rather than the account’s',
+    unlinkedResponse,
+  );
+  const strangerList = await stranger.fetch('/api/bookings/mine');
+  assert(
+    !ok(strangerList, 'GET /api/bookings/mine for the stranger').some(
+      (item) => item.code === unlinked.code,
+    ),
+    'and nothing of it reaches the account behind that number',
+    strangerList,
+  );
+
+  /* -- and the same number once that customer has actually been here ------------ */
+
+  const visit = ok(
+    await regular.fetch('/api/bookings', {
+      method: 'POST',
+      json: {
+        salon_id: salon.id,
+        service_id: service.id,
+        staff_id: staff.id,
+        date: addDays(state.today, 1),
+        time: '08:00',
+      },
+    }),
+    'the regular books her first visit herself',
+  );
+  /* Nothing is finished before it has begun, so the visit is re-dated into yesterday first
+     — the same way group 14 gets a completed booking out of a suite that cannot make one in
+     the past. */
+  ok(
+    await owner.fetch(`/api/partner/bookings/${visit.id}`, {
+      method: 'PATCH',
+      json: { date: addDays(state.today, -1) },
+    }),
+    'the visit is moved back into yesterday so it can be completed',
+  );
+  ok(
+    await owner.fetch(`/api/partner/bookings/${visit.id}`, {
+      method: 'PATCH',
+      json: { status: 'completed' },
+    }),
+    'and the salon marks that visit completed',
+  );
+
+  const linkedResponse = await counterBooking('09:30', 'Khach Quen', regularPhone);
+  const linked = ok(linkedResponse, 'POST /api/partner/bookings with a regular’s number');
+  assert(
+    linkedResponse.body.meta?.attach_code === undefined,
+    'a customer who has finished a visit here attaches, with nothing to explain',
+    linkedResponse,
+  );
+  assert(
+    linked.customer.name === 'Khach Quen Thuoc',
+    'and the booking now reads the account rather than what the counter typed',
+    linkedResponse,
+  );
+  const herList = await regular.fetch('/api/bookings/mine');
+  assert(
+    ok(herList, 'GET /api/bookings/mine for the regular').some((item) => item.code === linked.code),
+    'the booking taken at the counter is in her own list',
+    herList,
+  );
+
+  /* -- twenty an hour, and the twenty-first stays unattached -------------------- */
+
+  /* One salon working through a list of numbers is the abuse this ceiling answers, and the
+     rest of the sentence is that the BOOKING is never refused: past the ceiling the counter
+     still takes the seat, it simply stops being written onto anybody's account. */
+  for (let attached = 2; attached <= 20; attached += 1) {
+    const filler = await counterBooking(
+      `${String(10 + Math.floor(attached / 60)).padStart(2, '0')}:${String(attached % 60).padStart(2, '0')}`,
+      'Khach Quen',
+      regularPhone,
+    );
+    assert(
+      filler.status === 200 && filler.body.meta?.attach_code === undefined,
+      `walk-in ${attached} of the hour’s allowance must still attach`,
+      filler,
+    );
+  }
+  const pastCeiling = await counterBooking('11:30', 'Khach Quen', regularPhone);
+  const overflowed = ok(pastCeiling, 'POST /api/partner/bookings past the hour’s allowance');
+  assert(
+    pastCeiling.body.meta?.attach_code === 'TOO_MANY',
+    'the twenty-first attached walk-in of the hour is taken, and left unattached',
+    pastCeiling,
+  );
+  assert(
+    overflowed.customer.name === 'Khach Quen',
+    'and it carries the name typed at the counter, not the account’s',
+    pastCeiling,
+  );
+}
+
+/* ============================================================================
+ * 20e — a day taken off the calendar, and the appointments already inside it
+ *
+ * A holiday, a re-written week and a shift taken away all close hours that customers may
+ * already be holding, and all three used to do it in silence: the console saved, the day
+ * went dark, and nobody was told which appointments had just been left standing in it. Now
+ * each of the three refuses with the list — code, day, hour, name — and saves anyway when
+ * the owner says they have those customers in hand.
+ * ========================================================================= */
+
+async function groupClosedDays() {
+  const stamp = Date.now();
+  const owner = new Session();
+  ok(
+    await owner.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Chủ Salon Nghỉ Lễ',
+        email: `holiday${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        role: 'partner',
+        salon_name: `Salon Nghỉ Lễ ${stamp}`,
+        consent: true,
+      },
+    }),
+    'register the owner of the holiday salon',
+  );
+  const week = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+    weekday, start: '00:00', end: '23:59', is_off: 0,
+  }));
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: week } }),
+    'open the holiday salon round the clock',
+  );
+  const service = ok(
+    await owner.fetch('/api/partner/services', {
+      method: 'POST',
+      json: { category: 'hair', name: 'Cắt gội', price: 200000, duration_min: 60 },
+    }),
+    'POST /api/partner/services (the holiday menu)',
+  );
+  const staff = ok(
+    await owner.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: { name: 'KTV Trực', schedule: week, service_ids: [service.id] },
+    }),
+    'POST /api/partner/staff (the holiday roster)',
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { address: '3 Nghỉ Lễ, Quận 1', image: 'assets/images/img-d469cbe2a5.jpg' },
+    }),
+    'PATCH /api/partner/salon (what the holiday salon still needs)',
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (the holiday salon goes live)',
+  );
+
+  const day = addDays(state.today, 6);
+  const held = ok(
+    await owner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: service.id,
+        staff_id: staff.id,
+        date: day,
+        time: '10:00',
+        customer_name: 'Chị Hằng',
+      },
+    }),
+    'one appointment inside the day about to be closed',
+  );
+
+  /* -- the holiday ------------------------------------------------------------- */
+
+  const refusedClosure = await owner.fetch('/api/partner/time-off', {
+    method: 'POST',
+    json: { date_from: day, date_to: day, reason: 'Nghỉ lễ' },
+  });
+  expectError(
+    refusedClosure,
+    409,
+    'BOOKINGS_AFFECTED',
+    'POST /api/partner/time-off over a day that already holds an appointment',
+  );
+  const listed = refusedClosure.body?.error?.details ?? [];
+  assert(
+    listed.length === 1 && listed[0].code === held.code,
+    'the refusal must name the appointment rather than only count it',
+    refusedClosure,
+  );
+  assert(
+    listed[0].date === day && listed[0].time === '10:00' && listed[0].customer_name === 'Chị Hằng',
+    'and it must carry the day, the hour and the name the owner has to ring',
+    refusedClosure,
+  );
+  const closure = ok(
+    await owner.fetch('/api/partner/time-off', {
+      method: 'POST',
+      json: { date_from: day, date_to: day, reason: 'Nghỉ lễ', force: true },
+    }),
+    'POST /api/partner/time-off with force',
+  );
+  assert(
+    closure.affected_bookings === 1,
+    'and the saved closure still says how many customers are owed a phone call',
+  );
+  ok(
+    await owner.fetch(`/api/partner/time-off/${closure.id}`, { method: 'DELETE' }),
+    'DELETE the closure again',
+  );
+
+  /* -- the week ---------------------------------------------------------------- */
+
+  const closedWeek = weekClosedOn(weekdayOf(day));
+  expectError(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: closedWeek } }),
+    409,
+    'BOOKINGS_AFFECTED',
+    'PATCH /api/partner/salon closing the weekday that appointment sits on',
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { hours: closedWeek, force: true },
+    }),
+    'PATCH /api/partner/salon closing it anyway',
+  );
+  /* And a save that takes nothing further away is not refused for the same appointment: an
+     hour already outside the salon's week is not stranded twice. */
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: closedWeek } }),
+    'PATCH /api/partner/salon re-sending the week it already has',
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: week } }),
+    'PATCH /api/partner/salon opening the week back up',
+  );
+
+  /* -- the shift --------------------------------------------------------------- */
+
+  const closedShift = week.map((shift) =>
+    shift.weekday === weekdayOf(day) ? { ...shift, is_off: 1 } : shift,
+  );
+  expectError(
+    await owner.fetch(`/api/partner/staff/${staff.id}/schedule`, {
+      method: 'PUT',
+      json: { schedule: closedShift },
+    }),
+    409,
+    'BOOKINGS_AFFECTED',
+    'PUT /api/partner/staff/:id/schedule taking away the shift she is booked on',
+  );
+  ok(
+    await owner.fetch(`/api/partner/staff/${staff.id}/schedule`, {
+      method: 'PUT',
+      json: { schedule: closedShift, force: true },
+    }),
+    'PUT /api/partner/staff/:id/schedule with force',
+  );
+}
+
+/* ============================================================================
  * 21 — the two doors that answer "is this number taken", rationed together
  *
  * LAST IN THE SUITE, and it has to be. This group deliberately spends the whole per-address
@@ -12160,6 +12633,8 @@ async function main() {
   await group('20 staff departure', groupStaffDeparture);
   await group('20b upload quota', groupUploadQuota);
   await group('20c one hour, one technician', groupDoubleBooking);
+  await group('20d the number typed at the counter', groupWalkInAttach);
+  await group('20e a day taken off the calendar', groupClosedDays);
   // Last, always: it spends the whole per-IP sign-up allowance and cannot give it back.
   await group('21 sign-up throttle', groupRegisterThrottle);
 }

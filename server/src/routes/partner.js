@@ -694,18 +694,73 @@ const INSERT_WALK_IN_BOOKING = `
  *
  * Customers only, and only live ones. A walk-in typed with the owner's own number would
  * otherwise land in the owner's appointment list and raise a customer notification on it.
+ *
+ * A match is still not enough on its own — see accountForPhone below for the two things
+ * that stand between one and an attached booking.
  */
 const selectUsersByPhone = db.prepare(`
   SELECT id FROM users
   WHERE role = 'customer' AND deleted_at IS NULL AND ${normalisedPhoneSql('phone')} = ?
 `);
 
-async function accountForPhone(phone) {
+/* Whether this account has ever finished a visit at THIS salon. A phone number is not a
+   password: anybody may type any number at a counter, and until now one that happened to
+   match an account wrote a confirmed appointment into that person's own list and rang their
+   bell about it. A salon a customer has actually been to is the one relationship the salon
+   can be said to have earned, and it is the whole of what this asks. */
+const selectCompletedHere = db.prepare(`
+  SELECT 1 FROM bookings
+  WHERE user_id = ? AND salon_id = ? AND status = 'completed' LIMIT 1
+`);
+
+/* And how fast one salon may do it. Counted out of the bookings table the way uploads are
+   counted out of theirs, for the same reason: Render runs more than one instance and
+   restarts them when it pleases, so a tally in a process would be half-blind and reset on
+   every deploy. Twenty an hour sits far above a busy counter — a chair turns over three or
+   four times an hour — and far below what a salon working through a list of numbers would
+   need. Past it the booking is still taken; it simply stops being written onto somebody's
+   account, which is the only part of it that reaches a stranger. */
+const WALK_IN_ATTACH_PER_HOUR = 20;
+const HOUR_MS = 60 * 60 * 1000;
+const countAttachedWalkIns = db.prepare(`
+  SELECT COUNT(*) AS total FROM bookings
+  WHERE salon_id = ? AND source = 'partner' AND user_id IS NOT NULL AND created_at > ?
+`);
+
+/* Why a number that matched an account did not attach one, in the words the console shows.
+   A number that matched NOTHING gets no note at all: there is no account to talk about, and
+   a walk-in nobody has an account for is the ordinary case rather than a refusal. */
+const ATTACH_NO_HISTORY = {
+  attach_code: 'NO_HISTORY',
+  attach_note: 'Khách chưa từng hoàn tất lịch tại salon nên chưa gắn tài khoản.',
+};
+const ATTACH_TOO_MANY = {
+  attach_code: 'TOO_MANY',
+  attach_note: 'Salon đã gắn tài khoản cho nhiều lịch vãng lai trong một giờ qua nên lịch này chưa gắn.',
+};
+
+/**
+ * Who this counter-typed booking belongs to, as {userId, refusal}: an account id when the
+ * number may be trusted to name one here, and null with the reason beside it when not.
+ */
+async function accountForPhone(phone, salonId) {
   if (!phone) {
-    return null;
+    return { userId: null, refusal: null };
   }
   const matches = await selectUsersByPhone.all(phone);
-  return matches.length === 1 ? matches[0].id : null;
+  if (matches.length !== 1) {
+    return { userId: null, refusal: null };
+  }
+  const userId = matches[0].id;
+  if (!(await selectCompletedHere.get(userId, salonId))) {
+    return { userId: null, refusal: ATTACH_NO_HISTORY };
+  }
+  const anHourAgo = new Date(Date.now() - HOUR_MS).toISOString();
+  const { total } = await countAttachedWalkIns.get(salonId, anHourAgo);
+  if (Number(total) >= WALK_IN_ATTACH_PER_HOUR) {
+    return { userId: null, refusal: ATTACH_TOO_MANY };
+  }
+  return { userId, refusal: null };
 }
 
 const BOOKING_NOTIFICATIONS = {
@@ -1002,7 +1057,9 @@ router.post('/bookings', async (req, res, next) => {
     // A booking made over the phone belongs in that customer's own list, with the
     // notifications and the "đặt lại" that come with it — the number is what ties the
     // two together, and until now every booking taken at the counter lost the link.
-    const userId = await accountForPhone(customerPhone);
+    // `refusal` is what the console is told when the number named an account the salon
+    // has not earned the right to write onto.
+    const { userId, refusal: attachRefusal } = await accountForPhone(customerPhone, salon.id);
 
     /* The counter's override. It is standing in front of the customer and knows things this
        table does not — the technician agreed to stay, the "closed" day is being worked after
@@ -1095,11 +1152,14 @@ router.post('/bookings', async (req, res, next) => {
     const warning = conflict !== null
       ? forcedConflictWarning(conflict)
       : (outsideHours ? OUTSIDE_HOURS_WARNING : null);
+    // The attach note is not a warning and does not compete with one: the hour and the
+    // account are two different facts about the same save, and the counter is owed both.
+    const meta = { ...(warning ?? {}), ...(attachRefusal ?? {}) };
 
     res.json({
       success: true,
       data: bookingShape(booking),
-      ...(warning === null ? {} : { meta: warning }),
+      ...(Object.keys(meta).length === 0 ? {} : { meta }),
     });
   } catch (error) {
     next(error);
@@ -2351,6 +2411,17 @@ router.put('/staff/:id/schedule', async (req, res, next) => {
     await ownedRow(selectOwnedStaff, staffId, salon.id, 'Không tìm thấy kỹ thuật viên này.');
     const schedule = parseSchedule(listPayload(req.body, 'schedule'));
 
+    // A shift taken away closes hours this technician has already been booked for. See
+    // refuseAffected in the time-off section below.
+    refuseAffected(
+      newlyStranded(
+        await selectAffectedBookings.all(salon.id, todayISO(), null, null, staffId, staffId),
+        await selectStaffSchedule.all(staffId),
+        schedule,
+      ),
+      (req.body ?? {}).force === true,
+    );
+
     // Full replace: the payload is the whole week, so the old rows go first.
     await db.withTransaction(async (tx) => {
       await tx.run(DELETE_STAFF_SCHEDULE, staffId);
@@ -2793,13 +2864,81 @@ const insertTimeOff = db.prepare(`
 `);
 const selectOwnedTimeOff = db.prepare('SELECT * FROM time_off WHERE id = ? AND salon_id = ?');
 const deleteTimeOff = db.prepare('DELETE FROM time_off WHERE id = ? AND salon_id = ?');
-// Nothing is cancelled here: the count is what tells the owner how many customers they are
-// about to have to call, so they can drop the range again before anyone is stranded.
-const countAffectedBookings = db.prepare(`
-  SELECT COUNT(*) AS count FROM bookings
-  WHERE salon_id = ? AND date >= ? AND date <= ? AND status IN ('pending','confirmed')
-    AND (?::int IS NULL OR staff_id = ?::int)
+
+/* ----------------------------------------------------------------------------
+ * The appointments a closed day would strand
+ *
+ * A holiday, a re-written week and a shift taken away all do the same thing to an
+ * appointment that already stands inside them: they close the hour it was booked for, and
+ * until now they did it in silence. So the three saves that can do it — POST /time-off,
+ * the salon_hours full replace on PATCH /salon, and PUT /staff/:id/schedule — ask this
+ * first, and a save that would strand somebody is refused with the list of who: the code,
+ * the day, the hour and the name, which is what an owner needs in front of them to pick up
+ * the phone. Nothing is cancelled either way; the owner does that, or moves them.
+ *
+ * `force` is the way past it and has to exist: the owner is often ringing those customers
+ * as they save, and a rule with no way through is a rule the console cannot honour.
+ *
+ * Declared here, in the section the idea belongs to, and called from the two routes above
+ * as well — module scope, so the order on the page is a reading order and nothing more.
+ * ------------------------------------------------------------------------- */
+
+// Both bounds are optional in the same statement because the three callers ask two
+// different questions: a day-off range is bounded at both ends, a week is "everything from
+// today on". staff_id NULL is the whole salon.
+const selectAffectedBookings = db.prepare(`
+  SELECT b.code, b.date, b.time, COALESCE(u.name, b.customer_name) AS customer_name
+  FROM bookings b
+  LEFT JOIN users u ON u.id = b.user_id
+  WHERE b.salon_id = ? AND b.status IN ('pending','confirmed')
+    AND b.date >= ? AND (?::text IS NULL OR b.date <= ?::text)
+    AND (?::int IS NULL OR b.staff_id = ?::int)
+  ORDER BY b.date, b.time, b.id
 `);
+
+/**
+ * Which of `bookings` a proposed week has no room for: the weekday is closed, the row for
+ * it is missing entirely, or the hour the appointment starts at falls outside that day's
+ * shift.
+ *
+ * The START only. An appointment that runs a few minutes past closing is the ordinary end
+ * of a working day, and refusing every save over one would leave a salon unable to edit its
+ * own week.
+ */
+function outsideWeek(bookings, week) {
+  const byWeekday = new Map(week.map((day) => [day.weekday, day]));
+  return bookings.filter((booking) => {
+    const day = byWeekday.get(weekdayOf(booking.date));
+    return !day || day.is_off === 1 || booking.time < day.start || booking.time >= day.end;
+  });
+}
+
+/**
+ * Which of `bookings` the move from `before` to `after` strands: outside the new week, and
+ * not already outside the old one.
+ *
+ * The difference is the whole rule. An appointment that already sat outside the salon's
+ * declared hours — one the counter took anyway, which the console allows and warns about —
+ * is not stranded by a save that leaves it exactly where it was, and refusing an unrelated
+ * edit over it would be blaming this save for something it did not do.
+ */
+function newlyStranded(bookings, before, after) {
+  const alreadyOut = new Set(outsideWeek(bookings, before).map((row) => row.code));
+  return outsideWeek(bookings, after).filter((row) => !alreadyOut.has(row.code));
+}
+
+/** Refuse `rows` unless the caller said `force`; hands `rows` back either way. */
+function refuseAffected(rows, force) {
+  if (force || rows.length === 0) {
+    return rows;
+  }
+  throw httpError(
+    409,
+    'BOOKINGS_AFFECTED',
+    `Có ${rows.length} lịch hẹn đang chờ hoặc đã xác nhận trong khoảng này — bạn cần dời hoặc hủy trước khi lưu.`,
+    rows,
+  );
+}
 
 function timeOffShape(row) {
   return {
@@ -2853,6 +2992,12 @@ router.post('/time-off', async (req, res, next) => {
     }
     const reason = optionalLimitedText(body.reason, 'Lý do', TIME_OFF_REASON_MAX);
 
+    // Asked before the row is written, so a refused save leaves no holiday behind.
+    const affected = refuseAffected(
+      await selectAffectedBookings.all(salon.id, dateFrom, dateTo, dateTo, staffId, staffId),
+      body.force === true,
+    );
+
     const id = Number(
       (
         await insertTimeOff.run(
@@ -2865,9 +3010,6 @@ router.post('/time-off', async (req, res, next) => {
         )
       ).lastInsertRowid,
     );
-    const affected = (
-      await countAffectedBookings.get(salon.id, dateFrom, dateTo, staffId, staffId)
-    ).count;
 
     res.json({
       success: true,
@@ -2878,7 +3020,9 @@ router.post('/time-off', async (req, res, next) => {
         date_from: dateFrom,
         date_to: dateTo,
         reason,
-        affected_bookings: affected,
+        // Still the count the console shows: past the gate the range was saved anyway, and
+        // these are the customers the owner has said they will deal with.
+        affected_bookings: affected.length,
       },
     });
   } catch (error) {
@@ -3504,7 +3648,9 @@ router.patch('/salon', async (req, res, next) => {
   try {
     const salon = await ownedSalon(req);
     const body = req.body ?? {};
-    const allowedFields = new Set([...Object.keys(SALON_COLUMNS), 'hours', 'social_links']);
+    // 'force' is not a column: it is the owner saying they have already dealt with the
+    // appointments a new week would close. See refuseAffected in the time-off section.
+    const allowedFields = new Set([...Object.keys(SALON_COLUMNS), 'hours', 'social_links', 'force']);
     const unknownFields = Object.keys(body).filter((field) => !allowedFields.has(field));
     if (unknownFields.length > 0) {
       throw httpError(400, 'VALIDATION_ERROR', `Trường không được hỗ trợ: ${unknownFields[0]}.`);
@@ -3538,6 +3684,16 @@ router.patch('/salon', async (req, res, next) => {
       : null;
     if (!patch && !hours && !socialLinks) {
       throw httpError(400, 'VALIDATION_ERROR', 'Không có thông tin nào để cập nhật.');
+    }
+    if (hours) {
+      refuseAffected(
+        newlyStranded(
+          await selectAffectedBookings.all(salon.id, todayISO(), null, null, null, null),
+          await selectSalonHours.all(salon.id),
+          hours,
+        ),
+        body.force === true,
+      );
     }
 
     // Keyed by the derived id, so no body field can redirect the update elsewhere.

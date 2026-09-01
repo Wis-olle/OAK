@@ -16,7 +16,7 @@ const READY = 'Máy chủ đã sẵn sàng. Vui lòng tải lại trang để xe
 /* api(), the banner and the wake loop are one another's callers, so they are lifted as one
    run of source. Both markers are declarations: rewording a comment in oak-api.js cannot
    quietly change what is under test here. */
-const from = clientJs.indexOf('function apiError(code, message) {');
+const from = clientJs.indexOf('function apiError(code, message, details) {');
 const to = clientJs.indexOf('// One request per page load');
 assert.ok(from !== -1 && to > from, 'oak-api.js no longer contains apiError() .. api()');
 const script = clientJs.slice(from, to);

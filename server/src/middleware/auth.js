@@ -29,12 +29,22 @@ const SLIDE_AFTER_SECONDS = 3 * 24 * 60 * 60;
 /**
  * Build an error the central error handler turns into a JSON envelope.
  * The isAppError tag marks the code and message as safe to send to the client.
+ *
+ * `details` is optional and travels beside the sentence for the one kind of refusal a
+ * sentence cannot carry: BOOKINGS_AFFECTED has to hand the console the appointments the
+ * owner is about to have to ring, and a count in the message would leave the page counting
+ * people it could not name. Whatever a caller puts there is sent to the client verbatim, so
+ * it is held to the same rule the message is: nothing in it that the caller is not allowed
+ * to read.
  */
-export function httpError(status, code, message) {
+export function httpError(status, code, message, details) {
   const error = new Error(message);
   error.status = status;
   error.code = code;
   error.isAppError = true;
+  if (details !== undefined) {
+    error.details = details;
+  }
   return error;
 }
 

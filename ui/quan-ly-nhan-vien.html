@@ -590,6 +590,19 @@
         );
     }
 
+    /* The refusal a closed day gets when appointments already stand inside it
+       (BOOKINGS_AFFECTED) comes back with every one of them on error.details, and this is
+       what the owner is asked before the same save is sent again with force. The list goes
+       into the dialog itself: window.confirm takes a string and not a node, which is also
+       why it stays Vietnamese on the English site — the translator only ever sees nodes.
+       Nothing is cancelled either way; the owner rings them, or moves them. */
+    function affectedQuestion(rows) {
+        return 'Vẫn lưu? Bạn cần dời hoặc hủy ' + rows.length + ' lịch này:\n'
+            + rows.map(function (row) {
+                return row.code + ' · ' + row.date + ' ' + row.time + ' · ' + row.customer_name;
+            }).join('\n');
+    }
+
     /* Partner chrome shared by all four console pages: owner name/avatar, salon name, logout. */
     function oakPartnerChrome() {
         document.querySelectorAll('[data-oak-logout]').forEach(function (link) {
@@ -1061,7 +1074,7 @@
                 return from + ' - ' + row.date_to.slice(8) + '/' + row.date_to.slice(5, 7);
             },
 
-            async addTimeOff() {
+            async addTimeOff(force) {
                 this.timeOffError = '';
                 if (!this.timeOffForm.date_from) {
                     this.timeOffError = 'Vui lòng chọn ngày bắt đầu.';
@@ -1076,6 +1089,7 @@
                             date_from: this.timeOffForm.date_from,
                             date_to: this.timeOffForm.date_to || this.timeOffForm.date_from,
                             reason: this.timeOffForm.reason || null,
+                            force: force === true,
                         },
                     });
                     this.timeOffForm = { date_from: '', date_to: '', reason: '' };
@@ -1086,6 +1100,11 @@
                     await this.loadTimeOff();
                     OAK.toast('Đã thêm ngày nghỉ.');
                 } catch (error) {
+                    if (error.code === 'BOOKINGS_AFFECTED' && !force
+                        && window.confirm(affectedQuestion(error.details || []))) {
+                        await this.addTimeOff(true);
+                        return;
+                    }
                     this.timeOffError = error.message;
                 }
                 this.timeOffSaving = false;
@@ -1169,7 +1188,7 @@
                 });
             },
 
-            async submitStaff() {
+            async submitStaff(force) {
                 this.saving = true;
                 this.formError = '';
                 var profile = {
@@ -1195,7 +1214,9 @@
                         });
                         await OAK.api('/api/partner/staff/' + this.form.id + '/schedule', {
                             method: 'PUT',
-                            body: { schedule: this.schedulePayload() },
+                            /* force only on the second attempt, once the owner has seen which
+                               appointments the shift being taken away would close. */
+                            body: { schedule: this.schedulePayload(), force: force === true },
                         });
                         await OAK.api('/api/partner/staff/' + this.form.id + '/services', {
                             method: 'PUT',
@@ -1224,6 +1245,11 @@
                     OAK.toast('Đã lưu thông tin nhân viên.');
                     await this.load();
                 } catch (error) {
+                    if (error.code === 'BOOKINGS_AFFECTED' && !force
+                        && window.confirm(affectedQuestion(error.details || []))) {
+                        await this.submitStaff(true);
+                        return;
+                    }
                     this.formError = error.message;
                 } finally {
                     this.saving = false;

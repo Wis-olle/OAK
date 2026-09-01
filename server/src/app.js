@@ -281,7 +281,12 @@ app.use((err, req, res, next) => {
   if (err.isAppError) {
     return res.status(err.status).json({
       success: false,
-      error: { code: err.code, message: err.message },
+      // `details` only when the refusal built one: see httpError in middleware/auth.js.
+      error: {
+        code: err.code,
+        message: err.message,
+        ...(err.details === undefined ? {} : { details: err.details }),
+      },
     });
   }
 

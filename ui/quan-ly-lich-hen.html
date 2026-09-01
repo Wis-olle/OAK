@@ -1452,10 +1452,16 @@
                is what gives them an English twin like the rest of them. Success colour — nothing
                failed. */
             savedMessage(booking, prefix) {
-                var meta = booking.meta;
-                return meta && meta.warning_code === 'OUTSIDE_HOURS'
+                var meta = booking.meta || {};
+                var line = meta.warning_code === 'OUTSIDE_HOURS'
                     ? 'Lịch hẹn đã lưu, ngoài giờ mở cửa của salon.'
                     : prefix + booking.code + '.';
+                /* And why the number typed at the counter did not put this booking into
+                   somebody's own OAK list. Appended rather than raised as a second message,
+                   because only one is ever on screen at a time and the second would displace
+                   the first. The server's own sentence: it is the one that knows which of
+                   the reasons applied. */
+                return meta.attach_note ? line + ' ' + meta.attach_note : line;
             },
 
             // role="alert" reads it out; the caret has to follow, or a reader who tabs on

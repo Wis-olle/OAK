@@ -604,9 +604,14 @@ test('the counter is told before it books over her, and may still say yes', () =
     3,
     'and both must go through the one gate that decides what force may clear',
   );
+  /* Five, not the two booking doors alone: the same literal is how three MORE saves take an
+     override. A day off, a re-written week and a shift taken away each refuse to strand an
+     appointment that already stands inside them (BOOKINGS_AFFECTED) unless the request says
+     the customers are in hand. Counted for the reason the two were: an override that can be
+     spelled a second way is a second door nobody reviewed. */
   assert.equal(
     (partnerSource.match(/force === true/g) || []).length,
-    2,
+    5,
     'force is the request saying so, and nothing else counts as saying so',
   );
 

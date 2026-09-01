@@ -50,7 +50,7 @@ const REMINDER_TITLE = 'Nhắc lịch hẹn sắp tới';
 
 // user_id IS NOT NULL: a walk-in the salon typed in has no account to remind.
 const SELECT_DUE = `
-  SELECT b.id, b.user_id, b.code, b.date, b.time, s.cancel_cutoff_hours,
+  SELECT b.id, b.user_id, b.salon_id, b.staff_id, b.code, b.date, b.time, s.cancel_cutoff_hours,
          sv.name AS service_name, s.name AS salon_name, st.name AS staff_name
   FROM bookings b
   JOIN services sv ON sv.id = b.service_id
@@ -65,6 +65,18 @@ const SELECT_DUE = `
     )
 `;
 const SELECT_REMINDED = `SELECT 1 FROM notifications WHERE booking_id = ? AND type = 'reminder'`;
+
+/* Every closure that touches the day or two this sweep can reach. A salon may declare a
+   holiday, or a technician a day of leave, AFTER the appointments inside it were made —
+   nothing cancels them, and the console asks the owner to ring those customers instead. So
+   the reminder must not go out in the meantime: "your appointment is at 10:00 tomorrow,
+   cancel free until 08:00" is a promise about an hour the salon has since closed, and it is
+   worse than silence because the customer then turns up.
+   staff_id NULL is the whole salon; a row naming a technician only reaches her own. */
+const SELECT_CLOSURES = `
+  SELECT salon_id, staff_id, date_from, date_to FROM time_off
+  WHERE date_to >= ? AND date_from <= ?
+`;
 
 /** `minutes` past midnight on `date`, as the ('YYYY-MM-DD', 'HH:MM') pair the schema stores. */
 function shift(date, minutes) {
@@ -128,8 +140,21 @@ export async function sweepReminders(tx, today, now) {
   const [toDate, toTime] = shift(today, now + WINDOW_TO_MIN);
 
   const inWindow = await tx.all(SELECT_DUE, fromDate, fromDate, fromTime, toDate, toDate, toTime);
+  /* Read once for the window rather than asked per booking: at most two days of closures
+     across the whole platform, against a handful of rows. */
+  const closures = await tx.all(SELECT_CLOSURES, fromDate, toDate);
+  const closed = (row) =>
+    closures.some(
+      (off) =>
+        off.salon_id === row.salon_id &&
+        (off.staff_id === null || off.staff_id === row.staff_id) &&
+        off.date_from <= row.date &&
+        row.date <= off.date_to,
+    );
   const due = inWindow.filter(
-    (row) => minutesUntil(today, now, row.date, row.time) > leadRequired(row.cancel_cutoff_hours),
+    (row) =>
+      minutesUntil(today, now, row.date, row.time) > leadRequired(row.cancel_cutoff_hours) &&
+      !closed(row),
   );
 
   let written = 0;
