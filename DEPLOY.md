@@ -70,7 +70,7 @@ Database không đổi: cả hai service dùng chung một `DATABASE_URL`, nên 
 
 ### Chạy test trước khi deploy
 
-Render gói free không có `preDeployCommand`, nên cổng kiểm tra được đặt thẳng vào `buildCommand`: `npm ci && npm run test:unit`. Unit test đỏ thì build hỏng, và build hỏng thì Render giữ nguyên bản đang chạy — đây là thứ duy nhất chặn được một bản deploy hỏng trên gói free. Bộ unit không mở database và không mở socket nào (nó đọc mã nguồn, đọc markup và chạy các hàm được tách ra), chạy khoảng ba giây, và `node:test` có sẵn trong Node nên không cần cài thêm gì.
+Render gói free không có `preDeployCommand`, nên cổng kiểm tra được đặt thẳng vào `buildCommand`: `npm ci && npm run test:unit`. Unit test đỏ thì build hỏng, và build hỏng thì Render giữ nguyên bản đang chạy — đây là thứ duy nhất chặn được một bản deploy hỏng trên gói free. Bộ unit không mở database nào; nó đọc mã nguồn, đọc markup, chạy các hàm được tách ra, và chỉ mở đúng một cổng loopback tạm thời (`test/static-headers.test.mjs` dựng một app express trần để đọc lại header tĩnh) — nếu một ngày nào đó môi trường build cấm cả `listen` loopback thì đó là chỗ build sẽ đỏ. Cả bộ chạy khoảng ba giây, và `node:test` có sẵn trong Node nên không cần cài thêm gì.
 
 Smoke test cần một Postgres riêng nên vẫn ở GitHub Actions — [`.github/workflows/test.yml`](.github/workflows/test.yml) chạy unit test, smoke test (Postgres 17 dựng làm service container) và các bộ kiểm tra i18n/CSS trên mỗi push và pull request vào `main`. Những thứ đó Render không chạy, nên vẫn đọc tab **Actions** trước khi tin một bản deploy.
 
