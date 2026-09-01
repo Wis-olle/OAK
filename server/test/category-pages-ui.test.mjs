@@ -148,7 +148,22 @@ test('every category page shows three featured salons, not two', () => {
   for (const page of CATEGORY_PAGES) {
     const html = readUi(page.file);
     for (const call of html.match(/\/api\/salons\?category=[^']*/g) || []) {
-      assert.match(call, /limit=3/, page.file + ': ' + call);
+      /* spa-massage.html asks for ONE, and it is not the same section: the other four list
+         salons to choose between, while that page builds an editorial bento out of a single
+         salon's photographs. What every one of them has to hold to is the rule underneath the
+         number — best rated within the category, earned rather than assigned. */
+      const expected = page.file === 'spa-massage.html' ? /limit=1/ : /limit=3/;
+      assert.match(call, expected, page.file + ': ' + call);
+      assert.match(call, /sort=rating/, page.file + ': ' + call);
     }
   }
+});
+
+test('the spa spotlight is the best-rated spa, not a column only the seed writes', () => {
+  /* It asked ?flagship=1, and salons.flagship is written by nothing but src/seed.js — so on a
+     real deployment the bento was empty and a third of the page went with it. The other three
+     readers of that column go with a later cut; this one is the page that loses most by it. */
+  const html = readUi('spa-massage.html');
+  assert.match(html, /OAK\.api\('\/api\/salons\?category=spa&sort=rating&limit=1'\)/);
+  assert.doesNotMatch(html, /flagship=1/);
 });
