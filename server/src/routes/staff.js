@@ -1,7 +1,7 @@
 // Public staff profiles: detail, week availability, reviews.
 import express from 'express';
 import { db } from '../db.js';
-import { getStaffSlots, getStaffWeek, timeOffOn } from '../lib/availability.js';
+import { getStaffSlots, getStaffWeek, staffCanDo, timeOffOn } from '../lib/availability.js';
 import { exceptBookingIdFor } from '../lib/except-booking.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
 import { careerOf, stintShape } from '../lib/staff-career.js';
@@ -110,6 +110,11 @@ async function visibleStaffIdOrThrow(value) {
  */
 async function getServiceWeek(staffId, serviceId, from, days, except = null) {
   const salonId = (await selectStaffSalon.get(staffId))?.salon_id ?? null;
+  /* Whether she is put on this service cannot change between Monday and Sunday, so it is
+     asked once for the week instead of once per day inside getStaffSlots — the same handing
+     down the day-off rows below get. A false answer still walks the days: the strip keeps
+     saying which of them the salon is closed on, with no hours on any of them. */
+  const canDo = await staffCanDo(db, staffId, serviceId);
   const week = [];
   for (let offset = 0; offset < days; offset += 1) {
     const date = addDaysISO(from, offset);
@@ -119,7 +124,7 @@ async function getServiceWeek(staffId, serviceId, from, days, except = null) {
       closed: off.salon || off.staff.has(staffId),
       // The day-off rows this loop just read are the ones getStaffSlots would go and read
       // again, once per day of the week.
-      slots: await getStaffSlots(staffId, serviceId, date, off, null, except),
+      slots: await getStaffSlots(staffId, serviceId, date, off, null, except, canDo),
     });
   }
   return week;

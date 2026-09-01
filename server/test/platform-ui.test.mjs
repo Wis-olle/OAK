@@ -379,11 +379,13 @@ test('a week of one service asks about each day once', () => {
   const availability = readServer('lib/availability.js');
   assert.match(
     availability,
-    /staffId, serviceId, date, knownOff = null, leadMin = null, exceptBookingId = null,/,
+    /staffId, serviceId, date, knownOff = null, leadMin = null, exceptBookingId = null,\n\s*knownCanDo = null,/,
   );
   const staff = readServer('routes/staff.js');
   // The day-off rows the week loop has already read, handed down rather than read again —
   // and behind them the appointment being moved, which has to travel the same seam or the
-  // day strip goes on counting the customer's own booking against them.
-  assert.match(staff, /getStaffSlots\(staffId, serviceId, date, off, null, except\)/);
+  // day strip goes on counting the customer's own booking against them. Last comes the
+  // staff_services link, one answer for all seven days, asked once above the loop.
+  assert.match(staff, /getStaffSlots\(staffId, serviceId, date, off, null, except, canDo\)/);
+  assert.match(staff, /const canDo = await staffCanDo\(db, staffId, serviceId\);/);
 });

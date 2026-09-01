@@ -362,10 +362,10 @@ test('and the reading side asks it too, so no picker offers what the booking ref
      getStaffSlots, which never asked. So a technician nobody had linked to the service was
      offered with a full calendar and refused at the end of it. */
   const asked = [];
-  const slotsFor = (canDo) =>
+  const slotsFor = (canDo, call = "getStaffSlots(7, 4, '2026-09-01')") =>
     liftFromAvailability(
       /async function getStaffSlots\([\s\S]*?\n}\n/,
-      "getStaffSlots(7, 4, '2026-09-01')",
+      call,
       {
         db: { prepare: () => {} },
         selectService: { get: async () => ({ id: 4, salon_id: 1, duration_min: 60 }) },
@@ -385,6 +385,16 @@ test('and the reading side asks it too, so no picker offers what the booking ref
   // Asked about the pair the caller named, and asked through the shared rule rather than a
   // staff_services SELECT of its own — the same thing the writes were already doing.
   assert.deepEqual(asked, [[7, 4], [7, 4]]);
+  /* And the week strip's seam. The link is one answer for all seven days, so getServiceWeek
+     resolves it once above its loop and hands it down; a day that already holds the answer
+     asks nothing, which is seven round trips off every named-technician day strip. */
+  asked.length = 0;
+  assert.deepEqual(
+    [...(await slotsFor(true, "getStaffSlots(7, 4, '2026-09-01', null, null, null, false)"))],
+    [],
+    'a handed-down "no" is the same no',
+  );
+  assert.deepEqual(asked, [], 'and it is not asked for a second time');
   assert.ok(
     !/SELECT 1 FROM staff_services/.test(
       availabilitySource.slice(availabilitySource.indexOf('async function getStaffSlots(')),

@@ -457,10 +457,14 @@ async function staffDaySlots(
  *
  * `knownOff` and `leadMin` are staffDaySlots's own seam, passed straight through for the
  * caller that walks a week and already holds both (routes/staff.js getServiceWeek), and so
- * is `exceptBookingId`, the appointment being moved.
+ * is `exceptBookingId`, the appointment being moved. `knownCanDo` is the same seam for the
+ * rule below: whether she performs this service is one answer for the whole week, so the
+ * caller that walks seven days asks it once and hands it down rather than paying for seven
+ * identical round trips. Null means "nobody has asked yet", which is every other caller.
  */
 export async function getStaffSlots(
   staffId, serviceId, date, knownOff = null, leadMin = null, exceptBookingId = null,
+  knownCanDo = null,
 ) {
   const service = await selectService.get(serviceId);
   if (!service) {
@@ -475,7 +479,7 @@ export async function getStaffSlots(
      the screen never mentioned. Asked here rather than in the three callers because it is
      one rule and it is already written down once; a technician who does not perform this
      service has no hours for it, which is the same sentence the writes have been saying. */
-  if (!(await staffCanDo(db, staffId, serviceId))) {
+  if (!(knownCanDo ?? (await staffCanDo(db, staffId, serviceId)))) {
     return [];
   }
   return staffDaySlots(
