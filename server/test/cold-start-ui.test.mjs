@@ -325,7 +325,7 @@ test('past the longest cold start it stops claiming the server is coming back', 
   await page.advance(200000);
   assert.equal(page.reloads(), 0);
   assert.equal(page.banner().attributes.role, 'alert');
-  assert.match(page.banner().textContent, /Không kết nối được máy chủ/);
+  assert.match(page.banner().textContent, /OAK chưa phản hồi/);
   // It really did keep asking rather than give up on the first refusal.
   assert.ok(page.calls.length >= 8);
 });

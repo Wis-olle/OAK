@@ -25,6 +25,8 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 // The one offer OAK runs, so the suite spells the code the same way the server does.
 import { WELCOME_PERCENT, welcomeCode } from '../src/lib/welcome-promotion.js';
+// The schema drop below, behind the guard that decides which database may be dropped.
+import { resetDatabase } from './lib/test-database.mjs';
 
 const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TEST_PORT = 3199;
@@ -211,38 +213,32 @@ function weekClosedOn(offWeekday) {
  * Server lifecycle
  * ========================================================================= */
 
-/** Drop and recreate the public schema so the server boots into an empty database.
- * The CASCADE also takes the citext extension's objects with it, so it is reinstalled. */
-async function resetDatabase() {
-  const client = new pg.Client({ connectionString: TEST_DATABASE_URL });
-  await client.connect();
-  try {
-    await client.query(
-      'DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;',
-    );
-    await client.query('CREATE EXTENSION IF NOT EXISTS citext SCHEMA public;');
-  } finally {
-    await client.end();
-  }
-}
-
 const childOutput = [];
 
 function spawnServer() {
-  const child = spawn(process.execPath, ['src/index.js'], {
-    cwd: serverRoot,
-    env: {
-      ...process.env,
-      PORT: String(TEST_PORT),
-      DATABASE_URL: TEST_DATABASE_URL,
-      // Who may hide a post. An address, not a role: hoangyen@oak.vn is an ordinary
-      // customer account, which is what makes the check worth testing.
-      ADMIN_EMAILS: ADMIN_EMAIL,
-      // This suite uses the demo seed as its fixture, so it asks for the seed by name
-      // rather than depending on whatever NODE_ENV the shell happens to carry.
-      SEED_DEMO: '1',
-    },
-  });
+  const env = {
+    ...process.env,
+    PORT: String(TEST_PORT),
+    DATABASE_URL: TEST_DATABASE_URL,
+    // Who may hide a post. An address, not a role: hoangyen@oak.vn is an ordinary
+    // customer account, which is what makes the check worth testing.
+    ADMIN_EMAILS: ADMIN_EMAIL,
+    // This suite uses the demo seed as its fixture, so it asks for the seed by name
+    // rather than depending on whatever NODE_ENV the shell happens to carry.
+    SEED_DEMO: '1',
+  };
+  // A shell with production's credentials exported would otherwise have this suite writing
+  // its fixture images into the real bucket and mailing real people; the child gets neither.
+  for (const secret of [
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'SUPABASE_STORAGE_BUCKET',
+    'RESEND_API_KEY',
+    'RESET_MAIL_FROM',
+  ]) {
+    delete env[secret];
+  }
+  const child = spawn(process.execPath, ['src/index.js'], { cwd: serverRoot, env });
   child.stdout.on('data', (chunk) => childOutput.push(String(chunk)));
   child.stderr.on('data', (chunk) => childOutput.push(String(chunk)));
   return child;
@@ -10282,18 +10278,18 @@ async function groupUploadQuota() {
       await directClient.query(`DELETE FROM uploads WHERE url = 'smoke-daily-cap'`);
       await directClient.end();
     }
-  }
 
-  // And the breaker really was the only thing in the way: with the day given back, the same
-  // account uploads again.
-  const recovered = ok(
-    await session('customer').fetch('/api/uploads', {
-      method: 'POST',
-      json: { filename: 'hom-nay.png', data: PNG_1X1 },
-    }),
-    'POST /api/uploads after the day is given back',
-  );
-  state.uploadedFiles.push(path.basename(recovered.url));
+    // And the breaker really was the only thing in the way: with the day given back, the
+    // same account uploads again.
+    const recovered = ok(
+      await session('customer').fetch('/api/uploads', {
+        method: 'POST',
+        json: { filename: 'hom-nay.png', data: PNG_1X1 },
+      }),
+      'POST /api/uploads after the day is given back',
+    );
+    state.uploadedFiles.push(path.basename(recovered.url));
+  }
 }
 
 /* ============================================================================
@@ -10468,7 +10464,7 @@ let exitCode = 0;
 
 try {
   if (!EXTERNAL_URL) {
-    await resetDatabase();
+    await resetDatabase(TEST_DATABASE_URL);
     child = spawnServer();
   }
   await waitForHealth();

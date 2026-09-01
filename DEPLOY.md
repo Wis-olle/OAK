@@ -56,6 +56,21 @@ Nếu database đã được seed từ trước khi có chốt này, chạy [`to
 
 Lưu ý: script **chỉ đóng lối đăng nhập**. Sáu salon demo vẫn còn và vẫn hiện trên trang khách, nên khách thật vẫn đặt lịch vào một console không còn ai mở được. Muốn gỡ chúng xuống thì bỏ chú thích ở mục **TÙY CHỌN** cuối file — đó là quyết định của người vận hành, không phải mặc định.
 
+### Khu vực (region)
+
+`render.yaml` khai `region: singapore` — cạnh project Supabase ở Singapore. Nhưng service `oak-demo` **đang chạy ở Oregon**, và Render **không đổi được region của một service đã tạo**. Muốn chuyển:
+
+1. **New → Blueprint** từ chính repo này: service mới đọc `render.yaml` nên nhận `singapore`.
+2. Chép 5 biến đặt tay ở bảng trên (và `ADMIN_EMAILS` nếu có khai) sang service mới.
+3. Gọi `https://<service-mới>.onrender.com/api/health` — phải trả `{"success":true,...}`.
+4. Trỏ domain và monitor UptimeRobot (§8) sang service mới, rồi mới xoá service cũ.
+
+Database không đổi: cả hai service dùng chung một `DATABASE_URL`, nên không có bước migrate dữ liệu nào.
+
+### Chạy test trước khi deploy
+
+Render gói free không có `preDeployCommand`, nên trên Render không có bước chạy test nào chặn một bản deploy hỏng. Cổng kiểm tra nằm ở GitHub Actions — [`.github/workflows/test.yml`](.github/workflows/test.yml) chạy unit test, smoke test (Postgres 17 dựng làm service container) và các bộ kiểm tra i18n/CSS trên mỗi push và pull request vào `main`. Render vẫn deploy commit đó dù workflow đỏ, nên đọc tab **Actions** trước khi tin một bản deploy.
+
 Nhân tiện, kiểm tra `ADMIN_EMAILS` trong Render: nó **không được** là một địa chỉ demo (bộ smoke test dùng `hoangyen@oak.vn`), nếu không thì quyền ẩn/hiện bài blog nằm ở một tài khoản mà script trên vừa khoá.
 
 ---
@@ -135,7 +150,26 @@ Script ghi đè `ui/assets/fonts/font-material-subset.woff2` — commit lại fi
 
 - **Supabase free tier**: project bị *tạm dừng* nếu không có truy vấn nào trong 7 ngày liên tục; vào dashboard bấm **Restore** là chạy lại, dữ liệu không mất. Khi web có người dùng thật thường xuyên thì không bị.
 - **Render free tier**: service ngủ sau ~15 phút không truy cập, request kế tiếp chờ ~30–60s để thức dậy. Dữ liệu giờ đã an toàn ở Supabase; chỉ còn trải nghiệm chậm lúc thức dậy. Khi go-live chính thức: nâng **Starter** (~7 USD/tháng) để bỏ cold start, rồi gắn tên miền riêng (**Settings → Custom Domains**, SSL tự động). Trong lúc còn ở gói free, ping giữ thức ở §8 gần như xoá hẳn cold start.
-- **Backup**: Supabase tự backup hằng ngày (giữ 7 ngày ở gói free).
+- **Backup**: gói free của Supabase **không có backup nào cả** — backup hằng ngày (giữ 7 ngày) là tính năng của gói Pro trở lên. Chừng nào còn ở free thì tự sao lưu, mỗi tuần một lần, bằng chuỗi kết nối **Session pooler** ở §1:
+
+  ```powershell
+  pg_dump "<chuỗi Session pooler>" --no-owner --format=custom --file=oak-2026-09-01.dump
+  ```
+
+  Phục hồi vào một database trống:
+
+  ```powershell
+  pg_restore --clean --no-owner -d "<chuỗi kết nối>" oak-2026-09-01.dump
+  ```
+
+  Trên Windows, `pg_dump`/`pg_restore` đến từ bộ cài PostgreSQL (Command Line Tools) — hoặc mượn luôn bản trong container dev, tránh được cả cái bẫy dấu `>` của PowerShell làm hỏng file nhị phân:
+
+  ```powershell
+  docker exec oak-pg pg_dump "<chuỗi Session pooler>" --no-owner --format=custom --file=/tmp/oak.dump
+  docker cp oak-pg:/tmp/oak.dump oak-2026-09-01.dump
+  ```
+
+  Giữ file `.dump` ở ngoài repo: nó chứa toàn bộ dữ liệu người dùng.
 - **Kho ảnh và trần tải lên**: gói free hiện tại của Supabase cho 1GB Storage, 500MB database, 5GB egress không qua cache và 5GB egress qua cache mỗi tháng — con số có thể đổi, kiểm tra lại <https://supabase.com/pricing> trước khi tính toán. Tài khoản đăng ký miễn phí nên OAK tự đặt ba mức: **1MB mỗi ảnh** cho `POST /api/uploads` (trang đã tự nén trong trình duyệt trước khi gửi), **20 ảnh/giờ mỗi tài khoản** (giới hạn tốc độ của một người, nên vẫn đếm theo số ảnh), và **`UPLOADS_DAILY_CAP` mặc định 500 cho toàn site mỗi ngày** — mức cuối là cầu dao ngắt cho cả nền tảng, không phải hạn mức của một người. Đơn vị của nó là **ảnh quy đổi 1MB**: ngân sách một ngày bằng con số này nhân 1MB, tức mặc định là 500MB, và một ảnh 5MB mà trang "Dán link salon" tải về từ website đối tác tốn 5 đơn vị chứ không phải 1 — kho đầy bằng byte chứ không bằng số tấm ảnh. Đặt biến môi trường này ở Render nếu một đợt cần thêm chỗ, hoặc đặt `0` để đóng hẳn cửa tải ảnh khi cần dọn kho. Hai mức sau tính chung cho cả hai cửa, vì cả hai cùng ghi vào một kho. Thư viện ảnh của mỗi salon tối đa 12 ảnh. Số cần theo dõi là **Storage usage** trong dashboard Supabase: gần 1GB là lúc phải dọn hoặc nâng gói, vì hết chỗ thì mọi salon đều không tải ảnh lên được nữa.
 
 ---

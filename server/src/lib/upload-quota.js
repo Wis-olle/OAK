@@ -104,7 +104,12 @@ async function reserveUpload(userId, bytes) {
     }
 
     const { total: today } = await tx.get(SUM_TODAY, startOfDayUTC(todayISO()));
-    if (Number(today) + bytes > DAILY_BYTE_BUDGET) {
+    /* Two halves, because a reservation may weigh nothing — the importer can be handed an
+       empty 200 body and still ask for room. "spent + 0 > budget" is false on a day that is
+       exactly full, and false against a budget of zero, which is the one value an operator
+       types on purpose to shut the doors. A day already at its budget refuses every caller,
+       whatever the picture weighs. */
+    if (Number(today) >= DAILY_BYTE_BUDGET || Number(today) + bytes > DAILY_BYTE_BUDGET) {
       throw httpError(429, 'UPLOADS_PAUSED', 'OAK tạm ngưng nhận ảnh hôm nay, thử lại ngày mai.');
     }
 

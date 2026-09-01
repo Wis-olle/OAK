@@ -49,7 +49,7 @@
   "Không kết nối được máy chủ, vui lòng thử lại.": "Couldn't reach the server. Please try again.",
   "Đã có lỗi xảy ra, vui lòng thử lại sau.": "Something went wrong. Please try again later.",
   "OAK đang khởi động, vui lòng đợi khoảng 30 giây…": "OAK is starting up — this takes about 30 seconds…",
-  "Không kết nối được máy chủ. Vui lòng kiểm tra kết nối mạng rồi tải lại trang.": "Couldn't reach the server. Please check your connection, then reload the page.",
+  "OAK chưa phản hồi, thử lại sau ít phút.": "OAK hasn't answered yet — please try again in a few minutes.",
   "Máy chủ đã sẵn sàng. Vui lòng tải lại trang để xem nội dung.": "The server is ready. Please reload the page to see the content.",
   "Có thông báo mới": "New notifications",
   "Menu — có thông báo mới": "Menu — new notifications",

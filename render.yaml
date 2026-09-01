@@ -3,6 +3,9 @@ services:
     name: oak-demo
     runtime: node
     plan: free
+    # Next to Supabase's Singapore project, ~200ms closer to Vietnam than Oregon. Render
+    # cannot move an existing service, so today's service is still in Oregon — DEPLOY.md §2.
+    region: singapore
     rootDir: server
     # rootDir makes Render ignore commits outside server/ — but the app serves ../ui
     # statically, so UI-only commits must trigger deploys too.

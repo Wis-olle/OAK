@@ -1,0 +1,16 @@
+# Every text file is LF in the repository, whatever a checkout does on the working copy.
+# Without this a fresh clone on Windows turned hundreds of tests red at once: the suites read
+# source and markup files byte for byte, and a CRLF working-tree copy does not match what
+# they assert. The index has always stored LF; this is the line that says so out loud.
+* text=auto eol=lf
+
+# Binaries git must never inspect for line endings, let alone rewrite.
+*.woff2 -text
+*.woff -text
+*.ttf -text
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.webp -text
+*.gif -text
+*.ico -text

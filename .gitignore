@@ -48,6 +48,11 @@ app.*.map.json
 .netlify
 
 # Backend server
+# A service_role key that reaches a public repo cannot be un-published, only rotated.
+.env
+.env.*
+server/.env
+server/.env.*
 server/node_modules/
 server/data/
 server/uploads/

@@ -38,6 +38,27 @@ answer = { cap: UPLOADS_DAILY_CAP, budget: DAILY_BYTE_BUDGET, unit: MAX_UPLOAD_B
 
 const MB = 1024 * 1024;
 
+
+/* The site-wide refusal itself, run rather than restated. reserveUpload needs a database and
+   a transaction; the one condition that decides needs neither, so it is read out of the lib
+   and evaluated on its own — rewriting it there fails here rather than quietly changing what
+   this file claims. The day spent arrives as the string a SUM comes back as. */
+function refusesTheDay(budget, spent, bytes) {
+  const from = quotaJs.indexOf('const { total: today } =');
+  const start = quotaJs.indexOf('if (', from);
+  const end = quotaJs.indexOf(') {', start);
+  assert.ok(
+    from !== -1 && start !== -1 && end > start,
+    'upload-quota.js no longer decides the day in one condition',
+  );
+  return vm.runInNewContext(quotaJs.slice(start + 4, end), {
+    Number,
+    DAILY_BYTE_BUDGET: budget,
+    today: String(spent),
+    bytes,
+  });
+}
+
 test('an unset UPLOADS_DAILY_CAP is the default five hundred', () => {
   assert.equal(ceilingsFor(undefined).cap, 500);
 });
@@ -96,6 +117,23 @@ test('the first minute of the Vietnamese day is inside the window it opens', () 
   assert.ok('2026-09-01T17:01:00.000Z' > dayStart);
   // And the last minute of the 1st is not.
   assert.ok('2026-09-01T16:59:00.000Z' < dayStart);
+});
+
+/* A reservation is allowed to weigh nothing: store-image.js hands the importer whatever a
+   partner server answered with, and an empty 200 is a picture of zero bytes. Asked only
+   whether this one still fits, the breaker waved those through on a day that was already
+   full — and waved every one of them through when UPLOADS_DAILY_CAP=0, the setting whose
+   entire purpose is to shut the doors. So the day being spent is now its own refusal. */
+test('a day already spent refuses a reservation that weighs nothing', () => {
+  const { budget } = ceilingsFor(undefined);
+  assert.equal(refusesTheDay(budget, 0, MB), false);
+  assert.equal(refusesTheDay(budget, budget - 1, 0), false);
+  assert.equal(refusesTheDay(budget, budget, 0), true);
+  assert.equal(refusesTheDay(budget, budget + MB, 0), true);
+});
+
+test('UPLOADS_DAILY_CAP=0 refuses a zero-byte reservation too', () => {
+  assert.equal(refusesTheDay(ceilingsFor('0').budget, 0, 0), true);
 });
 
 /* Every upload screen posts what this returns and falls back to the raw file only when it

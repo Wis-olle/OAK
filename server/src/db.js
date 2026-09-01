@@ -785,9 +785,10 @@ END $$;
 -- One row per picture this platform has written into its storage bucket, and the only place
 -- it knows how much it is storing. Registration is free, so without a count there is nothing
 -- between one determined account and the whole bucket; lib/upload-quota.js reads this table
--- to hold every account to a number of pictures per hour and the site as a whole to a number
--- per day, and BOTH doors that store bytes charge it — POST /api/uploads, and the salon
--- importer re-hosting a partner's own gallery. created_at is a UTC ISO-8601 string because
+-- to hold every account to a number of pictures per hour, and the site as a whole to a number
+-- of BYTES per day — a bucket fills with bytes, and the two doors admit sizes that differ
+-- fivefold. Both of those doors charge this table: POST /api/uploads, and the salon importer
+-- re-hosting a partner's own gallery. created_at is a UTC ISO-8601 string because
 -- both windows are read as plain text comparisons, which those strings sort correctly under.
 --
 -- A row is written BEFORE its bytes are, with an empty url, so that the requests arriving

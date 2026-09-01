@@ -62,8 +62,9 @@
   var WOKE_KEY = 'oak-woke';
 
   var COLD_START_MESSAGE = 'OAK đang khởi động, vui lòng đợi khoảng 30 giây…';
-  var UNREACHABLE_MESSAGE =
-    'Không kết nối được máy chủ. Vui lòng kiểm tra kết nối mạng rồi tải lại trang.';
+  // A sleeping or overloaded server is the likely cause here, not the visitor's own line,
+  // so the wording says OAK has yet to answer rather than sending the reader to a router.
+  var UNREACHABLE_MESSAGE = 'OAK chưa phản hồi, thử lại sau ít phút.';
   // Said when the server has just answered but the page cannot be reloaded under the
   // visitor: they have typed something, or the automatic reload is already spent.
   var READY_MESSAGE = 'Máy chủ đã sẵn sàng. Vui lòng tải lại trang để xem nội dung.';
@@ -1177,8 +1178,17 @@
              .webp — storeImage reads that extension and nothing else, so Supabase would serve
              them under Content-Type image/webp and the salon would get a broken square for a
              picture that uploaded without a word of complaint. */
-          var isWebp = data.indexOf('data:image/webp') === 0;
-          resolve({ filename: isWebp ? 'anh-oak.webp' : 'anh-oak.jpg', data: data });
+          var mime = data.slice(5, data.indexOf(';'));
+          var names = {
+            'image/webp': 'anh-oak.webp',
+            'image/jpeg': 'anh-oak.jpg',
+            'image/png': 'anh-oak.png',
+          };
+          if (!names[mime]) {
+            resolve(null);
+            return;
+          }
+          resolve({ filename: names[mime], data: data });
         } catch (error) {
           /* getContext can answer null, and drawImage and toDataURL both throw on a canvas
              the browser will not give back — one tainted by an image from elsewhere, or one
