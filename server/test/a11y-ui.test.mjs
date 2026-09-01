@@ -208,7 +208,7 @@ test('the scroll port keeps clear of the bars pinned over it', () => {
   assert.ok(pinned.length >= 4, `only ${pinned.length} pages pin a booking bar`);
 });
 
-test('a reader who asked for less motion gets it site-wide, not only on the Beauty Map', () => {
+test('a reader who asked for less motion gets it site-wide', () => {
   const block = between(utilsCss, '@media (prefers-reduced-motion: reduce)', '\n}\n');
   assert.match(block, /animation-duration: 0\.01ms !important/);
   assert.match(block, /transition-duration: 0\.01ms !important/);
@@ -296,7 +296,7 @@ test('the way out of the top bar is not the way out of an open dialog', () => {
   const handWritten = fs.readdirSync(path.join(root, 'ui'))
     .filter((name) => name.endsWith('.html'))
     .filter((name) => read(`ui/${name}`).includes('href="#main">Bỏ qua đến nội dung</a>'));
-  assert.equal(handWritten.length, 7, 'a page stopped writing its own skip link, or a new one started');
+  assert.equal(handWritten.length, 6, 'a page stopped writing its own skip link, or a new one started');
   for (const page of handWritten) {
     assert.match(read(`ui/${page}`), /data-oak-skip href="#main">Bỏ qua đến nội dung<\/a>/, page);
   }

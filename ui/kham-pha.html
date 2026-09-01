@@ -86,171 +86,6 @@
            32px is exactly the room it needs — and at xl the segment can spare no more. */
         select.oak-search-field { padding-right: 32px; }
 
-        /* Beauty map hotspots (this page only). Each pin is one <a> laid out as a thin bar
-           over the photo: a dot at one end, a label pill at the other, a hairline between.
-           The bar's ends are given in per-cent of the figure in the markup, so every pin
-           tracks its feature as the responsive photo resizes. */
-        .beauty-pin { position: absolute; display: block; }
-        .beauty-pin--left, .beauty-pin--right { height: 0; }
-        .beauty-pin--up { width: 0; }
-
-        /* Runs the full bar; the pill's opaque background hides the end it covers. */
-        .beauty-pin__line {
-            position: absolute;
-            background-color: rgba(255, 255, 255, 0.9);
-            /* Warm dark glow: the same hairline has to read on dark hair, bare skin
-               and the near-white backdrop of both photos. */
-            box-shadow: 0 0 2px rgba(60, 40, 20, 0.55);
-        }
-        .beauty-pin--left .beauty-pin__line,
-        .beauty-pin--right .beauty-pin__line { left: 0; right: 0; top: 0; height: 1px; }
-        .beauty-pin--up .beauty-pin__line { left: 0; top: 0; bottom: 0; width: 1px; }
-
-        .beauty-pin__dot {
-            position: absolute; width: 11px; height: 11px; border-radius: 9999px;
-            background-color: #ffffff;
-            box-shadow: 0 0 0 1px rgba(60, 40, 20, 0.28), 0 2px 10px rgba(60, 40, 20, 0.45);
-        }
-        .beauty-pin--left .beauty-pin__dot { right: 0; top: 0; transform: translate(50%, -50%); }
-        .beauty-pin--right .beauty-pin__dot { left: 0; top: 0; transform: translate(-50%, -50%); }
-        .beauty-pin--up .beauty-pin__dot { left: 0; bottom: 0; transform: translate(-50%, 50%); }
-        /* Soft halo around the core */
-        .beauty-pin__dot::before {
-            content: ''; position: absolute; inset: -9px; border-radius: inherit;
-            background-image: radial-gradient(circle, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 70%);
-        }
-        /* Transparent padding: the dot stays 11px, the tap target clears 44px. */
-        .beauty-pin__dot::after { content: ''; position: absolute; inset: -16.5px; }
-
-        /* Two concentric rings, hidden until the pin is hovered or focused. */
-        .beauty-pin__ripple { position: absolute; inset: 0; }
-        .beauty-pin__ripple::before,
-        .beauty-pin__ripple::after {
-            content: ''; position: absolute; border-radius: 9999px; opacity: 0;
-            border: 1px solid rgba(255, 255, 255, 0.75);
-            box-shadow: 0 0 4px rgba(60, 40, 20, 0.25);
-        }
-        .beauty-pin__ripple::before { inset: -5px; }
-        .beauty-pin__ripple::after { inset: -11px; }
-        /* Static double rings: also the whole effect for prefers-reduced-motion. */
-        .beauty-pin:hover .beauty-pin__ripple::before,
-        .beauty-pin:focus-visible .beauty-pin__ripple::before { opacity: 0.5; }
-        .beauty-pin:hover .beauty-pin__ripple::after,
-        .beauty-pin:focus-visible .beauty-pin__ripple::after { opacity: 0.3; }
-        /* Hovering a zone lights its twin pin. Every :has() rule stands on its own so a
-           browser that cannot parse :has() drops only the enhancement — never the pin's
-           own hover and focus styling, which shares a rule with nothing. */
-        figure:has(.beauty-zone--hair:hover) .beauty-pin--hair .beauty-pin__ripple::before,
-        figure:has(.beauty-zone--skin:hover) .beauty-pin--skin .beauty-pin__ripple::before,
-        figure:has(.beauty-zone--eyes:hover) .beauty-pin--eyes .beauty-pin__ripple::before,
-        figure:has(.beauty-zone--nail:hover) .beauty-pin--nail .beauty-pin__ripple::before { opacity: 0.5; }
-        figure:has(.beauty-zone--hair:hover) .beauty-pin--hair .beauty-pin__ripple::after,
-        figure:has(.beauty-zone--skin:hover) .beauty-pin--skin .beauty-pin__ripple::after,
-        figure:has(.beauty-zone--eyes:hover) .beauty-pin--eyes .beauty-pin__ripple::after,
-        figure:has(.beauty-zone--nail:hover) .beauty-pin--nail .beauty-pin__ripple::after { opacity: 0.3; }
-
-        .beauty-pin__card {
-            position: absolute; top: -14px; height: 28px;
-            display: flex; align-items: center; white-space: nowrap;
-            padding: 0 12px; border-radius: 9999px;
-            font-size: 12px; font-weight: 600;
-            background-color: rgba(255, 252, 248, 0.94);
-            box-shadow: 0 1px 2px rgba(60, 40, 20, 0.14), 0 5px 14px rgba(60, 40, 20, 0.16);
-        }
-        /* Transparent padding: the pill stays slim, the tap target clears 44px. */
-        .beauty-pin__card::before { content: ''; position: absolute; inset: -11px -8px; }
-        .beauty-pin--left .beauty-pin__card { left: 0; }
-        .beauty-pin--right .beauty-pin__card { right: 0; }
-        .beauty-pin--up .beauty-pin__card { left: 0; transform: translateX(-50%); }
-
-        .beauty-pin:hover .beauty-pin__dot,
-        .beauty-pin:focus-visible .beauty-pin__dot {
-            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 3px rgba(60, 40, 20, 0.25),
-                        0 2px 12px rgba(60, 40, 20, 0.5);
-        }
-        figure:has(.beauty-zone--hair:hover) .beauty-pin--hair .beauty-pin__dot,
-        figure:has(.beauty-zone--skin:hover) .beauty-pin--skin .beauty-pin__dot,
-        figure:has(.beauty-zone--eyes:hover) .beauty-pin--eyes .beauty-pin__dot,
-        figure:has(.beauty-zone--nail:hover) .beauty-pin--nail .beauty-pin__dot {
-            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 3px rgba(60, 40, 20, 0.25),
-                        0 2px 12px rgba(60, 40, 20, 0.5);
-        }
-        .beauty-pin:hover .beauty-pin__card,
-        .beauty-pin:focus-visible .beauty-pin__card {
-            background-color: #fffdfa;
-            box-shadow: 0 2px 4px rgba(60, 40, 20, 0.16), 0 10px 24px rgba(60, 40, 20, 0.26);
-            transform: translateY(-2px);
-        }
-        figure:has(.beauty-zone--hair:hover) .beauty-pin--hair .beauty-pin__card,
-        figure:has(.beauty-zone--skin:hover) .beauty-pin--skin .beauty-pin__card,
-        figure:has(.beauty-zone--eyes:hover) .beauty-pin--eyes .beauty-pin__card {
-            background-color: #fffdfa;
-            box-shadow: 0 2px 4px rgba(60, 40, 20, 0.16), 0 10px 24px rgba(60, 40, 20, 0.26);
-            transform: translateY(-2px);
-        }
-        .beauty-pin--up:hover .beauty-pin__card,
-        .beauty-pin--up:focus-visible .beauty-pin__card { transform: translate(-50%, -2px); }
-        /* The nail pin is the only --up bar, so its lit card keeps the centring translate. */
-        figure:has(.beauty-zone--nail:hover) .beauty-pin--nail .beauty-pin__card {
-            background-color: #fffdfa;
-            box-shadow: 0 2px 4px rgba(60, 40, 20, 0.16), 0 10px 24px rgba(60, 40, 20, 0.26);
-            transform: translate(-50%, -2px);
-        }
-        .beauty-pin:focus { outline: none; }
-        .beauty-pin:focus-visible .beauty-pin__card { outline: 2px solid #171818; outline-offset: 2px; }
-
-        /* Whole-feature hit areas, sized in per-cent so each one tracks its feature as the
-           photo resizes. Painted under the pins, which keep their own targets on top.
-           Only the polygons take the pointer — the sheet itself opts out, so a click off
-           the silhouette reaches the photo underneath instead of being swallowed.
-           Bare polygons, not links: around an <a> this large the browser paints its own
-           tap highlight and long-press preview across the photo. Same reason for the
-           tap-highlight reset, which Android applies to any element with a click handler. */
-        .beauty-zones { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-        .beauty-zones, .beauty-zones * { -webkit-tap-highlight-color: transparent; }
-        .beauty-zones polygon { fill: transparent; cursor: pointer; pointer-events: auto; }
-
-        @media (prefers-reduced-motion: no-preference) {
-            .beauty-pin__card { transition: box-shadow 200ms ease, transform 200ms ease, background-color 200ms ease; }
-            .beauty-pin__dot { transition: box-shadow 200ms ease; }
-            .beauty-pin:hover .beauty-pin__ripple::before,
-            .beauty-pin:hover .beauty-pin__ripple::after,
-            .beauty-pin:focus-visible .beauty-pin__ripple::before,
-            .beauty-pin:focus-visible .beauty-pin__ripple::after {
-                animation: beauty-pin-ripple 2.4s ease-out infinite;
-            }
-            .beauty-pin:hover .beauty-pin__ripple::after,
-            .beauty-pin:focus-visible .beauty-pin__ripple::after { animation-delay: 1.2s; }
-            figure:has(.beauty-zone--hair:hover) .beauty-pin--hair .beauty-pin__ripple::before,
-            figure:has(.beauty-zone--hair:hover) .beauty-pin--hair .beauty-pin__ripple::after,
-            figure:has(.beauty-zone--skin:hover) .beauty-pin--skin .beauty-pin__ripple::before,
-            figure:has(.beauty-zone--skin:hover) .beauty-pin--skin .beauty-pin__ripple::after,
-            figure:has(.beauty-zone--eyes:hover) .beauty-pin--eyes .beauty-pin__ripple::before,
-            figure:has(.beauty-zone--eyes:hover) .beauty-pin--eyes .beauty-pin__ripple::after,
-            figure:has(.beauty-zone--nail:hover) .beauty-pin--nail .beauty-pin__ripple::before,
-            figure:has(.beauty-zone--nail:hover) .beauty-pin--nail .beauty-pin__ripple::after {
-                animation: beauty-pin-ripple 2.4s ease-out infinite;
-            }
-            figure:has(.beauty-zone--hair:hover) .beauty-pin--hair .beauty-pin__ripple::after,
-            figure:has(.beauty-zone--skin:hover) .beauty-pin--skin .beauty-pin__ripple::after,
-            figure:has(.beauty-zone--eyes:hover) .beauty-pin--eyes .beauty-pin__ripple::after,
-            figure:has(.beauty-zone--nail:hover) .beauty-pin--nail .beauty-pin__ripple::after { animation-delay: 1.2s; }
-            /* No hover to reveal them, so a slow idle pulse marks every dot as tappable. */
-            @media (hover: none) {
-                .beauty-pin__ripple::before,
-                .beauty-pin__ripple::after { animation: beauty-pin-ripple 2.4s ease-out infinite; }
-                .beauty-pin__ripple::after { animation-delay: 1.2s; }
-            }
-        }
-        /* Touch with reduced motion: no hover and no pulse, so the rings stay on statically. */
-        @media (hover: none) and (prefers-reduced-motion: reduce) {
-            .beauty-pin__ripple::before { opacity: 0.5; }
-            .beauty-pin__ripple::after { opacity: 0.3; }
-        }
-        @keyframes beauty-pin-ripple {
-            0% { opacity: 0.6; transform: scale(0.6); }
-            100% { opacity: 0; transform: scale(3.2); }
-        }
     </style>
 <title>OAK Beauty – Đặt lịch nail, tóc, spa, nối mi tại TP.HCM</title>
 <meta content="Đặt lịch nail, tóc, chăm sóc da, spa và nối mi tại các salon ở TP.HCM. Giá và thời lượng niêm yết công khai, đánh giá chỉ đến từ lịch hẹn đã hoàn tất." name="description">
@@ -518,69 +353,8 @@
 </a>
 </div>
 </section>
-<!-- Beauty Map and the salons themselves, in one column so their order can differ from
-     their order in the markup. On a phone the map is two portraits tall — around two
-     screens of scrolling before the first bookable salon — so below md the salons come
-     first; from md the reading order of the markup comes back. The gap that used to
-     be the map's own bottom margin belongs to the column now, or reordering would move it
-     to the wrong side. -->
-<div class="flex flex-col gap-section-gap mb-section-gap">
-<!-- Beauty Map Section -->
-<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto order-2 md:order-1" id="beauty-map">
-<div class="mb-8 border-b border-outline-variant/30 pb-4">
-<h2 class="font-headline-md text-headline-sm md:text-headline-md text-primary">Chọn vùng bạn muốn làm đẹp</h2>
-<p class="font-body-md text-body-md text-on-surface-variant mt-2">Chạm vào tóc, mắt, da hay móng để xem dịch vụ phù hợp</p>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
-<!-- Face panel -->
-<div class="bg-surface-container-low rounded-lg p-4">
-<figure class="relative rounded-lg overflow-hidden bg-surface-container">
-<img width="900" height="1028" loading="lazy" alt="Chân dung người mẫu tóc nâu dài, dùng để chọn vùng tóc, mắt hoặc da mặt" class="w-full" src="assets/images/beauty-map-face.webp">
-<!-- Pointer-only shortcut: tapping the feature itself opens the same page as its pin.
-     Hidden from assistive tech and from Tab — the pins below are the real links.
-     Order matters: skin then eyes are drawn last, so they win where they overlap the hair. -->
-<svg aria-hidden="true" class="beauty-zones" preserveAspectRatio="none" viewBox="0 0 100 100">
-<polygon class="beauty-zone--hair" data-href="dich-vu-toc-chuyen-sau.html" points="50,9.7 54,9.5 58,10.5 63,13 68,16.5 72,20 75,23.5 77,28 78,33 79,41 81,50 83,57 85,63 86,69 86,76 84,84 81,90 77,93 74,85 72,77 71,67 39,67 37,77 35,85 32,92 29,92 26,88 23,83 19,77 17,70 16,63 16,57 18,51 21,45 24,39 26,33 29,27 31,22 35,18 39,15 44,11.5"></polygon>
-<polygon class="beauty-zone--skin" data-href="cham-soc-da.html" points="45,25 50,24 56,24.5 61,26 65,29 68,33 71,37 73,41 73,45 71,49 68,53 65,57 62,60 61,63 63,66 45,66 45,60 44,56 42,51 40,44 39,37 41,30"></polygon>
-<polygon class="beauty-zone--eyes" data-href="dich-vu-mi.html" points="42,30 71,29 71,43 42,44"></polygon>
-</svg>
-<!-- Each bar is inset in per-cent: the far end carries the pill, the near end the dot. -->
-<a aria-label="Tóc — xem dịch vụ tóc" class="beauty-pin beauty-pin--left beauty-pin--hair" href="dich-vu-toc-chuyen-sau.html" style="left:3%;right:70%;top:60%">
-<span aria-hidden="true" class="beauty-pin__line"></span>
-<span aria-hidden="true" class="beauty-pin__dot"><span class="beauty-pin__ripple"></span></span>
-<span class="beauty-pin__card font-label-md uppercase tracking-wider text-primary">Tóc</span>
-</a>
-<a aria-label="Mắt / Mi — xem dịch vụ nối mi" class="beauty-pin beauty-pin--left beauty-pin--eyes" href="dich-vu-mi.html" style="left:3%;right:58.6%;top:39.3%">
-<span aria-hidden="true" class="beauty-pin__line"></span>
-<span aria-hidden="true" class="beauty-pin__dot"><span class="beauty-pin__ripple"></span></span>
-<span class="beauty-pin__card font-label-md uppercase tracking-wider text-primary">Mắt / Mi</span>
-</a>
-<a aria-label="Da mặt — xem dịch vụ chăm sóc da" class="beauty-pin beauty-pin--right beauty-pin--skin" href="cham-soc-da.html" style="left:69%;right:3%;top:52%">
-<span aria-hidden="true" class="beauty-pin__line"></span>
-<span aria-hidden="true" class="beauty-pin__dot"><span class="beauty-pin__ripple"></span></span>
-<span class="beauty-pin__card font-label-md uppercase tracking-wider text-primary">Da mặt</span>
-</a>
-</figure>
-</div>
-<!-- Hand panel -->
-<div class="bg-surface-container-low rounded-lg p-4">
-<figure class="relative rounded-lg overflow-hidden bg-surface-container">
-<img width="900" height="1024" loading="lazy" alt="Bàn tay với bộ móng sơn màu nude bóng, dùng để chọn dịch vụ móng" class="w-full" src="assets/images/beauty-map-hand.webp">
-<!-- The whole panel is about nails, so the entire hand is one zone. -->
-<svg aria-hidden="true" class="beauty-zones" preserveAspectRatio="none" viewBox="0 0 100 100">
-<polygon class="beauty-zone--nail" data-href="dich-vu-nail.html" points="0,6 12,5.5 24,6 33,11 42,15 50,19 57,21 64,23 70,25 76,27 82,30 86,36 88,41 88,47 87,53 84,59 81,64 77,69 73,72 67,76 60,77 52,78 44,79 36,79 30,78 22,79 12,80 0,80"></polygon>
-</svg>
-<a aria-label="Móng — xem dịch vụ nail" class="beauty-pin beauty-pin--up beauty-pin--nail" href="dich-vu-nail.html" style="left:45%;top:15%;bottom:59%">
-<span aria-hidden="true" class="beauty-pin__line"></span>
-<span aria-hidden="true" class="beauty-pin__dot"><span class="beauty-pin__ripple"></span></span>
-<span class="beauty-pin__card font-label-md uppercase tracking-wider text-primary">Móng</span>
-</a>
-</figure>
-</div>
-</div>
-</section>
 <!-- Top-rated Salons Section (Bento/Asymmetric Layout) -->
-<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto order-1 md:order-2" x-data="oakTopRatedSalons()">
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-section-gap" x-data="oakTopRatedSalons()">
 <div class="flex justify-between items-end mb-8 border-b border-outline-variant/30 pb-4">
 <!-- The heading is a claim about the list under it, so it waits for the list. sort=rating
      orders by a rating that can be null for every row on a young platform, and "được đánh
@@ -678,7 +452,6 @@
 <a class="inline-block border border-outline-variant text-primary font-label-md text-label-md uppercase tracking-wider px-6 py-3 rounded-full hover:bg-surface-container-low transition-colors" href="ket-qua-tim-kiem.html">Xem tất cả</a>
 </div>
 </section>
-</div>
 <!-- Newest Salons Section -->
 <section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mt-section-gap" x-data="oakNewSalons()">
 <div class="flex justify-between items-end mb-8 border-b border-outline-variant/30 pb-4">
@@ -1175,22 +948,5 @@
             }
         });
     })();
-
-    /* Beauty map zones carry their target in data-href rather than an <a>, so one
-       delegated listener per photo does the navigating. Pins paint above the zones,
-       so a click on a pin never reaches this. */
-    document.querySelectorAll('.beauty-zones').forEach(function (zones) {
-        zones.addEventListener('click', function (event) {
-            /* A modified click means "open this elsewhere", which only a real link can
-               honour — leave those to the pins rather than hijacking the current tab. */
-            if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
-                return;
-            }
-            const href = event.target.dataset.href;
-            if (href) {
-                location.href = href;
-            }
-        });
-    });
 </script>
 </body></html>

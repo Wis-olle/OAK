@@ -77,12 +77,6 @@
 </a>
 </li>
 <li>
-<a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="bao-cao-doanh-thu.html">
-<span aria-hidden="true" class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
-<span class="font-body-md text-body-md">Báo cáo</span>
-</a>
-</li>
-<li>
 <a class="flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors scale-95 duration-150" href="danh-gia-salon.html">
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="star">star</span>
 <span class="font-body-md text-body-md">Đánh giá</span>
@@ -316,10 +310,6 @@
 <div class="relative">
 <input class="input-minimal font-body-md text-body-md text-primary" id="salon-phone" placeholder=" " type="tel" x-model="form.phone"/>
 <label class="floating-label font-label-md uppercase tracking-widest" for="salon-phone">Số điện thoại</label>
-</div>
-<div class="relative">
-<input class="input-minimal font-body-md text-body-md text-primary" id="salon-tour" placeholder=" " type="url" x-model="form.tour_url"/>
-<label class="floating-label font-label-md uppercase tracking-widest" for="salon-tour">Đường dẫn tour 360°</label>
 </div>
 </div>
 </section>
@@ -711,10 +701,6 @@
 <span aria-hidden="true" class="material-symbols-outlined" data-icon="group">group</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Nhân viên</span>
 </a>
-<a class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-on-surface-variant" href="bao-cao-doanh-thu.html">
-<span aria-hidden="true" class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
-<span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Báo cáo</span>
-</a>
 <a aria-current="page" class="flex flex-col items-center gap-1 flex-1 min-w-0 px-1 py-2 text-secondary font-bold" href="cai-dat-salon.html">
 <span aria-hidden="true" class="material-symbols-outlined fill" data-icon="settings">settings</span>
 <span class="font-caption text-[10px] uppercase tracking-wider whitespace-nowrap">Cài đặt</span>
@@ -850,7 +836,7 @@
             placeQuery: '',
             form: {
                 name: '', description: '', address: '', district: '', city: '',
-                phone: '', image: '', tour_url: '', lat: '', lng: '',
+                phone: '', image: '', lat: '', lng: '',
                 auto_confirm: true, lead_time_min: '0',
                 cancel_cutoff_hours: '2', cancel_policy_text: '',
                 amenities: [], hours: [],
@@ -1716,7 +1702,6 @@
                             city: this.form.city,
                             phone: this.form.phone,
                             image: this.form.image,
-                            tour_url: this.form.tour_url,
                             auto_confirm: this.form.auto_confirm ? 1 : 0,
                             lead_time_min: Number(this.form.lead_time_min),
                             cancel_cutoff_hours: Number(this.form.cancel_cutoff_hours),

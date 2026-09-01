@@ -11,7 +11,6 @@ const CONSOLE_PAGES = [
   'quan-ly-lich-hen.html',
   'quan-ly-dich-vu.html',
   'quan-ly-nhan-vien.html',
-  'bao-cao-doanh-thu.html',
   'cai-dat-salon.html',
   'danh-gia-salon.html',
 ];

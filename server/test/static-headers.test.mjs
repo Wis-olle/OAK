@@ -106,8 +106,6 @@ const UNHASHED = {
   'assets/js/oak-i18n-en.js': SHORT,
   'assets/js/oak-i18n.js': SHORT,
   'assets/js/oak-tailwind-config.js': SHORT,
-  'assets/images/beauty-map-face.webp': SHORT,
-  'assets/images/beauty-map-hand.webp': SHORT,
   'assets/images/favicon.png': SHORT,
   'assets/images/hero-banner.webp': SHORT,
   // The two the manifest names, under names it names them by: a hash in either would have

@@ -17,7 +17,7 @@ const pages = fs.readdirSync(ui).filter((name) => name.endsWith('.html')).sort()
 /* The account area, the partner console, the auth screens, the two redirect stubs and the one
    hard-coded salon sample. Behind a login or a redirect, so an indexed copy is an empty page. */
 const PRIVATE = [
-  'bao-cao-doanh-thu.html', 'cai-dat-salon.html', 'cai-dat.html', 'dang-ky.html',
+  'cai-dat-salon.html', 'cai-dat.html', 'dang-ky.html',
   'dang-nhap-doi-tac.html', 'dang-nhap-nguoi-dung.html', 'dang-nhap-nhan-vien.html',
   'danh-gia-cua-toi.html',
   'danh-gia-salon.html', 'danh-sach-salon.html', 'dat-lai-mat-khau.html', 'dat-lich.html', 'ho-so-ca-nhan.html',
@@ -40,7 +40,7 @@ const appJs = readServer('app.js');
 test('exactly the private pages are noindexed', () => {
   const noindexed = pages.filter((page) => /<meta content="noindex,nofollow" name="robots">/.test(readUi(page)));
   assert.deepEqual(noindexed, [...PRIVATE].sort());
-  assert.equal(noindexed.length, 25);
+  assert.equal(noindexed.length, 24);
 });
 
 test('robots.txt keeps crawlers out of the API, the uploads and every private page', () => {
@@ -61,7 +61,7 @@ test('robots.txt keeps crawlers out of the API, the uploads and every private pa
 
 test('sitemap.xml lists the public pages and nothing behind a login', () => {
   const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
-  assert.equal(locs.length, 17);
+  assert.equal(locs.length, 16);
   assert.ok(new Set(locs).size === locs.length, 'a URL is listed twice');
 
   const origin = robots.match(/^Sitemap: (https:\/\/[^\s]+)\/sitemap\.xml$/m)[1];
@@ -81,7 +81,7 @@ test('sitemap.xml lists the public pages and nothing behind a login', () => {
 test('the page entries survive a checkout that lands sitemap.xml with CRLF', () => {
   /* The entry pattern ends on a bare \n, and this repo checks out with core.autocrlf=true — so
      on Windows the file arrives with CRLF and every entry falls out of the match. The route
-     still answers 200, with a map missing all fourteen pages, and nothing else would notice.
+     still answers 200, with a map missing all thirteen pages, and nothing else would notice.
      The shipped lines are run here over both spellings of the same file. */
   const source = appJs.replace(/\r\n/g, '\n');
   const from = source.indexOf('const SITEMAP_SHELL');
@@ -95,8 +95,8 @@ test('the page entries survive a checkout that lands sitemap.xml with CRLF', () 
   };
 
   const lf = parse(sitemap.replace(/\r\n/g, '\n'));
-  // The seventeen listed URLs less the three query-driven shells the route replaces.
-  assert.equal(lf.length, 14, 'the parse no longer yields one entry per public page');
+  // The sixteen listed URLs less the three query-driven shells the route replaces.
+  assert.equal(lf.length, 13, 'the parse no longer yields one entry per public page');
   const crlf = parse(sitemap.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n'));
   assert.equal(crlf.length, lf.length, 'a CRLF checkout of sitemap.xml drops page entries');
   assert.equal(crlf.join(''), lf.join(''));
@@ -266,8 +266,7 @@ test('the HTML site map sends a visitor somewhere that works', () => {
     assert.match(item.slice(0, item.indexOf('</li>')), /\(cần đăng nhập\)/, page);
   }
 
-  // The flagship branch page is a place, not a service category.
-  const categories = map.slice(map.indexOf('>Danh mục dịch vụ<'));
-  assert.doesNotMatch(categories.slice(0, categories.indexOf('</ul>')), /khong-gian-tien-ich/);
-  assert.match(map, /href="khong-gian-tien-ich\.html"/, 'the page is no longer listed at all');
+  // The flagship branch page is gone, and so is every way the map offered into it.
+  assert.doesNotMatch(map, /khong-gian-tien-ich/, 'the site map still links a page that is gone');
+  assert.doesNotMatch(map, /bao-cao-doanh-thu/, 'the site map never listed the report, and must not start');
 });

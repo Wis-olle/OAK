@@ -6003,7 +6003,7 @@ test('the address decides which page this is, and the two never fall through to 
   const bare = formerPage({ query: {} });
   await bare.init();
   assert.equal(bare.person, false);
-  assert.equal(bare.calls[0], '/api/salons?flagship=1&limit=1');
+  assert.equal(bare.calls[0], '/api/salons?sort=rating&limit=1');
 
   // ?id= is still a stint page, and asks the person route nothing.
   const byId = formerPage({ query: { id: '7' }, history: [{ ...STINT, staff_id: 7 }] });

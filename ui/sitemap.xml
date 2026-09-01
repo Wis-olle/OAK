@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <!-- chi-tiet-dich-vu.html, ho-so-chuyen-gia.html and salon-profile.html are query-driven
        shells: without ?slug / ?id / ?salon each renders a not-found panel. They are listed
-       because this static map is the 17 public pages; the real per-service and per-salon
+       because this static map is the 16 public pages; the real per-service and per-salon
        URLs come with the dynamic sitemap, which replaces these three entries rather than
        adding to them. -->
   <url>
@@ -59,11 +59,6 @@
     <loc>https://oakbeauty.vn/ket-qua-tim-kiem.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://oakbeauty.vn/khong-gian-tien-ich.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://oakbeauty.vn/lien-he.html</loc>

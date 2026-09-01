@@ -659,7 +659,7 @@
                 this.reviewMeta = { total: reviews.meta.total, average: reviews.meta.average };
             },
 
-            /** ?id=, or the first technician of the flagship salon so the page is never empty. */
+            /** ?id=, or the first technician of the best-rated salon so the page is never empty. */
             async resolveId() {
                 const id = OAK.qs('id');
                 if (id) {
@@ -668,10 +668,14 @@
                 /* ?u= never reaches here — init() answers it off /api/technicians/:slug before
                    this runs. The fallback below is why that branch is taken first and not as
                    an afterthought: a link she pasted into Zalo landing here would open the
-                   flagship salon's first technician, under her name, with somebody else's bio,
+                first technician of some salon, under her name, with somebody else's bio,
                    gallery and booking button. A bare visit with no parameter at all keeps the
-                   fallback — nobody was named, so nobody can be got wrong. */
-                const [salon] = await OAK.api('/api/salons?flagship=1&limit=1');
+                   fallback — nobody was named, so nobody can be got wrong.
+                   Which salon it is was s.flagship, a column nothing but the seed ever writes,
+                   so on a real deployment this answered with nothing and the page was empty for
+                   every bare visit. Best-rated instead: earned by the reviews rather than typed
+                   into a fixture, and the same rule the category pages already pick by. */
+                const [salon] = await OAK.api('/api/salons?sort=rating&limit=1');
                 const staff = salon ? await OAK.api('/api/salons/' + salon.id + '/staff') : [];
                 if (!staff.length) {
                     /* Same code the API answers a bad id with, so it lands on the same panel

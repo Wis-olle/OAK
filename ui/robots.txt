@@ -10,7 +10,6 @@ Disallow: /uploads/
 # carries <meta name="robots" content="noindex,nofollow">, and that meta is the authoritative
 # signal: a crawler that obeys a Disallow never fetches the page, so it never reads the meta.
 # Keep the two lists in step; do not replace one half with the other.
-Disallow: /bao-cao-doanh-thu.html
 Disallow: /cai-dat-salon.html
 Disallow: /cai-dat.html
 Disallow: /dang-ky.html

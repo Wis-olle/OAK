@@ -1,8 +1,7 @@
 /*
  * The platform surfaces that hold the site together and show up nowhere on screen: the web
  * app manifest and the tags that point at it, the one line a reader without scripting gets,
- * the way in to Beauty Map, and the salon owner's own account inside the console. Every one
- * of them breaks silently
+ * and the salon owner's own account inside the console. Every one of them breaks silently
  * — an unreachable manifest is still a page that renders — so they are pinned here.
  */
 import test from 'node:test';
@@ -18,7 +17,7 @@ const ui = path.join(root, 'ui');
 
 /* The same split robots.txt, ui/sitemap.xml and server/test/seo-ui.test.mjs are built on. */
 const PRIVATE = [
-  'bao-cao-doanh-thu.html', 'cai-dat-salon.html', 'cai-dat.html', 'dang-ky.html',
+  'cai-dat-salon.html', 'cai-dat.html', 'dang-ky.html',
   'dang-nhap-doi-tac.html', 'dang-nhap-nguoi-dung.html', 'dang-nhap-nhan-vien.html',
   'danh-gia-cua-toi.html',
   'danh-gia-salon.html', 'danh-sach-salon.html', 'dat-lai-mat-khau.html', 'dat-lich.html',
@@ -30,10 +29,10 @@ const PRIVATE = [
 const pages = fs.readdirSync(ui).filter((name) => name.endsWith('.html')).sort();
 const PUBLIC = pages.filter((page) => !PRIVATE.includes(page) && page !== '404.html');
 
-/** The six pages of the partner console, which carry their own bar rather than the customer one. */
+/** The five pages of the partner console, which carry their own bar rather than the customer one. */
 const CONSOLE = [
   'tong-quan-doi-tac.html', 'quan-ly-lich-hen.html', 'quan-ly-dich-vu.html',
-  'quan-ly-nhan-vien.html', 'bao-cao-doanh-thu.html', 'cai-dat-salon.html',
+  'quan-ly-nhan-vien.html', 'cai-dat-salon.html',
 ];
 
 /**
@@ -127,24 +126,14 @@ test('every public page says something without scripting, and says the same thin
   }
 });
 
-test('Beauty Map has an address of its own, so a deep link can still reach it', () => {
+/* Beauty Map was two portraits of hotspots above the first bookable salon — two screens
+   of scrolling on a phone, which is why the salons had to be reordered around it. It is
+   gone, and so is the reordering: the bookable salons lead the page in the markup. */
+test('the bookable salons lead the page, with nothing reordered around them', () => {
   const home = readUi('kham-pha.html');
-  assert.match(home, /<section[^>]*id="beauty-map"/, 'the section cannot be linked to');
-});
-
-test('on a phone the bookable salons come before the two-screen picture', () => {
-  const home = readUi('kham-pha.html');
-  const map = home.indexOf('id="beauty-map"');
-  const salons = home.indexOf('Salon được đánh giá cao');
-  assert.ok(map < salons, 'the sections are no longer in this order in the markup');
-
-  // Which is why the order is set in CSS: below md the salons are first, from md the
-  // reading order of the markup comes back.
-  const section = (marker) => home.slice(home.lastIndexOf('<section', home.indexOf(marker)));
-  assert.match(section('id="beauty-map"').slice(0, 400), /order-2 md:order-1/);
-  assert.match(section('Salon được đánh giá cao').slice(0, 400), /order-1 md:order-2/);
-  // order-* only means anything inside a flex or grid container.
-  assert.match(home.slice(0, map), /<div class="flex flex-col gap-section-gap mb-section-gap">/);
+  assert.doesNotMatch(home, /beauty-(map|zone|pin)/, 'the Beauty Map is back on the home page');
+  assert.doesNotMatch(home, /order-1 md:order-2|order-2 md:order-1/);
+  assert.ok(home.indexOf('Salon được đánh giá cao') < home.indexOf('Salon mới tham gia'));
 });
 
 test('the home strip only calls itself top-rated while something under it is rated', () => {
