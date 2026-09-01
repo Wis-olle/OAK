@@ -372,6 +372,8 @@ window.OAK_I18N_EN = {
   "Ưu đãi chào mừng": "Welcome offer",
   "Tặng khách mới 20% cho lần đầu (30 ngày)": "Give new customers 20% off their first visit (30 days)",
   "Chi phí ưu đãi do salon chịu. Bật: mã riêng của salon bạn xuất hiện trong mục Ưu đãi ngay sau khi lưu. Tắt: mã ngừng áp dụng cho khách.": "The discount comes out of your own margin. On: your salon’s own code appears under Offers as soon as you save. Off: the code stops applying for customers.",
+  "Đường dẫn trang salon": "Salon page link",
+  "Đường dẫn đi theo tên salon cho tới khi bạn bật hiển thị, sau đó được giữ nguyên.": "The link follows the salon name until you switch listing on; after that it stays as it is.",
   "Cài đặt - OAK Beauty": "Settings - OAK Beauty",
   "Ngôn ngữ hiển thị và bảo mật tài khoản của bạn.": "Your display language and account security.",
   "Ngôn ngữ hiển thị": "Display language",

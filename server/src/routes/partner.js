@@ -56,7 +56,7 @@ import {
 import { httpError, requireAuth, requirePartner } from '../middleware/auth.js';
 // The recovery hatch for a technician who has lost their password is auth.js's machinery —
 // its table, its TTL, its origin rule, its mailer — so it is imported rather than rebuilt.
-import { deliverResetLink, mintResetIn } from './auth.js';
+import { deliverResetLink, mintResetIn, uniqueSalonSlug } from './auth.js';
 
 const router = express.Router();
 
@@ -3675,6 +3675,19 @@ router.patch('/salon', async (req, res, next) => {
     const staysPublished = Object.hasOwn(body, 'published')
       ? SALON_COLUMNS.published(body.published) === 1
       : salon.published === 1;
+    /* The address the public page lives at follows the name, but only while nobody has been
+       given it. Once the salon is on OAK its slug is in customers' history, in the sitemap,
+       in whatever the salon has printed and in every link it has sent — so it is frozen
+       there, and a rename changes the name alone. A draft's address is nobody's yet, so a
+       rename moves it, under the same unique-suffix rule registration mints by.
+
+       Read from the row as it was BEFORE this save: a request that renames and publishes at
+       once is renaming a draft, and the freeze starts with the salon being listed. */
+    const renamedTo =
+      Object.hasOwn(body, 'name') && salon.published !== 1
+        ? SALON_COLUMNS.name(body.name)
+        : null;
+    const movesSlug = renamedTo !== null && renamedTo !== salon.name;
     const hours = body.hours === undefined ? null : parseSalonHours(body.hours);
     const socialLinks = body.social_links === undefined ? null : parseSocialLinks(body.social_links);
     // buildPatch refuses an empty SET clause, so it only runs when the body really
@@ -3712,6 +3725,13 @@ router.patch('/salon', async (req, res, next) => {
           await tx.run(INSERT_SALON_HOURS, salon.id, day.weekday, day.start, day.end, day.is_off);
         }
         await tx.run(UPDATE_SALON_SUMMARY, ...hoursSummary(hours), salon.id);
+      }
+      if (movesSlug) {
+        await tx.run(
+          'UPDATE salons SET slug = ? WHERE id = ?',
+          await uniqueSalonSlug(tx, renamedTo, salon.id),
+          salon.id,
+        );
       }
       if (socialLinks) {
         await tx.run(DELETE_SALON_SOCIAL_LINKS, salon.id);

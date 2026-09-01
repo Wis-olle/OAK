@@ -5,6 +5,7 @@ import { SERVICE_CARD_COLUMNS, toServiceCard } from '../lib/cards.js';
 import { calendarServiceSlots, getServiceSlots, loadDayCalendar } from '../lib/availability.js';
 import { exceptBookingIdFor } from '../lib/except-booking.js';
 import { parsePagination } from '../lib/query.js';
+import { salonVisibleTo } from '../lib/salon-visibility.js';
 import { addDaysISO, isISODate, todayISO } from '../lib/time.js';
 import { httpError } from '../middleware/auth.js';
 
@@ -47,7 +48,8 @@ const selectServiceDetail = db.prepare(`
          s.address AS salon_address, s.image AS salon_image, s.phone AS salon_phone,
          s.open_time AS salon_open_time, s.close_time AS salon_close_time,
          (SELECT ROUND(AVG(r.rating), 1) FROM reviews r WHERE r.salon_id = s.id) AS salon_rating,
-         (SELECT COUNT(*) FROM reviews r WHERE r.salon_id = s.id) AS salon_review_count
+         (SELECT COUNT(*) FROM reviews r WHERE r.salon_id = s.id) AS salon_review_count,
+         s.owner_id AS salon_owner_id, s.published AS salon_published
   ${SERVICE_SOURCE}
   WHERE sv.id = ? AND sv.active = 1
 `);
@@ -302,7 +304,9 @@ router.get('/:id', async (req, res, next) => {
     const row = /^\d+$/.test(req.params.id)
       ? await selectServiceDetail.get(Number(req.params.id))
       : null;
-    if (!row) {
+    // A draft salon's menu is the draft salon: this page names the price, the salon and
+    // its address. Owner only, the same as the profile it hangs off.
+    if (!row || !(await salonVisibleTo(req, row.salon_published, row.salon_owner_id))) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy dịch vụ này.');
     }
 

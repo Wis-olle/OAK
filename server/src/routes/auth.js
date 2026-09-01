@@ -142,7 +142,11 @@ const retireUserResets = db.prepare(RETIRE_USER_RESETS);
 // password can never leave the session cut-off behind. Epoch seconds, to match a JWT's iat.
 const UPDATE_PASSWORD =
   'UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?';
-const SELECT_SALON_BY_SLUG = 'SELECT 1 FROM salons WHERE slug = ?';
+/* IS DISTINCT FROM, so a null `exceptSalonId` excludes nothing and registration asks the
+   plain question. A rename passes its own id: a name that slugifies to the address the salon
+   already holds must not be told that address is taken and walk to -2. */
+const SELECT_SALON_BY_SLUG =
+  'SELECT 1 FROM salons WHERE slug = ? AND id IS DISTINCT FROM ?::int';
 const INSERT_USER =
   'INSERT INTO users (name, email, phone, password_hash, role, avatar, created_at, consent_at, marketing_opt_in) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)';
 // verified = 1: there is no manual approval step to wait for. The salon is still unlisted
@@ -155,12 +159,18 @@ const INSERT_SALON =
 // tell a guess apart from a city the owner typed (routes/import-salon.js, deciding whether
 // it may write a location over this one) reads the same string rather than its own copy.
 export const REGISTRATION_CITY = 'TP.HCM';
-/** Append -2, -3, ... until the slug is free. Runs inside the register transaction. */
-async function uniqueSalonSlug(tx, name) {
+/**
+ * Append -2, -3, ... until the slug is free. Runs inside the caller's transaction.
+ *
+ * Exported because registration is no longer the only place an address is minted: renaming
+ * a salon that is still a draft moves its address too (routes/partner.js), and the two must
+ * mint by one rule — a second copy of this loop is a second answer to "is this taken".
+ */
+export async function uniqueSalonSlug(tx, name, exceptSalonId = null) {
   const base = slugify(name) || 'salon';
   let slug = base;
   let suffix = 1;
-  while (await tx.get(SELECT_SALON_BY_SLUG, slug)) {
+  while (await tx.get(SELECT_SALON_BY_SLUG, slug, exceptSalonId)) {
     suffix += 1;
     slug = `${base}-${suffix}`;
   }

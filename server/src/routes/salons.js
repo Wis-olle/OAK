@@ -9,6 +9,7 @@ import {
 } from '../lib/cards.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
 import { SOCIAL_PROFILE_PLATFORMS } from '../lib/social-profile.js';
+import { salonVisibleTo } from '../lib/salon-visibility.js';
 import { bestMatchTier, countMatchedTokens, searchTokens } from '../lib/text.js';
 import { httpError } from '../middleware/auth.js';
 
@@ -34,17 +35,20 @@ const SORTS = {
 };
 const DEFAULT_SORT = 's.featured DESC, s.flagship DESC, s.id';
 
+// owner_id and published ride along for the draft gate below and are read there only:
+// toSalonProfile names every field it answers with, so neither reaches a client.
 const SALON_DETAIL_COLUMNS = `
   ${SALON_CARD_COLUMNS},
   s.description, s.phone, s.open_time, s.close_time, s.featured, s.flagship, s.amenities,
-  s.tour_url, s.created_at, s.cancel_cutoff_hours, s.cancel_policy_text
+  s.tour_url, s.created_at, s.cancel_cutoff_hours, s.cancel_policy_text,
+  s.owner_id, s.published
 `;
 
 const selectSalonById = db.prepare(`SELECT ${SALON_DETAIL_COLUMNS} FROM salons s WHERE s.id = ?`);
 const selectSalonBySlug = db.prepare(
   `SELECT ${SALON_DETAIL_COLUMNS} FROM salons s WHERE s.slug = ?`,
 );
-const selectSalonExists = db.prepare('SELECT 1 FROM salons WHERE id = ?');
+const selectSalonGate = db.prepare('SELECT owner_id, published FROM salons WHERE id = ?');
 
 const selectSalonHours = db.prepare(`
   SELECT weekday, "start" AS start, "end" AS end, is_off
@@ -107,10 +111,17 @@ function filterValue(value) {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 }
 
-/** Resolve a :id path segment to an existing salon id, or 404. */
-async function salonIdOrThrow(value) {
+/**
+ * Resolve a :id path segment to a salon this caller may read, or 404.
+ *
+ * A draft answers 404 to everyone but its owner — the same answer a salon that does not
+ * exist gets, because "there is a salon here you may not see" is itself something the
+ * owner has not published. See lib/salon-visibility.js.
+ */
+async function salonIdOrThrow(req, value) {
   const id = Number.parseInt(value, 10);
-  if (!Number.isInteger(id) || !(await selectSalonExists.get(id))) {
+  const row = Number.isInteger(id) ? await selectSalonGate.get(id) : null;
+  if (!row || !(await salonVisibleTo(req, row.published, row.owner_id))) {
     throw httpError(404, 'NOT_FOUND', 'Không tìm thấy salon này.');
   }
   return id;
@@ -145,10 +156,9 @@ router.get('/', async (req, res, next) => {
     // the older rows, so this matches every row today. It stays as the one switch that would
     // take a salon off the public list if a real verification flow ever returns.
     // published is the switch that does bite: a salon signs up unlisted and its owner turns
-    // it on from the console once the profile is worth showing. GET /:idOrSlug below is
-    // deliberately left open to anyone holding the link — not just the owner — because that
-    // is what makes the console's "xem trước" preview a plain page load with no second code
-    // path. A draft is reachable only by a slug nothing public links to.
+    // it on from the console once the profile is worth showing. GET /:idOrSlug below reads
+    // the same switch, and answers a draft only to the owner's own cookie — the console's
+    // "xem trước" is that owner, so the preview is still a plain page load.
     const conditions = ['s.verified = 1', 's.published = 1'];
     const params = [];
 
@@ -226,7 +236,7 @@ router.get('/', async (req, res, next) => {
 // swallow a more specific path.
 router.get('/:id/photos', async (req, res, next) => {
   try {
-    const photos = await selectPhotos.all(await salonIdOrThrow(req.params.id));
+    const photos = await selectPhotos.all(await salonIdOrThrow(req, req.params.id));
     res.json({ success: true, data: photos, meta: { total: photos.length } });
   } catch (error) {
     next(error);
@@ -236,7 +246,7 @@ router.get('/:id/photos', async (req, res, next) => {
 router.get('/:id/services', async (req, res, next) => {
   try {
     const conditions = ['sv.salon_id = ?', 'sv.active = 1'];
-    const params = [await salonIdOrThrow(req.params.id)];
+    const params = [await salonIdOrThrow(req, req.params.id)];
 
     const category = filterValue(req.query.category);
     if (category) {
@@ -265,7 +275,7 @@ router.get('/:id/services', async (req, res, next) => {
 
 router.get('/:id/staff', async (req, res, next) => {
   try {
-    const rows = await selectSalonStaff.all(await salonIdOrThrow(req.params.id));
+    const rows = await selectSalonStaff.all(await salonIdOrThrow(req, req.params.id));
     res.json({ success: true, data: rows, meta: { total: rows.length } });
   } catch (error) {
     next(error);
@@ -274,7 +284,7 @@ router.get('/:id/staff', async (req, res, next) => {
 
 router.get('/:id/reviews', async (req, res, next) => {
   try {
-    const salonId = await salonIdOrThrow(req.params.id);
+    const salonId = await salonIdOrThrow(req, req.params.id);
     const { page, limit, offset } = parsePagination(req.query, REVIEW_LIMIT);
 
     // average and breakdown answer for every review of the salon; the rating filter below
@@ -343,8 +353,9 @@ router.get('/:id/reviews', async (req, res, next) => {
   }
 });
 
-// Open on purpose, drafts included: see the note in GET / above. The listing, the search
-// and the map are what published = 1 gates; this route is the preview link behind it.
+// A draft answers only to its owner, by id and by slug alike: the slug is built out of the
+// salon's name and is guessable, so "reachable only by a link nothing points at" was never
+// true. See lib/salon-visibility.js.
 router.get('/:idOrSlug', async (req, res, next) => {
   try {
     const { idOrSlug } = req.params;
@@ -352,7 +363,7 @@ router.get('/:idOrSlug', async (req, res, next) => {
       ? await selectSalonById.get(Number(idOrSlug))
       : await selectSalonBySlug.get(idOrSlug);
 
-    if (!row) {
+    if (!row || !(await salonVisibleTo(req, row.published, row.owner_id))) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy salon này.');
     }
     res.json({ success: true, data: await toSalonProfile(row) });

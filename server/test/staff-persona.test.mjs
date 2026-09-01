@@ -315,7 +315,10 @@ test('the owner-triggered recovery mails the technician and tells the owner noth
   // The reset table, through auth.js's own machinery — never a staff_invites row.
   assert.match(claimed, /resetToken = await mintResetIn\(tx, staff\.user_id\)/);
   assert.doesNotMatch(claimed, /INSERT_STAFF_INVITE|inviteUrl|RETIRE_STAFF_INVITES/);
-  assert.match(partnerSource, /import \{ deliverResetLink, mintResetIn \} from '\.\/auth\.js';/);
+  assert.match(
+    partnerSource,
+    /import \{ deliverResetLink, mintResetIn, uniqueSalonSlug \} from '\.\/auth\.js';/,
+  );
   // Delivered after the commit: a mail sent for a rolled-back transaction points at a
   // token that was never written.
   assert.ok(claimed.indexOf('db.withTransaction') < claimed.indexOf('await deliverResetLink('));

@@ -260,6 +260,14 @@
 <span class="font-caption text-caption">Bật: salon lên danh sách, tìm kiếm và bản đồ. Tắt: chỉ bạn mở được trang salon bằng đường dẫn của mình.</span>
 </span>
 </label>
+<!-- The address customers will be given. It follows the salon name while the salon is a
+     draft and is frozen the moment it goes on OAK, so the note under it is only shown
+     while the address can still move. -->
+<p class="font-caption text-caption text-on-surface-variant mt-6" x-cloak x-show="slug">
+<span>Đường dẫn trang salon</span>
+<span class="block text-primary break-all mt-1" x-text="publicUrl()"></span>
+</p>
+<p class="font-caption text-caption text-on-surface-variant mt-2" x-cloak x-show="slug &amp;&amp; published !== 1">Đường dẫn đi theo tên salon cho tới khi bạn bật hiển thị, sau đó được giữ nguyên.</p>
 <p class="font-caption text-caption text-on-surface-variant mt-8 mb-2">
 <span>Điều kiện tối thiểu</span> <span x-text="(publishChecks().length - missingToPublish().length) + '/' + publishChecks().length"></span>
 </p>
@@ -1555,6 +1563,12 @@
 
             weekdayLabel(weekday) {
                 return WEEKDAY_LABELS[weekday];
+            },
+
+            /* Where the salon page answers, written out in full: the owner is about to put
+               this on a card, and half of it is not something anybody can type. */
+            publicUrl() {
+                return location.origin + '/salon-profile.html?salon=' + this.slug;
             },
 
             /* ---- days off ---- */

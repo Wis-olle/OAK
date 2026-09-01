@@ -2320,8 +2320,13 @@ async function groupBookings() {
 
   await theClockClosesTheDayOut({ customer, partner, stranded, walkInBooking });
 
+  // force: the group booked hours outside this week while the salon was open round the
+  // clock, and putting the week back is the save that would strand them.
   ok(
-    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: salonHours } }),
+    await partner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { hours: salonHours, force: true },
+    }),
     'PATCH /api/partner/salon (restore the hours the booking group started from)',
   );
 
@@ -4268,11 +4273,19 @@ async function groupAuthz() {
       hidden,
     );
   }
-  // Its owner still has somewhere to preview it: the profile route answers by slug.
-  const draftProfile = await session('guest').fetch(`/api/salons/${ownSalon.slug}`);
+  // Its owner still has somewhere to preview it, and only its owner: the slug is built out
+  // of the salon's name, so "reachable only by a link nothing points at" was never true.
+  // Group 20f is where the whole gate is swept.
+  expectError(
+    await session('guest').fetch(`/api/salons/${ownSalon.slug}`),
+    404,
+    'NOT_FOUND',
+    'GET /api/salons/:slug for a draft, as a stranger',
+  );
+  const draftProfile = await applicant.fetch(`/api/salons/${ownSalon.slug}`);
   assert(
-    ok(draftProfile, 'GET /api/salons/:slug for a draft').id === ownSalon.id,
-    'a draft salon must stay reachable by its own slug',
+    ok(draftProfile, 'GET /api/salons/:slug for a draft, as its owner').id === ownSalon.id,
+    'a draft salon must stay reachable by its own owner',
     draftProfile,
   );
 
@@ -7921,7 +7934,9 @@ async function groupStaffPersona() {
         draftBooking.id,
       ]);
 
-      const draftStatsResponse = await session('guest').fetch(`/api/staff/${draftTech.id}`);
+      // Read by its owner: a draft salon's roster answers 404 to everybody else (group 20f),
+      // and what is under test here is which tier the visit is counted in.
+      const draftStatsResponse = await draftOwner.fetch(`/api/staff/${draftTech.id}`);
       const draftStats = ok(draftStatsResponse, 'GET /api/staff/:id (at the unlisted salon)').stats;
       assert(
         draftStats.verified_count === 0,
@@ -9768,6 +9783,21 @@ async function groupStaffDeparture() {
     coverRow,
   );
 
+  /* And on OAK from here on. Everything below reads the technicians' own pages as a
+     stranger would, and a draft salon's roster now answers 404 to strangers (group 20f) —
+     which is a fact about the salon's switch, not about the stints this group is pinning. */
+  ok(
+    await leaverSalon.owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { address: '4 Chia Tay, Quận 1', image: 'assets/images/img-d469cbe2a5.jpg' },
+    }),
+    'PATCH /api/partner/salon (what Salon Chia Tay needs to go live)',
+  );
+  ok(
+    await leaverSalon.owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (Salon Chia Tay goes live)',
+  );
+
   const leaver = await claimAsNewAccount(
     leaverSalon.owner, leaverRow.id, 'KTV Ra Đi', `leaver${stamp}@oak.invalid`,
   );
@@ -10000,20 +10030,7 @@ async function groupStaffDeparture() {
   const sweepDate = addDays(state.today, 4);
   /* And she books it herself. A number typed at a counter no longer writes an appointment
      into an account that has never finished a visit at that salon (group 20d), so the one
-     appointment this sweep has to tell a CUSTOMER about has to be one the customer made.
-     The salon is lifted onto OAK for exactly that request and put straight back, because
-     everything else here is about a draft salon's own console. */
-  ok(
-    await leaverSalon.owner.fetch('/api/partner/salon', {
-      method: 'PATCH',
-      json: { address: '4 Chia Tay, Quận 1', image: 'assets/images/img-d469cbe2a5.jpg' },
-    }),
-    'PATCH /api/partner/salon (what Salon Chia Tay still needs to go live)',
-  );
-  ok(
-    await leaverSalon.owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
-    'PATCH /api/partner/salon (Salon Chia Tay goes live)',
-  );
+     appointment this sweep has to tell a CUSTOMER about has to be one the customer made. */
   const handedOn = ok(
     await strandedCustomer.fetch('/api/bookings', {
       method: 'POST',
@@ -10026,10 +10043,6 @@ async function groupStaffDeparture() {
       },
     }),
     'POST /api/bookings (the appointment somebody can take)',
-  );
-  ok(
-    await leaverSalon.owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 0 } }),
-    'PATCH /api/partner/salon (Salon Chia Tay back to draft)',
   );
   const stranded = await walkIn(leaverRow.id, sweepDate, '14:00', 'the appointment nobody is free for');
   await walkIn(coverRow.id, sweepDate, '14:00', 'the hour that makes the cover unavailable');
@@ -10574,6 +10587,19 @@ async function groupStaffDeparture() {
     'POST /api/partner/services (at the second salon)',
   );
   const secondRow = await hire(secondSalon.owner, 'KTV Ra Đi', secondService.id);
+  // On OAK, for the reason Salon Chia Tay is: the closed-stint page below is read as a
+  // stranger, and a draft salon's roster answers a stranger 404 (group 20f).
+  ok(
+    await secondSalon.owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { address: '6 Thứ Hai, Quận 1', image: 'assets/images/img-d469cbe2a5.jpg' },
+    }),
+    'PATCH /api/partner/salon (what Salon Thứ Hai needs to go live)',
+  );
+  ok(
+    await secondSalon.owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (Salon Thứ Hai goes live)',
+  );
   const secondToken = await inviteTo(secondSalon.owner, secondRow.id, 'the second salon');
   ok(
     await leaver.fetch('/api/staff-me/claim', { method: 'POST', json: { token: secondToken } }),
@@ -12441,6 +12467,148 @@ async function groupClosedDays() {
 }
 
 /* ============================================================================
+ * 20f — the address a salon's page answers at, and who may open it
+ *
+ * Two decisions about the same URL. A salon that has not been switched on is a DRAFT, and
+ * its profile, photos, menu, roster and reviews answer 404 to everybody but its owner —
+ * the console's "chỉ bạn mở được trang salon bằng đường dẫn của mình" is now true, where it
+ * used to be a slug anybody could guess out of the salon's name. And the address itself
+ * follows the name while the salon is a draft and is frozen once it is on OAK, because from
+ * then on it is in customers' history, in the sitemap and on whatever the salon printed.
+ * ========================================================================= */
+
+async function groupSalonAddress() {
+  const stamp = Date.now();
+  const guest = session('guest');
+  const other = session('partnerB');
+  const owner = new Session();
+  ok(
+    await owner.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Chủ Salon Đổi Tên',
+        email: `rename${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        role: 'partner',
+        salon_name: `Salon Đổi Tên ${stamp}`,
+        consent: true,
+      },
+    }),
+    'register the owner of the salon that will be renamed',
+  );
+  const draft = ok(await owner.fetch('/api/partner/salon'), 'the draft salon');
+  assert(draft.published === 0, 'a self-registered salon starts as a draft');
+  assert(draft.slug === `salon-doi-ten-${stamp}`, 'the address is minted from the name', draft);
+  state.selfRegisteredSalonIds = [...(state.selfRegisteredSalonIds ?? []), draft.id];
+
+  /* -- the address follows the name while nobody has been given it ------------- */
+
+  const renamed = ok(
+    await owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { name: `Tiệm Mới ${stamp}` },
+    }),
+    'PATCH /api/partner/salon (renaming a draft)',
+  );
+  assert(
+    renamed.slug === `tiem-moi-${stamp}`,
+    'a draft that is renamed takes an address made from the new name',
+    renamed,
+  );
+  // And a save that does not change the name does not move the address either — a rename
+  // to what it already says must not walk the salon to "-2".
+  const resaved = ok(
+    await owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { name: `Tiệm Mới ${stamp}`, phone: '0900 000 909' },
+    }),
+    'PATCH /api/partner/salon (the same name again)',
+  );
+  assert(resaved.slug === renamed.slug, 'a name that has not changed leaves the address alone');
+
+  /* -- and until it is switched on, the page is the owner's alone -------------- */
+
+  const service = ok(
+    await owner.fetch('/api/partner/services', {
+      method: 'POST',
+      json: { category: 'nail', name: 'Sơn gel kín đáo', price: 180000, duration_min: 45 },
+    }),
+    'POST /api/partner/services (the draft menu)',
+  );
+  const staff = ok(
+    await owner.fetch('/api/partner/staff', { method: 'POST', json: { name: 'KTV Kín Đáo' } }),
+    'POST /api/partner/staff (the draft roster)',
+  );
+
+  const draftReads = [
+    [`/api/salons/${renamed.slug}`, 'the profile by slug'],
+    [`/api/salons/${draft.id}`, 'the profile by id'],
+    [`/api/salons/${draft.id}/photos`, 'the photos'],
+    [`/api/salons/${draft.id}/services`, 'the menu'],
+    [`/api/salons/${draft.id}/staff`, 'the roster'],
+    [`/api/salons/${draft.id}/reviews`, 'the reviews'],
+    [`/api/services/${service.id}`, 'one service of it'],
+    [`/api/staff/${staff.id}`, 'one chair of it'],
+  ];
+  for (const [route, label] of draftReads) {
+    expectError(await guest.fetch(route), 404, 'NOT_FOUND', `${label} of a draft, as a stranger`);
+    expectError(
+      await other.fetch(route),
+      404,
+      'NOT_FOUND',
+      `${label} of a draft, as another partner`,
+    );
+    ok(await owner.fetch(route), `${label} of a draft, as its owner`);
+  }
+
+  /* -- switched on: the page opens to everybody, and the address stops moving --- */
+
+  ok(
+    await owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { address: '5 Đổi Tên, Quận 1', image: 'assets/images/img-d469cbe2a5.jpg' },
+    }),
+    'PATCH /api/partner/salon (what the draft still needs to go live)',
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { hours: weekClosedOn(-1) },
+    }),
+    'PATCH /api/partner/salon (the draft week)',
+  );
+  ok(
+    await owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (the draft goes live)',
+  );
+  for (const [route, label] of draftReads) {
+    ok(await guest.fetch(route), `${label}, once the salon is on OAK`);
+  }
+
+  const renamedAgain = ok(
+    await owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { name: `Tiệm Đã Lên Sàn ${stamp}` },
+    }),
+    'PATCH /api/partner/salon (renaming a listed salon)',
+  );
+  assert(
+    renamedAgain.name === `Tiệm Đã Lên Sàn ${stamp}`,
+    'a listed salon may still change the name it is shown under',
+    renamedAgain,
+  );
+  assert(
+    renamedAgain.slug === renamed.slug,
+    'but its address is frozen: customers hold it, and the sitemap points at it',
+    renamedAgain,
+  );
+  ok(
+    await guest.fetch(`/api/salons/${renamed.slug}`),
+    'and the address customers hold still answers after the rename',
+  );
+}
+
+/* ============================================================================
  * 21 — the two doors that answer "is this number taken", rationed together
  *
  * LAST IN THE SUITE, and it has to be. This group deliberately spends the whole per-address
@@ -12635,6 +12803,7 @@ async function main() {
   await group('20c one hour, one technician', groupDoubleBooking);
   await group('20d the number typed at the counter', groupWalkInAttach);
   await group('20e a day taken off the calendar', groupClosedDays);
+  await group('20f the address a salon answers at', groupSalonAddress);
   // Last, always: it spends the whole per-IP sign-up allowance and cannot give it back.
   await group('21 sign-up throttle', groupRegisterThrottle);
 }

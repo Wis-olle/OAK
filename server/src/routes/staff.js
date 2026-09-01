@@ -4,6 +4,7 @@ import { db } from '../db.js';
 import { getStaffSlots, getStaffWeek, staffCanDo, timeOffOn } from '../lib/availability.js';
 import { exceptBookingIdFor } from '../lib/except-booking.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
+import { salonVisibleTo } from '../lib/salon-visibility.js';
 import { careerOf, stintShape } from '../lib/staff-career.js';
 import { staffStats, VISIBLE_PROFILE } from '../lib/staff-stats.js';
 import { addDaysISO, isISODate, todayISO } from '../lib/time.js';
@@ -36,7 +37,7 @@ const selectStaffProfile = db.prepare(`
   SELECT st.id, st.user_id, st.name, st.title, st.specialty, st.bio, st.image, st.rating,
          st.years_experience, st.portfolio,
          s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name,
-         s.published AS salon_published
+         s.published AS salon_published, s.owner_id AS salon_owner_id
   FROM staff st
   JOIN salons s ON s.id = st.salon_id
   WHERE st.id = ? AND ${CLAIMED_OR_ON_ROSTER} AND ${VISIBLE_PROFILE}
@@ -363,7 +364,9 @@ router.get('/:id', async (req, res, next) => {
     const row = /^\d+$/.test(req.params.id)
       ? await selectStaffProfile.get(Number(req.params.id))
       : null;
-    if (!row) {
+    // The roster of a salon nobody has published is that salon's own business — this card
+    // is its team strip in miniature. Owner only, like the profile it belongs to.
+    if (!row || !(await salonVisibleTo(req, row.salon_published, row.salon_owner_id))) {
       throw httpError(404, 'NOT_FOUND', 'Không tìm thấy kỹ thuật viên này.');
     }
     const person = await personalHalf(row);
