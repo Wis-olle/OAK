@@ -1462,13 +1462,14 @@
                opening hours is allowed and said out loud, because it is nearly always a typo
                and occasionally on purpose — but it is no longer the only thing meta.warning
                carries: a clash the counter overruled comes back the same way. So the sentence
-               is chosen on the server's words rather than on the mere presence of a warning,
-               and the words shown are still the page's own, which is what gives them an
-               English twin like the rest of them. Success colour throughout — nothing
+               is chosen on meta.warning_code rather than on the server's Vietnamese, which
+               used to be compared here word for word and would have quietly stopped matching
+               the day somebody reworded it. The words shown are still the page's own, which
+               is what gives them an English twin like the rest of them. Success colour — nothing
                failed. */
             savedMessage(booking, prefix) {
-                var warning = booking.meta && booking.meta.warning;
-                return warning === 'Giờ hẹn nằm ngoài giờ mở cửa của salon.'
+                var meta = booking.meta;
+                return meta && meta.warning_code === 'OUTSIDE_HOURS'
                     ? 'Lịch hẹn đã lưu, ngoài giờ mở cửa của salon.'
                     : prefix + booking.code + '.';
             },

@@ -118,7 +118,7 @@ test('every public page says something without scripting, and says the same thin
 
   // One copy, swept by script: twenty hand-edited variants is how a phone number drifts.
   assert.equal(new Set(blocks).size, 1, 'the noscript block is not identical on every page');
-  assert.match(blocks[0], /href="tel:19006035"/, 'no number to call');
+  assert.match(blocks[0], /href="mailto:hello@oakbeauty\.vn"/, 'no address to write to');
   assert.match(blocks[0], /JavaScript/);
 
   // It belongs where a reader lands, not behind a login: the console and the account pages
@@ -136,14 +136,14 @@ test('Beauty Map has an address of its own, so a deep link can still reach it', 
 test('on a phone the bookable salons come before the two-screen picture', () => {
   const home = readUi('kham-pha.html');
   const map = home.indexOf('id="beauty-map"');
-  const salons = home.indexOf('Salon nổi bật gần bạn');
+  const salons = home.indexOf('Salon được đánh giá cao');
   assert.ok(map < salons, 'the sections are no longer in this order in the markup');
 
   // Which is why the order is set in CSS: below md the salons are first, from md the
   // reading order of the markup comes back.
   const section = (marker) => home.slice(home.lastIndexOf('<section', home.indexOf(marker)));
   assert.match(section('id="beauty-map"').slice(0, 400), /order-2 md:order-1/);
-  assert.match(section('Salon nổi bật gần bạn').slice(0, 400), /order-1 md:order-2/);
+  assert.match(section('Salon được đánh giá cao').slice(0, 400), /order-1 md:order-2/);
   // order-* only means anything inside a flex or grid container.
   assert.match(home.slice(0, map), /<div class="flex flex-col gap-section-gap mb-section-gap">/);
 });
@@ -263,20 +263,28 @@ test('a post can be sent to somebody who is not on OAK yet', () => {
 
 test('the about page shows salons that exist and admits when it cannot', () => {
   const about = readUi('gioi-thieu.html');
-  assert.match(about, /'\/api\/salons\?featured=1&limit=6'/);
+  // Sorted by rating, not by s.featured: that column is written by the seed and by nothing
+  // else, so a real salon could never reach this strip however well it was reviewed.
+  assert.match(about, /'\/api\/salons\?sort=rating&limit=6'/);
+  assert.doesNotMatch(about, /featured=1/, 'the about page is back on a seed-only column');
   // An empty list draws nothing; a failed request is a different answer and says so.
   assert.match(about, /x-show="partnersError \|\| partners\.length > 0"/);
   assert.match(about, /Không tải được danh sách salon\./);
   assert.match(about, /@click="loadPartners\(\)"/);
-  assert.match(about, /Không tải được số liệu\./);
-  assert.match(about, /@click="loadStats\(\)"/);
 
-  // The office, the hotline and the address are the contact page's, not invented here, and
-  // there is still no tax code because there is still no legal entity to name.
+  // The three counters above them are gone. "Salon đối tác: 6" was six demo salons the seed
+  // wrote, offered to a reader as traction; the openable names below are the same claim with
+  // evidence attached, and they are what is left of it.
+  assert.doesNotMatch(about, /loadStats\(\)/, 'the about page counts seeded salons again');
+  assert.doesNotMatch(about, /Salon đối tác<\/p>/, 'the partner counter is back');
+
+  // The office and the address are the contact page's, not invented here, and there is still
+  // no tax code because there is still no legal entity to name.
   assert.match(about, /Liên hệ &amp; địa chỉ/);
   assert.doesNotMatch(about, /Pháp nhân/, 'the heading promises an entity the cards do not name');
   assert.match(about, /Tầng 8, 72 Lê Thánh Tôn/);
-  assert.match(about, /href="tel:19006035"/);
+  assert.match(about, /href="mailto:hello@oakbeauty\.vn"/);
+  assert.doesNotMatch(about, /href="tel:/, 'the about page publishes a number nobody answers');
   assert.doesNotMatch(about, /MST|Mã số thuế/);
 });
 

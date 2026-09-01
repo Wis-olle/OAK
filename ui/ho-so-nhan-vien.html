@@ -246,14 +246,18 @@ Thông báo
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="content_copy">content_copy</span>
 Sao chép liên kết
 </button>
+<a :href="pageUrl()" class="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors shrink-0" rel="noopener noreferrer" target="_blank">
+<span aria-hidden="true" class="material-symbols-outlined text-[18px]" data-icon="open_in_new">open_in_new</span>
+Xem trang của bạn
+</a>
 </div>
 </div>
-<!-- Said plainly, because the address is real and the page at it is not open yet — it lands
-     in the next slice. A line calling this a live page would be a lie the technician finds out
-     about by pasting it to somebody; a line withholding the address would be OAK keeping her
-     own address from her. So she gets the address and the state of it, and is told which
-     surface is already carrying what she just published. -->
-<p class="font-caption text-caption text-on-surface-variant mt-4">Đây là địa chỉ riêng của trang bạn trên OAK. Trang tại địa chỉ này sắp mở cho người xem; trong lúc chờ, hồ sơ của bạn tại từng salon đã hiện những gì bạn vừa đăng. Bạn ẩn trang lại lúc nào cũng được ở phần Hiển thị công khai bên dưới.</p>
+<!-- Said plainly, because the address is real and the page at it now answers. It used to
+     say the page was still to come, which stopped being true the day ho-so-chuyen-gia.html
+     learned to read ?u= — and a line that undersells a live page is the same kind of wrong
+     as one that oversells a page that is not. So she gets the address, the state of it, and
+     a way to open it herself and see exactly what a reader sees. -->
+<p class="font-caption text-caption text-on-surface-variant mt-4">Đây là địa chỉ riêng của trang bạn trên OAK. Trang tại địa chỉ này đang công khai — ai có liên kết cũng mở được, và hồ sơ của bạn tại từng salon cũng hiện những gì bạn vừa đăng. Bạn ẩn trang lại lúc nào cũng được ở phần Hiển thị công khai bên dưới.</p>
 </div>
 </template>
 </div>
@@ -556,15 +560,15 @@ Sao chép liên kết
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-nhan-vien.html">Dành cho kỹ thuật viên</a>
 </div>
 </nav>
-<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
-     number answers when, and the hotline hours are the part a visitor needs before dialling.
-     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
-     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about who
+     answers or how soon, and how soon is the part a visitor needs before writing.
+     Only the one channel this project can prove answers: a hotline nobody staffs, or a Zalo
+     or Facebook address nobody has confirmed, is a dead 'contact us' on 33 pages, which is
+     worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
-<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
+<span class="font-caption text-caption text-on-tertiary/50">Phản hồi trong 1 ngày làm việc</span>
 </div>
 </div>
 <!-- Copyright. No tax code and no business-registration number here until there is a legal

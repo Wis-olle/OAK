@@ -317,7 +317,7 @@
     }],
     [/^(\d{1,2}:\d{2}) \(Kín\)$/, '$1 (Full)'],
 
-    [/^Không tải được salon nổi bật\. (.+)$/, 'Could not load the featured salons. $1'],
+    [/^Không tải được danh sách salon\. (.+)$/, "We couldn't load the salon list. $1"],
     [/^Không tải được salon mới\. (.+)$/, 'Could not load the new salons. $1'],
 
     /* -- the head of a search on ket-qua-tim-kiem.html: the criteria a reader picked, put

@@ -1243,8 +1243,8 @@
       return hours ? 'Hủy/đổi miễn phí đến trước ' + hours + ' tiếng' : TRUST.CANCEL_POLICY;
     },
     PAYMENT: 'Thanh toán tại salon, không cần cọc',
-    SUPPORT_HOURS: 'T2–T7 giờ hành chính · Hotline 1900 6035',
-    RESPONSE_SLA: '24 giờ làm việc',
+    SUPPORT_HOURS: 'Phản hồi trong 1 ngày làm việc · hello@oakbeauty.vn',
+    RESPONSE_SLA: '1 ngày làm việc',
   };
 
   window.OAK = {

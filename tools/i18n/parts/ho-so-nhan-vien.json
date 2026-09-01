@@ -1,9 +1,7 @@
 {
   "Hồ sơ của tôi - OAK Beauty": "My profile - OAK Beauty",
-
   "Thông báo chưa đọc": "Unread notifications",
   "Trang hồ sơ nghề nghiệp là của riêng bạn và chỉ ra công khai khi bạn đăng. Bên dưới là hồ sơ làm việc tại từng salon bạn đã nhận.": "Your professional page is yours alone and goes public only when you publish it. Below it is your working profile at each salon you have claimed.",
-
   "Trang hồ sơ nghề nghiệp": "Your professional page",
   "Một trang duy nhất về nghề của bạn, đi theo bạn qua mọi salon. Bạn tự viết, và trang chỉ ra công khai khi bạn bấm đăng.": "One page about your trade, and it follows you from salon to salon. You write it, and it goes public only when you press publish.",
   "Ảnh trên trang hồ sơ nghề nghiệp của bạn. Ảnh gốc tối đa 15MB, trang sẽ tự nén trước khi gửi.": "The photo on your professional page. Original images up to 15MB; the page compresses them before sending.",
@@ -12,12 +10,10 @@
   "Giới thiệu về bạn": "About you",
   "Vài dòng về tay nghề và phong cách của bạn, tối đa 1000 ký tự.": "A few lines about your craft and your style, 1000 characters at most.",
   "Đã lưu trang hồ sơ nghề nghiệp.": "Your professional page has been saved.",
-
   "Ảnh tác phẩm": "Portfolio photos",
   "Đã thêm": "Added",
   "Chưa có ảnh tác phẩm nào.": "No portfolio photos yet.",
   "Bạn đã dùng hết số ảnh tối đa. Hãy xóa bớt một ảnh trước khi thêm ảnh mới.": "You have used every slot. Remove a photo before adding a new one.",
-
   "Đăng trang": "Publish the page",
   "Trang này chưa đăng. Ngoài bạn ra chưa ai nhìn thấy những gì bạn viết ở trên, và hồ sơ của bạn tại mỗi salon vẫn đang hiện phần giới thiệu cũ.": "This page has not been published. Nobody but you has seen anything you wrote above, and your profile at each salon is still showing the old introduction.",
   "Khi bạn đăng, ảnh, chức danh, chuyên môn, số năm kinh nghiệm, giới thiệu và ảnh tác phẩm bạn viết ở trên sẽ nằm trên trang hồ sơ nghề nghiệp của bạn.": "When you publish, the photo, job title, specialty, years of experience, introduction and portfolio photos you wrote above go onto your professional page.",
@@ -25,12 +21,10 @@
   "Những con số OAK tự đếm được vẫn giữ nguyên, không đổi theo trang này.": "The figures OAK counts for itself stay exactly as they are; this page does not change them.",
   "Đăng rồi bạn vẫn ẩn trang lại được bất cứ lúc nào.": "Once published, you can still hide the page again at any time.",
   "Đã đăng trang hồ sơ nghề nghiệp.": "Your professional page has been published.",
-
   "Địa chỉ trang của bạn": "Your page address",
   "Đã đăng ngày": "Published on",
   "Địa chỉ trang": "Page address",
-  "Đây là địa chỉ riêng của trang bạn trên OAK. Trang tại địa chỉ này sắp mở cho người xem; trong lúc chờ, hồ sơ của bạn tại từng salon đã hiện những gì bạn vừa đăng. Bạn ẩn trang lại lúc nào cũng được ở phần Hiển thị công khai bên dưới.": "This is your page's own address on OAK. The page at it opens to readers shortly; in the meantime, your profile at each salon is already showing what you just published. You can hide the page again at any time under Public visibility below.",
-
+  "Đây là địa chỉ riêng của trang bạn trên OAK. Trang tại địa chỉ này đang công khai — ai có liên kết cũng mở được, và hồ sơ của bạn tại từng salon cũng hiện những gì bạn vừa đăng. Bạn ẩn trang lại lúc nào cũng được ở phần Hiển thị công khai bên dưới.": "This is your page's own address on OAK. The page at it is public — anyone with the link can open it, and your profile at each salon is showing what you just published too. You can hide the page again at any time under Public visibility below.",
   "Hiển thị công khai": "Public visibility",
   "Trang chưa đăng": "Page not published",
   "Đang hiện trang nghề nghiệp": "Professional page is visible",
@@ -40,15 +34,11 @@
   "Đang hiện hồ sơ tại salon này": "Profile at this salon is visible",
   "Đang ẩn hồ sơ tại salon này": "Profile at this salon is hidden",
   "Bật: hồ sơ của bạn tại salon này không còn mở được, và thẻ của bạn không còn hiện trên trang salon. Lịch hẹn của bạn và trang quản lý của salon vẫn chạy bình thường. Bạn tắt lại lúc nào cũng được.": "On: your profile at this salon can no longer be opened, and your card no longer appears on the salon page. Your appointments and the salon's console keep working as usual. You can switch it back off at any time.",
-
   "Chưa gắn với salon nào. Khi salon gửi liên kết mời, hồ sơ làm việc sẽ hiện ở đây.": "Not linked to any salon yet. When a salon sends you an invitation link, your working profile will appear here.",
-
   "Thông tin do salon quản lý": "Managed by the salon",
   "Liên hệ chủ salon để chỉnh sửa.": "Contact the salon owner to change these.",
-
   "Đánh giá về bạn": "Reviews of you",
   "Chưa có đánh giá nào cho hồ sơ này.": "No reviews for this profile yet.",
-
   "Đã kết thúc": "Ended",
   "Quá trình tại salon": "Time at this salon",
   "Ngày bắt đầu do salon nhập, ngày kết thúc do salon hoặc chính bạn ghi nhận. Ngày cả hai bên cùng xác nhận sẽ hiện dấu xác thực trên hồ sơ công khai; nếu ngày chưa đúng, hãy báo để chủ salon sửa lại.": "The start date is entered by the salon; the end date is recorded by the salon or by you. A date both sides have confirmed carries the verified mark on your public profile; if a date is wrong, report it so the salon owner can correct it.",
@@ -66,17 +56,16 @@
   "Đã xác nhận ngày.": "Date confirmed.",
   "Đã gửi phản hồi tới chủ salon.": "Your report has been sent to the salon owner.",
   "Đã rút khiếu nại.": "Dispute withdrawn.",
-
   "Báo ngày chưa đúng": "Report an incorrect date",
   "Chủ salon sẽ nhận được thông báo, vì họ là người duy nhất sửa được ngày trên hồ sơ.": "The salon owner will be notified, because they are the only one who can change a date on the profile.",
   "Trong lúc chờ, dấu xác nhận trên hồ sơ công khai của bạn sẽ tắt cho tới khi hai bên thống nhất ngày.": "While you wait, the verified mark on your public profile stays off until the two of you agree on the date.",
   "Để nguyên": "Leave it as is",
   "Báo sai ngày": "Report the date",
-
   "Kết thúc làm việc tại salon": "Leaving this salon",
   "Chọn ngày làm việc cuối cùng của bạn. Chủ salon sẽ nhận được thông báo.": "Choose your last working day. The salon owner will be notified.",
   "Ngày làm việc cuối cùng": "Last day worked",
   "Lịch hẹn sau ngày này sẽ được chuyển cho đồng nghiệp phù hợp, hoặc chuyển chủ salon xử lý nếu không có ai nhận. Hồ sơ và lịch sử làm việc của bạn tại salon vẫn được giữ nguyên.": "Appointments after this date move to a suitable colleague, or to the salon owner to handle if nobody can take them. Your profile and your work history at this salon are kept as they are.",
   "Sau khi xác nhận, bạn không tự sửa được ngày này nữa — chỉ chủ salon mới hủy ghi nhận để bạn ghi lại.": "Once confirmed, you can no longer change this date yourself — only the salon owner can cancel the record so you can enter it again.",
-  "Xác nhận nghỉ việc": "Confirm departure"
+  "Xác nhận nghỉ việc": "Confirm departure",
+  "Xem trang của bạn": "View your page"
 }

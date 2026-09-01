@@ -854,6 +854,20 @@ const SLOT_OCCUPIED = {
   message: 'Kỹ thuật viên đã có lịch đúng giờ này; chọn phút khác.',
 };
 
+/* What a save that went through anyway carries back. The sentence is what the counter reads;
+   the code beside it is what quan-ly-lich-hen.html branches on, because a warning that is
+   reworded here must not silently change which message the console picks — which is exactly
+   what a string comparison over this sentence made possible. */
+const OUTSIDE_HOURS_WARNING = {
+  warning_code: 'OUTSIDE_HOURS',
+  warning: 'Giờ hẹn nằm ngoài giờ mở cửa của salon.',
+};
+
+/** The refusal the counter overruled, named rather than only quoted. */
+function forcedConflictWarning(conflict) {
+  return { warning_code: 'FORCED_CONFLICT', warning: conflict.message };
+}
+
 /**
  * What stands between this technician and this hour, as {code, message}, or null when
  * nothing does.
@@ -1068,13 +1082,14 @@ router.post('/bookings', async (req, res, next) => {
     const outsideHours = !(await isSalonOpenFor(salon.id, date, time, service.duration_min));
     // One line, and the overridden refusal outranks the hours note: the counter has just
     // been asked about the first and only ever told about the second.
-    const warning =
-      conflict?.message ?? (outsideHours ? 'Giờ hẹn nằm ngoài giờ mở cửa của salon.' : null);
+    const warning = conflict !== null
+      ? forcedConflictWarning(conflict)
+      : (outsideHours ? OUTSIDE_HOURS_WARNING : null);
 
     res.json({
       success: true,
       data: bookingShape(booking),
-      ...(warning === null ? {} : { meta: { warning } }),
+      ...(warning === null ? {} : { meta: warning }),
     });
   } catch (error) {
     next(error);
@@ -1433,7 +1448,7 @@ router.patch('/bookings/:id', async (req, res, next) => {
     res.json({
       success: true,
       data: bookingShape(await selectOwnedBooking.get(bookingId, salon.id)),
-      ...(conflict === null ? {} : { meta: { warning: conflict.message } }),
+      ...(conflict === null ? {} : { meta: forcedConflictWarning(conflict) }),
     });
   } catch (error) {
     next(error);

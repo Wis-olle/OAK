@@ -1155,13 +1155,24 @@ test('the panel says what registering freely gets you, and what it does not', ()
   assert.match(loginHtml, /@click="show\('register'\)"[\s\S]{0,400}?Tạo hồ sơ nghề nghiệp miễn phí/);
 
   /* Two consents, because the two paths publish different things, and both spelled out on the
-     page rather than folded into a link to the terms. With a link she agrees to a profile at the
-     salon that invited her and her own page stays a draft; without one the page IS what she is
+     page rather than folded into a link to the terms. Without a link the page IS what she is
      agreeing to, so the copy has to name which half of it is her own word — and say where the
-     switch that takes it back down lives, which is the editor and not Cài đặt. */
+     switch that takes it back down lives, which is the editor and not Cài đặt.
+     With a link, nothing of hers goes public at the press at all: selectSalonStaff in
+     routes/salons.js serves an unclaimed roster row to the salon page like any other, so the
+     name, photo, title and specialty have been on that page since the salon typed them in.
+     A consent reading "Tôi đồng ý mở hồ sơ ... công khai" there asked her to agree to
+     something already done, and hid what claiming actually changes behind it. */
   assert.match(
     loginHtml,
-    /x-show="token">Hồ sơ công khai gồm tên, ảnh, chuyên môn, đánh giá của khách và số liệu làm việc tổng hợp của tôi\.<\/span>/,
+    /x-show="token">Hồ sơ của bạn trên trang salon đã công khai sẵn:/,
+  );
+  assert.match(loginHtml, /Nhận hồ sơ không đưa thêm thông tin nào của bạn ra công khai/);
+  assert.match(loginHtml, /x-show="token">Trang hồ sơ nghề nghiệp riêng của tôi vẫn là bản nháp/);
+  // The "open a public profile" wording survives only where it is true: the free path.
+  assert.match(
+    loginHtml,
+    /x-show="!token">Tôi đồng ý mở hồ sơ kỹ thuật viên công khai trên OAK Beauty\.<\/span>/,
   );
   /* The enumeration is checked against the route rather than against taste: GET /api/technicians
      serves title, specialty, bio, image, portfolio, years_experience and the name, and a consent
@@ -3380,12 +3391,15 @@ test('nothing she wrote is public until the press, and afterwards the page has a
     /ảnh, số năm kinh nghiệm, giới thiệu và ảnh tác phẩm ở đó sẽ là của bạn thay cho phần cũ, còn chức danh và chuyên môn ở đó vẫn là do salon ghi/,
   );
 
-  /* The address block says the page at that address is not open to a reader yet, because it
-     is not: nothing on OAK resolves a `u=` slug until the next slice lands, and a line calling
-     it a live page is a lie she finds out about by pasting it to somebody. */
+  /* The address block says the page at that address is open, because it is: ho-so-chuyen-gia
+     .html answers a `u=` slug off GET /api/technicians/:slug. It said "sắp mở" for as long as
+     nothing resolved that slug, and a line that undersells a live page is the same kind of
+     wrong as one that oversells a page that is not — so it also hands her a way to open it. */
   const address = handler(profileMeHtml, '>Địa chỉ trang của bạn</h3>', '</template>');
-  assert.match(address, /Trang tại địa chỉ này sắp mở cho người xem/);
-  assert.match(address, /hồ sơ của bạn tại từng salon đã hiện những gì bạn vừa đăng/);
+  assert.match(address, /Trang tại địa chỉ này đang công khai/);
+  assert.doesNotMatch(address, /sắp mở/);
+  assert.match(address, /hồ sơ của bạn tại từng salon cũng hiện những gì bạn vừa đăng/);
+  assert.match(address, /:href="pageUrl\(\)"/, 'the address is printed but cannot be opened');
 
   const page = profilePage();
   await page.init();

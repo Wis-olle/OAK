@@ -369,7 +369,10 @@ test('a booking made outside the salon hours is saved, and said out loud', async
     if (options && options.method === 'POST') {
       const created = { id: 9, code: 'OAK-9', date: '2026-08-21', time: '23:30', status: 'confirmed', customer: { name: 'Khách vãng lai' } };
       Object.defineProperty(created, 'meta', {
-        value: { warning: 'Giờ hẹn nằm ngoài giờ mở cửa của salon.' },
+        value: {
+          warning_code: 'OUTSIDE_HOURS',
+          warning: 'Giờ hẹn nằm ngoài giờ mở cửa của salon.',
+        },
         enumerable: false,
       });
       return created;
@@ -392,6 +395,12 @@ test('a booking made outside the salon hours is saved, and said out loud', async
   assert.equal(said.message, 'Lịch hẹn đã lưu, ngoài giờ mở cửa của salon.');
   // And in the success colour: the booking was saved, nothing failed.
   assert.notEqual(said.tone, 'error');
+
+  /* Chosen on meta.warning_code, never on the server's Vietnamese. The page used to compare
+     that sentence word for word, so rewording it in partner.js would have silently dropped
+     the counter back to "Đã tạo lịch hẹn OAK-9." with no warning at all. */
+  assert.match(calendarHtml, /meta\.warning_code === 'OUTSIDE_HOURS'/);
+  assert.doesNotMatch(calendarHtml, /warning === 'Giờ hẹn nằm ngoài/);
 });
 
 test('a walk-in with no hour is refused out loud, not swallowed', async () => {
@@ -662,7 +671,10 @@ function clashingCounter(sent) {
         customer: { name: 'Khách vãng lai' },
       };
       Object.defineProperty(created, 'meta', {
-        value: { warning: 'Kỹ thuật viên đã có lịch chồng giờ, vui lòng chọn giờ khác.' },
+        value: {
+          warning_code: 'FORCED_CONFLICT',
+          warning: 'Kỹ thuật viên đã có lịch chồng giờ, vui lòng chọn giờ khác.',
+        },
         enumerable: false,
       });
       return created;
@@ -702,9 +714,9 @@ test('a clash the counter overrules is asked once and then saved', async () => {
   assert.equal(state.detail.id, 11, 'the booking is made');
   assert.equal(state.formError, '');
   assert.equal(state.saving, false);
-  /* The forced save carries a meta.warning like an out-of-hours one does, but it is a
-     different warning and must not borrow that sentence: the counter has just been asked
-     about the clash and answered it. */
+  /* The forced save carries a meta.warning like an out-of-hours one does, but under a
+     different warning_code, and it must not borrow that sentence: the counter has just been
+     asked about the clash and answered it. */
   const said = state.toasts.at(-1);
   assert.equal(said.message, 'Đã tạo lịch hẹn OAK-11.');
   assert.notEqual(said.tone, 'error');

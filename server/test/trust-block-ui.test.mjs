@@ -125,10 +125,35 @@ test('the four pages of the booking path state the same three conditions', () =>
     // The bare constant would say two hours for every salon.
     assert.doesNotMatch(page, /x-text="OAK\.TRUST\.CANCEL_POLICY"/);
     assert.match(page, /x-text="OAK\.TRUST\.PAYMENT"/);
-    assert.match(page, /Salon xác nhận lịch, bạn được báo trong mục Thông báo/);
     assert.match(page, /href="dieu-khoan\.html#huy-lich"/);
     assert.match(page, /Điều kiện đặt lịch/);
   }
+
+  /* The third condition is the one that differs, because what the page knows differs. Before
+     the booking exists none of these three holds an auto_confirm flag — the wizard's `salon`
+     is a card and the service page's is a card inside a service — so they promise only the
+     half that is true either way. "Salon xác nhận lịch" promised a step that a salon with
+     auto_confirm on has already taken by the time the reader reaches the next screen. */
+  for (const page of [salon, service, wizard]) {
+    assert.match(page, /Bạn được báo trong mục Thông báo ngay khi lịch được xác nhận/);
+    assert.doesNotMatch(page, /Salon xác nhận lịch, bạn được báo/);
+  }
+
+  // And the confirmation page does know: POST /api/bookings wrote 'confirmed' or 'pending'.
+  assert.match(confirmation, /x-text="confirmNote\(\)"/);
+  assert.equal(
+    bookingConfirmation({ ...PENDING, status: 'confirmed' }).confirmNote(),
+    'Lịch đã được xác nhận, bạn được báo trong mục Thông báo',
+  );
+  assert.equal(
+    bookingConfirmation(PENDING).confirmNote(),
+    'Salon sẽ xác nhận lịch, bạn được báo trong mục Thông báo',
+  );
+  // Nothing loaded yet is not "confirmed": the waiting half of the pair is the safe one.
+  assert.equal(
+    bookingConfirmation(null).confirmNote(),
+    'Salon sẽ xác nhận lịch, bạn được báo trong mục Thông báo',
+  );
 });
 
 test('no page promises what the codebase does not do', () => {
@@ -144,9 +169,12 @@ test('no page promises what the codebase does not do', () => {
   }
 });
 
-test('the support block names hours somebody keeps, and a way to reach them', () => {
+test('the support block names how soon somebody answers, and a way to reach them', () => {
   assert.match(confirmation, /x-text="OAK\.TRUST\.SUPPORT_HOURS"/);
-  assert.match(confirmation, /href="tel:19006035"/);
+  // One channel, because one is what answers. The 1900 number had nobody behind it, and
+  // office hours for a line nobody picks up were the same empty promise twice over.
+  assert.match(api, /SUPPORT_HOURS: 'Phản hồi trong 1 ngày làm việc · hello@oakbeauty\.vn'/);
+  assert.doesNotMatch(confirmation, /href="tel:19006035"/);
   assert.match(confirmation, /href="lien-he\.html"/);
   // "encrypted" claimed a mechanism; these three are what bao-mat.html can actually show.
   assert.match(confirmation, /Kết nối HTTPS, mật khẩu được băm, salon chỉ thấy thông tin lịch bạn đặt\./);

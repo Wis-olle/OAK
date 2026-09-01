@@ -164,10 +164,18 @@ test('the home page and the contact page carry parseable structured data', () =>
   const website = home['@graph'].find((node) => node['@type'] === 'WebSite');
   assert.match(website.potentialAction.target.urlTemplate, /ket-qua-tim-kiem\.html\?q=\{search_term_string\}/);
 
+  // No telephone on the Organization either: a number in structured data is a number a
+  // search engine offers as a call button, which is worse than one printed on a page.
+  const organization = home['@graph'].find((node) => node['@type'] === 'Organization');
+  assert.equal(organization.telephone, undefined);
+  assert.equal(organization.email, 'hello@oakbeauty.vn');
+
   const [contact] = blocks('lien-he.html');
   assert.equal(contact['@type'], 'Organization');
-  assert.equal(contact.contactPoint[0].telephone, '1900 6035');
-  assert.ok(contact.contactPoint[0].hoursAvailable.length >= 1);
+  assert.equal(contact.contactPoint[0].email, 'hello@oakbeauty.vn');
+  // The hotline and the hours it claimed to keep both went: nobody staffs either.
+  assert.equal(contact.contactPoint[0].telephone, undefined);
+  assert.equal(contact.contactPoint[0].hoursAvailable, undefined);
 });
 
 test('each category page declares its breadcrumb where a search engine can read it', () => {
@@ -202,7 +210,7 @@ test('the contact page publishes no channel and no number it cannot answer', () 
   for (const page of pages) {
     assert.doesNotMatch(readUi(page), OWN_ACCOUNT, page);
   }
-  assert.match(contact, /href="tel:19006035"/, 'the hotline is gone too');
+  assert.doesNotMatch(contact, /href="tel:|1900 6035/, 'the contact page prints a hotline again');
   assert.match(contact, /href="mailto:hello@oakbeauty\.vn"/, 'the email is gone too');
   // The signature used to name a domain this build has no way of knowing it is served from.
   assert.match(contact, /Gửi từ ' \+ location\.hostname/);

@@ -3450,6 +3450,13 @@ async function groupPartner() {
     'walk-in at 23:30: expected a warning about the opening hours',
     lateResponse,
   );
+  // And the code beside it, which is what the console branches on — the sentence is for
+  // reading, so rewording it must not change which message the counter is shown.
+  assert(
+    lateResponse.body.meta?.warning_code === 'OUTSIDE_HOURS',
+    'walk-in at 23:30: the hours warning must name itself',
+    lateResponse,
+  );
   assert(
     lateWalkIn.end_time === hhmm((23 * 60 + 30 + longest.duration_min) % (24 * 60)),
     `walk-in at 23:30: end_time must wrap past midnight, got ${lateWalkIn.end_time}`,
@@ -11856,6 +11863,12 @@ async function groupDoubleBooking() {
     'a forced overlap is saved, and the reply says what it was booked over',
     forcedResponse,
   );
+  // A different code from the hours note, so the console cannot confuse the two.
+  assert(
+    forcedResponse.body.meta?.warning_code === 'FORCED_CONFLICT',
+    'an overruled refusal must not come back under the opening-hours code',
+    forcedResponse,
+  );
 
   /* -- and the one minute no amount of insisting can have ---------------------- */
 
@@ -11910,6 +11923,11 @@ async function groupDoubleBooking() {
   assert(
     String(forcedMove.body.meta?.warning ?? '').includes('chồng giờ'),
     'and the move that was forced says so too',
+    forcedMove,
+  );
+  assert(
+    forcedMove.body.meta?.warning_code === 'FORCED_CONFLICT',
+    'and it names the same rule the walk-in door names',
     forcedMove,
   );
   // The same wall on this door: a move onto an occupied minute is refused under its own

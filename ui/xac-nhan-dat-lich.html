@@ -169,7 +169,7 @@
 </li>
 <li class="flex items-start gap-3">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px] text-on-surface-variant" data-icon="info">info</span>
-<span class="font-body-md text-body-md text-on-surface-variant">Salon xác nhận lịch, bạn được báo trong mục Thông báo</span>
+<span class="font-body-md text-body-md text-on-surface-variant" x-text="confirmNote()"></span>
 </li>
 </ul>
 <a class="inline-flex items-center gap-1 mt-4 font-label-md text-label-md uppercase tracking-wide text-primary hover:opacity-70 transition-opacity" href="dieu-khoan.html#huy-lich">Xem điều khoản</a>
@@ -221,14 +221,13 @@
 <p class="font-caption text-caption text-on-surface-variant">Kết nối HTTPS, mật khẩu được băm, salon chỉ thấy thông tin lịch bạn đặt.</p>
 </div>
 <div class="hidden md:block w-px h-16 bg-outline-variant/30"></div>
-<!-- The hours a person actually answers in, and the two ways to reach them. A promise of
+<!-- How soon a person answers, and the one way to reach them. A promise of
      round-the-clock support nobody staffs is worse than no promise at all. -->
 <div class="flex flex-col items-center max-w-[200px]">
-<span aria-hidden="true" class="material-symbols-outlined text-surface-tint mb-3 text-[32px]" style="font-variation-settings: 'wght' 300;">call</span>
+<span aria-hidden="true" class="material-symbols-outlined text-surface-tint mb-3 text-[32px]" style="font-variation-settings: 'wght' 300;">mail</span>
 <p class="font-label-md text-label-md text-on-surface mb-1">Hỗ trợ đặt lịch</p>
 <p class="font-caption text-caption text-on-surface-variant" x-text="OAK.TRUST.SUPPORT_HOURS"></p>
 <div class="flex items-center gap-4 mt-2">
-<a class="font-caption text-caption text-primary hover:underline" href="tel:19006035">Gọi hotline</a>
 <a class="font-caption text-caption text-primary hover:underline" href="lien-he.html">Gửi tin nhắn</a>
 </div>
 </div>
@@ -267,15 +266,15 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-nhan-vien.html">Dành cho kỹ thuật viên</a>
 </div>
 </nav>
-<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
-     number answers when, and the hotline hours are the part a visitor needs before dialling.
-     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
-     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about who
+     answers or how soon, and how soon is the part a visitor needs before writing.
+     Only the one channel this project can prove answers: a hotline nobody staffs, or a Zalo
+     or Facebook address nobody has confirmed, is a dead 'contact us' on 33 pages, which is
+     worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
-<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
+<span class="font-caption text-caption text-on-tertiary/50">Phản hồi trong 1 ngày làm việc</span>
 </div>
 </div>
 <!-- Copyright. No tax code and no business-registration number here until there is a legal
@@ -408,6 +407,18 @@
             /** The same promise as the other three pages, with this salon's cutoff in it. */
             cancelPolicy() {
                 return OAK.TRUST.cancelPolicy(this.booking ? this.booking.salon.cancel_cutoff_hours : 0);
+            },
+
+            /* A salon that takes bookings automatically has already confirmed this one, and
+               POST /api/bookings said so in the status it wrote. Telling that reader the salon
+               is about to confirm would promise a step that has already happened; telling the
+               other one it is confirmed would be worse. Named statuses rather than "not
+               pending", so a cancelled booking is never told its hour was agreed. */
+            confirmNote() {
+                const status = this.booking && this.booking.status;
+                return status === 'confirmed' || status === 'completed'
+                    ? 'Lịch đã được xác nhận, bạn được báo trong mục Thông báo'
+                    : 'Salon sẽ xác nhận lịch, bạn được báo trong mục Thông báo';
             },
 
             /** The salon's own wording under the conditions, when it wrote any. */

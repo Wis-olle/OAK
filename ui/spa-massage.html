@@ -68,11 +68,11 @@
 <script src="assets/js/oak-header.js"></script>
 <!-- Every page draws itself with Alpine, and the bar above is written by script too, so
      with scripting turned off there is nothing on screen and no way onward. This is that
-     way onward: one line, and the number that answers. -->
+     way onward: one line, and the address that answers. -->
 <noscript>
 <div class="px-margin-mobile md:px-margin-desktop py-4 bg-secondary-container text-on-secondary-container font-body-md text-body-md text-center">
-<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gọi hotline để được hỗ trợ đặt lịch.</p>
-<a class="underline font-bold" href="tel:19006035">Gọi hotline 1900 6035</a>
+<p>Trang này cần JavaScript để hiển thị nội dung. Bạn có thể bật JavaScript trong trình duyệt, hoặc gửi email để được hỗ trợ đặt lịch.</p>
+<a class="underline font-bold" href="mailto:hello@oakbeauty.vn">Gửi email hello@oakbeauty.vn</a>
 </div>
 </noscript>
 <!-- Main Content -->
@@ -234,39 +234,6 @@
 </div>
 </div>
 </section>
-<!-- Packages Section (Glass/Tonal Cards) -->
-<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-section-gap">
-<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-4 text-center">Gói trải nghiệm</h2>
-<p class="font-body-md text-body-md text-on-surface-variant text-center max-w-2xl mx-auto mb-16">Dành trọn khoảnh khắc thư giãn bên những người thân yêu với các gói dịch vụ được thiết kế đặc biệt.</p>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
-<template :key="pkg.id" x-for="pkg in packages">
-<a :href="bookingUrl(pkg)" style="display:contents;color:inherit;text-decoration:none"><div class="bg-surface-container-highest p-8 md:p-12 flex flex-col justify-between group hover:bg-surface-variant transition-colors duration-500 cursor-pointer h-full">
-<div>
-<div class="flex justify-between items-start mb-8">
-<span class="font-label-md text-label-md uppercase tracking-widest text-primary border border-primary px-3 py-1" x-text="pkg.subcategory"></span>
-<span aria-hidden="true" class="material-symbols-outlined text-primary opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-[-10px] group-hover:translate-x-0 duration-300">arrow_forward</span>
-</div>
-<h3 class="font-headline-md text-headline-md text-primary mb-4" x-text="pkg.name"></h3>
-<p class="font-body-md text-body-md text-on-surface-variant mb-6" x-text="pkg.description"></p>
-<ul class="flex flex-col gap-3 font-caption text-caption text-on-surface-variant mb-12">
-<li class="flex items-center gap-3"><span class="w-1 h-1 bg-primary rounded-full"></span> <span x-text="pkg.duration_min + ' phút trải nghiệm'"></span></li>
-<li class="flex items-center gap-3"><span class="w-1 h-1 bg-primary rounded-full"></span> <span x-text="'Tại ' + pkg.salon.name + ', ' + pkg.salon.district"></span></li>
-</ul>
-</div>
-<div class="pt-6 border-t border-outline-variant/30 flex justify-between items-end">
-<div>
-<span class="font-caption text-caption text-on-surface-variant block mb-1">Giá trọn gói</span>
-<span class="font-headline-sm text-headline-sm text-primary" x-text="price(pkg)"></span>
-</div>
-<button class="font-label-md text-label-md uppercase tracking-widest text-primary hover:text-secondary transition-colors">Đặt ngay</button>
-</div>
-</div></a>
-</template>
-<template x-if="!sideLoading &amp;&amp; !packages.length">
-<p class="md:col-span-2 font-body-md text-body-md text-on-surface-variant text-center">Chưa có gói trải nghiệm nào.</p>
-</template>
-</div>
-</section>
 </main>
 <!-- Footer -->
 <footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
@@ -300,15 +267,15 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-nhan-vien.html">Dành cho kỹ thuật viên</a>
 </div>
 </nav>
-<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
-     number answers when, and the hotline hours are the part a visitor needs before dialling.
-     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
-     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about who
+     answers or how soon, and how soon is the part a visitor needs before writing.
+     Only the one channel this project can prove answers: a hotline nobody staffs, or a Zalo
+     or Facebook address nobody has confirmed, is a dead 'contact us' on 33 pages, which is
+     worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
-<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
+<span class="font-caption text-caption text-on-tertiary/50">Phản hồi trong 1 ngày làm việc</span>
 </div>
 </div>
 <!-- Copyright. No tax code and no business-registration number here until there is a legal
@@ -329,7 +296,6 @@
 
         return {
             services: [],
-            packages: [],
             subcategories: [],
             subcategory: '',
             sort: 'popular',
@@ -340,23 +306,18 @@
             loading: true,
             loadError: false,
             loadToken: 0,
-            // The packages and the flagship come from their own one-off requests, so they say
-            // for themselves when they are done — `loading` belongs to the service list.
-            sideLoading: true,
 
             async init() {
                 this.readUrl();
                 try {
-                    const [packages, flagships, catalogue] = await Promise.all([
-                        OAK.api('/api/services?category=spa&is_package=1&limit=2'),
+                    const [flagships, catalogue] = await Promise.all([
                         // One salon, not the three the other four category pages list: the
                         // section this feeds is an editorial bento about the room, built out
                         // of that salon's own photos, not a way to choose between salons. A
-                        // deliberate exception to "three featured salons per category page".
+                        // deliberate exception to "three top-rated salons per category page".
                         OAK.api('/api/salons?flagship=1&limit=1'),
                         OAK.api('/api/services?category=spa&limit=50'),
                     ]);
-                    this.packages = packages;
                     this.flagship = flagships[0] || null;
                     // The chips are the sub-categories the spa catalogue actually has.
                     this.subcategories = [...new Set(catalogue.map((service) => service.subcategory).filter(Boolean))];
@@ -365,8 +326,6 @@
                     }
                 } catch (error) {
                     OAK.toast(error.message, 'error');
-                } finally {
-                    this.sideLoading = false;
                 }
                 this.reload();
             },

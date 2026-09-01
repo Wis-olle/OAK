@@ -1,43 +1,37 @@
 {
   "Đăng nhập kỹ thuật viên - OAK Beauty": "Technician sign-in - OAK Beauty",
-
   "Tay nghề của bạn, mang tên bạn": "Your craft, under your own name",
   "Một hồ sơ nghề nghiệp của riêng bạn, đứng cạnh tên salon chứ không lẫn vào đó.": "A professional profile of your own, standing beside the salon's name rather than lost inside it.",
   "Lịch làm việc của bạn, xem được mọi lúc trên điện thoại.": "Your work schedule, readable any time on your phone.",
   "Đánh giá khách để lại cho bạn đi theo bạn, kể cả khi bạn đổi nơi làm.": "The reviews customers leave for you follow you, even when you move salon.",
-
   "Đăng nhập kỹ thuật viên": "Technician sign-in",
   "Lịch làm việc và hồ sơ nghề nghiệp của bạn tại OAK Beauty.": "Your work schedule and your professional profile at OAK Beauty.",
-
   "Đăng nhập bằng tài khoản đã có": "Sign in with an existing account",
   "Bạn đang dùng tài khoản đối tác": "You are signed in as a salon partner",
   "Trang này dành cho kỹ thuật viên. Chủ salon quản lý đội ngũ ở trang quản lý salon.": "This page is for technicians. Salon owners manage their team from the salon dashboard.",
   "Về trang quản lý salon": "Go to the salon dashboard",
-
   "Bạn được mời nhận hồ sơ kỹ thuật viên của": "You have been invited to take over the technician profile of",
   "Bạn được mời tạo hồ sơ cho": "You have been invited to create the profile for",
   "Liên kết có hiệu lực đến": "This link works until",
   "Xác nhận để thêm hồ sơ này vào tài khoản bạn đang đăng nhập:": "Confirm to add this profile to the account you are signed in with:",
   "Dùng tài khoản hiện tại": "Use my current account",
-
   "Bạn có thể tạo hồ sơ nghề nghiệp của riêng mình mà không cần salon mời. Nếu salon bạn đang làm đã gửi liên kết mời, hãy mở liên kết đó để nhận thêm hồ sơ kỹ thuật viên tại salon.": "You can build a professional profile of your own without any salon invitation. If the salon you work at has sent you an invitation link, open that link to take over your technician profile there as well.",
   "Tạo hồ sơ nghề nghiệp miễn phí": "Create a free professional profile",
   "Tạo hồ sơ nghề nghiệp của riêng bạn trên OAK Beauty — không cần salon mời.": "Build a professional profile of your own on OAK Beauty — no salon invitation needed.",
-
   "Tôi đồng ý mở hồ sơ kỹ thuật viên công khai trên OAK Beauty.": "I agree to open a public technician profile on OAK Beauty.",
-  "Hồ sơ công khai gồm tên, ảnh, chuyên môn, đánh giá của khách và số liệu làm việc tổng hợp của tôi.": "The public profile carries my name, my photo, my specialty, the reviews customers leave me and my aggregate work figures.",
-  "Số liệu tổng hợp sau này có thể gộp cả công việc của tôi ở các salon khác.": "Those aggregate figures may later include my work at other salons as well.",
+  "Hồ sơ của bạn trên trang salon đã công khai sẵn: tên, ảnh, chức danh và chuyên môn salon nhập cho chiếc ghế này. Nhận hồ sơ không đưa thêm thông tin nào của bạn ra công khai — nó cho bạn quyền sửa phần đó và ẩn nó bất cứ lúc nào.": "Your profile on the salon page is already public: the name, photo, job title and specialty the salon entered for this chair. Claiming it puts nothing more of yours in the open — it gives you the right to edit that part, and to hide it whenever you want.",
+  "Nhận hồ sơ gắn đánh giá của khách và số liệu làm việc tổng hợp vào tài khoản của tôi; số liệu tổng hợp sau này có thể gộp cả công việc của tôi ở các salon khác.": "Claiming it attaches the reviews customers leave me and my aggregate work figures to my account; those figures may later include my work at other salons as well.",
   "Trang hồ sơ nghề nghiệp công khai gồm tên và nội dung bạn tự viết — giới thiệu, chức danh, chuyên môn, ảnh, ảnh tác phẩm, số năm kinh nghiệm — được ghi rõ là tự khai. Lịch sử làm việc đã xác thực chỉ hiển thị khi bạn nhận hồ sơ tại salon.": "The public professional profile page carries your name and what you write yourself — an introduction, your job title, your specialty, your photo, your portfolio, your years of experience — each marked as self-declared. Verified work history only appears once you take over a profile at a salon.",
   "Bạn có thể ẩn hoặc gỡ trang hồ sơ nghề nghiệp bất cứ lúc nào trong trang Hồ sơ của tôi.": "You can hide or take down your professional profile page at any time from My profile.",
   "Tạo tài khoản kỹ thuật viên": "Create technician account",
   "Đã có tài khoản?": "Already have an account?",
   "Đăng nhập": "Sign in",
-
-  "Vui lòng đồng ý mở hồ sơ công khai để tiếp tục.": "Please agree to open the public profile to continue.",
-
+  "Vui lòng tích ô đồng ý để tiếp tục.": "Please tick the box to continue.",
   "Liên kết không hợp lệ hoặc đã hết hạn. Vui lòng hỏi chủ salon một liên kết mới.": "This link is not valid, or it has expired. Please ask your salon owner for a new one.",
   "Bạn đã mở liên kết quá nhiều lần. Vui lòng đợi 15 phút rồi thử lại.": "You have opened this link too many times. Please wait 15 minutes and try again.",
   "Tài khoản đối tác không thể nhận hồ sơ kỹ thuật viên. Vui lòng dùng một email khác.": "A partner account cannot take over a technician profile. Please use a different email address.",
   "Hồ sơ này đã có người nhận.": "Somebody has already taken this profile.",
-  "Bạn đã có hồ sơ kỹ thuật viên tại salon này.": "You already hold a technician profile at this salon."
+  "Bạn đã có hồ sơ kỹ thuật viên tại salon này.": "You already hold a technician profile at this salon.",
+  "Tôi đồng ý nhận hồ sơ kỹ thuật viên này về tài khoản của mình.": "I agree to claim this technician profile into my account.",
+  "Trang hồ sơ nghề nghiệp riêng của tôi vẫn là bản nháp cho tới khi tôi tự bấm đăng.": "My own professional page stays a draft until I press publish myself."
 }

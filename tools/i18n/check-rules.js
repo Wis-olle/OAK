@@ -218,8 +218,8 @@ const cases = [
     ['Những đôi tay tài hoa tại Lala Nail Studio', 'The talented hands at Lala Nail Studio'],
     ['Tại Lala Nail Studio, Quận 1', 'At Lala Nail Studio, District 1'],
     ['14:30 (Kín)', '14:30 (Full)'],
-    ['Không tải được salon nổi bật. Network error',
-        'Could not load the featured salons. Network error'],
+    ['Không tải được danh sách salon. Network error',
+        "We couldn't load the salon list. Network error"],
     ['Không tải được salon mới. Network error',
         'Could not load the new salons. Network error'],
     // the title and description ket-qua-tim-kiem.html writes into its own head: the category

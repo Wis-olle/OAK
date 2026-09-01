@@ -51,15 +51,17 @@ test('every page carries the same footer, byte for byte', () => {
 });
 
 test('the footer carries the channels this project can prove answer', () => {
-  assert.match(block, /href="tel:19006035"/, 'no hotline');
-  assert.match(block, /T2–T7 giờ hành chính/, 'the hotline does not say when it answers');
   assert.match(block, /href="mailto:hello@oakbeauty\.vn"/, 'no email');
+  assert.match(block, /Phản hồi trong 1 ngày làm việc/, 'the address does not say how soon it answers');
   assert.match(block, /Tầng 8, 72 Lê Thánh Tôn, Quận 1, TP\.HCM/, 'no office address');
 
   // D7-08 also asked for Zalo and Facebook. Nobody has confirmed an account for either, and a
   // guessed handle is a dead 'contact us' repeated on every page — the opposite of the trust
   // signal it is meant to be. They come back the day the real destinations do.
   assert.doesNotMatch(block, /zalo\.me|facebook\.com|m\.me/, 'the footer links an unverified account');
+  // And the 1900 number went the same way and for the same reason: nobody staffs it, so on
+  // 36 pages it was a channel that does not answer. It comes back with a phone behind it.
+  assert.doesNotMatch(block, /tel:|1900 6035/, 'the footer prints a hotline again');
 });
 
 test('the footer links are a landmark, and Liên hệ leads the support column', () => {

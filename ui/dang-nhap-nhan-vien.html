@@ -116,6 +116,11 @@
      second salon as well as for somebody claiming their first profile, so it names the
      account and says what confirming does — never that this is "another" account. -->
 <p class="font-body-md text-body-md text-on-surface-variant"><span>Xác nhận để thêm hồ sơ này vào tài khoản bạn đang đăng nhập:</span> <span x-text="account"></span></p>
+<!-- What redeeming the link does and does not do. The roster row has been on the salon page
+     since the salon typed it in — /api/salons/:id/staff serves an unclaimed row like any
+     other — so this is not the moment anything of hers goes public, and a sentence that let
+     her think it was would be asking for consent to something that already happened. -->
+<p class="font-caption text-caption text-on-surface-variant">Hồ sơ của bạn trên trang salon đã công khai sẵn: tên, ảnh, chức danh và chuyên môn salon nhập cho chiếc ghế này. Nhận hồ sơ không đưa thêm thông tin nào của bạn ra công khai — nó cho bạn quyền sửa phần đó và ẩn nó bất cứ lúc nào.</p>
 <p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
 <button :disabled="busy" @click="claim()" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : 'Dùng tài khoản hiện tại'">Dùng tài khoản hiện tại</button>
 </div>
@@ -184,17 +189,21 @@
 <!-- Consent, asked as an act of its own rather than read into the button below it. What a
      technician is agreeing to here is publication, so it is spelled out item by item
      rather than folded into a link to the terms.
-     And the items differ, because the two paths publish different things. With a link she
-     is agreeing to a profile at the salon that invited her, and her own page stays a draft
-     until she presses publish in the editor. Without one there is no salon and no roster
-     row — the page IS what she is agreeing to — so this text has to describe that page
-     exactly, down to which half of it is her own word and which half OAK counted. -->
+     And the items differ, because the two paths publish different things. Without a link
+     there is no salon and no roster row — the page IS what she is agreeing to — so that
+     text has to describe the page exactly, down to which half of it is her own word and
+     which half OAK counted. With a link, the row is already on the salon page and has been
+     since the salon typed it in: what she agrees to there is taking it over, not opening
+     it, and her own page stays a draft until she presses publish in the editor. Saying
+     "mở hồ sơ công khai" on that path asked her to consent to something already done. -->
 <label class="flex items-start gap-3 cursor-pointer" for="register-consent">
 <input class="mt-1" id="register-consent" type="checkbox" x-model="form.consent">
 <span class="font-caption text-caption text-on-surface-variant">
-<span>Tôi đồng ý mở hồ sơ kỹ thuật viên công khai trên OAK Beauty.</span>
-<span x-cloak="" x-show="token">Hồ sơ công khai gồm tên, ảnh, chuyên môn, đánh giá của khách và số liệu làm việc tổng hợp của tôi.</span>
-<span x-cloak="" x-show="token">Số liệu tổng hợp sau này có thể gộp cả công việc của tôi ở các salon khác.</span>
+<span x-cloak="" x-show="!token">Tôi đồng ý mở hồ sơ kỹ thuật viên công khai trên OAK Beauty.</span>
+<span x-cloak="" x-show="token">Tôi đồng ý nhận hồ sơ kỹ thuật viên này về tài khoản của mình.</span>
+<span x-cloak="" x-show="token">Hồ sơ của bạn trên trang salon đã công khai sẵn: tên, ảnh, chức danh và chuyên môn salon nhập cho chiếc ghế này. Nhận hồ sơ không đưa thêm thông tin nào của bạn ra công khai — nó cho bạn quyền sửa phần đó và ẩn nó bất cứ lúc nào.</span>
+<span x-cloak="" x-show="token">Nhận hồ sơ gắn đánh giá của khách và số liệu làm việc tổng hợp vào tài khoản của tôi; số liệu tổng hợp sau này có thể gộp cả công việc của tôi ở các salon khác.</span>
+<span x-cloak="" x-show="token">Trang hồ sơ nghề nghiệp riêng của tôi vẫn là bản nháp cho tới khi tôi tự bấm đăng.</span>
 <span x-cloak="" x-show="!token">Trang hồ sơ nghề nghiệp công khai gồm tên và nội dung bạn tự viết — giới thiệu, chức danh, chuyên môn, ảnh, ảnh tác phẩm, số năm kinh nghiệm — được ghi rõ là tự khai. Lịch sử làm việc đã xác thực chỉ hiển thị khi bạn nhận hồ sơ tại salon.</span>
 </span>
 </label>
@@ -252,15 +261,15 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="dang-nhap-nhan-vien.html">Dành cho kỹ thuật viên</a>
 </div>
 </nav>
-<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about which
-     number answers when, and the hotline hours are the part a visitor needs before dialling.
-     Only the two channels this project can prove answer: a Zalo or a Facebook address nobody
-     has confirmed is a dead 'contact us' on 33 pages, which is worse than one fewer link. -->
+<!-- Contact. Text links rather than icon buttons: a bare glyph says nothing about who
+     answers or how soon, and how soon is the part a visitor needs before writing.
+     Only the one channel this project can prove answers: a hotline nobody staffs, or a Zalo
+     or Facebook address nobody has confirmed, is a dead 'contact us' on 33 pages, which is
+     worse than one fewer link. -->
 <div class="col-span-1 flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Kết nối</span>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="tel:19006035">Hotline 1900 6035</a>
-<span class="font-caption text-caption text-on-tertiary/50">T2–T7 giờ hành chính</span>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="mailto:hello@oakbeauty.vn">hello@oakbeauty.vn</a>
+<span class="font-caption text-caption text-on-tertiary/50">Phản hồi trong 1 ngày làm việc</span>
 </div>
 </div>
 <!-- Copyright. No tax code and no business-registration number here until there is a legal
@@ -444,7 +453,7 @@
                     return;
                 }
                 if (!this.form.consent) {
-                    this.error = 'Vui lòng đồng ý mở hồ sơ công khai để tiếp tục.';
+                    this.error = 'Vui lòng tích ô đồng ý để tiếp tục.';
                     return;
                 }
                 this.busy = true;
