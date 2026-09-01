@@ -20,6 +20,11 @@ const ACCOUNT_PAGES = [
   'cai-dat.html',
 ];
 
+/* The three of them the menu itself offers, in that same order. The other three are one tap
+   further in, on the strip all six carry: a menu that lists every page of the site is a menu
+   nobody reads to the end. */
+const MENU_ACCOUNT_PAGES = ['lich-hen-cua-toi.html', 'thong-bao.html', 'ho-so-ca-nhan.html'];
+
 /**
  * Run the header into a stand-in document and hand back what it wrote, plus whatever it
  * registered for DOMContentLoaded — the two things it does are one paint apart.
@@ -75,6 +80,13 @@ const STAFF_PAGES = [
   'cai-dat.html',
 ];
 
+/** The dropdown itself, without the brand link and the bar entry that sit above it. */
+function menu(markup) {
+  const at = markup.indexOf('id="oak-menu"');
+  assert.notEqual(at, -1, 'the bar carries no menu');
+  return markup.slice(at);
+}
+
 /** The href of every entry of the menu, in the order they were written. */
 function hrefs(markup) {
   return [...markup.matchAll(/href="([^"]+)"/g)].map((hit) => hit[1]);
@@ -99,7 +111,42 @@ test('the account block of the menu is in the same order as the account pages th
   const opened = markup.slice(markup.indexOf('<div class="hidden" data-oak-auth="user">'));
   const block = opened.slice(0, opened.indexOf('</div>'));
 
-  assert.deepEqual(hrefs(block), ACCOUNT_PAGES);
+  assert.deepEqual(hrefs(block), MENU_ACCOUNT_PAGES);
+});
+
+test('the whole menu a signed-in customer meets is six entries and the salon door', () => {
+  const { markup } = header('/kham-pha.html');
+
+  /* What the menu costs a reader is the list they have to walk, so the list is the thing
+     pinned. "Dành cho salon" is not one of the six: it repeats here only at the widths
+     that cannot show it on the bar itself, and it is nobody's account page. */
+  assert.deepEqual(hrefs(reading(menu(markup), 'user')), [
+    'dang-nhap-doi-tac.html',
+    ...MENU_ACCOUNT_PAGES,
+    'ket-qua-tim-kiem.html',
+    'uu-dai.html',
+    'kham-pha.html',
+  ]);
+  /* The wizard is no longer a door of its own: opened with no salon behind it, it drew a
+     directory that ket-qua-tim-kiem.html already is. */
+  assert.deepEqual(hrefs(markup).filter((href) => href === 'dat-lich.html'), []);
+  /* And the five category shortcuts are the home page's grid, not a second copy in here. */
+  for (const page of ['dich-vu-nail.html', 'dich-vu-toc-chuyen-sau.html', 'cham-soc-da.html',
+    'spa-massage.html', 'dich-vu-mi.html']) {
+    assert.deepEqual(hrefs(markup).filter((href) => href === page), [], page);
+  }
+});
+
+test('a visitor who is not signed in is offered four entries and the salon door', () => {
+  const { markup } = header('/kham-pha.html');
+
+  assert.deepEqual(hrefs(reading(menu(markup), 'guest')), [
+    'dang-nhap-doi-tac.html',
+    'dang-nhap-nguoi-dung.html',
+    'dang-ky.html',
+    'ket-qua-tim-kiem.html',
+    'uu-dai.html',
+  ]);
 });
 
 /* A technician meets this bar everywhere outside the console — on kham-pha.html, on a salon
@@ -111,14 +158,14 @@ test("the technician block of the menu is in the same order as her own pages", (
   assert.deepEqual(hrefs(groupOf(markup, 'staff')), STAFF_PAGES);
 });
 
-test('the technician block says whose account it is, in the same voice as the categories', () => {
+test('the technician block says whose account it is', () => {
   const { markup } = header('/kham-pha.html');
 
   /* Nothing else on the bar names the kind of account signed in, and a menu that offers
      "Lịch của tôi" without saying whose leaves a reader guessing which site they are on.
-     The same caption the service list is led by, so the two read as one menu. */
+     The one caption left in the menu, now that the service list it used to lead is gone. */
   const caption = /<p class="px-5 pt-3 pb-1 font-caption text-caption uppercase tracking-widest text-on-surface-variant">([^<]+)<\/p>/g;
-  assert.deepEqual([...markup.matchAll(caption)].map((hit) => hit[1]), ['Kỹ thuật viên', 'Dịch vụ']);
+  assert.deepEqual([...markup.matchAll(caption)].map((hit) => hit[1]), ['Kỹ thuật viên']);
   assert.match(groupOf(markup, 'staff'), /^<div class="hidden" data-oak-auth="staff"><p /);
 });
 
@@ -159,7 +206,7 @@ test('the technician entries end the menu rather than parting the customer one',
      anywhere else moves the customer's own sign-out up into the middle of the menu. */
   const where = (needle) => markup.indexOf(needle);
   assert.ok(where('data-oak-auth="staff"') > where('data-oak-auth="user"'));
-  assert.ok(where('>Dịch vụ<') < where('href="kham-pha.html">Đăng xuất<'));
+  assert.ok(where('href="uu-dai.html">Ưu đãi<') < where('href="kham-pha.html">Đăng xuất<'));
   assert.ok(
     where('href="kham-pha.html">Đăng xuất<') < where('href="dang-nhap-nhan-vien.html">Đăng xuất<'),
   );
@@ -202,15 +249,20 @@ function reading(markup, persona) {
 }
 
 test('exactly one entry the reader can reach is marked as the page they are on', () => {
-  /* thong-bao.html and cai-dat.html are each written twice now, once per account group, so
-     the raw markup does stamp two anchors on those two pages. Only one group is ever on
-     screen, so the invariant is one mark per reading — and the mark has to be there in both
-     readings, because either persona can be the one standing on the page. Driven on an
-     account page and not only on uu-dai.html: a page in no account group at all cannot see
-     a duplicate, which is why the old reading of this test would have passed through one. */
-  for (const page of ['uu-dai.html', 'cai-dat.html', 'thong-bao.html']) {
+  /* thong-bao.html is written twice, once per account group, so the raw markup stamps two
+     anchors on it. Only one group is ever on screen, so the invariant is one mark per
+     reading — and the mark has to be there in both readings, because either persona can be
+     the one standing on the page. Driven on an account page and not only on uu-dai.html: a
+     page in no account group at all cannot see a duplicate, which is why the old reading of
+     this test would have passed through one. cai-dat.html is the technician's entry alone
+     now — the customer reaches it from the strip her account pages carry. */
+  for (const [page, personas] of [
+    ['uu-dai.html', ['user', 'staff']],
+    ['thong-bao.html', ['user', 'staff']],
+    ['cai-dat.html', ['staff']],
+  ]) {
     const { markup } = header('/' + page);
-    for (const persona of ['user', 'staff']) {
+    for (const persona of personas) {
       assert.deepEqual(marked(reading(markup, persona)), [page], `${page} read as ${persona}`);
     }
   }
@@ -284,7 +336,7 @@ test('the account tab strip scrolls to the tab the reader is on, and only when i
 test('nothing on the bar claims to be an AI', () => {
   const { markup } = header('/kham-pha.html');
 
-  /* A whole word, so the NAIL and HAIR category entries are left out of it. */
+  /* A whole word, so a label that merely contains those two letters is left out of it. */
   assert.ok(!/\bAI\b/.test(markup), 'the bar calls something an AI');
 });
 

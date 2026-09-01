@@ -41,8 +41,8 @@
   var PAGE = location.pathname.split('/').pop() || 'kham-pha.html';
 
   /*
-   * The bar is the first thing every keyboard reader meets, and on a phone its menu holds
-   * around twenty entries, so a way past it goes in ahead of it. Off-screen until it takes
+   * The bar is the first thing every keyboard reader meets, and its menu is still the only
+   * way onward on a phone, so a way past it goes in ahead of it. Off-screen until it takes
    * focus, then pinned over the bar (which is itself fixed at z-50).
    *
    * No customer page carries an id on its <main>, and stamping one here costs a line where
@@ -126,18 +126,12 @@
   /* Both for the entry that leads the menu and for whichever one the reader is on. */
   var ITEM_STRONG = ITEM_BASE + 'font-bold text-primary';
 
-  var CATEGORY_BASE =
-    'flex items-center min-h-[44px] px-5 py-2 font-label-md text-label-md uppercase ' +
-    'tracking-wider hover:text-primary hover:bg-surface-container-low transition-colors ';
-  var CATEGORY = CATEGORY_BASE + 'text-on-surface-variant';
-  var CATEGORY_HERE = CATEGORY_BASE + 'font-bold text-primary';
-
   var RULE = '<div class="border-t border-outline-variant/30 my-1"></div>';
 
   /** An entry of the menu: following it shuts the menu behind you. */
-  function entry(href, label, rest, here, extra) {
+  function entry(href, label, rest, extra) {
     var mine = isHere(href);
-    return '<a @click="menuOpen = false" class="' + (mine ? here || ITEM_STRONG : rest || ITEM) +
+    return '<a @click="menuOpen = false" class="' + (mine ? ITEM_STRONG : rest || ITEM) +
       '" href="' + href + '"' + (mine ? ' aria-current="page"' : '') + (extra || '') + '>' +
       label + '</a>';
   }
@@ -149,18 +143,13 @@
       (mine ? ' aria-current="page"' : '') + '>' + label + '</a>';
   }
 
+  /* The way in is the search, not the wizard: dat-lich.html with no salon behind it opened
+     on a directory of its own, a second listing of what ket-qua-tim-kiem.html already is.
+     The five category shortcuts left with it — every one of them is a tile on the home
+     page's own "Danh mục dịch vụ" grid, which is where a reader browsing by kind starts. */
   var everyone =
-    entry('dat-lich.html', 'Đặt lịch') +
+    entry('ket-qua-tim-kiem.html', 'Tìm salon') +
     entry('uu-dai.html', 'Ưu đãi');
-
-  var categories =
-    '<p class="px-5 pt-3 pb-1 font-caption text-caption uppercase tracking-widest ' +
-      'text-on-surface-variant">Dịch vụ</p>' +
-    entry('dich-vu-nail.html', 'NAIL', CATEGORY, CATEGORY_HERE) +
-    entry('dich-vu-toc-chuyen-sau.html', 'HAIR', CATEGORY, CATEGORY_HERE) +
-    entry('cham-soc-da.html', 'SKINCARE', CATEGORY, CATEGORY_HERE) +
-    entry('spa-massage.html', 'SPA &amp; MASSAGE', CATEGORY, CATEGORY_HERE) +
-    entry('dich-vu-mi.html', 'EYELASH', CATEGORY, CATEGORY_HERE);
 
   /* All three readings ship in the markup; oak-api.js keeps the one that matches the reader
      and puts the others away once /api/auth/me answers. */
@@ -170,26 +159,25 @@
       entry('dang-ky.html', 'Đăng ký') +
     '</div>';
 
-  /* Same order as the rail and the mobile strip those six pages carry: two orders for one
-     set of pages is what makes a reader hunt for the entry they used yesterday. */
+  /* Three of the six account pages, in the order the rail and the mobile strip carry them:
+     two orders for one set of pages is what makes a reader hunt for the entry they used
+     yesterday. The other three — Yêu thích, Đánh giá của tôi, Cài đặt — are one tap further
+     in, on the strip every one of these pages carries, rather than a second time here. */
   var mine =
     '<div class="hidden" data-oak-auth="user">' +
-      entry('lich-hen-cua-toi.html', 'Lịch hẹn của tôi') +
-      entry('yeu-thich.html', 'Yêu thích') +
-      entry('danh-gia-cua-toi.html', 'Đánh giá của tôi') +
+      entry('lich-hen-cua-toi.html', 'Lịch hẹn') +
       /* The mark oak-api.js adds belongs at the end of this row, not over its first word. */
-      entry('thong-bao.html', 'Thông báo', null, null,
+      entry('thong-bao.html', 'Thông báo', null,
         ' aria-label="Thông báo" data-oak-dot="absolute right-4 top-1/2 -translate-y-1/2"') +
-      entry('ho-so-ca-nhan.html', 'Hồ sơ cá nhân') +
-      entry('cai-dat.html', 'Cài đặt') +
+      entry('ho-so-ca-nhan.html', 'Hồ sơ') +
     '</div>';
 
   /* The third reading of the same menu. A technician signed in on a public page was being
      offered the customer's six pages, none of which is hers, and no way to the four that
      are; the caption leads them because nothing else on the bar says which kind of account
      is signed in. The first three in the order her own rail carries them, for the same
-     reason `mine` follows the customer's. Cài đặt is on no rail — it is reached from a menu
-     and nowhere else — so it comes last, which is where `mine` ends on it too. */
+     reason `mine` follows the customer's. Cài đặt is on no rail of hers — it is reached from
+     a menu and nowhere else — so it stays here, and comes last. */
   var staff =
     '<div class="hidden" data-oak-auth="staff">' +
       '<p class="px-5 pt-3 pb-1 font-caption text-caption uppercase tracking-widest ' +
@@ -197,7 +185,7 @@
       entry('lich-cua-toi.html', 'Lịch của tôi') +
       entry('ho-so-nhan-vien.html', 'Hồ sơ của tôi') +
       /* The mark oak-api.js adds belongs at the end of this row, not over its first word. */
-      entry('thong-bao.html', 'Thông báo', null, null,
+      entry('thong-bao.html', 'Thông báo', null,
         ' aria-label="Thông báo" data-oak-dot="absolute right-4 top-1/2 -translate-y-1/2"') +
       entry('cai-dat.html', 'Cài đặt') +
     '</div>';
@@ -233,7 +221,7 @@
         entry('dang-nhap-doi-tac.html', 'Dành cho salon') +
         RULE +
       '</div>' +
-      guest + mine + staff + RULE + everyone + RULE + categories + signOut + staffSignOut +
+      guest + mine + staff + RULE + everyone + signOut + staffSignOut +
     '</div>';
 
   var pill =
