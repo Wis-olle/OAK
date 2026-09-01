@@ -14,8 +14,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const ui = path.join(root, 'ui');
 const pages = fs.readdirSync(ui).filter((name) => name.endsWith('.html')).sort();
 
-/* The account area, the partner console, the auth screens, the two redirect stubs and the one
-   hard-coded salon sample. Behind a login or a redirect, so an indexed copy is an empty page. */
+/* The account area, the partner console, the auth screens and the two redirect stubs.
+   Behind a login or a redirect, so an indexed copy is an empty page. */
 const PRIVATE = [
   'cai-dat-salon.html', 'cai-dat.html', 'dang-ky.html',
   'dang-nhap-doi-tac.html', 'dang-nhap-nguoi-dung.html', 'dang-nhap-nhan-vien.html',
@@ -23,7 +23,7 @@ const PRIVATE = [
   'danh-gia-salon.html', 'danh-sach-salon.html', 'dat-lai-mat-khau.html', 'dat-lich.html', 'ho-so-ca-nhan.html',
   'ho-so-nhan-vien.html',
   'index.html', 'lich-cua-toi.html', 'lich-hen-cua-toi.html', 'quan-ly-dich-vu.html', 'quan-ly-lich-hen.html',
-  'quan-ly-nhan-vien.html', 'salon-profile-lala-nail-studio.html', 'thong-bao.html',
+  'quan-ly-nhan-vien.html', 'thong-bao.html',
   'tong-quan-doi-tac.html', 'xac-nhan-dat-lich.html', 'yeu-thich.html',
 ];
 const PUBLIC = pages.filter((page) => !PRIVATE.includes(page) && page !== '404.html');
@@ -40,7 +40,7 @@ const appJs = readServer('app.js');
 test('exactly the private pages are noindexed', () => {
   const noindexed = pages.filter((page) => /<meta content="noindex,nofollow" name="robots">/.test(readUi(page)));
   assert.deepEqual(noindexed, [...PRIVATE].sort());
-  assert.equal(noindexed.length, 24);
+  assert.equal(noindexed.length, 23);
 });
 
 test('robots.txt keeps crawlers out of the API, the uploads and every private page', () => {

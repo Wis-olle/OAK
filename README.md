@@ -1,17 +1,25 @@
-# oak_demo
+# OAK Beauty
 
-A new Flutter project.
+Đặt lịch nail, tóc, chăm sóc da, spa và nối mi tại các salon ở TP.HCM: khách tìm salon
+và đặt giờ, salon nhận lịch trong console của mình, kỹ thuật viên có trang riêng mang
+theo được giữa các salon.
 
-## Getting Started
+Repo có hai nửa, cùng chạy trong một tiến trình:
 
-This project is a starting point for a Flutter application.
+- **`server/`** — API Express (Node 24, ESM) trên Postgres. Nó cũng phục vụ luôn `ui/`
+  dưới dạng file tĩnh, nên chỉ có một service để deploy.
+- **`ui/`** — trang tĩnh: HTML + Alpine, CSS Tailwind đã build sẵn và commit vào
+  `ui/assets/css/oak-tailwind.css`. Không có bước bundle nào cho JavaScript.
 
-A few resources to get you started if this is your first Flutter project:
+Đọc tiếp:
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- [`server/README.md`](server/README.md) — chạy máy local, tài khoản demo, biến môi trường.
+- [`DEPLOY.md`](DEPLOY.md) — Render + Supabase, và các bước build phải chạy tay sau khi
+  sửa `ui/` (Tailwind, font icon, từ điển tiếng Anh).
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Chạy test:
+
+```
+cd server && npm run test:unit      # đọc mã nguồn và markup, không cần database
+cd server && node test/api-smoke.mjs # cần Postgres; tự dựng server và seed dữ liệu mẫu
+```

@@ -29,7 +29,6 @@ Disallow: /lich-hen-cua-toi.html
 Disallow: /quan-ly-dich-vu.html
 Disallow: /quan-ly-lich-hen.html
 Disallow: /quan-ly-nhan-vien.html
-Disallow: /salon-profile-lala-nail-studio.html
 Disallow: /thong-bao.html
 Disallow: /tong-quan-doi-tac.html
 Disallow: /xac-nhan-dat-lich.html
