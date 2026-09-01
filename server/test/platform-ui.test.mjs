@@ -357,8 +357,11 @@ test('a week of one service asks about each day once', () => {
   const availability = fs.readFileSync(path.join(root, 'server/src/lib/availability.js'), 'utf8');
   assert.match(
     availability,
-    /export async function getStaffSlots\(staffId, serviceId, date, knownOff = null, leadMin = null\)/,
+    /staffId, serviceId, date, knownOff = null, leadMin = null, exceptBookingId = null,/,
   );
   const staff = readServer('routes/staff.js');
-  assert.match(staff, /getStaffSlots\(staffId, serviceId, date, off\)/);
+  // The day-off rows the week loop has already read, handed down rather than read again —
+  // and behind them the appointment being moved, which has to travel the same seam or the
+  // day strip goes on counting the customer's own booking against them.
+  assert.match(staff, /getStaffSlots\(staffId, serviceId, date, off, null, except\)/);
 });

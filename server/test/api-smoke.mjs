@@ -1599,9 +1599,15 @@ async function groupBookings() {
   const rescued = ok(
     await customer.fetch(`/api/bookings/${imminent.id}/reschedule`, {
       method: 'PATCH',
-      json: { date: rescueSlot.date, time: rescueSlot.time },
+      // An explicit null is "Bất kỳ" — the customer saying they no longer mind who. The
+      // hour was found across the whole roster, so it is the roster that has to answer.
+      json: { date: rescueSlot.date, time: rescueSlot.time, staff_id: null },
     }),
     'PATCH /api/bookings/:id/reschedule inside the salon cancel window',
+  );
+  assert(
+    rescued.staff !== null,
+    'reschedule to "Bất kỳ": the roster must still hold the hour for somebody',
   );
   assert(
     rescued.date === rescueSlot.date && rescued.time === rescueSlot.time,
@@ -1663,6 +1669,190 @@ async function groupBookings() {
   } else {
     skip('an appointment cannot have started twenty minutes ago in the first twenty minutes of a day');
   }
+
+  /* -- an appointment is never in its own way ---------------------------------------- */
+
+  /* The half-hour beside your own booking. A 60-minute service at 10:00 covers 10:30, so a
+     calendar read with that booking still on it says 10:30 is taken — by the very customer
+     asking to move onto it. Every read of a technician's day therefore takes the exception:
+     the write side (lib/availability.js), and the grid the customer picks from, which asks
+     for it as ?except and is answered only for the person whose booking it is. */
+  const overlapService = salonServices.find(
+    (candidate) => (candidate.duration_min ?? 0) > 30,
+  );
+  let overlap = null;
+  if (overlapService) {
+    for (const performer of ok(
+      await guest.fetch(`/api/services/${overlapService.id}/staff`),
+      'performers for the overlap checks',
+    )) {
+      const week = ok(
+        await guest.fetch(
+          `/api/staff/${performer.id}/availability?from=${addDays(state.today, 1)}&days=7` +
+            `&service_id=${overlapService.id}`,
+        ),
+        `week grid for ${performer.name} (overlap checks)`,
+      ).week;
+      for (const day of week) {
+        const at = day.slots.findIndex(
+          (slot, index) =>
+            slot.available &&
+            day.slots[index + 1]?.available &&
+            minutesOf(day.slots[index + 1].time) === minutesOf(slot.time) + 30,
+        );
+        if (at !== -1) {
+          overlap = {
+            performer,
+            date: day.date,
+            first: day.slots[at].time,
+            second: day.slots[at + 1].time,
+          };
+          break;
+        }
+      }
+      if (overlap) {
+        break;
+      }
+    }
+  }
+
+  if (overlap === null) {
+    skip('no technician has two consecutive free half-hours on a service longer than one');
+  } else {
+    const held = ok(
+      await customer.fetch('/api/bookings', {
+        method: 'POST',
+        json: {
+          salon_id: state.lalaId,
+          service_id: overlapService.id,
+          staff_id: overlap.performer.id,
+          date: overlap.date,
+          time: overlap.first,
+        },
+      }),
+      'POST /api/bookings (the appointment whose own hour is in the way)',
+    );
+
+    // The grid the wizard draws, three ways. Her own booking makes the next half-hour busy…
+    const gridPath =
+      `/api/staff/${overlap.performer.id}/availability?from=${overlap.date}&days=1` +
+      `&service_id=${overlapService.id}`;
+    const secondIn = (week) =>
+      week[0].slots.find((slot) => slot.time === overlap.second)?.available;
+    assert(
+      secondIn(ok(await customer.fetch(gridPath), 'the grid without ?except').week) === false,
+      'the half-hour after a booking must read as taken while that booking still counts',
+    );
+    // …and not for the person moving it, who is the only one it is not busy for.
+    assert(
+      secondIn(
+        ok(await customer.fetch(`${gridPath}&except=${held.id}`), 'the grid with ?except').week,
+      ) === true,
+      'the same half-hour must be free to the customer whose own booking is in the way',
+    );
+    /* The claim is about a private row, so it is checked as one. A stranger and another
+       customer are both answered the plain grid — not a refusal, which would itself say
+       that the id names something. */
+    for (const [who, client] of [['a signed-out visitor', guest], ['another customer', session('customer2')]]) {
+      assert(
+        secondIn(
+          ok(await client.fetch(`${gridPath}&except=${held.id}`), `the grid ?except for ${who}`)
+            .week,
+        ) === false,
+        `?except must be ignored for ${who}`,
+      );
+    }
+
+    // And the move the grid was promising. The technician is named, so she is asked about
+    // her own calendar — with her own customer's hour taken out of it.
+    const shifted = ok(
+      await customer.fetch(`/api/bookings/${held.id}/reschedule`, {
+        method: 'PATCH',
+        json: { date: overlap.date, time: overlap.second, staff_id: overlap.performer.id },
+      }),
+      'PATCH /api/bookings/:id/reschedule onto the half-hour its own booking overlaps',
+    );
+    assert(
+      shifted.time === overlap.second && shifted.staff?.id === overlap.performer.id,
+      'the overlapping move must land on the hour asked for, with the technician asked for',
+    );
+
+    /* Back again, and this time saying nothing about the technician. Absent is not null: a
+       request that only moves the hour leaves the chair alone, or a customer who tapped
+       "Đổi lịch" and picked a new time would find themselves handed to a stranger. */
+    const backAgain = ok(
+      await customer.fetch(`/api/bookings/${shifted.id}/reschedule`, {
+        method: 'PATCH',
+        json: { date: overlap.date, time: overlap.first },
+      }),
+      'PATCH /api/bookings/:id/reschedule with no staff_id at all',
+    );
+    assert(
+      backAgain.staff?.id === overlap.performer.id,
+      'a move that says nothing about the technician must keep the one the booking had',
+    );
+
+    /* Now the same overlap through "Bất kỳ". Every other performer of this service is put
+       on the destination half-hour first, so the roster has exactly one candidate left —
+       the customer's own technician, whose only clash is the booking being moved. Without
+       the exception reaching the auto-pick this is a 409, or worse a silent re-chairing. */
+    for (const performer of ok(
+      await guest.fetch(`/api/services/${overlapService.id}/staff`),
+      'performers to fill the destination half-hour with',
+    )) {
+      if (performer.id === overlap.performer.id) {
+        continue;
+      }
+      await session('customer2').fetch('/api/bookings', {
+        method: 'POST',
+        json: {
+          salon_id: state.lalaId,
+          service_id: overlapService.id,
+          staff_id: performer.id,
+          date: overlap.date,
+          time: overlap.second,
+        },
+      });
+    }
+    const anyone = ok(
+      await customer.fetch(`/api/bookings/${backAgain.id}/reschedule`, {
+        method: 'PATCH',
+        json: { date: overlap.date, time: overlap.second, staff_id: null },
+      }),
+      'PATCH /api/bookings/:id/reschedule to "Bất kỳ" onto its own overlapping half-hour',
+    );
+    assert(
+      anyone.staff?.id === overlap.performer.id,
+      '"Bất kỳ" must be free to pick the technician whose only clash is the booking being moved',
+    );
+
+    /* And an appointment that stopped being the appointment the request was built from. The
+       console drops it between the reader opening their list and tapping Đổi lịch, and the
+       move comes apart whole: no new row, and the cancelled visit is still cancelled. */
+    ok(
+      await partner.fetch(`/api/partner/bookings/${anyone.id}`, {
+        method: 'PATCH',
+        json: { status: 'cancelled' },
+      }),
+      'PATCH /api/partner/bookings/:id (the salon drops it before the move)',
+    );
+    const stale = await customer.fetch(`/api/bookings/${anyone.id}/reschedule`, {
+      method: 'PATCH',
+      json: { date: overlap.date, time: overlap.first },
+    });
+    // The status is read on the pool first, so this one never reaches the transaction —
+    // the in-transaction guard behind it is pinned in booking-lifecycle.test.mjs.
+    expectError(stale, 400, 'INVALID_STATUS', 'moving an appointment the salon has dropped');
+    const untouched = ok(
+      await customer.fetch(`/api/bookings/${anyone.id}`),
+      'GET the dropped appointment after the refused move',
+    );
+    assert(
+      untouched.status === 'cancelled' && untouched.time === overlap.second,
+      'a refused move must leave the dropped appointment exactly as the console left it',
+    );
+  }
+
 
 
   // A day the salon declared closed is refused before any calendar is consulted, and the

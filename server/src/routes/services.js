@@ -3,6 +3,7 @@ import express from 'express';
 import { db } from '../db.js';
 import { SERVICE_CARD_COLUMNS, toServiceCard } from '../lib/cards.js';
 import { getServiceSlots, salonSettingsForService, timeOffOn } from '../lib/availability.js';
+import { exceptBookingIdFor } from '../lib/except-booking.js';
 import { parsePagination } from '../lib/query.js';
 import { addDaysISO, isISODate, todayISO } from '../lib/time.js';
 import { httpError } from '../middleware/auth.js';
@@ -225,7 +226,7 @@ router.get('/categories', async (req, res, next) => {
  * The salon and its lead time are read once for the whole week and the day-off rows once
  * per date, then handed to getServiceSlots, so a seven-day grid asks each question once.
  */
-async function getServiceWeek(serviceId, from, days) {
+async function getServiceWeek(serviceId, from, days, except = null) {
   const settings = await salonSettingsForService(serviceId);
   const week = [];
   for (let offset = 0; offset < days; offset += 1) {
@@ -234,7 +235,9 @@ async function getServiceWeek(serviceId, from, days) {
     week.push({
       date,
       closed: off.salon,
-      slots: await getServiceSlots(serviceId, date, off, settings?.lead_time_min ?? null),
+      slots: await getServiceSlots(
+        serviceId, date, off, settings?.lead_time_min ?? null, except,
+      ),
     });
   }
   return week;
@@ -252,6 +255,9 @@ async function getServiceWeek(serviceId, from, days) {
 router.get('/:id/availability', async (req, res, next) => {
   try {
     const serviceId = await serviceIdOrThrow(req.params.id);
+    // The caller's own appointment, taken out of the calendar it is being moved off.
+    // Ignored unless they are signed in and it is really theirs (lib/except-booking.js).
+    const except = await exceptBookingIdFor(req);
 
     if (req.query.days !== undefined) {
       const from = req.query.from === undefined ? todayISO() : req.query.from;
@@ -262,7 +268,10 @@ router.get('/:id/availability', async (req, res, next) => {
         MAX_DAYS,
         Math.max(MIN_DAYS, Number.parseInt(req.query.days, 10) || DEFAULT_DAYS),
       );
-      res.json({ success: true, data: { from, week: await getServiceWeek(serviceId, from, days) } });
+      res.json({
+        success: true,
+        data: { from, week: await getServiceWeek(serviceId, from, days, except) },
+      });
       return;
     }
 
@@ -270,7 +279,10 @@ router.get('/:id/availability', async (req, res, next) => {
     if (!isISODate(date)) {
       throw httpError(400, 'VALIDATION_ERROR', 'Vui lòng chọn ngày hợp lệ theo định dạng YYYY-MM-DD.');
     }
-    res.json({ success: true, data: { date, slots: await getServiceSlots(serviceId, date) } });
+    res.json({
+      success: true,
+      data: { date, slots: await getServiceSlots(serviceId, date, null, null, except) },
+    });
   } catch (error) {
     next(error);
   }

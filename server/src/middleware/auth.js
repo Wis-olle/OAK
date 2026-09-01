@@ -93,6 +93,31 @@ export async function requireAuth(req, res, next) {
   return next();
 }
 
+/**
+ * The user named by the auth cookie, or null. The same three checks requireAuth makes —
+ * a readable token, an account still there, a session not outlived by a password change —
+ * without the rejection and without the sliding re-issue.
+ *
+ * For a PUBLIC route that answers a little differently to the person the answer is about.
+ * No cookie, an unreadable one or a deleted account is simply a stranger there, and a
+ * stranger is allowed; a public route also has no business minting a fresh cookie, so the
+ * slide stays with requireAuth.
+ */
+export async function sessionUser(req) {
+  const token = req.cookies?.[COOKIE_NAME];
+  if (!token) {
+    return null;
+  }
+  let payload;
+  try {
+    payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+  } catch {
+    return null;
+  }
+  const user = await selectPublicUser.get(payload.id);
+  return user && !sessionOutlivedPassword(payload, user) ? user : null;
+}
+
 /** Allow only partner accounts. Expects requireAuth to have run first. */
 export function requirePartner(req, res, next) {
   if (!req.user) {

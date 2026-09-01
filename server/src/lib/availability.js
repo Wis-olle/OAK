@@ -103,12 +103,16 @@ const STAFF_BOOKINGS_SQL = `
   JOIN services sv ON sv.id = b.service_id
   WHERE b.staff_id = ? AND b.date = ? AND b.status IN ('pending', 'confirmed')
 `;
-const selectStaffBookings = db.prepare(STAFF_BOOKINGS_SQL);
-
 // The same rows with one taken out, for a booking that is being MOVED: an appointment must
 // not be found clashing with the hour it is already sitting on. IS DISTINCT FROM rather than
 // <>, so a null id — a create, which has no row yet — simply excludes nothing.
+//
+// Every read of a technician's day goes through this one, exception or none. A grid that
+// counted the appointment being moved as busy would refuse the customer the half-hour next
+// to their own booking — an overlap with nobody but themselves — and the write side would
+// then have to disagree with the grid to be right.
 const OTHER_STAFF_BOOKINGS_SQL = `${STAFF_BOOKINGS_SQL} AND b.id IS DISTINCT FROM ?`;
+const selectOtherStaffBookings = db.prepare(OTHER_STAFF_BOOKINGS_SQL);
 
 /*
  * The one lock every write that holds an hour takes first.
@@ -267,9 +271,15 @@ function toRanges(bookings) {
   return ranges;
 }
 
-/** Busy [start, end) minute ranges for one staff member on one date. */
-async function busyRanges(staffId, date) {
-  return toRanges(await selectStaffBookings.all(staffId, date));
+/**
+ * Busy [start, end) minute ranges for one staff member on one date.
+ *
+ * `exceptBookingId` is the appointment being moved, which is never in its own way: the
+ * hour it is sitting on is about to be given back, so counting it would hide exactly the
+ * hours a reschedule is most likely to want.
+ */
+async function busyRanges(staffId, date, exceptBookingId = null) {
+  return toRanges(await selectOtherStaffBookings.all(staffId, date, exceptBookingId));
 }
 
 function isFree(ranges, start, duration) {
@@ -361,8 +371,11 @@ export async function respectsLeadTime(salonId, date, time) {
  * `knownOff` and `leadMin` are the same seam staffDaySlots has, for the same reason: a
  * caller looping over a week already holds the day-off rows (it needs them for its own
  * `closed` flag) and the salon's lead time cannot change between the days of one request.
+ * `exceptBookingId` is busyRanges's, passed straight down.
  */
-export async function getServiceSlots(serviceId, date, knownOff = null, leadMin = null) {
+export async function getServiceSlots(
+  serviceId, date, knownOff = null, leadMin = null, exceptBookingId = null,
+) {
   const service = await selectService.get(serviceId);
   if (!service) {
     return [];
@@ -384,7 +397,7 @@ export async function getServiceSlots(serviceId, date, knownOff = null, leadMin 
     if (!open) {
       continue;
     }
-    const ranges = await busyRanges(shift.id, date);
+    const ranges = await busyRanges(shift.id, date, exceptBookingId);
     for (const minute of shiftStarts(open, duration, floor)) {
       // One free staff member is enough, so availability ORs across staff.
       availability.set(minute, (availability.get(minute) ?? false) || isFree(ranges, minute, duration));
@@ -402,7 +415,9 @@ export async function getServiceSlots(serviceId, date, knownOff = null, leadMin 
  * salon's lead time cannot change between the days of one request. Passing them in keeps
  * a seven-day grid from asking the same two questions fourteen times over.
  */
-async function staffDaySlots(staffId, date, duration, knownOff = null, leadMin = null) {
+async function staffDaySlots(
+  staffId, date, duration, knownOff = null, leadMin = null, exceptBookingId = null,
+) {
   const weekday = weekdayOf(date);
   const shift = await selectStaffShift.get(staffId, weekday);
   if (!shift) {
@@ -418,7 +433,7 @@ async function staffDaySlots(staffId, date, duration, knownOff = null, leadMin =
   }
   const floor =
     leadMin === null ? await leadFloorFor(shift.salon_id, date) : leadFloor(date, leadMin);
-  const ranges = await busyRanges(staffId, date);
+  const ranges = await busyRanges(staffId, date, exceptBookingId);
   const slots = [];
   for (const minute of shiftStarts(open, duration, floor)) {
     slots.push({ time: fromMinutes(minute), available: isFree(ranges, minute, duration) });
@@ -435,15 +450,19 @@ async function staffDaySlots(staffId, date, duration, knownOff = null, leadMin =
  * staff_schedule.staff_id is a foreign key, that also covers an id that does not exist.
  *
  * `knownOff` and `leadMin` are staffDaySlots's own seam, passed straight through for the
- * caller that walks a week and already holds both (routes/staff.js getServiceWeek).
+ * caller that walks a week and already holds both (routes/staff.js getServiceWeek), and so
+ * is `exceptBookingId`, the appointment being moved.
  */
-export async function getStaffSlots(staffId, serviceId, date, knownOff = null, leadMin = null) {
+export async function getStaffSlots(
+  staffId, serviceId, date, knownOff = null, leadMin = null, exceptBookingId = null,
+) {
   const service = await selectService.get(serviceId);
   if (!service) {
     return [];
   }
   return staffDaySlots(
     staffId, date, service.duration_min || FALLBACK_DURATION_MIN, knownOff, leadMin,
+    exceptBookingId,
   );
 }
 
@@ -468,8 +487,15 @@ export async function getStaffSlots(staffId, serviceId, date, knownOff = null, l
  * whose day it is about to fill until it has read them all. Nothing in here takes the lock
  * itself — the INSERT that follows has to be inside the same transaction as the pick, so the
  * lock belongs to whoever owns both.
+ *
+ * `exceptBookingId` is the appointment being moved. Without it a "Bất kỳ" move onto an hour
+ * that overlaps the customer's own booking finds its own technician busy and either refuses
+ * the move or quietly hands the customer somebody else — and the person they had asked for
+ * by having been given her is the one candidate the arithmetic would rule out.
  */
-export async function pickAvailableStaff(tx, salonId, serviceId, date, time, durationMin) {
+export async function pickAvailableStaff(
+  tx, salonId, serviceId, date, time, durationMin, exceptBookingId = null,
+) {
   const duration = durationMin || FALLBACK_DURATION_MIN;
   const weekday = weekdayOf(date);
   const offRows = await tx.all(TIME_OFF_SQL, salonId, date, date);
@@ -486,7 +512,9 @@ export async function pickAvailableStaff(tx, salonId, serviceId, date, time, dur
     if (!open) {
       continue;
     }
-    const ranges = toRanges(await tx.all(STAFF_BOOKINGS_SQL, shift.id, date));
+    const ranges = toRanges(
+      await tx.all(OTHER_STAFF_BOOKINGS_SQL, shift.id, date, exceptBookingId),
+    );
     let free = 0;
     let freeAtTime = false;
     for (const minute of shiftStarts(open, duration, floor)) {

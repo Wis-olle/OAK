@@ -31,6 +31,10 @@ function factory(html, from, call, extra = {}) {
       requireLogin: async () => ({ id: 1, name: 'Ngọc Anh' }),
       fmtDate: (value) => String(value),
       fmtTime: (value) => String(value),
+      // The shipped one, in oak-api.js, is driven by fmt-date-ui.test.mjs; here it only has
+      // to answer, because what these tests are about is which button it gates.
+      hasStarted: (booking) =>
+        Date.now() >= new Date(booking.date + 'T' + booking.time + ':00').getTime(),
       qs: (name) => (name in query ? query[name] : null),
       // Scrolling the composer into view asks whether the reader wants motion at all.
       scrollBehavior: () => 'smooth',
@@ -357,13 +361,15 @@ test('a note typed under "Khác" is dropped when the reason is switched away fro
 });
 
 test('a booking that has already started offers no cancel button at all', () => {
-  const state = myBookings(async () => []);
-  assert.equal(state.hasStarted(bookingIn(1)), false);
-  assert.equal(state.hasStarted(bookingIn(-1)), true);
+  /* One helper, on OAK, for the three screens that draw this line — this list, the band
+     under the hero on kham-pha, and the wizard refusing a move that is already over. Two
+     copies of the arithmetic is two chances for one hour to be described differently on
+     two screens the same reader has open. */
   assert.match(
     bookingsHtml,
-    /x-show="tab === 'upcoming' &amp;&amp; !hasStarted\(booking\)"/,
+    /x-show="tab === 'upcoming' &amp;&amp; !OAK\.hasStarted\(booking\)"/,
   );
+  assert.doesNotMatch(bookingsHtml, /hasStarted\(booking\) \{/);
 });
 
 test('an appointment the salon recorded as absent is labelled, not left as an enum', () => {
@@ -530,14 +536,12 @@ test('"Đổi lịch" stands until the appointment starts, and the cancel window
   // — a customer who moves an appointment is not walking away, and the salon keeps the
   // visit. Gating the button on canCancel() left the hour before an appointment with no
   // way out but not turning up.
-  assert.equal(state.hasStarted(bookingIn(1)), false);
-  assert.equal(state.hasStarted(bookingIn(-1)), true);
-  assert.match(bookingsHtml, /x-show="tab === 'upcoming' &amp;&amp; !hasStarted\(booking\)"/);
+  assert.match(bookingsHtml, /x-show="tab === 'upcoming' &amp;&amp; !OAK\.hasStarted\(booking\)"/);
   // "Hủy lịch" draws the same line: its dialog is where the explanation — and the phone
   // number — lives, so it opens right up to the start and says so there.
   assert.match(
     bookingsHtml,
-    /@click="cancel\(booking\)"[^>]*x-show="tab === 'upcoming' &amp;&amp; !hasStarted\(booking\)"/,
+    /@click="cancel\(booking\)"[^>]*x-show="tab === 'upcoming' &amp;&amp; !OAK\.hasStarted\(booking\)"/,
   );
 });
 

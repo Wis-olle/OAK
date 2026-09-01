@@ -486,6 +486,22 @@
     return match ? match[1].padStart(2, '0') + ':' + match[2].padStart(2, '0') : String(value);
   }
 
+  /**
+    * Has this appointment begun? The line every screen draws before it offers to cancel or
+    * to move one — and the server draws the same one, refusing both past it.
+    *
+    * The "upcoming" tab deliberately keeps a visit that has started, because a customer
+    * sitting in the chair must be able to find the booking they are sitting in; what they
+    * may still DO with it is this question, asked separately. Read in the READER'S clock,
+    * like every other deadline on those screens (the cancel cutoff among them), so one card
+    * cannot say two different things about one hour.
+    */
+  function hasStarted(booking) {
+    var date = String(booking.date).split('-').map(Number);
+    var at = fmtTime(booking.time).split(':').map(Number);
+    return Date.now() >= new Date(date[0], date[1] - 1, date[2], at[0], at[1]).getTime();
+  }
+
   function qs(name) {
     return new URLSearchParams(location.search).get(name);
   }
@@ -1243,6 +1259,7 @@
     fmtDate: fmtDate,
     fmtRange: fmtRange,
     fmtTime: fmtTime,
+    hasStarted: hasStarted,
     bookingStatus: bookingStatus,
     compressImage: compressImage,
     BOOKING_STATUSES: BOOKING_STATUSES,

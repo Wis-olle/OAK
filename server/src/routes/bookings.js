@@ -36,7 +36,7 @@ router.use(requireAuth);
 
 const BOOKING_COLUMNS = `
   b.id, b.user_id, b.code, b.date, b.time, b.status, b.total_price, b.note, b.payment_method,
-  b.auto_closed,
+  b.auto_closed, b.customer_name, b.customer_phone,
   sv.id AS service_id, sv.name AS service_name, sv.duration_min AS service_duration,
   s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name, s.address AS salon_address,
   s.phone AS salon_phone, s.image AS salon_image, s.lat AS salon_lat, s.lng AS salon_lng,
@@ -74,12 +74,6 @@ const selectSalonListing = db.prepare('SELECT published, verified FROM salons WH
 // Also used inside transactions, so the text is kept alongside the pool statement.
 const SELECT_BOOKING = `SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM} WHERE b.id = ?`;
 const selectBooking = db.prepare(SELECT_BOOKING);
-// The two fields no card carries, wanted only where a booking is written a second time:
-// a reschedule opens a new row, and the details the salon was given are the ones on the
-// row being retired, not whatever the account happens to say today.
-const selectBookingContact = db.prepare(
-  'SELECT customer_name, customer_phone FROM bookings WHERE id = ?',
-);
 // source 'customer' is a literal in the column list, like the statuses the console writes:
 // this route is the one place a booking is made by the person who will sit in the chair, so
 // it is a property of the route and never of the request.
@@ -90,6 +84,15 @@ const INSERT_BOOKING = `
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'customer', ?)
 `;
 const CANCEL_BOOKING = "UPDATE bookings SET status = 'cancelled', note = ? WHERE id = ?";
+// The same write, refusing a row that is no longer live. A reschedule retires the old
+// appointment under a lock held over the day it is moving TO, which is not always the day
+// that appointment sits on — so "nothing changed" means the console settled it while this
+// move was being made, and the move has to come apart rather than cancel a finished visit.
+const RETIRE_BOOKING = `${CANCEL_BOOKING} AND status IN ('pending', 'confirmed')`;
+// What a move says when the appointment it was built from is no longer that appointment.
+// One sentence for both places that can find out, because it is one thing that happened.
+const BOOKING_CHANGED_MESSAGE =
+  'Lịch hẹn này vừa được cập nhật, vui lòng mở lại danh sách và thử lại.';
 
 // The one appointment the header strip and the "Lịch kế tiếp" band name, answered as part
 // of GET /api/auth/me so a page load asks once rather than three times. Stricter than the
@@ -170,13 +173,23 @@ function toBookingCard(row) {
   };
 }
 
-/** The card plus the fields only the detail screen needs. */
+/**
+ * The card plus the fields only the detail screen needs.
+ *
+ * The contact pair is in here and not on the card: it is the name and number the salon was
+ * given for this one visit, which the account may since have changed, and every route that
+ * answers a detail has already established that the caller owns the row. The wizard reads
+ * it back when a booking is being MOVED — the move carries those two over, so showing them
+ * is showing what will happen, and asking for them again would be asking twice.
+ */
 function toBookingDetail(row) {
   const card = toBookingCard(row);
   return {
     ...card,
     note: row.note,
     payment_method: row.payment_method,
+    customer_name: row.customer_name,
+    customer_phone: row.customer_phone,
     salon: { ...card.salon, lat: row.salon_lat, lng: row.salon_lng },
   };
 }
@@ -349,8 +362,15 @@ router.get('/mine', async (req, res, next) => {
  *
  * Answers a plan rather than writing anything: the row itself is insertBookingIn()'s, on
  * the caller's transaction and under the lock the caller holds.
+ *
+ * The two options are the move's. `exceptBookingId` is the appointment being moved, which
+ * must not be counted busy against the hour it is moving to; `knownTotal` is the price
+ * already agreed, which stands in for a quote — the work is the same work, and the code
+ * that bought a discount is not on the row to apply again.
  */
-async function validateBookingRequest(user, body) {
+async function validateBookingRequest(
+  user, body, { exceptBookingId = null, knownTotal = null } = {},
+) {
   const {
     salon_id: salonIdInput,
     service_id: serviceIdInput,
@@ -471,12 +491,12 @@ async function validateBookingRequest(user, body) {
        staff who performs the service, so it answers "is somebody free?" — using it
        here let two customers book the same person at the same time.
 
-       A reschedule reads this list too, and its own appointment is still on it: an hour
-       that overlaps the one being moved comes back taken. That is the same grid the
-       customer picked the hour from, so it is the same answer either way round. */
-    const slot = (await getStaffSlots(staffId, serviceId, date)).find(
-      (candidate) => candidate.time === time,
-    );
+       Read WITHOUT the appointment being moved, and the wizard's grid is read the same way
+       (`?except`, routes/services.js and routes/staff.js): an hour half an hour after the
+       customer's own booking overlaps nobody but themselves, and a check that counted it
+       would refuse the most ordinary move there is. */
+    const slot = (await getStaffSlots(staffId, serviceId, date, null, null, exceptBookingId))
+      .find((candidate) => candidate.time === time);
     if (!slot || !slot.available) {
       throw httpError(409, 'SLOT_TAKEN', 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.');
     }
@@ -488,7 +508,7 @@ async function validateBookingRequest(user, body) {
   }
 
   // Recomputed here rather than read from the body: the client is never the price authority.
-  const { total } = await buildQuote(service, staffId, promotionCode);
+  const total = knownTotal ?? (await buildQuote(service, staffId, promotionCode)).total;
   // A salon that takes bookings automatically has already agreed to the hour its own
   // calendar offered, so the booking is confirmed on the spot and never joins the
   // console's "Cần xử lý" queue. A salon that turned that off still decides by hand.
@@ -535,14 +555,16 @@ async function insertBookingIn(tx, plan, code, exceptBookingId = null) {
     throw httpError(409, 'SLOT_TAKEN', 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.');
   }
 
-  // "Bất kỳ" is a choice of nobody in particular, not a booking against nobody:
-  // the hour has to be held on somebody's calendar or the grid keeps offering it.
-  // Chosen in here, on this transaction and under the caller's lock, so the pick and
-  // the row it is written into cannot drift apart.
+  /* "Bất kỳ" is a choice of nobody in particular, not a booking against nobody: the hour
+     has to be held on somebody's calendar or the grid keeps offering it. Chosen in here, on
+     this transaction and under the caller's lock, so the pick and the row it is written
+     into cannot drift apart — and with the same exception, or a move of the customer's own
+     hour would find the one technician it should have kept busy against herself. */
   const assigned =
     plan.staffId ??
     (await pickAvailableStaff(
       tx, plan.salonId, plan.serviceId, plan.date, plan.time, plan.service.duration_min,
+      exceptBookingId,
     ));
   if (assigned === null) {
     throw httpError(409, 'SLOT_TAKEN', 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.');
@@ -763,14 +785,28 @@ router.patch('/:id/cancel', async (req, res, next) => {
  * is already happening, and that is asked instead.
  *
  * The new hour is validated exactly as a fresh booking is, lead time included — from out
- * here it IS a fresh booking. What comes along from the old one is what the customer is
- * not being asked again: the service, the note, the number the salon was given, and the
- * price already agreed.
+ * here it IS a fresh booking. What comes along from the old one is what the customer is not
+ * being asked again: the service, the number the salon was given, and the price already
+ * agreed. The note comes along too unless the request sends one, because the wizard leaves
+ * that box open — it is the one thing about a moved appointment a customer may want to say
+ * differently.
+ *
+ * `staff_id` absent means "leave the technician alone" and an explicit null means "Bất kỳ".
+ * The difference matters: a form that only meant to move the hour must not quietly re-chair
+ * somebody, and a customer who really does want anyone has to be able to say so.
+ *
+ * Known and accepted: a move inside the cancel window followed by a cancel of the new
+ * appointment — which starts far enough out to be cancellable — is a way around the salon's
+ * cutoff. It costs two deliberate steps to reach what walking away reaches in one, and
+ * closing it would take the honest reschedule down with it. Left open for now.
  */
 router.patch('/:id/reschedule', async (req, res, next) => {
   try {
     const old = await ownedBooking(req);
-    const { date, time, staff_id: staffIdInput } = req.body ?? {};
+    const body = req.body ?? {};
+    const { date, time, note } = body;
+    // Absent is not the same as null here — see the note above.
+    const staffIdInput = Object.hasOwn(body, 'staff_id') ? body.staff_id : old.staff_id;
 
     if (old.status !== 'pending' && old.status !== 'confirmed') {
       throw httpError(400, 'INVALID_STATUS', 'Lịch hẹn này không thể đổi giờ.');
@@ -785,48 +821,71 @@ router.patch('/:id/reschedule', async (req, res, next) => {
       );
     }
 
-    const contact = await selectBookingContact.get(old.id);
-    const plan = {
-      ...(await validateBookingRequest(req.user, {
+    const plan = await validateBookingRequest(
+      req.user,
+      {
         salon_id: old.salon_id,
         service_id: old.service_id,
         staff_id: staffIdInput,
         date,
         time,
-        note: old.note,
+        note: note === undefined ? old.note : note,
         payment_method: old.payment_method,
-        customer_name: contact.customer_name,
-        customer_phone: contact.customer_phone,
-      })),
-      // The price the customer already agreed to, not a fresh quote: the work is the same
-      // work, and the promotion code that bought the discount is not on the row to apply
-      // again — re-quoting would put the appointment up in price for moving it.
-      total: old.total_price,
-    };
+        // The details the salon was given for this visit, not whatever the account says
+        // today: a move is the same appointment, reached a different way.
+        customer_name: old.customer_name,
+        customer_phone: old.customer_phone,
+      },
+      { exceptBookingId: old.id, knownTotal: old.total_price },
+    );
 
     let booking;
     try {
       await withBookingCode((generated) =>
         db.withTransaction(async (tx) => {
-          /* Both days, and in sorted order. The day being left has to be held as well as
-             the day being taken, and two customers swapping hours across the same pair of
-             dates would otherwise each hold the key the other is waiting for. Sorted, they
-             queue. One key when the move stays inside a day. */
-          for (const day of [...new Set([old.date, plan.date])].sort()) {
-            await lockSalonDay(tx, plan.salonId, day);
+          /* The day being taken, and only that one — the same single key POST / and both
+             counter doors take. The day being LEFT needs none: giving an hour back reads no
+             calendar, and a second key here would be one more pair of writers to have to
+             order against each other. What the old row does need is to still be the row
+             this plan was built from, and that is asked directly instead. */
+          await lockSalonDay(tx, plan.salonId, plan.date);
+
+          /* So: the old appointment again, on this transaction. Everything above ran on the
+             pool, and a salon console can have confirmed, moved, re-chaired or closed that
+             appointment since. It matters more here than it would anywhere else, because
+             the insert below excuses this row's hour from the calendar it reads — a row
+             that has moved would have its hour excused from a day it is no longer on. */
+          const current = await tx.get(SELECT_BOOKING, old.id);
+          if (
+            !current ||
+            (current.status !== 'pending' && current.status !== 'confirmed') ||
+            current.date !== old.date ||
+            current.time !== old.time ||
+            current.staff_id !== old.staff_id
+          ) {
+            throw httpError(409, 'BOOKING_CHANGED', BOOKING_CHANGED_MESSAGE);
           }
+
           // The row being moved is still live in here, and an appointment is never in its
           // own way — 10:00 to 10:30 on the same technician is a move, not a clash.
           const { bookingId, assigned } = await insertBookingIn(tx, plan, generated, old.id);
           /* And only now the old one goes, so nothing between these two lines can see the
              hour given back before the new one is held. Appended, not replaced: the
              customer's own words stay readable, and the salon looking at a cancelled row
-             can see where the hour went rather than only that it left. */
-          await tx.run(
-            CANCEL_BOOKING,
+             can see where the hour went rather than only that it left.
+
+             Guarded on the status all the same, and a refusal takes the whole move down
+             with it: the read above is a moment old, and a move that quietly cancelled a
+             visit somebody had just completed would be worse than a move that never
+             happened. */
+          const { changes } = await tx.run(
+            RETIRE_BOOKING,
             [old.note, `Đã đổi sang lịch hẹn ${generated}`].filter(Boolean).join('\n'),
             old.id,
           );
+          if (changes === 0) {
+            throw httpError(409, 'BOOKING_CHANGED', BOOKING_CHANGED_MESSAGE);
+          }
 
           booking = await tx.get(SELECT_BOOKING, bookingId);
           const from = `ngày ${formatDate(old.date)} lúc ${old.time}`;

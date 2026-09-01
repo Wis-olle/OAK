@@ -2,6 +2,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { getStaffSlots, getStaffWeek, timeOffOn } from '../lib/availability.js';
+import { exceptBookingIdFor } from '../lib/except-booking.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
 import { careerOf, stintShape } from '../lib/staff-career.js';
 import { staffStats, VISIBLE_PROFILE } from '../lib/staff-stats.js';
@@ -107,7 +108,7 @@ async function visibleStaffIdOrThrow(value) {
  * Sized by the chosen service's duration — the same calculation POST /api/bookings
  * validates against — so the picker never hides a start time the API would accept.
  */
-async function getServiceWeek(staffId, serviceId, from, days) {
+async function getServiceWeek(staffId, serviceId, from, days, except = null) {
   const salonId = (await selectStaffSalon.get(staffId))?.salon_id ?? null;
   const week = [];
   for (let offset = 0; offset < days; offset += 1) {
@@ -118,7 +119,7 @@ async function getServiceWeek(staffId, serviceId, from, days) {
       closed: off.salon || off.staff.has(staffId),
       // The day-off rows this loop just read are the ones getStaffSlots would go and read
       // again, once per day of the week.
-      slots: await getStaffSlots(staffId, serviceId, date, off),
+      slots: await getStaffSlots(staffId, serviceId, date, off, null, except),
     });
   }
   return week;
@@ -148,10 +149,14 @@ router.get('/:id/availability', async (req, res, next) => {
       }
     }
 
+    /* The caller's own appointment, taken out of the calendar it is being moved off.
+       Ignored unless they are signed in and it is really theirs (lib/except-booking.js).
+       Only the sized-for-a-service grid takes it: the profile week is a shop window, not a
+       question anybody is about to book against. */
     const week =
       serviceId === null
         ? await getStaffWeek(staffId, from, days)
-        : await getServiceWeek(staffId, serviceId, from, days);
+        : await getServiceWeek(staffId, serviceId, from, days, await exceptBookingIdFor(req));
 
     res.json({ success: true, data: { from, week } });
   } catch (error) {

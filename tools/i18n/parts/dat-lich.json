@@ -96,5 +96,9 @@
   "Hủy/đổi miễn phí đến trước 24 tiếng": "Free cancellation or change up to 24 hours before",
   "Hủy/đổi miễn phí đến trước 48 tiếng": "Free cancellation or change up to 48 hours before",
   "Số điện thoại chỉ dùng để salon liên hệ xác nhận lịch.": "Your phone number is used only so the salon can confirm your appointment.",
-  "Nghỉ": "Off"
+  "Nghỉ": "Off",
+  "Giữ nguyên dịch vụ của lịch cũ": "Keeping the service from the appointment you are moving",
+  "Giá đã chốt": "Price already agreed",
+  "Giữ nguyên thông tin liên hệ của lịch cũ": "Keeping the contact details from the appointment you are moving",
+  "Lịch hẹn này không thể đổi giờ nữa.": "This appointment can no longer be moved."
 }

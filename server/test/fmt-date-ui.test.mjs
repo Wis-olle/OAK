@@ -31,12 +31,43 @@ function between(start, end) {
    and the weekday names they read are lifted out and run on their own. */
 const script =
   between('var WEEKDAYS =', 'function currentUrl(') +
-  between('function fmtDate(iso, mode) {', 'function fmtTime(');
+  // fmtTime rides along because hasStarted below reads an hour through it, and hasStarted
+  // rides along because it is the line every screen draws before offering to cancel or move
+  // an appointment — the same kind of reader's-clock question these tests exist for.
+  between('function fmtDate(iso, mode) {', 'function qs(');
 
 const context = { Date, String, Number, isNaN };
-vm.runInNewContext(`${script}\nfmtDateFn = fmtDate; fmtRangeFn = fmtRange;`, context);
+vm.runInNewContext(
+  `${script}\nfmtDateFn = fmtDate; fmtRangeFn = fmtRange; hasStartedFn = hasStarted;`,
+  context,
+);
 const fmtDate = context.fmtDateFn;
 const fmtRange = context.fmtRangeFn;
+const hasStarted = context.hasStartedFn;
+
+/** A booking that many hours from now, on the reader own clock — the one hasStarted reads. */
+function bookingIn(hours) {
+  const at = new Date(Date.now() + hours * 60 * 60 * 1000);
+  const pad = (value) => String(value).padStart(2, '0');
+  return {
+    date: at.getFullYear() + '-' + pad(at.getMonth() + 1) + '-' + pad(at.getDate()),
+    time: pad(at.getHours()) + ':' + pad(at.getMinutes()),
+  };
+}
+
+test('an appointment has started once its own minute has passed, on the reader clock', () => {
+  assert.equal(hasStarted(bookingIn(1)), false);
+  assert.equal(hasStarted(bookingIn(-1)), true);
+  // The "upcoming" tab keeps a visit under way, because somebody sitting in the chair has
+  // to be able to find the booking they are sitting in. This is the separate question the
+  // buttons ask, and it is asked in one place: the appointment list, the band under the
+  // hero on kham-pha and the wizard all read this, so one hour cannot be described three
+  // ways on three screens.
+  assert.equal(hasStarted({ date: '2099-01-01', time: '09:00' }), false);
+  assert.equal(hasStarted({ date: '2000-01-01', time: '09:00' }), true);
+  // A stored time may arrive as 'HH:MM:SS' or unpadded; fmtTime settles that first.
+  assert.equal(hasStarted({ date: '2000-01-01', time: '9:00:00' }), true);
+});
 
 test('a booking date is the calendar day it says it is', () => {
   assert.equal(fmtDate('2026-08-10'), 'Thứ Hai, 10/08/2026');

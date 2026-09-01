@@ -455,10 +455,17 @@ test('one key holds a salon day, it is taken first, and it does not wait for eve
       `${door} must hold the salon's day before it writes into it`,
     );
   }
-  /* And the move holds BOTH days it touches, in sorted order: the one it leaves as well as
-     the one it takes. Two customers swapping hours across the same pair of dates would
-     otherwise each sit on the key the other is waiting for. */
-  assert.match(source, /for \(const day of \[\.\.\.new Set\(\[old\.date, plan\.date\]\)\]\.sort\(\)\) \{\s*await lockSalonDay\(tx, plan\.salonId, day\);/);
+  /* ONE key per writer, and the move takes no second one. It holds the day it is TAKING,
+     like every other writer; the day it is leaving has nothing to hold still, because giving
+     an hour back reads no calendar. What the move does need of the row it is retiring is
+     that this is still the row the plan was built from, and it asks that directly — under
+     this lock, on this transaction, and again in the WHERE of the write itself. */
+  const move = source.slice(source.indexOf("router.patch('/:id/reschedule'"));
+  assert.equal((move.match(/await lockSalonDay\(/g) || []).length, 1);
+  assert.match(move, /const current = await tx\.get\(SELECT_BOOKING, old\.id\);/);
+  assert.match(move, /'BOOKING_CHANGED', BOOKING_CHANGED_MESSAGE/);
+  assert.match(source, /AND status IN \('pending', 'confirmed'\)`;/);
+  assert.match(move, /if \(changes === 0\) \{/);
 });
 
 test('the four routes that hold an hour all answer a lost lock as SLOT_BUSY', () => {

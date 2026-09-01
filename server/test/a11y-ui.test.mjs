@@ -203,7 +203,7 @@ test('the scroll port keeps clear of the bars pinned over it', () => {
   // …and inside those widths the wizard's own bar is itself conditional: it appears from
   // step 2, and x-show hides it by writing display:none inline, which the same :not() reads.
   assert.match(read('ui/dat-lich.html'),
-    /data-oak-sticky-cta x-cloak="" x-show="service &amp;&amp; step > 1"/);
+    /data-oak-sticky-cta x-cloak="" x-show="service &amp;&amp; step > 1 &amp;&amp; !rescheduleClosed"/);
   const pinned = fs.readdirSync(path.join(root, 'ui'))
     .filter((name) => name.endsWith('.html') && read(`ui/${name}`).includes('data-oak-sticky-cta'));
   assert.ok(pinned.length >= 4, `only ${pinned.length} pages pin a booking bar`);

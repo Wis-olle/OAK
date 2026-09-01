@@ -37,6 +37,9 @@ function bookingForm(api, search = '') {
       qs: (name) => new URLSearchParams(context.location.search).get(name),
       // A reader who asked for less motion gets 'auto'; nothing here cares which.
       scrollBehavior: () => 'smooth',
+      // The shipped one is driven by fmt-date-ui.test.mjs; here it only has to answer.
+      hasStarted: (booking) =>
+        Date.now() >= new Date(booking.date + 'T' + booking.time + ':00').getTime(),
     },
     // init() listens for the language switch so the note survives the reload it causes.
     window: { addEventListener: (name, handler) => context.listeners.push([name, handler]) },
@@ -90,6 +93,24 @@ function readyToSubmit(state) {
 }
 
 const pad = (value) => String(value).padStart(2, '0');
+
+/** The appointment a ?reschedule visit is moving: live, and far enough off to be movable. */
+function liveBooking(extra) {
+  return {
+    id: 55,
+    code: 'OAK-ABC123',
+    status: 'confirmed',
+    date: '2099-08-23',
+    time: '14:30',
+    total_price: 280000,
+    note: 'Ghi chú cũ',
+    customer_name: 'Ngọc Anh',
+    customer_phone: '0901234567',
+    service: { id: 7, name: 'Nail Gel Hàn Quốc', duration_min: 60 },
+    salon: { id: 4, name: 'Lala Nail Studio' },
+    ...extra,
+  };
+}
 
 /** Today the way the page computes it, so a stub can answer the day strip's own dates. */
 function todayISO() {
@@ -306,6 +327,9 @@ test('the reschedule id and the promo code both survive the url the page rewrite
       if (path.includes('availability')) {
         return path.includes('days=') ? { week: [] } : { slots: [] };
       }
+      if (path === '/api/bookings/55') {
+        return liveBooking();
+      }
       return [];
     },
     '?service_id=7&salon_id=4&promo=OAKNEW20&reschedule=55',
@@ -357,10 +381,13 @@ test('a reschedule is one request against the appointment it replaces, and never
      Read key by key: the body is built inside the vm's own realm, and a deep-equal against
      one of ours compares prototypes rather than what was sent. */
   const sent = calls[0].options.body;
-  assert.deepEqual(Object.keys(sent).sort(), ['date', 'staff_id', 'time']);
+  assert.deepEqual(Object.keys(sent).sort(), ['date', 'note', 'staff_id', 'time']);
   assert.equal(sent.date, '2099-01-01');
   assert.equal(sent.time, '09:00');
   assert.equal(sent.staff_id, 3);
+  // staff_id is always sent, and the note with it: absent would mean "leave the technician
+  // alone", which is not what a wizard that has just drawn a technician picker means.
+  assert.equal(sent.note, null);
   assert.equal(state.location.href, 'xac-nhan-dat-lich.html?id=91');
 });
 
@@ -428,8 +455,9 @@ test('the wizard carries its own copy of the total and the button that acts on i
      whole form, a screenful past the choice being made. So the pair is pinned to the
      bottom edge as well. data-oak-sticky-cta is what a toast reads to sit above it. */
   assert.match(html, /class="fixed bottom-0 inset-x-0 z-40 lg:hidden[^"]*" data-oak-sticky-cta/);
-  // Nothing to pin until there is something to pay for, and step 1 has no button to offer.
-  assert.match(html, /x-show="service &amp;&amp; step > 1"/);
+  // Nothing to pin until there is something to pay for, and step 1 has no button to offer
+  // — nor when the move this page opened for is already over and the wizard is not drawn.
+  assert.match(html, /x-show="service &amp;&amp; step > 1 &amp;&amp; !rescheduleClosed"/);
   // The three things it says, each its own text node so English needs no rule for a
   // sentence assembled at runtime.
   assert.match(html, /x-text="service \? service\.name : ''"/);
@@ -723,12 +751,7 @@ test('the reschedule banner names the appointment being replaced, and survives n
         return Object.assign([], { meta: { total: 0 } });
       }
       if (path === '/api/bookings/55') {
-        return {
-          code: 'OAK-ABC123',
-          date: '2099-08-23',
-          time: '14:30',
-          salon: { name: 'Lala Nail Studio' },
-        };
+        return liveBooking();
       }
       return [];
     },
@@ -742,6 +765,17 @@ test('the reschedule banner names the appointment being replaced, and survives n
   // Each half is its own node, so English needs no rule for a sentence built at runtime.
   assert.match(html, /<span>Đang đổi lịch<\/span>/);
   assert.match(html, /x-text="oldWhenLabel\(\)"/);
+  /* And what the move carries over rather than asking twice: the details the salon was
+     already given for this visit, and the words written with it. The note goes into the
+     box, because it is the one of the three that stays editable. */
+  assert.equal(state.form.name, 'Ngọc Anh');
+  assert.equal(state.form.phone, '0901234567');
+  assert.equal(state.form.note, 'Ghi chú cũ');
+  /* Locked, because they are being carried over rather than asked for — but only once
+     there is something to lock: a booking that somehow carries no number would otherwise
+     leave the reader in front of a required field they cannot fill. */
+  assert.ok(html.includes(':readonly="!!(reschedule &amp;&amp; form.name)"'));
+  assert.ok(html.includes(':readonly="!!(reschedule &amp;&amp; form.phone)"'));
 
   // A booking that cannot be read leaves the standing notice alone rather than erroring.
   const blind = bookingForm(async () => {
@@ -750,6 +784,106 @@ test('the reschedule banner names the appointment being replaced, and survives n
   blind.reschedule = 55;
   await blind.loadRescheduleOld();
   assert.equal(blind.rescheduleOld, null);
+  assert.equal(blind.rescheduleClosed, false);
+});
+
+test('an appointment that can no longer be moved gets the refusal instead of a wizard', async () => {
+  for (const gone of [{ status: 'cancelled' }, { date: '2000-01-01', time: '09:00' }]) {
+    const asked = [];
+    const state = bookingForm(
+      async (path) => {
+        asked.push(path);
+        if (path === '/api/bookings/55') {
+          return liveBooking(gone);
+        }
+        return path.includes('availability') ? { slots: [] } : [];
+      },
+      '?service_id=7&salon_id=4&reschedule=55',
+    );
+
+    await state.init();
+
+    /* The salon settled it, or it has begun. Either way every hour this page could go on to
+       offer is an hour the server is going to refuse, so the wizard is not drawn at all —
+       and nothing is fetched for it. Finding this out after four steps and a confirm is
+       finding it out in the worst place there is. */
+    assert.equal(state.rescheduleClosed, true);
+    assert.equal(state.loading, false);
+    assert.deepEqual(asked, ['/api/bookings/55']);
+  }
+  // The standing banner that takes the wizard's place, and the one way on from it.
+  assert.match(html, /x-show="rescheduleClosed"/);
+  assert.match(html, /Lịch hẹn này không thể đổi giờ nữa\./);
+  assert.match(html, /href="lich-hen-cua-toi\.html">Xem lịch hẹn của tôi<\/a>/);
+});
+
+test('the grids a move reads leave the appointment being moved out of them', async () => {
+  const asked = [];
+  const state = bookingForm(async (path) => {
+    asked.push(path);
+    if (path.startsWith('/api/bookings/55')) {
+      return liveBooking();
+    }
+    return path.includes('days=') ? { week: [] } : { slots: [] };
+  });
+  state.service = { id: 7, name: 'Nail Gel Hàn Quốc', price: 350000, duration_min: 60 };
+  state.date = '2099-01-01';
+  state.reschedule = 55;
+
+  await state.loadSlots();
+  await state.loadDayChips();
+
+  /* A 60-minute booking at 10:00 covers 10:30, so a grid that still counted it would mark
+     the half-hour beside it taken — by the very person asking to move onto it. The server
+     honours ?except only for the customer whose booking it is, so the grid the hour is
+     picked from and the answer at the end are the same answer. */
+  assert.ok(asked.every((path) => path.includes('&except=55')), asked.join(' '));
+
+  // …and a booking that is not a move asks for nothing of the sort.
+  const plain = [];
+  const fresh = bookingForm(async (path) => {
+    plain.push(path);
+    return path.includes('days=') ? { week: [] } : { slots: [] };
+  });
+  fresh.service = { id: 7, name: 'Nail Gel Hàn Quốc', price: 350000, duration_min: 60 };
+  fresh.date = '2099-01-01';
+  await fresh.loadSlots();
+  assert.ok(plain.every((path) => !path.includes('except')), plain.join(' '));
+});
+
+test('a move is priced at what was already agreed, and offers no second discount', async () => {
+  const asked = [];
+  const state = bookingForm(async (path) => {
+    asked.push(path);
+    return [];
+  });
+  state.user = { id: 1, name: 'Ngọc Anh' };
+  state.service = { id: 7, name: 'Nail Gel Hàn Quốc', price: 350000 };
+  state.reschedule = 55;
+  state.rescheduleOld = liveBooking();
+
+  await state.loadQuote();
+
+  /* The quote endpoint would answer today's list price, which is the wrong number for
+     anybody whose first booking was bought with a code — that code is not on the row to
+     apply a second time, and the server prices the move at the figure already settled. */
+  assert.deepEqual(asked, []);
+  assert.equal(state.quote.total, 280000);
+  assert.equal(state.quote.items.length, 1);
+  assert.equal(state.quote.items[0].amount, 280000);
+  // So there is nothing for a promo box to do, and it is not drawn.
+  assert.match(html, /<div x-cloak="" x-show="!reschedule">\n<label[^>]*for="promo-code"/);
+});
+
+test('the service of a move is stated rather than offered', () => {
+  // A different service is a different appointment — and the price riding along is the
+  // price of THIS work, so step 2 has nothing to ask.
+  assert.match(html, /<div class="space-y-8" x-cloak="" x-show="reschedule">/);
+  assert.match(html, /<div class="space-y-8" x-show="!reschedule">/);
+  // Its own heading, because goTo() hands focus to whichever of a step's headings is on
+  // screen — the picker's would be the hidden one.
+  assert.equal(html.match(/data-step-heading="2"/g).length, 2);
+  assert.match(html, /Giữ nguyên dịch vụ của lịch cũ/);
 });
 
 test('a guest signs up inside the wizard and lands on the confirmation, never on another page', async () => {
@@ -876,9 +1010,12 @@ test('an opening price turns the sidebar total into an estimate', () => {
   state.service = { id: 7, price: 350000, price_is_from: true };
   assert.equal(state.estimated(), true);
 
-  assert.match(html, /x-show="!estimated\(\)">Tổng cộng</);
-  assert.match(html, /x-show="estimated\(\)">Tạm tính</);
-  assert.match(html, /Giá cuối salon chốt theo thực tế/);
+  assert.match(html, /x-show="!estimated\(\) &amp;&amp; !reschedule">Tổng cộng</);
+  assert.match(html, /x-show="estimated\(\) &amp;&amp; !reschedule">Tạm tính</);
+  assert.match(html, /x-show="estimated\(\) &amp;&amp; !reschedule">Giá cuối salon chốt theo thực tế</);
+  // A move is not a new sale: the figure beside it is the one already settled, and it is
+  // named as that rather than as a total this page just worked out.
+  assert.match(html, /x-show="reschedule">Giá đã chốt</);
 });
 
 test('the help block is the same block, in the same order, as the confirmation page carries', () => {

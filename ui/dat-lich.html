@@ -49,7 +49,7 @@
 <!-- The stepper and the grid share one scope so the stepper can follow the wizard. -->
 <div class="scroll-mt-32" x-data="oakBookingForm()">
 <!-- Reschedule notice -->
-<div class="mb-8 max-w-3xl mx-auto flex items-start gap-3 bg-secondary-container text-on-secondary-container rounded-lg p-4" x-cloak="" x-show="reschedule">
+<div class="mb-8 max-w-3xl mx-auto flex items-start gap-3 bg-secondary-container text-on-secondary-container rounded-lg p-4" x-cloak="" x-show="reschedule &amp;&amp; !rescheduleClosed">
 <span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="event">event</span>
 <div>
 <p class="font-body-md text-body-md">Bạn đang đổi lịch hẹn — lịch cũ sẽ được hủy sau khi bạn xác nhận lịch mới.</p>
@@ -65,8 +65,18 @@
 </p>
 </div>
 </div>
+<!-- The appointment cannot be moved at all — the salon settled it, or it has begun. Said
+     here and instead of the wizard, not after four steps of one: every hour this page could
+     offer would be an hour the server is going to refuse. -->
+<div class="mb-8 max-w-3xl mx-auto flex items-start gap-3 bg-error-container text-on-error-container rounded-lg p-4" x-cloak="" x-show="rescheduleClosed">
+<span aria-hidden="true" class="material-symbols-outlined text-[20px]" data-icon="info">info</span>
+<div>
+<p class="font-body-md text-body-md">Lịch hẹn này không thể đổi giờ nữa.</p>
+<a class="font-label-md text-label-md uppercase tracking-wider underline inline-block mt-3" href="lich-hen-cua-toi.html">Xem lịch hẹn của tôi</a>
+</div>
+</div>
 <!-- Stepper -->
-<div class="mb-12 max-w-3xl mx-auto" x-cloak="">
+<div class="mb-12 max-w-3xl mx-auto" x-cloak="" x-show="!rescheduleClosed">
 <div class="flex items-center justify-between relative">
 <div class="absolute left-0 top-1/2 -translate-y-1/2 w-full h-[1px] bg-outline-variant/30 -z-10"></div>
 <template :key="item.n" x-for="item in steps">
@@ -81,7 +91,7 @@
 </div>
 </div>
 <!-- Layout Grid -->
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start" x-show="!rescheduleClosed">
 <!-- Left Column: Form -->
 <div class="lg:col-span-8 flex flex-col gap-12">
 <!-- Step 1: choose the salon — an aggregator starts with the place, not the service -->
@@ -152,8 +162,25 @@
 </div>
 <!-- Step 2: the chosen salon's own services -->
 <div class="flex flex-col gap-12" x-cloak="" x-show="step === 2">
+<!-- The service of a move is the service of the appointment being moved: a different one
+     is a different appointment, and the price riding along is the price of THIS work. So
+     step 2 states it instead of asking. Its own heading, because goTo() hands focus to
+     whichever of a step's headings is the one on screen. -->
+<div class="space-y-8" x-cloak="" x-show="reschedule">
+<div class="border-b border-outline-variant/20 pb-4">
+<h2 class="font-headline-sm text-headline-sm text-primary" data-step-heading="2" tabindex="-1">Dịch vụ</h2>
+<p class="font-caption text-caption text-on-surface-variant mt-1">Giữ nguyên dịch vụ của lịch cũ</p>
+</div>
+<div class="flex items-start justify-between gap-4 p-4 border border-outline-variant rounded-lg">
+<span>
+<span class="block font-body-md text-body-md font-medium" x-text="service ? service.name : ''"></span>
+<span class="block font-caption text-caption text-on-surface-variant mt-1" x-text="service ? service.duration_min + ' phút' : ''"></span>
+</span>
+<span class="font-label-md text-label-md text-primary shrink-0" x-text="rescheduleOld ? OAK.fmtPrice(rescheduleOld.total_price) : ''"></span>
+</div>
+</div>
 <!-- Service picker -->
-<div class="space-y-8">
+<div class="space-y-8" x-show="!reschedule">
 <div class="border-b border-outline-variant/20 pb-4">
 <h2 class="font-headline-sm text-headline-sm text-primary" data-step-heading="2" tabindex="-1">Chọn dịch vụ</h2>
 <p class="font-caption text-caption text-on-surface-variant mt-1" x-cloak="" x-show="salon">Đặt lịch tại <span class="font-medium" x-text="salon ? salon.name : ''"></span></p>
@@ -372,16 +399,20 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-name">Họ và tên *</label>
-<input :aria-invalid="fieldErrors.name ? 'true' : null" :class="fieldErrors.name ? 'border-error' : 'border-outline'" @input="fieldErrors.name = ''" aria-describedby="customer-name-error" autocapitalize="words" autocomplete="name" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" enterkeyhint="next" id="customer-name" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
+<input :aria-invalid="fieldErrors.name ? 'true' : null" :class="fieldErrors.name ? 'border-error' : 'border-outline'" @input="fieldErrors.name = ''" aria-describedby="customer-name-error" :readonly="!!(reschedule &amp;&amp; form.name)" autocapitalize="words" autocomplete="name" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" enterkeyhint="next" id="customer-name" placeholder="Nhập họ tên của bạn" type="text" x-model="form.name"/>
 <p class="font-body-md text-sm text-error mt-2" id="customer-name-error" x-cloak="" x-show="fieldErrors.name" x-text="fieldErrors.name"></p>
 </div>
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-phone">Số điện thoại *</label>
-<input :aria-invalid="fieldErrors.phone ? 'true' : null" :class="fieldErrors.phone ? 'border-error' : 'border-outline'" @input="fieldErrors.phone = ''" aria-describedby="customer-phone-help customer-phone-error" autocomplete="tel" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" id="customer-phone" inputmode="tel" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
+<input :aria-invalid="fieldErrors.phone ? 'true' : null" :class="fieldErrors.phone ? 'border-error' : 'border-outline'" @input="fieldErrors.phone = ''" aria-describedby="customer-phone-help customer-phone-error" :readonly="!!(reschedule &amp;&amp; form.phone)" autocomplete="tel" class="w-full bg-transparent border-0 border-b focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70" id="customer-phone" inputmode="tel" placeholder="Nhập số điện thoại" type="tel" x-model="form.phone"/>
 <p class="font-caption text-caption text-on-surface-variant mt-2" id="customer-phone-help">Salon dùng số này để xác nhận lịch</p>
 <p class="font-body-md text-sm text-error mt-2" id="customer-phone-error" x-cloak="" x-show="fieldErrors.phone" x-text="fieldErrors.phone"></p>
 </div>
 </div>
+<!-- The name and number the salon was already given for this visit. The note below is not
+     in that list: it is the one thing about a moved appointment somebody may want to say
+     differently, so it stays open. -->
+<p class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="reschedule">Giữ nguyên thông tin liên hệ của lịch cũ</p>
 <div class="relative">
 <label class="font-label-md text-label-md text-on-surface-variant block mb-2" for="customer-note">Ghi chú đặc biệt (Không bắt buộc)</label>
 <textarea class="w-full bg-transparent border-0 border-b border-outline focus:border-primary focus:ring-0 px-0 py-2 font-body-md text-body-md transition-colors placeholder:text-on-surface-variant/70 resize-none" id="customer-note" enterkeyhint="done" placeholder="Ví dụ: Da tay mỏng, cần làm nhẹ nhàng…" rows="3" x-model="form.note"></textarea>
@@ -448,7 +479,9 @@
 <div class="bg-tertiary sticky top-[120px] p-8 rounded-lg text-on-tertiary flex flex-col gap-8 shadow-sm">
 <h3 class="font-headline-sm text-headline-sm border-b border-outline-variant/20 pb-4">Tổng chi phí</h3>
 <div class="space-y-4">
-<div>
+<!-- Nothing to apply on a move: the total below is the one the customer already agreed to,
+     promotion and all, and a second code against the same visit is a second discount. -->
+<div x-cloak="" x-show="!reschedule">
 <label class="font-caption text-caption uppercase tracking-wider text-on-tertiary/80 block mb-2" for="promo-code">Mã ưu đãi</label>
 <div class="flex items-end gap-3">
 <input @change="loadQuote()" class="flex-1 min-w-0 bg-transparent border-0 border-b border-on-tertiary/50 focus:border-on-tertiary focus:ring-0 px-0 py-2 font-body-md text-body-md text-on-tertiary placeholder:text-on-tertiary/70" id="promo-code" placeholder="Nhập mã" type="text" x-model="promo"/>
@@ -465,11 +498,14 @@
 </template>
 <div class="w-full h-[1px] bg-outline-variant/20 my-4"></div>
 <div class="flex justify-between items-end">
-<span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80" x-show="!estimated()">Tổng cộng</span>
-<span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80" x-cloak="" x-show="estimated()">Tạm tính</span>
+<span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80" x-show="!estimated() &amp;&amp; !reschedule">Tổng cộng</span>
+<span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80" x-cloak="" x-show="estimated() &amp;&amp; !reschedule">Tạm tính</span>
+<!-- A move is not a new sale. The figure is the one already settled on the appointment
+     being replaced, so it is named as that rather than as a fresh total. -->
+<span class="font-label-md text-label-md uppercase tracking-wider text-on-tertiary/80" x-cloak="" x-show="reschedule">Giá đã chốt</span>
 <span class="font-headline-md text-headline-md font-bold text-on-tertiary" x-text="quote ? OAK.fmtPrice(quote.total) : '—'">—</span>
 </div>
-<p class="font-caption text-caption text-on-tertiary/60" x-cloak="" x-show="estimated()">Giá cuối salon chốt theo thực tế</p>
+<p class="font-caption text-caption text-on-tertiary/60" x-cloak="" x-show="estimated() &amp;&amp; !reschedule">Giá cuối salon chốt theo thực tế</p>
 </div>
 <div class="flex flex-col gap-3" x-cloak="" x-show="step === 4">
 <p class="font-body-md text-sm text-error-container" role="alert" x-cloak="" x-show="formError" x-text="formError"></p>
@@ -520,7 +556,7 @@
      pinned to the bottom edge here: what this costs, and the one button that moves on. Not
      new controls, the sidebar's own — the same next()/submit(), the same disabled states.
      data-oak-sticky-cta is what tells a toast to sit above it (assets/js/oak-api.js). -->
-<div class="fixed bottom-0 inset-x-0 z-40 lg:hidden flex items-center justify-between gap-4 border-t border-outline-variant/30 bg-surface-container-low px-margin-mobile py-3" data-oak-sticky-cta x-cloak="" x-show="service &amp;&amp; step > 1">
+<div class="fixed bottom-0 inset-x-0 z-40 lg:hidden flex items-center justify-between gap-4 border-t border-outline-variant/30 bg-surface-container-low px-margin-mobile py-3" data-oak-sticky-cta x-cloak="" x-show="service &amp;&amp; step > 1 &amp;&amp; !rescheduleClosed">
 <div class="min-w-0">
 <span class="block font-body-md text-body-md font-semibold text-on-surface truncate" x-text="service ? service.name : ''"></span>
 <span class="block font-caption text-caption text-on-surface-variant">
@@ -686,6 +722,12 @@
             reschedule: null,
             // ...and that appointment itself, once fetched, so the banner can name it.
             rescheduleOld: null,
+            /* True when that appointment cannot be moved at all — the salon settled it, or
+               it has begun. A flag and not a message, because the banner that stands in for
+               the wizard says the one sentence both cases come down to, in the markup where
+               the dictionary can find it. Telling the two apart would only be telling the
+               reader which refusal they hit. */
+            rescheduleClosed: false,
             // The technician the url arrived with, remembered past setStaff(): it is the
             // only thing that can tell "chosen last time" from "chosen a moment ago".
             rebookStaffId: null,
@@ -719,6 +761,15 @@
                     this.form.name = this.user.name || '';
                     this.form.phone = this.user.phone || '';
                 }
+                /* Before the stash and before anything is fetched for the wizard: on a move
+                   this appointment decides what the whole page is, and what it carries over
+                   — the contact pair, the note — has to be in place before the visitor's own
+                   half-typed version is put back on top of it. */
+                await this.loadRescheduleOld();
+                if (this.rescheduleClosed) {
+                    this.loading = false;
+                    return;
+                }
                 // After the account's own details, so what the visitor typed wins over them.
                 this.restoreForm();
                 /* Choosing English reloads the page. The selection is in the url already
@@ -744,9 +795,6 @@
                 // specialist's profile and a salon's team strip send the same staff_id to
                 // somebody who has never booked, so the note waits for the marker.
                 this.rebookStaffId = OAK.qs('rebook') ? this.staffId : null;
-                // The banner is already up on the state alone; naming the old appointment
-                // is an extra, so nothing on this page waits for it.
-                this.loadRescheduleOld();
 
                 // Step 1 stays one stepper click away on every path, so its list always loads.
                 // Only a visitor who actually starts there waits for it.
@@ -949,17 +997,43 @@
                 });
             },
 
-            /** The appointment a ?reschedule visit is replacing, for the banner to name. */
+            /** The appointment a ?reschedule visit is replacing: named in the banner, and
+                the source of everything the move carries over rather than asking again.
+
+                It is also where the two rules the server will apply are asked early. A
+                booking the salon has already settled, or one that has begun, cannot be
+                moved by anybody — and finding that out after four steps and a confirm is
+                finding it out in the worst possible place. */
             async loadRescheduleOld() {
                 if (!this.reschedule) {
                     return;
                 }
+                let old;
                 try {
-                    this.rescheduleOld = await OAK.api('/api/bookings/' + this.reschedule);
+                    old = await OAK.api('/api/bookings/' + this.reschedule);
                 } catch (error) {
-                    // The banner still says a reschedule is under way, which is the part
-                    // that matters; only the detail line stays away.
+                    // Most often nobody is signed in yet, and the sign-in panel is further
+                    // down this same page. The banner still says a move is under way, which
+                    // is the part that matters; the server has the last word at submit.
+                    return;
                 }
+                // The two rules the server applies, asked here so that a move which cannot
+                // happen is said at the top of the page rather than after four steps. The
+                // second is the same line the appointment list draws before it offers the
+                // button at all.
+                const live = old.status === 'pending' || old.status === 'confirmed';
+                if (!live || OAK.hasStarted(old)) {
+                    this.rescheduleClosed = true;
+                    return;
+                }
+                this.rescheduleOld = old;
+                /* What a move carries over: the details the salon was already given for
+                   this visit, and the words the customer wrote with it. The note is put in
+                   the box rather than held aside, because it is the one of the three that
+                   stays editable. */
+                this.form.name = old.customer_name || this.form.name;
+                this.form.phone = old.customer_phone || this.form.phone;
+                this.form.note = old.note || '';
             },
 
             /** 'dd/mm HH:MM' for the appointment being replaced. */
@@ -1048,11 +1122,11 @@
                     return;
                 }
                 const staffId = this.staffId;
-                const path = staffId
+                const path = (staffId
                     ? '/api/staff/' + staffId + '/availability?days=' + OAK_DAY_STRIP_LEN
                         + '&from=' + this.today + '&service_id=' + this.service.id
                     : '/api/services/' + this.service.id + '/availability?days=' + OAK_DAY_STRIP_LEN
-                        + '&from=' + this.today;
+                        + '&from=' + this.today) + this.exceptParam();
                 try {
                     const { week } = await OAK.api(path);
                     if (token !== this.chipsToken) {
@@ -1178,9 +1252,10 @@
                 // `date` is whatever the url or the date field handed over, so it is encoded
                 // rather than pasted into the query string as it stands.
                 const date = encodeURIComponent(this.date);
-                const path = staffId
+                const path = (staffId
                     ? '/api/staff/' + staffId + '/availability?days=1&from=' + date + '&service_id=' + this.service.id
-                    : '/api/services/' + this.service.id + '/availability?date=' + date;
+                    : '/api/services/' + this.service.id + '/availability?date=' + date)
+                    + this.exceptParam();
                 try {
                     const data = await OAK.api(path);
                     if (token !== this.slotsToken) {
@@ -1220,6 +1295,17 @@
                 this.syncUrl();
             },
 
+            /** The appointment being moved, taken out of the calendars this page draws.
+
+                A 60-minute booking at 10:00 covers 10:30, so a grid that still counted it
+                would mark the half-hour beside it taken — by the very person asking to move
+                onto it. The server takes the same exception when it validates the move, and
+                honours this one only for the customer whose booking it is, so the grid and
+                the answer at the end agree. */
+            exceptParam() {
+                return this.reschedule ? '&except=' + this.reschedule : '';
+            },
+
             /** The sidebar total when the quote endpoint is out of reach. */
             listPriceQuote() {
                 return {
@@ -1234,6 +1320,21 @@
                     return;
                 }
                 this.promoError = '';
+
+                /* A move re-prices nothing. The work is the same work, and the quote
+                   endpoint would answer today's list price — the wrong number for anybody
+                   whose first booking was bought with a code that is not on the row to
+                   apply again. The server settles it the same way. */
+                if (this.reschedule && this.rescheduleOld) {
+                    this.quote = {
+                        items: [{
+                            label: this.rescheduleOld.service.name,
+                            amount: this.rescheduleOld.total_price,
+                        }],
+                        total: this.rescheduleOld.total_price,
+                    };
+                    return;
+                }
 
                 // Guests cannot reach the quote endpoint, so the sidebar shows the list price
                 // rather than firing a request that can only 401. The server recomputes the
@@ -1485,8 +1586,10 @@
                        that second call, leaving the visitor holding two live appointments
                        and no way to drop either from here. The server takes both hours in
                        one transaction now: either the appointment moved or nothing did.
-                       The service, the note and the price come off the old appointment
-                       there, so only the hour is sent. */
+                       The service, the price and the contact pair come off the old
+                       appointment there, so the hour and the note are all that is sent —
+                       the note because it is the one thing about a moved appointment
+                       somebody may want to say differently. */
                     const booking = this.reschedule
                         ? await OAK.api('/api/bookings/' + this.reschedule + '/reschedule', {
                             method: 'PATCH',
@@ -1494,6 +1597,7 @@
                                 date: this.date,
                                 time: this.time,
                                 staff_id: this.staffId,
+                                note: this.form.note.trim() || null,
                             },
                         })
                         : await OAK.api('/api/bookings', {
