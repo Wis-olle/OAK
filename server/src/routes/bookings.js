@@ -4,12 +4,11 @@ import { db } from '../db.js';
 import {
   getStaffSlots,
   isSalonOpenFor,
-  isStaffFreeAt,
   lockSalonDay,
-  lockStaffDay,
   pickAvailableStaff,
   respectsLeadTime,
   staffCanDo,
+  staffClashAt,
   timeOffOn,
 } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
@@ -523,21 +522,23 @@ router.post('/', async (req, res, next) => {
              that is the ordinary case rather than the rare one. So the day is held, and then
              read again — the second reader now sees the first one's booking.
 
-             A named technician holds her own day; "Bất kỳ" holds the salon's, because
-             pickAvailableStaff is about to read the whole roster to choose from it. */
-          if (staffId === null) {
-            await lockSalonDay(tx, salonId, date);
-          } else {
-            await lockStaffDay(tx, staffId, date);
-            // The overlap the unique index cannot see: 10:00 and 10:30 of a 60-minute
-            // service are two different minutes and one technician in two places.
-            if (!(await isStaffFreeAt(tx, staffId, date, time, service.duration_min))) {
-              throw httpError(
-                409,
-                'SLOT_TAKEN',
-                'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.',
-              );
-            }
+             The salon's day and not the technician's, even when the customer named her: the
+             "Bất kỳ" branch below cannot know whose day it is about to fill until it has read
+             the whole roster, so a second key would leave those two writers racing each other
+             on exactly the overlap this exists to stop. */
+          await lockSalonDay(tx, salonId, date);
+          // The overlap the unique index cannot see: 10:00 and 10:30 of a 60-minute service
+          // are two different minutes and one technician in two places. Both kinds of clash
+          // are one answer to a customer — she is not the one who gets to overrule either.
+          if (
+            staffId !== null &&
+            (await staffClashAt(tx, staffId, date, time, service.duration_min)) !== null
+          ) {
+            throw httpError(
+              409,
+              'SLOT_TAKEN',
+              'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.',
+            );
           }
 
           // "Bất kỳ" is a choice of nobody in particular, not a booking against nobody:
@@ -621,6 +622,12 @@ router.post('/', async (req, res, next) => {
       // CODE (bookings_code_key) never reaches here — withBookingCode retries it.
       if (error.code === '23505' && error.constraint === 'idx_bookings_slot') {
         throw httpError(409, 'SLOT_TAKEN', 'Khung giờ này vừa có người đặt, vui lòng chọn giờ khác.');
+      }
+      // The salon's day was held by somebody else for longer than lockSalonDay waits. Not
+      // the same thing as a taken hour, and it must not be said as one: nothing is booked,
+      // and the same request a moment later is expected to work.
+      if (error.code === '55P03') {
+        throw httpError(409, 'SLOT_BUSY', 'Salon đang nhận một lịch khác, thử lại sau vài giây.');
       }
       throw error;
     }

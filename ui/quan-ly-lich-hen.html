@@ -1185,6 +1185,9 @@
                 };
                 this.formError = '';
                 this.editingId = null;
+                // What the booking looked like when the modal opened. An edit posts the
+                // fields that differ from this and no others; see submitBooking().
+                this.editingFrom = null;
                 this.slots = [];
                 this.customTime = false;
                 this.knownCustomer = null;
@@ -1307,6 +1310,14 @@
                 this.form.date = booking.date;
                 this.form.time = booking.time;
                 this.form.note = booking.note || '';
+                /* The three fields a move can touch, as they stood when this opened. The
+                   form itself cannot serve as the comparison: it is what the counter has
+                   been typing into. */
+                this.editingFrom = {
+                    date: booking.date,
+                    time: booking.time,
+                    staff_id: booking.staff ? booking.staff.id : null,
+                };
                 this.customTime = true;
                 this.createOpener =
                     document.activeElement === document.body ? null : document.activeElement;
@@ -1347,7 +1358,7 @@
             },
 
             /* `force` is the second pass of the same save: the server refused because the
-               technician is already busy for part of that hour, or because the salon has
+               technician is already busy for part of that hour, or because somebody has
                declared the day off, and the counter answered the question below with yes.
                Asked once — a second refusal on a forced save is a real error and is shown
                as one. */
@@ -1361,21 +1372,42 @@
                 }
                 this.saving = true;
                 this.formError = '';
-                var body = {
-                    date: this.form.date,
-                    time: this.form.time,
-                    note: this.form.note || null,
-                    // null, not omitted: clearing the technician is a real edit, and the
-                    // create path reads it as "Chưa phân công" exactly as before.
-                    staff_id: this.form.staff_id ? Number(this.form.staff_id) : null,
-                };
+                // null, not '', because the server reads null as "no technician" and the
+                // create path shows that as "Chưa phân công" exactly as before.
+                var staffId = this.form.staff_id ? Number(this.form.staff_id) : null;
+                var body;
+                if (this.editingId) {
+                    /* Only what actually changed. The modal shows every field of the
+                       booking, and posting them all back made every save look like a move:
+                       the server would take the day lock and weigh the hour against the
+                       calendar for somebody who had only corrected a spelling in the note,
+                       and a booking already forced onto a busy hour would ask "Vẫn lưu?"
+                       again every time. The note goes every time regardless — it is the
+                       harmless one, and a PATCH with nothing in it is refused. */
+                    body = { note: this.form.note || null };
+                    var was = this.editingFrom || {};
+                    if (this.form.date !== was.date) {
+                        body.date = this.form.date;
+                    }
+                    if (this.form.time !== was.time) {
+                        body.time = this.form.time;
+                    }
+                    if (staffId !== (was.staff_id === undefined ? null : was.staff_id)) {
+                        body.staff_id = staffId;
+                    }
+                } else {
+                    body = {
+                        date: this.form.date,
+                        time: this.form.time,
+                        note: this.form.note || null,
+                        staff_id: staffId,
+                        service_id: Number(this.form.service_id),
+                        customer_name: this.form.customer_name || null,
+                        customer_phone: this.form.customer_phone || null,
+                    };
+                }
                 if (force) {
                     body.force = true;
-                }
-                if (!this.editingId) {
-                    body.service_id = Number(this.form.service_id);
-                    body.customer_name = this.form.customer_name || null;
-                    body.customer_phone = this.form.customer_phone || null;
                 }
                 try {
                     if (this.editingId) {
@@ -1389,7 +1421,7 @@
                         await this.load();
                         this.detail = moved;
                         await this.loadHistory();
-                        OAK.toast('Đã cập nhật lịch hẹn ' + moved.code + '.');
+                        OAK.toast(this.savedMessage(moved, 'Đã cập nhật lịch hẹn '));
                         return;
                     }
                     var created = await OAK.api('/api/partner/bookings', {
@@ -1402,22 +1434,19 @@
                     await this.load();
                     this.detail = created;
                     await this.loadHistory();
-                    // Booked outside the salon's own opening hours: allowed, and said out
-                    // loud, because it is nearly always a typo and occasionally on purpose.
-                    // The server's flag is the trigger, never the display text: this
-                    // sentence is the page's own, and so has an English twin like the
-                    // rest of them. Success colour — the booking WAS saved.
-                    OAK.toast(
-                        !force && created.meta && created.meta.warning
-                            ? 'Lịch hẹn đã lưu, ngoài giờ mở cửa của salon.'
-                            : 'Đã tạo lịch hẹn ' + created.code + '.',
-                    );
+                    OAK.toast(this.savedMessage(created, 'Đã tạo lịch hẹn '));
                 } catch (error) {
                     /* A clash the counter may overrule: it is standing in front of the
                        customer and the server's sentence says what it would be booking over,
                        so that sentence is the question rather than a wording of this page's
-                       own. The plain browser dialog because this page has never needed one
-                       and a styled dialog for a single question is a modal inside a modal. */
+                       own — which also means the dialog stays Vietnamese on the English site,
+                       since window.confirm() takes a string and not a node, and the
+                       translator only ever sees nodes. SLOT_TAKEN and nothing else: a
+                       SLOT_OCCUPIED is a row the unique index will refuse whatever anyone
+                       answers, so asking about it would be promising a save that cannot
+                       happen. The plain browser dialog because this page has never needed
+                       one, and a styled dialog for a single question is a modal inside a
+                       modal. */
                     if (error.code === 'SLOT_TAKEN' && !force
                         && window.confirm(error.message + ' Vẫn lưu?')) {
                         await this.submitBooking(true);
@@ -1427,6 +1456,21 @@
                 } finally {
                     this.saving = false;
                 }
+            },
+
+            /* What to say about a booking that WAS saved. Booking outside the salon's own
+               opening hours is allowed and said out loud, because it is nearly always a typo
+               and occasionally on purpose — but it is no longer the only thing meta.warning
+               carries: a clash the counter overruled comes back the same way. So the sentence
+               is chosen on the server's words rather than on the mere presence of a warning,
+               and the words shown are still the page's own, which is what gives them an
+               English twin like the rest of them. Success colour throughout — nothing
+               failed. */
+            savedMessage(booking, prefix) {
+                var warning = booking.meta && booking.meta.warning;
+                return warning === 'Giờ hẹn nằm ngoài giờ mở cửa của salon.'
+                    ? 'Lịch hẹn đã lưu, ngoài giờ mở cửa của salon.'
+                    : prefix + booking.code + '.';
             },
 
             // role="alert" reads it out; the caret has to follow, or a reader who tabs on

@@ -10989,6 +10989,46 @@ async function groupDoubleBooking() {
       .join(', ')})`,
     anyOverlapRace.find((one) => one.status !== 200),
   );
+  assert(
+    anyOverlapRace.every((one) => one.status === 200 || one.body?.error?.code === 'SLOT_TAKEN'),
+    'and the one that lost is told the hour is taken, not handed a 500',
+    anyOverlapRace.find((one) => one.status !== 200 && one.body?.error?.code !== 'SLOT_TAKEN'),
+  );
+
+  /* -- and the two doors racing EACH OTHER ------------------------------------- */
+
+  /* The case a key per technician could never have covered, and the reason there is only
+     one: a customer who names this technician and a customer who names nobody are about to
+     fill the same hour of the same person, and the second one does not know that until it
+     has read the whole roster. Held apart by the salon's day and by nothing else — the
+     minutes differ, so idx_bookings_slot has no opinion. */
+  const mixedDay = addDays(state.today, 11);
+  // Both accounts made BEFORE the wave. An `await` inside the Promise.all array runs while
+  // the request beside it is already in flight, which is a sequence wearing a race's clothes.
+  const byName = await customerAt('KhachGoiTen');
+  const byNobody = await customerAt('KhachKhongGoiTen');
+  const mixed = await Promise.all([
+    byName.fetch('/api/bookings', {
+      method: 'POST',
+      json: booking(mixedDay, '10:30', { staff_id: solo.id }),
+    }),
+    byNobody.fetch('/api/bookings', {
+      method: 'POST',
+      json: booking(mixedDay, '10:00'),
+    }),
+  ]);
+  assert(
+    mixed.filter((one) => one.status === 200).length === 1,
+    `a named hour and a "Bất kỳ" one overlapping must leave exactly one (got ${mixed
+      .map((one) => one.status)
+      .join(', ')})`,
+    mixed.find((one) => one.status !== 200),
+  );
+  assert(
+    mixed.every((one) => one.status === 200 || one.body?.error?.code === 'SLOT_TAKEN'),
+    'and whichever lost is told the hour is taken',
+    mixed.find((one) => one.status !== 200 && one.body?.error?.code !== 'SLOT_TAKEN'),
+  );
 
   /* -- the counter is told before it books over her, and may still say yes ------ */
 
@@ -11020,6 +11060,29 @@ async function groupDoubleBooking() {
     String(forcedResponse.body.meta?.warning ?? '').includes('chồng giờ'),
     'a forced overlap is saved, and the reply says what it was booked over',
     forcedResponse,
+  );
+
+  /* -- and the one minute no amount of insisting can have ---------------------- */
+
+  /* idx_bookings_slot is UNIQUE(staff_id, date, time). A second booking on the very same
+     minute is a row it will refuse whatever anybody answers, so it is refused under its OWN
+     code — and force does not clear it. The console offers its "Vẫn lưu?" for SLOT_TAKEN
+     alone, so this is the difference between a question and a wall: without the distinction
+     the counter would be asked, would say yes, and would get an error for its trouble. */
+  expectError(
+    await owner.fetch('/api/partner/bookings', { method: 'POST', json: walkIn(counterDay, '09:00') }),
+    409,
+    'SLOT_OCCUPIED',
+    'POST /api/partner/bookings on the very minute she is already booked at',
+  );
+  expectError(
+    await owner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: walkIn(counterDay, '09:00', { force: true }),
+    }),
+    409,
+    'SLOT_OCCUPIED',
+    'and force does not clear it, because the index will not either',
   );
 
   /* -- moving one, which is never in its own way -------------------------------- */
@@ -11054,10 +11117,95 @@ async function groupDoubleBooking() {
     'and the move that was forced says so too',
     forcedMove,
   );
+  // The same wall on this door: a move onto an occupied minute is refused under its own
+  // code, and force is not the way past it here either.
+  expectError(
+    await owner.fetch(`/api/partner/bookings/${mover.id}`, {
+      method: 'PATCH',
+      json: { time: '09:00', force: true },
+    }),
+    409,
+    'SLOT_OCCUPIED',
+    'PATCH /api/partner/bookings/:id onto an occupied minute, forced',
+  );
+
+  /* -- a booking that grows into the next one without moving ------------------- */
+
+  /* A booking's LENGTH is the service's, so a save that swaps the service can run it into
+     the appointment after it having touched neither the hour nor the chair. The clash check
+     used to look only at date, time and staff_id and would have waved this through. */
+  const longService = ok(
+    await owner.fetch('/api/partner/services', {
+      method: 'POST',
+      json: { category: 'nail', name: 'Bộ móng hai tiếng', price: 600000, duration_min: 120 },
+    }),
+    'POST /api/partner/services (a service twice as long)',
+  );
+  const lengthDay = addDays(state.today, 12);
+  const growing = ok(
+    await owner.fetch('/api/partner/bookings', { method: 'POST', json: walkIn(lengthDay, '10:00') }),
+    'POST /api/partner/bookings (the one that is about to get longer)',
+  );
+  ok(
+    await owner.fetch('/api/partner/bookings', { method: 'POST', json: walkIn(lengthDay, '11:00') }),
+    'POST /api/partner/bookings (the hour it would grow into)',
+  );
+  expectError(
+    await owner.fetch(`/api/partner/bookings/${growing.id}`, {
+      method: 'PATCH',
+      json: { service_id: longService.id },
+    }),
+    409,
+    'SLOT_TAKEN',
+    'PATCH /api/partner/bookings/:id onto a service that runs into the next appointment',
+  );
+  ok(
+    await owner.fetch(`/api/partner/bookings/${growing.id}`, {
+      method: 'PATCH',
+      json: { service_id: longService.id, force: true },
+    }),
+    'and the counter may still say yes to it',
+  );
+
+  /* -- the technician's own day off, which is her answer and not the salon's ---- */
+
+  const staffOffDay = addDays(state.today, 13);
+  ok(
+    await owner.fetch('/api/partner/time-off', {
+      method: 'POST',
+      json: { staff_id: solo.id, date_from: staffOffDay, date_to: staffOffDay, reason: 'Nghỉ phép' },
+    }),
+    'POST /api/partner/time-off (this technician only)',
+  );
+  const staffOff = await owner.fetch('/api/partner/bookings', {
+    method: 'POST',
+    json: walkIn(staffOffDay, '10:00'),
+  });
+  expectError(
+    staffOff,
+    409,
+    'SLOT_TAKEN',
+    'POST /api/partner/bookings on a day this technician declared off',
+  );
+  assert(
+    String(staffOff.body?.error?.message ?? '').includes('Kỹ thuật viên nghỉ'),
+    'and it says it is her day off rather than that the hour is taken',
+    staffOff,
+  );
+  const forcedOnHerDayOff = await owner.fetch('/api/partner/bookings', {
+    method: 'POST',
+    json: walkIn(staffOffDay, '10:00', { force: true }),
+  });
+  ok(forcedOnHerDayOff, 'POST /api/partner/bookings on her day off with force');
+  assert(
+    String(forcedOnHerDayOff.body.meta?.warning ?? '').includes('Kỹ thuật viên nghỉ'),
+    'a technician who came in anyway is bookable, and the reply says what it went past',
+    forcedOnHerDayOff,
+  );
 
   /* -- a day the salon has declared closed -------------------------------------- */
 
-  const closedDay = addDays(state.today, 10);
+  const closedDay = addDays(state.today, 14);
   ok(
     await owner.fetch('/api/partner/time-off', {
       method: 'POST',

@@ -391,7 +391,7 @@ test('a weekday the salon never described is closed, not unrestricted', () => {
 
 /* ------------------------------------------- one hour, one technician, one writer - */
 
-test('an hour is held before it is read, and by a key that names the day', () => {
+test('one key holds a salon day, it is taken first, and it does not wait for ever', () => {
   /* The whole fix in one statement. pg_advisory_xact_lock over a hashtext() of the key,
      taken on the transaction that is about to write, released by its COMMIT or ROLLBACK.
      Pinned as text because there is nothing else to assert against: a lock that is not
@@ -401,35 +401,86 @@ test('an hour is held before it is read, and by a key that names the day', () =>
     /const ADVISORY_LOCK_SQL = 'SELECT pg_advisory_xact_lock\(hashtext\(\?\)\)';/,
     'the day lock must still be an xact advisory lock over hashtext of the key',
   );
-  // Two key shapes, and they are not interchangeable: a named technician contends over her
-  // own day, "Bất kỳ" over the whole salon's, because it is about to read the whole roster.
-  assert.match(availabilitySource, /`staff:\$\{staffId\}:\$\{date\}`/);
-  assert.match(availabilitySource, /`salon:\$\{salonId\}:\$\{date\}`/);
 
-  /* And it is taken FIRST. A lock after the read it was meant to protect is decoration:
-     both transactions would have already decided the hour was free. */
+  /* ONE key shape, and it is the salon's day. A key per technician reads as the tighter
+     choice and is the broken one: "Bất kỳ" cannot know whose day it is about to fill until
+     it has read the whole roster, so it can only hold the salon — and a named booking
+     holding some other key does not exclude it. The two would then race each other onto
+     overlapping minutes of one technician, which is the bug this file exists for. */
+  assert.match(availabilitySource, /`salon:\$\{salonId\}:\$\{date\}`/);
+  assert.ok(
+    !/lockStaffDay/.test(availabilitySource),
+    'a second key per technician must not come back: it excludes nobody',
+  );
+  assert.equal(
+    (availabilitySource.match(/export async function lock/g) || []).length,
+    1,
+    'and there is exactly one lock to take',
+  );
+
+  /* Bounded. An advisory wait holds one of five pool connections while it waits, so an
+     unbounded one turns a single stuck transaction into a dead instance. SET LOCAL, so the
+     transaction that took it also gives it back. */
+  assert.match(availabilitySource, /const LOCK_TIMEOUT = '3s';/);
+  assert.match(availabilitySource, /SET LOCAL lock_timeout = '\$\{LOCK_TIMEOUT\}'/);
+  const lock = availabilitySource.slice(
+    availabilitySource.indexOf('export async function lockSalonDay'),
+  );
+  assert.ok(
+    lock.indexOf('LOCK_TIMEOUT_SQL') < lock.indexOf('ADVISORY_LOCK_SQL'),
+    'the ceiling has to be set before the wait it is a ceiling on',
+  );
+
+  /* And the lock is taken FIRST. A lock after the read it was meant to protect is
+     decoration: both transactions would have already decided the hour was free. */
   const transaction = source.slice(source.indexOf('db.withTransaction(async (tx) => {'));
   assert.ok(
-    transaction.indexOf('lockStaffDay(tx') < transaction.indexOf('isStaffFreeAt(tx'),
-    'the named-technician path must hold her day before it re-reads her calendar',
+    transaction.indexOf('lockSalonDay(tx') < transaction.indexOf('staffClashAt(tx'),
+    'the named-technician path must hold the day before it re-reads her calendar',
   );
   assert.ok(
     transaction.indexOf('lockSalonDay(tx') < transaction.indexOf('pickAvailableStaff(tx'),
-    'and "Bất kỳ" must hold the salon day before it picks from the roster',
+    'and "Bất kỳ" must hold it before it picks from the roster',
   );
 });
 
-test('the overlap the unique index cannot see is the one that is asked about', async () => {
+test('the three routes that hold an hour all answer a lost lock as SLOT_BUSY', () => {
+  /* 55P03 is lock_not_available: the day was held by somebody else for longer than
+     LOCK_TIMEOUT. Nothing is booked and the same request a moment later is expected to
+     work, so it must not be said as a taken hour — a customer told "that hour has gone"
+     goes and picks another one for no reason. */
+  const partnerSource = fs.readFileSync(
+    path.join(root, 'server', 'src', 'routes', 'partner.js'),
+    'utf8',
+  );
+  for (const [name, text] of [['bookings.js', source], ['partner.js', partnerSource]]) {
+    assert.match(text, /error\.code === '55P03'/, `${name} must answer a lock it could not get`);
+    assert.match(
+      text,
+      /'SLOT_BUSY', 'Salon đang nhận một lịch khác, thử lại sau vài giây\.'/,
+      `${name} must say so as SLOT_BUSY`,
+    );
+  }
+  // withBookingCode retries a duplicate CODE and nothing else, so a timed-out lock is not
+  // silently attempted five times over — it comes straight back out.
+  const codeSource = fs.readFileSync(
+    path.join(root, 'server', 'src', 'lib', 'booking-code.js'),
+    'utf8',
+  );
+  assert.match(codeSource, /if \(!\(error\.code === '23505' && error\.constraint === 'bookings_code_key'\)\) \{\s*throw error;/);
+});
+
+test('an overlap and the very same minute are two different answers', async () => {
   const asked = [];
   const busy = [{ time: '10:00', duration_min: 60 }];
-  const free = (time, duration, exceptBookingId = null) =>
+  const clash = (time, duration, exceptBookingId = null) =>
     liftFromAvailability(
       [
         /function toRanges[\s\S]*?\n}\n/,
         /function isFree[\s\S]*?\n}\n/,
-        /async function isStaffFreeAt[\s\S]*?\n}\n/,
+        /async function staffClashAt[\s\S]*?\n}\n/,
       ],
-      `isStaffFreeAt(tx, 7, '2026-09-10', ${JSON.stringify(time)}, ${duration}, ${JSON.stringify(
+      `staffClashAt(tx, 7, '2026-09-10', ${JSON.stringify(time)}, ${duration}, ${JSON.stringify(
         exceptBookingId,
       )})`,
       {
@@ -446,15 +497,23 @@ test('the overlap the unique index cannot see is the one that is asked about', a
     );
 
   /* idx_bookings_slot is UNIQUE(staff_id, date, time) and would have accepted every one of
-     the refusals below: they are different minutes. The ranges are half-open, so an hour
-     that starts exactly where the last one ended is free and not a clash. */
-  assert.equal(await free('10:30', 60), false, '10:30 is half way through the 10:00 hour');
-  assert.equal(await free('09:30', 60), false, 'and 09:30 runs into it from the other side');
-  assert.equal(await free('11:00', 60), true, 'but 11:00 starts where 10:00 finished');
-  assert.equal(await free('09:00', 60), true, 'and 09:00 finishes where it starts');
-  // A booking with no hour at all is not free, it is unanswerable — and answering "yes"
-  // would write it.
-  assert.equal(await free('không phải giờ', 60), false);
+     the refusals below except the last: they are different minutes. The ranges are
+     half-open, so an hour that starts exactly where the last one ended is free. */
+  assert.equal(await clash('10:30', 60), 'overlap', '10:30 is half way through the 10:00 hour');
+  assert.equal(await clash('09:30', 60), 'overlap', 'and 09:30 runs into it from the other side');
+  assert.equal(await clash('11:00', 60), null, 'but 11:00 starts where 10:00 finished');
+  assert.equal(await clash('09:00', 60), null, 'and 09:00 finishes where it starts');
+
+  /* The one the counter may not overrule, told apart from the rest: the index will refuse
+     this row however anybody feels about it, so it is not a judgement to be overruled. */
+  assert.equal(await clash('10:00', 60), 'exact', 'the very same minute is its own answer');
+  // Even at a length that would not overlap anything: it is the minute that is taken, not
+  // the hour around it.
+  assert.equal(await clash('10:00', 1), 'exact');
+
+  // An hour nobody can parse is not free, and not forceable either. It cannot arrive here —
+  // every route validates the time first — and answering "free" if it ever did would write it.
+  assert.equal(await clash('không phải giờ', 60), 'exact');
 
   /* The row being moved is taken out in SQL rather than filtered afterwards, so a booking
      is never found clashing with the hour it is already sitting on. */
@@ -462,7 +521,7 @@ test('the overlap the unique index cannot see is the one that is asked about', a
     availabilitySource.includes('AND b.id IS DISTINCT FROM ?'),
     'the moved booking must be excluded by the statement, not by the caller',
   );
-  await free('10:30', 60, 41);
+  await clash('10:30', 60, 41);
   assert.deepEqual(asked.at(-1), ['SQL', 7, '2026-09-10', 41]);
   // IS DISTINCT FROM, so a create — which has no row yet — excludes nothing.
   assert.deepEqual(asked[0], ['SQL', 7, '2026-09-10', null]);
@@ -478,14 +537,14 @@ test('the counter is told before it books over her, and may still say yes', () =
      question and accept the same override. Counted, because a rule enforced on one of them
      is a rule the other one is the way around. */
   assert.equal(
-    (partnerSource.match(/await lockStaffDay\(tx, /g) || []).length,
+    (partnerSource.match(/await lockSalonDay\(tx, salon\.id, /g) || []).length,
     2,
-    'both POST and PATCH must hold the technician’s day before they write to it',
+    'both POST and PATCH must hold the salon’s day before they write to it',
   );
   assert.equal(
-    (partnerSource.match(/if \(conflict !== null && !force\) \{/g) || []).length,
-    2,
-    'and both must refuse the clash unless the counter has overruled it',
+    (partnerSource.match(/refuseUnlessForced\(/g) || []).length,
+    3,
+    'and both must go through the one gate that decides what force may clear',
   );
   assert.equal(
     (partnerSource.match(/force === true/g) || []).length,
@@ -493,20 +552,53 @@ test('the counter is told before it books over her, and may still say yes', () =
     'force is the request saying so, and nothing else counts as saying so',
   );
 
-  /* The refusal names which rule it is, because the two have different answers: another
-     hour, or another day. */
-  assert.match(partnerSource, /'Kỹ thuật viên đã có lịch chồng giờ, vui lòng chọn giờ khác\.'/);
-  assert.match(partnerSource, /'Salon nghỉ ngày này, vui lòng chọn ngày khác\.'/);
+  /* The gate itself: force clears a SLOT_TAKEN and never a SLOT_OCCUPIED. Offering to save
+     a row idx_bookings_slot will refuse would be the console promising what it cannot do —
+     the counter answers "Vẫn lưu?" and gets an error for its trouble. */
+  assert.match(
+    partnerSource,
+    /if \(conflict !== null && \(!force \|\| conflict\.code === 'SLOT_OCCUPIED'\)\) \{/,
+  );
 
-  /* And what is deliberately NOT asked here: the counter may book outside its own opening
-     hours and inside its own lead time, which are warnings on this route and always were. */
+  /* The exact-minute wall is reached two ways — the check saw the row, or a request that
+     slipped past it lost the race to the index — and both must answer in the same words, or
+     the console learns two names for one wall. */
+  assert.match(partnerSource, /const SLOT_OCCUPIED = \{/);
+  assert.match(partnerSource, /'Kỹ thuật viên đã có lịch đúng giờ này; chọn phút khác\.'/);
+  assert.match(partnerSource, /return httpError\(409, SLOT_OCCUPIED\.code, SLOT_OCCUPIED\.message\);/);
   assert.ok(
-    !/bookingConflict[\s\S]*?isSalonOpenFor/.test(
-      partnerSource.slice(
-        partnerSource.indexOf('async function bookingConflict'),
-        partnerSource.indexOf("router.post('/bookings'"),
-      ),
-    ),
+    !/'SLOT_TAKEN',\s*'Khung giờ này đã có lịch hẹn khác của kỹ thuật viên/.test(partnerSource),
+    'the old index answer must be gone: it called an unforceable wall by the forceable name',
+  );
+
+  /* The three refusals force CAN clear, each in its own words, because they have different
+     ways out: another day, another technician, another hour. */
+  assert.match(partnerSource, /'Salon nghỉ ngày này, vui lòng chọn ngày khác\.'/);
+  assert.match(
+    partnerSource,
+    /'Kỹ thuật viên nghỉ ngày này, vui lòng chọn ngày hoặc kỹ thuật viên khác\.'/,
+  );
+  assert.match(partnerSource, /'Kỹ thuật viên đã có lịch chồng giờ, vui lòng chọn giờ khác\.'/);
+
+  const conflict = partnerSource.slice(
+    partnerSource.indexOf('async function bookingConflict'),
+    partnerSource.indexOf('/** Nobody has declared anything off'),
+  );
+  /* A technician's own day off is asked at the counter now: it is exactly as much of a
+     "she cannot serve this hour" as the salon's own, and it used to be asked of customers
+     and of nobody else. */
+  assert.match(conflict, /off\.staff\.has\(staffId\)/);
+  /* And what is deliberately NOT asked: the counter may book outside its own opening hours
+     and inside its own lead time, which are warnings on this route and always were. */
+  assert.ok(
+    !/isSalonOpenFor|respectsLeadTime|lead_time/.test(conflict),
     'the counter’s clash check must not quietly start enforcing opening hours',
+  );
+
+  /* A booking's LENGTH comes off the service, so a save that swaps the service can run it
+     into the next appointment without touching the hour at all. */
+  assert.match(
+    partnerSource,
+    /Object\.hasOwn\(patch, 'staff_id'\) \|\|\n[\s\S]{0,400}?Object\.hasOwn\(patch, 'service_id'\)\)/,
   );
 });

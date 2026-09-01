@@ -537,10 +537,15 @@ CREATE TABLE IF NOT EXISTS time_off (
 -- Every read asks "which rows of this salon cover this date", so the salon leads the index.
 CREATE INDEX IF NOT EXISTS idx_time_off_salon_range ON time_off(salon_id, date_from, date_to);
 
--- One live booking per technician per slot, enforced by the database: the route's
--- availability pre-check straddles awaits, so two concurrent requests can both pass it.
--- Walk-ins without a technician (staff_id NULL) never collide, and cancelled/completed
--- bookings free the slot again.
+-- One live booking per technician per slot, enforced by the database. A BACKSTOP and not
+-- the guard: it compares (staff_id, date, time) exactly, so it refuses a second booking at
+-- the same minute and has nothing at all to say about 10:00 and 10:30 of a 60-minute
+-- service. What actually holds a technician's day together is the advisory lock every
+-- writing route takes over the salon's day before it reads a calendar (lockSalonDay, with
+-- the overlap arithmetic beside it in lib/availability.js); this index is what catches the
+-- one that still slips through, and the routes answer it as SLOT_OCCUPIED. Walk-ins without
+-- a technician (staff_id NULL) never collide, and cancelled/completed bookings free the
+-- slot again.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_slot ON bookings(staff_id, date, time)
   WHERE staff_id IS NOT NULL AND status IN ('pending','confirmed');
 

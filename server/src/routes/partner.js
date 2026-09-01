@@ -6,9 +6,9 @@ import {
   getServiceSlots,
   getStaffSlots,
   isSalonOpenFor,
-  isStaffFreeAt,
-  lockStaffDay,
+  lockSalonDay,
   staffCanDo,
+  staffClashAt,
   timeOffOn,
 } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
@@ -846,34 +846,101 @@ async function assertStaffCanDo(staffId, serviceId) {
   }
 }
 
+// What idx_bookings_slot refuses, said in the counter's own words. Reached two ways — the
+// check below sees the row, or a request that slipped past it loses the race to the index —
+// and both have to answer identically or the console learns two names for one wall.
+const SLOT_OCCUPIED = {
+  code: 'SLOT_OCCUPIED',
+  message: 'Kỹ thuật viên đã có lịch đúng giờ này; chọn phút khác.',
+};
+
 /**
- * What stands between this technician and this hour, in the words the counter is shown, or
- * null when nothing does.
+ * What stands between this technician and this hour, as {code, message}, or null when
+ * nothing does.
  *
- * The console used to hear about a clash only from idx_bookings_slot, which is
- * UNIQUE(staff_id, date, time) — it sees the identical minute and nothing else, so a 60-minute
- * service typed at 10:30 over one already running from 10:00 saved without a word and put one
- * technician in two places. And a day the salon had declared closed was refused to customers
- * and taken silently at the counter.
+ * ASKED HERE, all of it forceable except the last:
+ *   · the salon has declared the day off,
+ *   · this technician has declared the day off,
+ *   · another booking of hers runs through the hour — the overlap idx_bookings_slot cannot
+ *     see, since UNIQUE(staff_id, date, time) reads 10:00 and 10:30 as two different rows,
+ *   · another booking of hers starts on this very minute, which is SLOT_OCCUPIED.
  *
- * The calendar half is read on `tx` and under lockStaffDay, so what it sees cannot change
- * before the write that follows it. The day off is handed in already answered, because it is
- * a fact about the date rather than a race — and a read of the POOL from inside a transaction
- * would have this request holding one connection while queueing for a second, which is how a
- * five-connection pool wedges itself under exactly the burst this whole change is about.
+ * The first three are SLOT_TAKEN, and SLOT_TAKEN is the code the console offers an override
+ * for: each is a judgement about a day that the person at the counter may simply know better
+ * than this table does — the technician came in anyway, the holiday is being worked. The
+ * fourth is not a judgement at all. It is a row the unique index will refuse however anyone
+ * feels about it, so offering to save it would be the console promising what it cannot do;
+ * force does not clear it and the reply says a different thing, which is "pick another
+ * minute" rather than "are you sure".
  *
- * Deliberately NOT asked here: the salon's opening hours and its lead time. The counter is
- * allowed to stay open late for one customer and to take a booking starting in ten minutes —
- * those are warnings on this route and always have been, not refusals.
+ * NOT ASKED HERE, deliberately: the salon's opening hours and its lead time. The counter is
+ * allowed to stay open late for one customer and to take a booking starting in ten minutes;
+ * those have always been warnings on this route rather than refusals, and turning them into
+ * refusals through this door would be a rule change smuggled in as a bug fix.
+ *
+ * The calendar half is read on `tx` and under lockSalonDay, so what it sees cannot change
+ * before the write that follows it. `off` is handed in already answered, because a declared
+ * day off is a fact about the date rather than a race — and a read of the POOL from inside a
+ * transaction would have this request holding one connection while queueing for a second,
+ * which is how a five-connection pool wedges itself under exactly the burst this whole
+ * change is about.
  */
-async function bookingConflict(tx, closed, staffId, date, time, durationMin, exceptBookingId) {
-  if (closed) {
-    return 'Salon nghỉ ngày này, vui lòng chọn ngày khác.';
+async function bookingConflict(tx, off, staffId, date, time, durationMin, exceptBookingId) {
+  if (off.salon) {
+    return { code: 'SLOT_TAKEN', message: 'Salon nghỉ ngày này, vui lòng chọn ngày khác.' };
   }
-  if (!(await isStaffFreeAt(tx, staffId, date, time, durationMin, exceptBookingId))) {
-    return 'Kỹ thuật viên đã có lịch chồng giờ, vui lòng chọn giờ khác.';
+  if (off.staff.has(staffId)) {
+    return {
+      code: 'SLOT_TAKEN',
+      message: 'Kỹ thuật viên nghỉ ngày này, vui lòng chọn ngày hoặc kỹ thuật viên khác.',
+    };
+  }
+  const clash = await staffClashAt(tx, staffId, date, time, durationMin, exceptBookingId);
+  if (clash === 'exact') {
+    return SLOT_OCCUPIED;
+  }
+  if (clash === 'overlap') {
+    return {
+      code: 'SLOT_TAKEN',
+      message: 'Kỹ thuật viên đã có lịch chồng giờ, vui lòng chọn giờ khác.',
+    };
   }
   return null;
+}
+
+/** Nobody has declared anything off — what a walk-in with no technician is judged against. */
+const NOBODY_OFF = { salon: false, staff: new Set() };
+
+/**
+ * Refuse the conflict unless the counter has overruled it, and say which wall it is.
+ *
+ * `force` clears a SLOT_TAKEN and never a SLOT_OCCUPIED, which is the whole distinction the
+ * two codes exist to carry. Returns the conflict that was overruled, so the reply can name
+ * the rule it went past rather than saving in silence.
+ */
+function refuseUnlessForced(conflict, force) {
+  if (conflict !== null && (!force || conflict.code === 'SLOT_OCCUPIED')) {
+    throw httpError(409, conflict.code, conflict.message);
+  }
+  return conflict;
+}
+
+/**
+ * The two ways a write of this file can lose a race rather than a judgement.
+ *
+ * 23505 on idx_bookings_slot: somebody took that exact minute between the check above and
+ * this INSERT — the same wall bookingConflict names, so it answers in the same words.
+ * 55P03: lockSalonDay gave up waiting for the salon's day. Nothing is booked and the same
+ * request a moment later is expected to work, so it must not be said as a taken hour.
+ */
+function bookingWriteError(error) {
+  if (error.code === '23505' && error.constraint === 'idx_bookings_slot') {
+    return httpError(409, SLOT_OCCUPIED.code, SLOT_OCCUPIED.message);
+  }
+  if (error.code === '55P03') {
+    return httpError(409, 'SLOT_BUSY', 'Salon đang nhận một lịch khác, thử lại sau vài giây.');
+  }
+  return error;
 }
 
 router.post('/bookings', async (req, res, next) => {
@@ -921,7 +988,7 @@ router.post('/bookings', async (req, res, next) => {
     const force = body.force === true;
     // Read out here: it needs no lock, and nothing inside a transaction may go back to the
     // pool for a second connection. A walk-in with no technician is asked nothing at all.
-    const closed = staffId === null ? false : (await timeOffOn(salon.id, date)).salon;
+    const off = staffId === null ? NOBODY_OFF : await timeOffOn(salon.id, date);
     let conflict = null;
 
     // Price comes from the service row, never from the request: the counter must not
@@ -940,13 +1007,11 @@ router.post('/bookings', async (req, res, next) => {
              pre-check at all, and two people at two screens of the same console are exactly
              as able to collide as two customers are. */
           if (staffId !== null) {
-            await lockStaffDay(tx, staffId, date);
-            conflict = await bookingConflict(
-              tx, closed, staffId, date, time, service.duration_min, null,
+            await lockSalonDay(tx, salon.id, date);
+            conflict = refuseUnlessForced(
+              await bookingConflict(tx, off, staffId, date, time, service.duration_min, null),
+              force,
             );
-            if (conflict !== null && !force) {
-              throw httpError(409, 'SLOT_TAKEN', conflict);
-            }
           }
 
           bookingId = Number(
@@ -993,16 +1058,7 @@ router.post('/bookings', async (req, res, next) => {
         }),
       );
     } catch (error) {
-      // idx_bookings_slot: the named technician already has a live booking at this
-      // slot. This route has no availability pre-check, so the index is the only gate.
-      if (error.code === '23505' && error.constraint === 'idx_bookings_slot') {
-        throw httpError(
-          409,
-          'SLOT_TAKEN',
-          'Khung giờ này đã có lịch hẹn khác của kỹ thuật viên, vui lòng chọn giờ khác.',
-        );
-      }
-      throw error;
+      throw bookingWriteError(error);
     }
 
     const booking = await selectOwnedBooking.get(bookingId, salon.id);
@@ -1013,7 +1069,7 @@ router.post('/bookings', async (req, res, next) => {
     // One line, and the overridden refusal outranks the hours note: the counter has just
     // been asked about the first and only ever told about the second.
     const warning =
-      conflict ?? (outsideHours ? 'Giờ hẹn nằm ngoài giờ mở cửa của salon.' : null);
+      conflict?.message ?? (outsideHours ? 'Giờ hẹn nằm ngoài giờ mở cửa của salon.' : null);
 
     res.json({
       success: true,
@@ -1221,14 +1277,18 @@ router.patch('/bookings/:id', async (req, res, next) => {
       (leftStatus === 'pending' || leftStatus === 'confirmed') &&
       (Object.hasOwn(patch, 'date') ||
         Object.hasOwn(patch, 'time') ||
-        Object.hasOwn(patch, 'staff_id'));
+        Object.hasOwn(patch, 'staff_id') ||
+        // The service too, and not for the sake of tidiness: it carries the LENGTH. A save
+        // that moves a booking from a thirty-minute service to a two-hour one has not
+        // touched the hour and has still run it into the next appointment.
+        Object.hasOwn(patch, 'service_id'));
     const slot = checksSlot ? startsAt() : null;
     const slotDuration = checksSlot
       ? (newService ?? (await selectOwnedService.get(booking.service_id, salon.id))).duration_min
       : 0;
     // The counter's override, the same one POST /bookings takes.
     const force = body.force === true;
-    const closed = checksSlot && (await timeOffOn(salon.id, slot.date)).salon;
+    const off = checksSlot ? await timeOffOn(salon.id, slot.date) : NOBODY_OFF;
     let conflict = null;
 
     const notification = body.status
@@ -1245,13 +1305,14 @@ router.patch('/bookings/:id', async (req, res, next) => {
            the hour it already holds is not counted against itself — moving an appointment
            onto its own time is a no-op, not a clash. */
         if (checksSlot) {
-          await lockStaffDay(tx, slotStaffId, slot.date);
-          conflict = await bookingConflict(
-            tx, closed, slotStaffId, slot.date, slot.time, slotDuration, bookingId,
+          // The day the save LEAVES it on, which is the day whose calendar has to hold still.
+          await lockSalonDay(tx, salon.id, slot.date);
+          conflict = refuseUnlessForced(
+            await bookingConflict(
+              tx, off, slotStaffId, slot.date, slot.time, slotDuration, bookingId,
+            ),
+            force,
           );
-          if (conflict !== null && !force) {
-            throw httpError(409, 'SLOT_TAKEN', conflict);
-          }
         }
 
         await tx.run(
@@ -1366,22 +1427,13 @@ router.patch('/bookings/:id', async (req, res, next) => {
         }
       });
     } catch (error) {
-      // idx_bookings_slot: rescheduling (time/date/technician) landed on a slot where
-      // the technician already has a live booking.
-      if (error.code === '23505' && error.constraint === 'idx_bookings_slot') {
-        throw httpError(
-          409,
-          'SLOT_TAKEN',
-          'Khung giờ này đã có lịch hẹn khác của kỹ thuật viên, vui lòng chọn giờ khác.',
-        );
-      }
-      throw error;
+      throw bookingWriteError(error);
     }
 
     res.json({
       success: true,
       data: bookingShape(await selectOwnedBooking.get(bookingId, salon.id)),
-      ...(conflict === null ? {} : { meta: { warning: conflict } }),
+      ...(conflict === null ? {} : { meta: { warning: conflict.message } }),
     });
   } catch (error) {
     next(error);

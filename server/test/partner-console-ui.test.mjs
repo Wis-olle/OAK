@@ -164,7 +164,10 @@ test('rescheduling patches the booking that exists instead of creating a second 
   assert.equal(patch.path, '/api/partner/bookings/7');
   assert.equal(patch.body.time, '16:00');
   assert.equal(patch.body.date, '2026-08-25');
-  assert.equal(patch.body.staff_id, 2);
+  /* And the technician, who did not change, is NOT in it. The modal shows every field of the
+     booking and used to post them all back, which made every save look to the server like a
+     move onto the same chair — see the diffing test below for what that cost. */
+  assert.equal(Object.hasOwn(patch.body, 'staff_id'), false);
   // The code, the customer and the account behind them all survive the move.
   assert.equal(calls.some((call) => call.method === 'POST'), false);
   assert.equal(state.createOpen, false);
@@ -719,5 +722,93 @@ test('a clash the counter declines leaves the appointment where it was', async (
   assert.equal(state.confirmations.length, 1);
   assert.equal(sent.length, 1, 'a no is a no: nothing is forced behind the counter’s back');
   assert.match(state.formError, /chồng giờ/, 'and the reason stays on screen to act on');
+  assert.equal(state.saving, false);
+});
+
+/* --------------------------------------------------- an edit posts only what it changed */
+
+test('an edit posts the fields that changed and leaves the rest out', async () => {
+  const bodies = [];
+  const patching = async (path, options) => {
+    const method = (options && options.method) || 'GET';
+    if (method === 'PATCH') {
+      bodies.push(options.body);
+      return BOOKING;
+    }
+    if (path.startsWith('/api/partner/availability')) {
+      return { date: '2026-08-22', slots: [] };
+    }
+    if (path.endsWith('/history')) {
+      return [];
+    }
+    return withMeta([], { total: 0 });
+  };
+
+  /* A note correction and nothing else. The hour, the day and the chair are all exactly as
+     they were, so the server is never asked to weigh this booking against a calendar — which
+     is what stopped a booking already forced onto a busy hour from asking "Vẫn lưu?" every
+     time anybody touched its note. */
+  const noteOnly = calendar(patching);
+  noteOnly.detail = BOOKING;
+  noteOnly.openEdit();
+  noteOnly.form.note = 'Khách xin đổi ghế';
+  await noteOnly.submitBooking();
+  assert.deepEqual(Object.keys(bodies[0]).sort(), ['note']);
+  assert.equal(bodies[0].note, 'Khách xin đổi ghế');
+
+  // A chair that really did change is sent, and on its own.
+  const restaffed = calendar(patching);
+  restaffed.detail = BOOKING;
+  restaffed.openEdit();
+  restaffed.form.staff_id = '5';
+  await restaffed.submitBooking();
+  assert.deepEqual(Object.keys(bodies[1]).sort(), ['note', 'staff_id']);
+  assert.equal(bodies[1].staff_id, 5);
+
+  // Cleared back to "Bất kỳ" is a change too, and null is how it is said.
+  const unassigned = calendar(patching);
+  unassigned.detail = BOOKING;
+  unassigned.openEdit();
+  unassigned.form.staff_id = '';
+  await unassigned.submitBooking();
+  assert.equal(bodies[2].staff_id, null);
+
+  /* Nothing changed at all still posts the note: a PATCH with an empty body is refused by
+     the server, and the counter pressing Lưu expects the panel to close rather than an
+     error about there being nothing to update. */
+  const untouched = calendar(patching);
+  untouched.detail = BOOKING;
+  untouched.openEdit();
+  await untouched.submitBooking();
+  assert.deepEqual(Object.keys(bodies[3]).sort(), ['note']);
+  assert.equal(untouched.createOpen, false);
+});
+
+/* ------------------------------------------------- the wall that cannot be talked round */
+
+test('the very same minute is not offered as something to overrule', async () => {
+  const sent = [];
+  const state = calendar(async (path, options) => {
+    const method = (options && options.method) || 'GET';
+    if (method === 'POST' && path === '/api/partner/bookings') {
+      sent.push(options.body);
+      const refusal = new Error('Kỹ thuật viên đã có lịch đúng giờ này; chọn phút khác.');
+      refusal.code = 'SLOT_OCCUPIED';
+      throw refusal;
+    }
+    return withMeta([], { total: 0 });
+  }, true);
+
+  state.resetForm();
+  state.form.service_id = '4';
+  state.form.time = '10:00';
+  await state.submitBooking();
+
+  /* idx_bookings_slot will refuse that row however the counter answers, so asking would be
+     the console offering a save it cannot make: the counter says yes and gets an error. The
+     confirm is for SLOT_TAKEN, which is a judgement about a day, and for nothing else. */
+  assert.deepEqual(state.confirmations, [], 'a wall is not a question');
+  assert.equal(sent.length, 1, 'and it is not tried twice');
+  assert.match(state.formError, /chọn phút khác/);
   assert.equal(state.saving, false);
 });

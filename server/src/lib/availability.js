@@ -127,41 +127,59 @@ const OTHER_STAFF_BOOKINGS_SQL = `${STAFF_BOOKINGS_SQL} AND b.id IS DISTINCT FRO
  * never a wrong answer. xact, so it is released by COMMIT or ROLLBACK with nothing to unlock
  * by hand.
  *
- * Two key shapes, because the two writes contend over different things: a named technician
- * holds her own day, and "Bất kỳ" holds the salon's, since it is about to read the whole
- * roster and pick from it. They do not exclude each other — a named booking and a "Bất kỳ"
- * booking racing for overlapping hours at one salon can still both commit, and the unique
- * index catches only the identical minute. Narrowing that further means the named path
- * taking the salon key too, which serialises every booking a busy salon takes; the pair
- * kept here is the one where the contention is real.
+ * ONE key shape, the salon's day, and every writer takes it — the customer naming a
+ * technician, the customer naming nobody, and both counter doors. A key per technician looks
+ * tighter and is not: "Bất kỳ" has to read the whole roster before it knows whose day it is
+ * about to fill, so it can only hold the salon, and a named booking holding some other key
+ * does not exclude it. Two such writers racing for overlapping minutes on one technician
+ * would then both commit, which is the entire bug. A salon's bookings are therefore
+ * serialised per day; a day is a small enough unit that this costs a busy salon one short
+ * wait, and lockDayTimeout below puts a ceiling on even that.
  */
 const ADVISORY_LOCK_SQL = 'SELECT pg_advisory_xact_lock(hashtext(?))';
 
-/** Hold one technician's day for the rest of `tx`. */
-export async function lockStaffDay(tx, staffId, date) {
-  await tx.get(ADVISORY_LOCK_SQL, `staff:${staffId}:${date}`);
-}
+/* How long a writer will queue behind the salon's day before giving the customer an answer
+   instead. An advisory wait holds a pool connection while it waits, and the pool is five
+   deep: unbounded, one wedged transaction takes the whole instance down with it rather than
+   one booking. Postgres raises 55P03 (lock_not_available) on expiry, which the routes answer
+   as SLOT_BUSY — "try again in a moment", which is true, rather than "the hour is taken",
+   which is not. SET LOCAL, so it is undone by the same COMMIT or ROLLBACK as the lock. */
+const LOCK_TIMEOUT = '3s';
+const LOCK_TIMEOUT_SQL = `SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`;
 
-/** Hold one salon's whole day for the rest of `tx` — what picking from a roster needs. */
+/** Hold one salon's whole day for the rest of `tx`, or throw 55P03 after LOCK_TIMEOUT. */
 export async function lockSalonDay(tx, salonId, date) {
+  await tx.run(LOCK_TIMEOUT_SQL);
   await tx.get(ADVISORY_LOCK_SQL, `salon:${salonId}:${date}`);
 }
 
 /**
- * Is this technician free for the WHOLE service starting at `time`, on `tx`'s own view?
+ * What this technician's day says about starting that service at that time, on `tx`'s view:
+ * null when she is free, 'exact' when another booking starts on that very minute, 'overlap'
+ * when one merely runs through it.
  *
- * The overlap question the unique index cannot ask. Read on the caller's transaction and
- * meant to be called under lockStaffDay above — on its own it is the same check-then-act
- * the index was standing in for. `exceptBookingId` is the row being moved, which is not in
- * its own way.
+ * The question the unique index cannot ask, and the two answers are not the same answer.
+ * 'overlap' is a judgement about hours the counter may know better than this table does, so
+ * it may be overruled; 'exact' is a row idx_bookings_slot will refuse whatever anyone says,
+ * so offering to save it anyway would be the console promising something it cannot do.
+ *
+ * Read on the caller's transaction and meant to be called under lockSalonDay above — on its
+ * own it is the same check-then-act the index was standing in for. `exceptBookingId` is the
+ * row being moved, which is never in its own way.
  */
-export async function isStaffFreeAt(tx, staffId, date, time, durationMin, exceptBookingId = null) {
+export async function staffClashAt(tx, staffId, date, time, durationMin, exceptBookingId = null) {
   const start = toMinutes(time);
+  // An hour nobody can parse is not free, and not something the counter may overrule into
+  // the table either. It cannot arrive here — every route validates the time first — and
+  // answering "free" if it ever did would write it.
   if (start === null) {
-    return false;
+    return 'exact';
   }
   const rows = await tx.all(OTHER_STAFF_BOOKINGS_SQL, staffId, date, exceptBookingId);
-  return isFree(toRanges(rows), start, durationMin || FALLBACK_DURATION_MIN);
+  if (rows.some((row) => row.time === time)) {
+    return 'exact';
+  }
+  return isFree(toRanges(rows), start, durationMin || FALLBACK_DURATION_MIN) ? null : 'overlap';
 }
 
 // The salon's own online-booking settings. Only lead_time_min matters in here; the
@@ -441,13 +459,15 @@ export async function getStaffSlots(staffId, serviceId, date, knownOff = null, l
  * SLOT_TAKEN — the same answer a named technician gets.
  *
  * What the transaction does not give on its own is isolation between two of them, which is
- * why the caller takes lockSalonDay() above before calling in here: at READ COMMITTED two
+ * why every caller takes lockSalonDay() above before calling in here: at READ COMMITTED two
  * of these can each read the roster before the other commits, pick the same technician for
  * 10:00 and 10:30 of a 60-minute service, and both insert — two different minutes, so
  * idx_bookings_slot never sees them. Under the salon's day key they queue instead, and the
- * second one reads the first one's booking. Nothing in here takes the lock itself: the
- * INSERT that follows has to be inside the same transaction as the pick, so the lock belongs
- * to whoever owns both.
+ * second one reads the first one's booking. It is the same key a booking that NAMES a
+ * technician takes, which is the point of there being only one: this function cannot know
+ * whose day it is about to fill until it has read them all. Nothing in here takes the lock
+ * itself — the INSERT that follows has to be inside the same transaction as the pick, so the
+ * lock belongs to whoever owns both.
  */
 export async function pickAvailableStaff(tx, salonId, serviceId, date, time, durationMin) {
   const duration = durationMin || FALLBACK_DURATION_MIN;
