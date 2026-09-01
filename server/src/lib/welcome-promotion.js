@@ -13,10 +13,10 @@ export const WELCOME_PERCENT = 20;
 export const WELCOME_DAYS = 30;
 export const WELCOME_TITLE = 'Chào mừng salon mới - Giảm 20%';
 export const WELCOME_DESCRIPTION = `Giảm ${WELCOME_PERCENT}% cho mọi dịch vụ tại salon, trong ${WELCOME_DAYS} ngày đầu salon tham gia OAK.`;
-// promotions.code is UNIQUE across the whole table, so a per-salon code needs something
-// per-salon in it: the salon's own id, which is also what makes the code derivable rather
-// than stored — every path that has to ask "does this salon already have its offer?"
-// asks it by rebuilding the code, not by guessing at a title.
+// promotions.code is UNIQUE per salon rather than across the table, so the salon's id in
+// here is not what keeps this code clear of another salon's. It is what makes the code
+// derivable rather than stored — every path that has to ask "does this salon already have
+// its offer?" asks it by rebuilding the code, not by guessing at a title.
 export const WELCOME_CODE_PREFIX = 'MOI20-';
 // The offer cards bind :src straight into an <img>, so the column cannot be left NULL.
 // One shared picture: uu-dai.html already preloads this file for its own header, so the
@@ -59,7 +59,14 @@ const INSERT_WELCOME_PROMOTION = `
   VALUES (?, ?, 'discount', ?, ?, ?, ?, ?, ?, 1)
 `;
 const SELECT_SALON_OPT_IN = 'SELECT owner_id, welcome_promo_opt_in FROM salons WHERE id = ?';
-const UPDATE_WELCOME_ACTIVE = 'UPDATE promotions SET active = ? WHERE salon_id = ? AND code = ?';
+const UPDATE_WELCOME_OFF = 'UPDATE promotions SET active = 0 WHERE salon_id = ? AND code = ?';
+// Switching it back on re-opens the 30 days with it: the window runs from the day the
+// salon asks, and a row switched on inside a window that closed months ago is an offer
+// the listing hides and the till refuses, under a box the console shows as ticked.
+const UPDATE_WELCOME_ON = `
+  UPDATE promotions SET active = 1, starts_at = ?, ends_at = ?
+  WHERE salon_id = ? AND code = ?
+`;
 // Keyed on the derived code rather than on a title, so "has this salon got one?" is a
 // lookup and running this twice writes once.
 const SELECT_EXISTING_WELCOME = 'SELECT 1 FROM promotions WHERE salon_id = ? AND code = ?';
@@ -108,11 +115,18 @@ export async function mintWelcomePromotion(tx, salonId) {
  * Switch this salon's welcome code on or off, if it has one.
  *
  * The box in the console is the switch the Terms promise it is, so unticking it has to
- * stop the discount rather than merely stop a future one being issued. The row is left
- * where it is either way: a customer may be holding the code, and the salon is owed the
- * history of an offer it once ran. Keyed on the derived code, so it reaches that salon's
- * welcome offer and none of the offers the salon wrote itself.
+ * stop the discount rather than merely stop a future one being issued, and ticking it has
+ * to start one the customer can actually spend — hence the fresh window on the way back
+ * on. The row is left where it is either way: a customer may be holding the code, and the
+ * salon is owed the history of an offer it once ran. Keyed on the derived code, so it
+ * reaches that salon's welcome offer and none of the offers the salon wrote itself.
  */
 export async function setWelcomePromotionActive(tx, salonId, active) {
-  await tx.run(UPDATE_WELCOME_ACTIVE, active, salonId, welcomeCode(salonId));
+  const code = welcomeCode(salonId);
+  if (Number(active) !== 1) {
+    await tx.run(UPDATE_WELCOME_OFF, salonId, code);
+    return;
+  }
+  const { starts_at: startsAt, ends_at: endsAt } = welcomeWindow(todayISO());
+  await tx.run(UPDATE_WELCOME_ON, startsAt, endsAt, salonId, code);
 }

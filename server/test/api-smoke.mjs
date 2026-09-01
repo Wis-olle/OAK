@@ -4486,6 +4486,77 @@ async function groupAuthz() {
     switchedOn,
   );
 
+  /* The same offer can also be switched off from the Ưu đãi list, and the box in Cài đặt
+     salon reads the salon column rather than the row — so the toggle writes that column
+     too. Otherwise the box would show a discount as running that the owner had just
+     stopped, under a Terms clause naming the box as the switch. */
+  ok(
+    await applicant.fetch(`/api/partner/promotions/${switchedOn[0].id}`, {
+      method: 'PATCH',
+      json: { active: false },
+    }),
+    'PATCH /api/partner/promotions/:id (switching the welcome offer off from the list)',
+  );
+  const boxAfterToggle = ok(
+    await applicant.fetch('/api/partner/salon'),
+    'GET /api/partner/salon (after the list toggled the welcome offer off)',
+  );
+  assert(
+    boxAfterToggle.welcome_promo_opt_in === 0,
+    'switching the welcome offer off in the list must untick the box in Cài đặt salon',
+    boxAfterToggle,
+  );
+  ok(
+    await applicant.fetch(`/api/partner/promotions/${switchedOn[0].id}`, {
+      method: 'PATCH',
+      json: { active: true },
+    }),
+    'PATCH /api/partner/promotions/:id (switching it back on from the list)',
+  );
+  const boxAfterToggleBack = ok(
+    await applicant.fetch('/api/partner/salon'),
+    'GET /api/partner/salon (after the list switched it back on)',
+  );
+  assert(
+    boxAfterToggleBack.welcome_promo_opt_in === 1,
+    'switching it back on in the list must tick the box again',
+    boxAfterToggleBack,
+  );
+  // An offer the salon wrote itself is none of the box's business either way.
+  const privateOffer = ok(
+    await applicant.fetch('/api/partner/promotions', {
+      method: 'POST',
+      json: {
+        title: 'Ưu đãi riêng',
+        code: `RIENG${stamp}`,
+        discount_percent: 10,
+        starts_at: state.today,
+        ends_at: addDays(state.today, 7),
+      },
+    }),
+    'POST /api/partner/promotions (an offer of the salon’s own)',
+  );
+  ok(
+    await applicant.fetch(`/api/partner/promotions/${privateOffer.id}`, {
+      method: 'PATCH',
+      json: { active: false },
+    }),
+    'PATCH /api/partner/promotions/:id (the salon’s own offer, switched off)',
+  );
+  const boxAfterOwnOffer = ok(
+    await applicant.fetch('/api/partner/salon'),
+    'GET /api/partner/salon (after the salon’s own offer was switched off)',
+  );
+  assert(
+    boxAfterOwnOffer.welcome_promo_opt_in === 1,
+    'switching off an offer the salon wrote itself must leave the welcome box alone',
+    boxAfterOwnOffer,
+  );
+  ok(
+    await applicant.fetch(`/api/partner/promotions/${privateOffer.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/promotions/:id (the salon’s own offer)',
+  );
+
   /* And an offer deleted on purpose stays deleted: nobody is handed 20% of their own
      margin back for editing their phone number. */
   ok(

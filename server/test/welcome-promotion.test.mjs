@@ -438,10 +438,47 @@ test('the switch reaches this salon’s welcome offer and no other row', async (
   const [{ sql, params }] = writes;
   // Scoped on the salon AND on the derived code, so an offer the salon wrote itself is
   // never switched off by the box in Cài đặt salon.
-  assert.match(sql, /^UPDATE promotions SET active = \? WHERE salon_id = \? AND code = \?$/);
-  assert.deepEqual(params, [0, 42, welcomeCode(42)]);
+  assert.match(sql, /^UPDATE promotions SET active = 0 WHERE salon_id = \? AND code = \?$/);
+  assert.deepEqual(params, [42, welcomeCode(42)]);
   // And the row is only switched off, never deleted: a customer may be holding the code.
   assert.ok(!sql.includes('DELETE'));
+});
+
+test('switching the offer back on re-opens the thirty days', async () => {
+  /* A salon that unticked the box a year ago and ticks it again is asking for the offer
+     now. Without a fresh window the row goes active inside a window that closed: listed
+     nowhere, refused at the till, and shown as running by the box that set it. */
+  const { writes, tx } = mintOn();
+  await setWelcomePromotionActive(tx, 42, 1);
+
+  assert.equal(writes.length, 1);
+  const [{ sql, params }] = writes;
+  assert.match(sql, /UPDATE promotions SET active = 1, starts_at = \?, ends_at = \?/);
+  assert.match(sql, /WHERE salon_id = \? AND code = \?/);
+  const { starts_at: startsAt, ends_at: endsAt } = welcomeWindow(todayISO());
+  assert.deepEqual(params, [startsAt, endsAt, 42, welcomeCode(42)]);
+});
+
+test('the toggle in the offers list writes the box in Cài đặt salon', () => {
+  /* The welcome offer answers to two switches, and the box reads the column rather than
+     the row. A toggle here that left the column alone would leave the box ticked over a
+     discount the owner stopped a minute earlier — and the Terms call that box the switch. */
+  const patch = handler(
+    partnerSource,
+    "router.patch('/promotions/:id'",
+    "router.delete('/promotions",
+  );
+  assert.match(
+    patch,
+    /Object\.hasOwn\(body, 'active'\) && current\.code === welcomeCode\(salon\.id\)/,
+  );
+  assert.match(patch, /await tx\.run\(UPDATE_SALON_WELCOME_OPT_IN, optIn, salon\.id\)/);
+  // In one commit with the row itself, so the two cannot be left disagreeing.
+  assert.match(patch, /await db\.withTransaction\(async \(tx\) => \{/);
+  assert.match(
+    partnerSource,
+    /const UPDATE_SALON_WELCOME_OPT_IN =\s*'UPDATE salons SET welcome_promo_opt_in = \? WHERE id = \?';/,
+  );
 });
 
 test('the console save acts on the answer changing, not on the key being sent', () => {
@@ -565,8 +602,8 @@ const requirePromotionCode = vm.runInNewContext(
 );
 
 test('a salon cannot take a code out of the family registration writes from', () => {
-  // promotions.code is UNIQUE, so a console-made MOI20-99 is a code some future salon
-  // number 99 could never be given — its registration would fail on the constraint.
+  // promotions.code is unique per salon, so a console-made MOI20-99 is salon 99 taking
+  // the slot its own welcome offer needs: the mint would find that row and write nothing.
   assert.throws(() => requirePromotionCode('MOI20-99'), /không được bắt đầu bằng "MOI20-"/);
   assert.throws(() => requirePromotionCode('moi20-99'), /không được bắt đầu bằng "MOI20-"/);
   assert.throws(() => requirePromotionCode('  MOI20-1  '), /không được bắt đầu bằng "MOI20-"/);
@@ -578,7 +615,7 @@ test('a salon cannot take a code out of the family registration writes from', ()
   // And the reservation is the same constant the code is built from, not a copy of it.
   assert.match(
     partnerSource,
-    /import \{\s*\n\s*WELCOME_CODE_PREFIX,\s*\n\s*mintWelcomePromotion,\s*\n\s*setWelcomePromotionActive,\s*\n\} from '\.\.\/lib\/welcome-promotion\.js';/,
+    /import \{\s*\n\s*WELCOME_CODE_PREFIX,\s*\n\s*mintWelcomePromotion,\s*\n\s*setWelcomePromotionActive,\s*\n\s*welcomeCode,\s*\n\} from '\.\.\/lib\/welcome-promotion\.js';/,
   );
   assert.ok(welcomeCode(99).startsWith(WELCOME_CODE_PREFIX));
 });

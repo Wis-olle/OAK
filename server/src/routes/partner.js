@@ -51,6 +51,7 @@ import {
   WELCOME_CODE_PREFIX,
   mintWelcomePromotion,
   setWelcomePromotionActive,
+  welcomeCode,
 } from '../lib/welcome-promotion.js';
 import { httpError, requireAuth, requirePartner } from '../middleware/auth.js';
 // The recovery hatch for a technician who has lost their password is auth.js's machinery —
@@ -2915,13 +2916,20 @@ const insertPromotion = db.prepare(`
   VALUES (?, ?, 'discount', ?, ?, ?, ?, ?, ?, 1)
 `);
 const deletePromotion = db.prepare('DELETE FROM promotions WHERE id = ? AND salon_id = ?');
+/* The welcome offer has two switches — the box in Cài đặt salon and the row's own toggle
+   here — and the box reads this column. So the toggle writes it: otherwise the box, which
+   the Terms name as where the welcome discount is turned on and off, would show a
+   discount as running that the owner had switched off in this list a minute earlier. */
+const UPDATE_SALON_WELCOME_OPT_IN = 'UPDATE salons SET welcome_promo_opt_in = ? WHERE id = ?';
 
 /**
  * A code of the salon's own choosing, minus the one shape it may not choose: the welcome
  * offer every salon joins with is keyed on `MOI20-<salon id>`, and promotions.code is
- * UNIQUE, so a console-made code in that family would be one a future registration cannot
- * write — the salon that took it would break somebody else's sign-up. Refused whatever the
- * case it is typed in, since a lower-case twin would read as the reserved one to a person.
+ * unique per salon, so a console-made code in that family would sit in the slot that
+ * salon's own welcome offer needs — the mint would find a row, write nothing, and leave
+ * the salon advertising a 20% code it wrote itself under OAK's wording. Refused whatever
+ * the case it is typed in, since a lower-case twin would read as the reserved one to a
+ * person.
  */
 function requirePromotionCode(value) {
   const code = optionalText(value, 'Mã ưu đãi');
@@ -3039,9 +3047,19 @@ router.patch('/promotions/:id', async (req, res, next) => {
       Object.hasOwn(body, 'ends_at') ? PROMOTION_COLUMNS.ends_at(body.ends_at) : current.ends_at,
     );
     try {
-      await db
-        .prepare(`UPDATE promotions SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`)
-        .run(...values, promotionId, salon.id);
+      await db.withTransaction(async (tx) => {
+        await tx.run(
+          `UPDATE promotions SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`,
+          ...values,
+          promotionId,
+          salon.id,
+        );
+        // One commit, so the row and the box it is shown in can never disagree.
+        if (Object.hasOwn(body, 'active') && current.code === welcomeCode(salon.id)) {
+          const optIn = PROMOTION_COLUMNS.active(body.active);
+          await tx.run(UPDATE_SALON_WELCOME_OPT_IN, optIn, salon.id);
+        }
+      });
     } catch (error) {
       throw asCodeTaken(error);
     }
