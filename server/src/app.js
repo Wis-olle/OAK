@@ -14,7 +14,6 @@ import importSalonRoutes from './routes/import-salon.js';
 import internalRoutes from './routes/internal.js';
 import notificationRoutes from './routes/notifications.js';
 import partnerRoutes from './routes/partner.js';
-import postRoutes from './routes/posts.js';
 import promotionRoutes from './routes/promotions.js';
 import reviewRoutes from './routes/reviews.js';
 import salonRoutes from './routes/salons.js';
@@ -46,13 +45,13 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Defence in depth: confine framed content to same-origin (the phone-test preview) and
-// the YouTube embed used by blog videos, and block plugins. script-src/style-src are left
+// block plugins. script-src/style-src are left
 // unset on purpose — the pages run the Tailwind CDN and Alpine inline, and a strict
 // script policy would break every x-data page.
 app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
-    "frame-src 'self' https://www.youtube.com; object-src 'none'",
+    "frame-src 'self'; object-src 'none'",
   );
   next();
 });
@@ -126,7 +125,6 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/promotions', promotionRoutes);
-app.use('/api/posts', postRoutes);
 app.use('/api/users', userRoutes);
 // Mounted BEFORE the partner console: partnerRoutes has no /import of its own, and a
 // specific mount ahead of the general one keeps it that way whatever is added there later.
@@ -174,14 +172,14 @@ app.get('/', (req, res) => {
 /*
  * The site map, answered from the database rather than from the committed file.
  *
- * The pages half of it IS that file: ui/sitemap.xml lists the twenty public pages and
- * server/test/seo-ui.test.mjs pins the list, so there is one place to add a page. Four of
- * its entries are query-driven shells — a salon profile, a service, a staff profile and a
- * blog article each render "not found" without their ?slug — and this replaces those with
- * the addresses that actually hold something: every listed salon and every published post.
+ * The pages half of it IS that file: ui/sitemap.xml lists the public pages and
+ * server/test/seo-ui.test.mjs pins the list, so there is one place to add a page. Three of
+ * its entries are query-driven shells — a salon profile, a service and a staff profile each
+ * render "not found" without their ?slug — and this replaces those with the addresses that
+ * actually hold something: every listed salon.
  * Registered above express.static, which would otherwise answer with the file itself.
  */
-const SITEMAP_SHELL = /\/(blog-chi-tiet|chi-tiet-dich-vu|ho-so-chuyen-gia|salon-profile)\.html/;
+const SITEMAP_SHELL = /\/(chi-tiet-dich-vu|ho-so-chuyen-gia|salon-profile)\.html/;
 // Newlines normalised on the way in: the repo checks out with core.autocrlf=true, so on
 // Windows this file arrives with CRLF and the \n the entry pattern ends on would match
 // nothing — every page would silently drop out of the map the server answers with.
@@ -202,17 +200,11 @@ const sitemapEntry = (page, priority) =>
 const selectSitemapSalons = db.prepare(
   'SELECT slug FROM salons WHERE verified = 1 AND published = 1 AND slug IS NOT NULL ORDER BY id',
 );
-const selectSitemapPosts = db.prepare(
-  "SELECT slug FROM posts WHERE status = 'published' AND slug IS NOT NULL ORDER BY id",
-);
 
 app.get('/sitemap.xml', async (req, res) => {
   res.type('application/xml');
   try {
-    const [salons, posts] = await Promise.all([
-      selectSitemapSalons.all(),
-      selectSitemapPosts.all(),
-    ]);
+    const salons = await selectSitemapSalons.all();
     res.send(
       '<?xml version="1.0" encoding="UTF-8"?>\n' +
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
@@ -220,14 +212,11 @@ app.get('/sitemap.xml', async (req, res) => {
         salons
           .map((row) => sitemapEntry(`salon-profile.html?salon=${encodeURIComponent(row.slug)}`, '0.8'))
           .join('') +
-        posts
-          .map((row) => sitemapEntry(`blog-chi-tiet.html?slug=${encodeURIComponent(row.slug)}`, '0.6'))
-          .join('') +
         '</urlset>\n',
     );
   } catch (error) {
     // A database that cannot be read is no reason to answer a crawler with a 500: the
-    // committed file is the same map minus the per-salon and per-post addresses.
+    // committed file is the same map minus the per-salon addresses.
     console.error(error);
     res.send(sitemapSource);
   }

@@ -487,14 +487,14 @@ test('both pages the checklist sends a new salon to open their form on ?new=1', 
     }
 });
 
-test('the console pages this slice touches carry the Nội dung entry point', () => {
+test('no console page still offers the composer of a blog that is gone', () => {
     for (const page of [
         'tong-quan-doi-tac.html',
         'cai-dat-salon.html',
         'quan-ly-dich-vu.html',
         'quan-ly-nhan-vien.html',
     ]) {
-        assert.match(readUi(page), /href="blog\.html\?compose=1"/, page);
+        assert.doesNotMatch(readUi(page), /blog\.html/, page);
     }
 });
 

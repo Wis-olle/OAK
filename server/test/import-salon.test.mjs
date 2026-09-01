@@ -847,7 +847,7 @@ test('a body over the cap is refused while it arrives, not once it has all arriv
 
 /* routes/import-salon.js imports db.js, which opens a database connection the moment it is
    imported, so the router body is lifted and driven in a context of stubs instead — the
-   trick geo-route.test.mjs, events-route.test.mjs and assistant-parser.test.mjs all use.
+   trick geo-route.test.mjs and events-route.test.mjs both use.
    The extraction libraries go in for real: what is faked here is the database, the network
    and the image store, and nothing else. */
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

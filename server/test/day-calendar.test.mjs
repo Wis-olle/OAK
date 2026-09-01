@@ -10,7 +10,7 @@
  * lib/availability.js opens a connection at import time (it prepares its statements against
  * the pool), so it cannot simply be imported. The body below the imports is lifted into a
  * context whose `db` is a stub and whose time helpers are the real lib/time.js — the same
- * trick assistant-parser.test.mjs and events-route.test.mjs use, for the same reason.
+ * trick events-route.test.mjs uses, for the same reason.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';

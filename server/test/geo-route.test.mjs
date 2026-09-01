@@ -9,7 +9,7 @@
 
    The module imports middleware/auth.js, which opens a database connection the moment it is
    imported, so the router body is lifted and driven in a context of stubs instead — the same
-   trick events-route.test.mjs and assistant-parser.test.mjs use. `fetch` in that context is a
+   trick events-route.test.mjs uses. `fetch` in that context is a
    mock: the real Nominatim is never called from a test. */
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';

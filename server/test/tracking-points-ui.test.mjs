@@ -1,4 +1,4 @@
-/* The nine things OAK measures are only worth the endpoint behind them if they fire at
+/* The things OAK measures are only worth the endpoint behind them if they fire at
    the moment they claim to, carry nothing that could name a person, and — above all —
    never cost the visitor the thing they came to do. dat-lich-ui.test.mjs and
    search-results-ui.test.mjs cover the wizard and the results page; this covers the rest
@@ -63,52 +63,6 @@ test('a home page whose oak-api.js has no track() still searches', () => {
 
   assert.doesNotThrow(() => state.submit());
   assert.equal(context.location.href, 'ket-qua-tim-kiem.html?q=nail');
-});
-
-test('every turn taken with the assistant is counted, and none of it is quoted', async () => {
-  const { state, events } = page('tim-kiem-thong-minh.html', 'oakSearchAssistant', {
-    extras: { OAK: { api: async () => ({ criteria: {}, chips: [], reply: 'Vâng' }) } },
-  });
-
-  await state.send('nối mi ở quận 1');
-  await state.send('rẻ hơn');
-
-  assert.deepEqual(events, [['assistant_message', undefined], ['assistant_message', undefined]]);
-  // An empty box is not a turn.
-  await state.send('   ');
-  assert.equal(events.length, 2);
-});
-
-test('an assistant page whose oak-api.js has no track() still answers', async () => {
-  const { state } = page('tim-kiem-thong-minh.html', 'oakSearchAssistant', {
-    tracking: false,
-    extras: { OAK: { api: async () => ({ criteria: {}, chips: [], reply: 'Vâng' }) } },
-  });
-
-  await assert.doesNotReject(() => state.send('nối mi'));
-  assert.equal(state.messages.length, 2);
-});
-
-test('the blog CTA reports which topic sent the reader towards a booking', () => {
-  const { state, events } = page('blog-chi-tiet.html', 'oakPostDetail');
-  state.post = { id: 3, category: 'nail' };
-
-  state.trackCta();
-  // An article filed under nothing is still a click worth counting, under a label the
-  // weekly query can group on.
-  state.post = { id: 4, category: null };
-  state.trackCta();
-
-  assert.deepEqual(events.map(([name]) => name), ['blog_cta_click', 'blog_cta_click']);
-  assert.equal(events[0][1].category, 'nail');
-  assert.equal(events[1][1].category, 'khac');
-});
-
-test('a blog page whose oak-api.js has no track() still follows its own CTA', () => {
-  const { state } = page('blog-chi-tiet.html', 'oakPostDetail', { tracking: false });
-  state.post = { id: 3, category: 'nail' };
-
-  assert.doesNotThrow(() => state.trackCta());
 });
 
 test('a contact message is counted by its topic, and only once it passes validation', () => {

@@ -256,9 +256,6 @@ test('every confirm dialog wears the shared shell and the shared buttons', () =>
     'quan-ly-lich-hen.html': 2,
     'quan-ly-nhan-vien.html': 2,
     'tong-quan-doi-tac.html': 1,
-    // The blog composer is a bottom sheet on a phone and a centred dialog above it; only
-    // the mobile corner is its own.
-    'blog.html': 1,
   };
   for (const [name, count] of Object.entries(DIALOGS)) {
     const html = readUi(name);

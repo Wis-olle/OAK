@@ -269,7 +269,7 @@ test('a field the page filled in itself does not block the automatic reload', as
 });
 
 test('an untouched checkbox does not block the automatic reload', async () => {
-  // blog.html and cai-dat-salon.html hold checkboxes; an untouched one reads 'on' by
+  // cai-dat-salon.html holds checkboxes; an untouched one reads 'on' by
   // spec, never ''.
   const page = harness({ fields: [{ type: 'checkbox', value: 'on', checked: false }] });
   page.startWake();

@@ -1,6 +1,5 @@
 {
   "Tổng quan - OAK Beauty": "Overview - OAK Beauty",
-
   "Tổng quan": "Overview",
   "Lịch hẹn": "Appointments",
   "Dịch vụ": "Services",
@@ -18,7 +17,6 @@
   "Tài khoản": "Account",
   "Ảnh đại diện chủ salon": "Salon owner avatar",
   "Đối tác": "Partner",
-
   "Cần xử lý": "Needs attention",
   "Đang tải lịch chờ xác nhận…": "Loading pending appointments…",
   "Thử lại": "Try again",
@@ -27,7 +25,6 @@
   "Xác nhận": "Confirm",
   "Không có lịch chờ xác nhận.": "No appointments waiting for confirmation.",
   "Lịch sắp tới đang chờ bạn xác nhận": "Upcoming appointments waiting for your confirmation",
-
   "Doanh thu hôm nay": "Revenue today",
   "so với hôm qua": "vs yesterday",
   "Chưa có doanh thu hôm qua để so sánh": "No revenue yesterday to compare",
@@ -36,20 +33,17 @@
   "Khách đặt lịch lần đầu tại salon": "Customers booking at the salon for the first time",
   "Đánh giá trung bình": "Average rating",
   "Chưa có đánh giá": "No reviews yet",
-
   "Lịch hẹn hôm nay": "Today's appointments",
   "Xem tất cả": "View all",
   "Thời gian": "Time",
   "Khách hàng": "Customer",
   "Trạng thái": "Status",
   "Hôm nay chưa có lịch hẹn nào.": "No appointments today yet.",
-
   "Trạng thái nhân viên": "Staff status",
   "Đang phục vụ": "Serving",
   "Rảnh": "Available",
   "Chưa có nhân viên nào.": "No staff yet.",
   "Thêm nhân viên": "Add staff",
-
   "Chờ xác nhận": "Pending confirmation",
   "Đã xác nhận": "Confirmed",
   "Đã hoàn thành": "Completed",
@@ -61,7 +55,6 @@
   "Đã ghi nhận khách không đến.": "Recorded as a no-show.",
   "Đã hoàn tất các lịch hẹn đã qua giờ.": "Every appointment past its hour is closed out.",
   "Hoàn tác": "Undo",
-
   "đánh giá chưa trả lời": "reviews awaiting a reply",
   "Hủy lịch hẹn này?": "Cancel this appointment?",
   "Lý do hủy": "Reason for cancelling",
@@ -72,8 +65,6 @@
   "Ghi chú cho khách (không bắt buộc)": "Note for the customer (optional)",
   "Khách sẽ nhận thông báo kèm lý do này.": "The customer is notified with this reason.",
   "Giữ lịch": "Keep appointment",
-
-  "Nội dung": "Content",
   "Thiết lập salon": "Salon setup",
   "Xong 5 bước này là salon nhận được lịch từ khách.": "Finish these five steps and the salon can take bookings.",
   "Thông tin & vị trí": "Details and location",

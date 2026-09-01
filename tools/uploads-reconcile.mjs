@@ -59,8 +59,8 @@ const ABANDONED_RESERVATION_MS = 60 * 60 * 1000;
    server/src/db.js rather than remembered: a column added later and forgotten here is a
    column whose pictures this sweep deletes. `json` columns hold a JSON array of addresses in
    one TEXT field (the portfolio editor writes them that way); the rest hold one address.
-   promotions.image and posts.image are in the list even though today they are only ever
-   seeded or written by hand — the cost of reading a column that names nothing is nothing.
+   promotions.image is only ever seeded, and posts.image names a table nothing has written
+   since the blog was removed — the cost of reading a column that names nothing is nothing.
    uploads.url is not a content column and does not belong here: see the header. */
 export const IMAGE_COLUMNS = [
   ['users', 'avatar', 'url'],

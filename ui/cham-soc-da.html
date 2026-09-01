@@ -233,36 +233,6 @@
 </div>
 </div>
 </section>
-<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-section-gap">
-<div class="grid grid-cols-1 md:grid-cols-2 gap-x-gutter gap-y-16 items-center">
-<div class="order-2 md:order-1">
-<div class="aspect-square w-full overflow-hidden rounded-xl bg-surface-container-highest relative">
-<img loading="lazy" width="1024" height="558" alt="Chuyên gia da liễu cầm lọ thủy tinh chứa tinh chất dưỡng da" class="w-full h-full object-cover" data-alt="A serene, high-end lifestyle composition featuring a dermatologist in a pristine white coat, gently holding a delicate glass beaker with clear botanical serum. The background is a soft, airy medical office with abundant natural light. The color palette focuses on whites, soft greens, and clinical glass textures, embodying professional expertise and modern editorial minimalism." src="assets/images/img-642e6eaaaa.jpg">
-</div>
-</div>
-<div class="order-1 md:order-2 pl-0 md:pl-12">
-<div class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest mb-6 flex items-center gap-2">
-<span class="w-8 h-[1px] bg-outline-variant"></span>
-                        Góc tư vấn
-                    </div>
-<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-8">Lắng nghe làn da từ góc nhìn chuyên gia</h2>
-<div class="space-y-8">
-<template :key="post.slug" x-for="(post, index) in posts">
-<div>
-<hr class="border-t-[0.5px] border-outline-variant/30 mb-8" x-show="index">
-<a :href="'blog-chi-tiet.html?slug=' + encodeURIComponent(post.slug)" class="group cursor-pointer block" style="color:inherit;text-decoration:none">
-<h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-tertiary transition-colors mb-2" x-text="post.title"></h3>
-<p class="font-body-md text-body-md text-on-surface-variant line-clamp-2" x-text="post.excerpt"></p>
-</a>
-</div>
-</template>
-<template x-if="!sideLoading &amp;&amp; !posts.length">
-<p class="font-body-md text-body-md text-on-surface-variant">Chưa có bài viết nào.</p>
-</template>
-</div>
-</div>
-</div>
-</section>
 </main>
 <!-- Footer -->
 <footer class="bg-tertiary w-full py-16 border-t border-outline-variant/10 mt-auto">
@@ -283,7 +253,6 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
@@ -326,7 +295,6 @@
         return {
             services: [],
             salons: [],
-            posts: [],
             subcategories: [],
             subcategory: '',
             sort: 'popular',
@@ -335,20 +303,18 @@
             loading: true,
             loadError: false,
             loadToken: 0,
-            // The partner cards and the two articles come from their own one-off requests, so
-            // they say for themselves when they are done — `loading` belongs to the treatments.
+            // The partner cards come from their own one-off request, so they say for
+            // themselves when they are done — `loading` belongs to the treatments.
             sideLoading: true,
 
             async init() {
                 this.readUrl();
                 try {
-                    const [salons, posts, catalogue] = await Promise.all([
+                    const [salons, catalogue] = await Promise.all([
                         OAK.api('/api/salons?category=skincare&sort=rating&limit=3'),
-                        OAK.api('/api/posts?tag=da&limit=2'),
                         OAK.api('/api/services?category=skincare&limit=50'),
                     ]);
                     this.salons = salons;
-                    this.posts = posts;
                     // The chips are the sub-categories the skincare catalogue actually has.
                     this.subcategories = [...new Set(catalogue.map((service) => service.subcategory).filter(Boolean))];
                 } catch (error) {

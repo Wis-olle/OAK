@@ -115,7 +115,7 @@ Pages report what happened through `OAK.track(name, meta)` (`ui/assets/js/oak-ap
 sends a beacon and forgets. One row per event in the `events` table:
 
 ```json
-{ "name": "booking_submit", "page": "dat-lich.html", "ref": "https://oak.vn/blog.html",
+{ "name": "booking_submit", "page": "dat-lich.html", "ref": "https://oak.vn/uu-dai.html",
   "meta": { "total": 12 } }
 ```
 
@@ -131,6 +131,5 @@ sends a beacon and forgets. One row per event in the `events` table:
   route answers `429` — an in-memory counter, like the `/forgot-password` throttle, with the
   same caveats.
 
-Read the week with `tools/sql/weekly.sql`: five queries — events this week against last,
-sessions per day, the search → wizard → booking funnel, whether the blog CTA leads to a
-booking, and where the visits came from.
+Read the week with `tools/sql/weekly.sql`: four queries — events this week against last,
+sessions per day, the search → wizard → booking funnel, and where the visits came from.

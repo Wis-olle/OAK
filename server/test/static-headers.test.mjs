@@ -102,7 +102,6 @@ const UNHASHED = {
   'assets/css/oak-tailwind.css': SHORT,
   'assets/css/oak-utils.css': SHORT,
   'assets/js/oak-api.js': SHORT,
-  'assets/js/oak-blog.js': SHORT,
   'assets/js/oak-header.js': SHORT,
   'assets/js/oak-i18n-en.js': SHORT,
   'assets/js/oak-i18n.js': SHORT,

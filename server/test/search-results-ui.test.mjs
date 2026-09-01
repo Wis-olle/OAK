@@ -159,17 +159,17 @@ test('a sort key the page cannot honour never reaches the request', () => {
 });
 
 test('every criterion the search is filtering on has a chip', () => {
-  /* Every key tim-kiem-thong-minh.html sends (SEARCH_KEYS) plus the filters set here. */
-  const { state } = searchPage(async () => rows, '?q=nail&category=nail&style=Nail%20art'
+  /* Every key that can arrive in the URL, plus the filters set here. */
+  const { state } = searchPage(async () => rows, '?q=nail&category=nail'
     + '&district=Qu%E1%BA%ADn%201&date=2026-08-21&time_from=18:00&time_to=20:00'
     + '&open_now=1&price_max=300000&rating_min=4');
   state.init();
 
   /* Array.from, because the chips are built in the page's own realm. */
   assert.deepEqual(Array.from(state.chips, (chip) => chip.key),
-    ['q', 'category', 'style', 'district', 'date', 'time', 'open_now', 'rating_min', 'price_max']);
+    ['q', 'category', 'district', 'date', 'time', 'open_now', 'rating_min', 'price_max']);
   assert.deepEqual(Array.from(state.chips, (chip) => chip.label),
-    ['"nail"', 'Nail', 'Nail art', 'Quận 1', '2026-08-21', '18:00–20:00',
+    ['"nail"', 'Nail', 'Quận 1', '2026-08-21', '18:00–20:00',
       'Đang mở cửa', 'Từ 4.0 sao', 'Dưới 300.000đ']);
 });
 
@@ -192,9 +192,8 @@ test('an open-ended hour window is one chip, and it drops both of its parameters
 });
 
 test('an hour window with no day to narrow is neither shown nor sent', () => {
-  /* The assistant can read an hour out of "massage buổi tối" and name no date at all, and
-     the search only applies the window inside a date — so a chip would promise a filter
-     that nothing performed. */
+  /* An hour can arrive in the URL with no date beside it, and the search only applies the
+     window inside a date — so a chip would promise a filter that nothing performed. */
   const { state } = searchPage(async () => rows, '?q=massage&time_from=17:00&time_to=21:00');
   state.init();
 
@@ -650,9 +649,6 @@ test('the way out of an empty page drops what narrows and keeps what was asked f
   assert.equal(params.get('category'), 'nail');
   assert.equal(params.get('district'), 'Quận 1');
   assert.equal(state.hasNarrowing, false);
-
-  /* And the assistant is handed the sentence rather than a blank page. */
-  assert.equal(state.assistantUrl, 'tim-kiem-thong-minh.html?q=nail');
 });
 
 test('the empty block is the shared one, with an icon and its ways out', () => {
@@ -663,7 +659,8 @@ test('the empty block is the shared one, with an icon and its ways out', () => {
   assert.match(html, /@click="tryNextDay\(\)"/);
   assert.match(html, /@click="clearNarrowing\(\)"/);
   assert.match(html, /@click="removeCriterion\('district'\)"/);
-  assert.match(html, /:href="assistantUrl"/);
+  /* And no fourth way out pointing at the assistant page, which is gone. */
+  assert.doesNotMatch(html, /assistantUrl/);
 });
 
 /* Saving a salon from the results, and being sent to sign in without losing the search. */

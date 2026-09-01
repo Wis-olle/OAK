@@ -1,6 +1,5 @@
 {
   "Quản lý Dịch vụ - OAK Beauty": "Service management - OAK Beauty",
-
   "Tổng quan": "Overview",
   "Lịch hẹn": "Appointments",
   "Dịch vụ": "Services",
@@ -16,7 +15,6 @@
   "Tài khoản": "Account",
   "Ảnh đại diện chủ salon": "Salon owner avatar",
   "Đối tác": "Partner",
-
   "Quản lý dịch vụ": "Service management",
   "Xây dựng và cập nhật bảng dịch vụ của salon.": "Build and update your salon's service menu.",
   "Thêm dịch vụ": "Add service",
@@ -29,12 +27,10 @@
   "Chưa có dịch vụ nào phù hợp.": "No matching services yet.",
   "Không tải được dịch vụ.": "We couldn't load the services.",
   "Thử lại": "Try again",
-
   "Ưu đãi & Combo": "Offers & combos",
   "Thêm ưu đãi": "Add offer",
   "Chưa có ưu đãi nào.": "No offers yet.",
   "Không tải được ưu đãi.": "We couldn't load the offers.",
-
   "Sửa dịch vụ": "Edit service",
   "Tên dịch vụ": "Service name",
   "Danh mục": "Category",
@@ -44,7 +40,6 @@
   "Ảnh dịch vụ": "Service image",
   "Hủy": "Cancel",
   "Lưu": "Save",
-
   "Sửa ưu đãi": "Edit offer",
   "Tên ưu đãi": "Offer name",
   "Loại ưu đãi": "Offer type",
@@ -58,16 +53,13 @@
   "Dịch vụ áp dụng": "Applicable services",
   "Giữ Ctrl để chọn nhiều dịch vụ.": "Hold Ctrl to select multiple services.",
   "Ảnh ưu đãi": "Offer image",
-
   "Xác nhận xóa": "Confirm deletion",
   "Giữ lại": "Keep",
-
   "Tóc": "Hair",
   "Chăm sóc da": "Skincare",
   "Nối mi": "Eyelash extensions",
   "Tiện ích": "Amenities",
   "Giảm giá": "Discount",
-
   "Ngày kết thúc phải sau ngày bắt đầu.": "The end date must be after the start date.",
   "Không đọc được tệp ảnh.": "Could not read the image file.",
   "Ảnh gốc tối đa 15MB, trang sẽ tự nén trước khi gửi.": "Original images up to 15MB; the page compresses them before sending.",
@@ -75,8 +67,6 @@
   "Đã xóa dịch vụ.": "Service deleted.",
   "Đã lưu ưu đãi.": "Offer saved.",
   "Đã xóa ưu đãi.": "Offer deleted.",
-
-  "Nội dung": "Content",
   "Giá từ": "Price from",
   "Dùng cho dịch vụ có giá thay đổi theo độ dài tóc, bộ móng… Khách sẽ thấy “từ 250.000đ”.": "For services priced by hair length, nail set and so on. Customers see “from 250,000d”.",
   "Đưa dịch vụ lên trước": "Move service earlier",

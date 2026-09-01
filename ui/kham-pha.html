@@ -416,7 +416,6 @@
 </template>
 </div>
 </div>
-<a :href="assistantUrl" class="font-label-md text-label-md text-primary hover:text-secondary underline underline-offset-4 transition-colors" href="tim-kiem-thong-minh.html">Hỏi Trợ lý tìm salon</a>
 <!-- Search Suggestions -->
 <!-- Each chip is a link to the results it stands for, not a word to paste into the box:
      "Spa & Massage" is a category no salon is named after, so as a keyword it landed on an
@@ -757,7 +756,6 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
@@ -862,15 +860,6 @@
 
             chipIcon(chip) {
                 return CATEGORY_ICONS.get(chip.key) || 'spa';
-            },
-
-            /* The assistant keeps whatever has been typed so far — the entry point the
-               arrow button used to be. */
-            get assistantUrl() {
-                const query = this.q.trim();
-                return query
-                    ? 'tim-kiem-thong-minh.html?q=' + encodeURIComponent(query)
-                    : 'tim-kiem-thong-minh.html';
             },
 
             /* Local parts, never toISOString(): that one reads the day in UTC, and an hour

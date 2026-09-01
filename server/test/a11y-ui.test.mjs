@@ -19,7 +19,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 const apiJs = read('ui/assets/js/oak-api.js');
 const headerJs = read('ui/assets/js/oak-header.js');
-const blogJs = read('ui/assets/js/oak-blog.js');
 const utilsCss = read('ui/assets/css/oak-utils.css');
 
 /* The tokens, read the way tools/tailwind/tailwind.build.config.js reads them. */
@@ -228,7 +227,7 @@ test('every glide into view asks first, because CSS cannot answer for these', ()
   // cannot reach these four; they go through one helper instead of four media queries.
   assert.match(between(apiJs, 'function scrollBehavior()', '\n  }'),
     /prefers-reduced-motion: reduce.*\n.*'auto'/);
-  const callers = ['ui/dat-lich.html', 'ui/tim-kiem-thong-minh.html', 'ui/danh-gia-cua-toi.html'];
+  const callers = ['ui/dat-lich.html', 'ui/danh-gia-cua-toi.html'];
   for (const page of callers) {
     const html = read(page);
     assert.doesNotMatch(html, /behavior: 'smooth'/, `${page} still glides unconditionally`);
@@ -242,13 +241,12 @@ test('one press animation, so a converted button does not feel dead beside the r
   assert.deepEqual(odd, []);
 });
 
-/* ---------------------------------------------------------------- the three dialogs ---- */
+/* ---------------------------------------------------------------- the two dialogs ------ */
 
 /* Each of these is a dialog that used to leave the page behind it in the tab order: Tab
-   walked out of the composer into the feed under it. quan-ly-lich-hen.html had already
-   solved it with :inert on the landmarks, and these three now follow that. */
+   walked out of the viewer into the gallery under it. quan-ly-lich-hen.html had already
+   solved it with :inert on the landmarks, and these two now follow that. */
 const DIALOGS = [
-  { page: 'ui/blog.html', flag: 'composerOpen', component: 'oakBlogFeed()' },
   { page: 'ui/salon-profile.html', flag: 'lightbox', component: 'oakSalonProfile()', guard: 'salon' },
   { page: 'ui/ho-so-chuyen-gia.html', flag: 'lightbox', component: 'oakStaffProfile()', guard: 'staff' },
 ];
@@ -302,32 +300,14 @@ test('the way out of the top bar is not the way out of an open dialog', () => {
   for (const page of handWritten) {
     assert.match(read(`ui/${page}`), /data-oak-skip href="#main">Bỏ qua đến nội dung<\/a>/, page);
   }
-  // Which is only a complete answer while all three dialogs lock the page's scroll that way.
+  // Which is only a complete answer while both dialogs lock the page's scroll that way.
   for (const dialog of DIALOGS) {
-    const source = dialog.page === 'ui/blog.html' ? blogJs : read(dialog.page);
-    assert.match(source, /document\.body\.classList\.add\('overflow-hidden'\)/, dialog.page);
+    assert.match(read(dialog.page), /document\.body\.classList\.add\('overflow-hidden'\)/, dialog.page);
   }
 });
 
-test('a stray Escape does not run a teardown for a dialog nobody opened', () => {
-  // The listener is on the window, so it hears every press on the page and has to ask
-  // whether its own dialog is open first — otherwise closeComposer() resets the form of a
-  // composer that was never opened. The two photo viewers are pinned with their teardown,
-  // in the case below.
-  assert.match(read('ui/blog.html'),
-    /@keydown\.escape\.window="composerOpen &amp;&amp; closeComposer\(\)"/);
-});
-
 test('opening a dialog moves the caret inside it and stops the page scrolling under it', () => {
-  // The composer names its heading as the landing place, and the heading can hold focus.
-  assert.match(read('ui/blog.html'), /id="composer-title" tabindex="-1"/);
-  const show = between(blogJs, 'showComposer() {', '\n        },');
-  assert.match(show, /document\.body\.classList\.add\('overflow-hidden'\)/);
-  assert.match(show, /getElementById\('composer-title'\)/);
-  assert.match(between(blogJs, 'closeComposer() {', '\n        },'),
-    /document\.body\.classList\.remove\('overflow-hidden'\)/);
-
-  // The two photo viewers do the same through their own close button.
+  // The two photo viewers land the caret on their own close button.
   for (const page of ['ui/salon-profile.html', 'ui/ho-so-chuyen-gia.html']) {
     const html = read(page);
     assert.match(html, /x-ref="lightboxClose"/);
@@ -341,27 +321,6 @@ test('opening a dialog moves the caret inside it and stops the page scrolling un
     // included — with no viewer open.
     assert.match(html, /@keydown\.escape\.window="lightbox &amp;&amp; closeLightbox\(\)"/);
   }
-});
-
-test('closing a dialog hands the caret back, which means waiting for inert to lift', () => {
-  // The bug this pins: `composerOpen = false` and `opener.focus()` in the same synchronous
-  // turn. The `:inert` binding on <header>/<main>/<footer> is an Alpine effect flushed in a
-  // microtask, so at the moment focus() runs <main> still carries inert — and every opener
-  // (Viết bài, Sửa, a gallery tile) lives inside it. focus() on an element in an inert
-  // subtree does nothing, so without the wait the caret falls back to <body>.
-  const blog = feed();
-  const opener = { focused: 0, focus() { this.focused += 1; } };
-  const queue = [];
-  blog.document.contains = () => true;
-  blog.state.$nextTick = (fn) => queue.push(fn);
-  blog.state.composerOpen = true;
-  blog.state.composerOpener = opener;
-  blog.state.closeComposer();
-
-  assert.equal(opener.focused, 0, 'focus was handed back while <main> was still inert');
-  assert.equal(queue.length, 1, 'the restore is not deferred at all');
-  queue.forEach((fn) => fn());
-  assert.equal(opener.focused, 1, 'the caret never came back');
 });
 
 test('the same wait guards the two photo viewers and the console sheet', () => {
@@ -381,7 +340,7 @@ test('the same wait guards the two photo viewers and the console sheet', () => {
 /* ---------------------------------------------------------------- the language switch -- */
 
 /** OAK.saveDraft / OAK.takeDraft, lifted with the pageName() they key on. */
-function drafts(page = 'blog.html') {
+function drafts(page = 'dat-lich.html') {
   const script = between(apiJs, 'function pageName()', 'function currentUrl(') +
     between(apiJs, '  function draftKey(name) {', '  function scrollBehavior()');
   const store = new Map();
@@ -400,200 +359,18 @@ saveDraftFn = saveDraft; takeDraftFn = takeDraft;`, context);
 }
 
 test('a draft belongs to one page and to the load that follows, and only that one', () => {
-  const blog = drafts('blog.html');
-  blog.saveDraft('composer', { form: { title: 'Móng tay mùa thu' } });
-  assert.deepEqual([...blog.store.keys()], ['oak-draft:blog.html:composer']);
+  const wizard = drafts('dat-lich.html');
+  wizard.saveDraft('note', { text: 'Cho mình ghế cạnh cửa sổ' });
+  assert.deepEqual([...wizard.store.keys()], ['oak-draft:dat-lich.html:note']);
 
   // Taking it clears it: a later visit to the same page starts clean.
-  assert.deepEqual(blog.takeDraft('composer'), { form: { title: 'Móng tay mùa thu' } });
-  assert.equal(blog.takeDraft('composer'), null);
+  assert.deepEqual(wizard.takeDraft('note'), { text: 'Cho mình ghế cạnh cửa sổ' });
+  assert.equal(wizard.takeDraft('note'), null);
 });
 
-/** oakBlogFeed() over the real draft helpers, so a language switch can be played out. */
-function feed(store) {
-  const helpers = drafts('blog.html');
-  if (store) {
-    store.forEach((value, key) => helpers.store.set(key, value));
-  }
-  const listeners = [];
-  const context = {
-    URL,
-    URLSearchParams,
-    location: { search: '', pathname: 'blog.html', href: '' },
-    history: { replaceState() {} },
-    FileReader: class {},
-    document: {
-      getElementById: () => null,
-      body: { classList: { add: () => {}, remove: () => {} } },
-      activeElement: null,
-      contains: () => false,
-    },
-    window: { addEventListener: (name, handler) => listeners.push([name, handler]) },
-    OAK: {
-      api: async () => [],
-      qs: () => null,
-      toast: () => {},
-      requireLogin: () => new Promise(() => {}),
-      saveDraft: helpers.saveDraft,
-      takeDraft: helpers.takeDraft,
-    },
-  };
-  vm.runInNewContext(`${blogJs}
-result = oakBlogFeed();`, context);
-  context.result.$nextTick = (fn) => fn();
-  return { state: context.result, listeners, store: helpers.store, document: context.document };
-}
-
-test('the composer stashes on an event it can still reach with a draft on screen', () => {
-  // The language control is injected into the top bar (data-oak-lang), and an open composer makes
-  // that bar inert, so 'oak:lang-change' is exactly the event a reader with something
-  // half-written cannot fire from this page. 'pagehide' is the one every other way out of
-  // the page shares — a refresh, Back, the address bar, and the reload behind the switch
-  // itself — so the stash hangs off both rather than off the unreachable one alone.
-  assert.match(headerJs, /data-oak-lang/);
-  assert.match(read('ui/blog.html'), /<header [^>]*data-oak-header :inert="composerOpen/);
-
-  const first = feed();
-  first.state.watchLanguageSwitch();
-  assert.deepEqual(first.listeners.map(([name]) => name), ['oak:lang-change', 'pagehide']);
-
-  first.state.user = { id: 1, name: 'Ngọc Anh' };
-  first.state.composerOpen = true;
-  first.state.form.content = 'Nửa đoạn về sơn gel';
-  first.listeners.find(([name]) => name === 'pagehide')[1]();
-
-  const second = feed(first.store);
-  second.state.user = { id: 1, name: 'Ngọc Anh' };
-  assert.equal(second.state.restoreComposerDraft(), true);
-  assert.equal(second.state.form.content, 'Nửa đoạn về sơn gel');
-});
-
-test('switching language does not throw away a paragraph somebody just wrote', () => {
-  const first = feed();
-  first.state.watchLanguageSwitch();
-  first.state.user = { id: 1, name: 'Ngọc Anh' };
-  first.state.composerOpen = true;
-  first.state.form.title = 'Móng tay mùa thu';
-  first.state.form.content = 'x'.repeat(100);
-
-  const [[name, onSwitch]] = first.listeners;
-  assert.equal(name, 'oak:lang-change');
-  onSwitch();
-
-  // The reload that follows is a new page load: a second component, over the same tab.
-  const second = feed(first.store);
-  second.state.user = { id: 1, name: 'Ngọc Anh' };
-  assert.equal(second.state.restoreComposerDraft(), true);
-  assert.equal(second.state.composerOpen, true, 'the composer comes back open');
-  assert.equal(second.state.form.title, 'Móng tay mùa thu');
-  assert.equal(second.state.form.content.length, 100);
-
-  // And it was a one-shot: reloading again after that starts clean.
-  const third = feed(second.store);
-  third.state.user = { id: 1, name: 'Ngọc Anh' };
-  assert.equal(third.state.restoreComposerDraft(), false);
-  assert.equal(third.state.composerOpen, false);
-});
-
-test('a draft the reader closed the composer on is not offered back', () => {
-  const first = feed();
-  first.state.watchLanguageSwitch();
-  first.state.user = { id: 1, name: 'Ngọc Anh' };
-  first.state.composerOpen = true;
-  first.state.form.content = 'Một đoạn định bỏ';
-  first.listeners.find(([name]) => name === 'pagehide')[1]();
-
-  // Back then Forward restores the page from bfcache: no init() runs, so nothing consumed
-  // the stash. Closing the composer is the reader saying the text is not wanted, and it has
-  // to clear the stash too or the next reload puts the discarded paragraph back.
-  first.state.closeComposer();
-
-  const second = feed(first.store);
-  second.state.user = { id: 1, name: 'Ngọc Anh' };
-  assert.equal(second.state.restoreComposerDraft(), false);
-  assert.equal(second.state.composerOpen, false);
-});
-
-test('a draft belongs to the account that wrote it, not to whoever signs in next', () => {
-  const first = feed();
-  first.state.watchLanguageSwitch();
-  first.state.user = { id: 1, name: 'Ngọc Anh' };
-  first.state.composerOpen = true;
-  first.state.form.content = 'Chưa đăng';
-  first.listeners.find(([name]) => name === 'pagehide')[1]();
-
-  // Same tab, same device: the first account signs out and a second signs in. The stash
-  // survives that — sessionStorage is per tab, not per session — so the draft has to name
-  // its author or it reopens under the wrong one.
-  const second = feed(first.store);
-  second.state.user = { id: 2, name: 'Minh' };
-  assert.equal(second.state.restoreComposerDraft(), false);
-  assert.equal(second.state.form.content, '');
-});
-
-test('an edit whose post is no longer on the feed is dropped rather than duplicated', () => {
-  const first = feed();
-  first.state.watchLanguageSwitch();
-  first.state.user = { id: 1, name: 'Ngọc Anh' };
-  first.state.composerOpen = true;
-  first.state.editingPost = { id: 42 };
-  first.state.form.title = 'Bản sửa';
-  first.listeners[0][1]();
-
-  // Page two of the feed, or another filter: post 42 is not among the rows this load has.
-  const second = feed(first.store);
-  second.state.user = { id: 1, name: 'Ngọc Anh' };
-  second.state.posts = [{ id: 7 }];
-  assert.equal(second.state.restoreComposerDraft(), false,
-    'reopening the text as a NEW post would publish a second copy of it');
-  assert.equal(second.state.composerOpen, false);
-});
-
-/** The comment stash of ui/blog-chi-tiet.html, run over the real draft helpers. */
-function comment(store, user) {
-  const helpers = drafts('blog-chi-tiet.html');
-  if (store) {
-    store.forEach((value, key) => helpers.store.set(key, value));
-  }
-  const listeners = [];
-  const context = {
-    commentText: '',
-    user,
-    window: { addEventListener: (name, handler) => listeners.push([name, handler]) },
-    OAK: { saveDraft: helpers.saveDraft, takeDraft: helpers.takeDraft },
-  };
-  /* init() itself awaits OAK.me() and then loads the article, so the two lines the draft lives
-     in are lifted out instead. `this` at the top of a vm script is the context object, which is
-     what makes the shipped `this.commentText` and `this.user` read and write the two above. */
-  vm.runInNewContext(
-    between(read('ui/blog-chi-tiet.html'), "const draft = OAK.takeDraft('comment');", 'const slug = OAK.qs'),
-    context,
-  );
-  return { context, listeners, store: helpers.store };
-}
-
-test('a comment half written belongs to the account that wrote it', () => {
-  const first = comment(null, { id: 1, name: 'Ngọc Anh' });
-  first.context.commentText = 'Bài này hợp với móng ngắn';
-  first.listeners.find(([name]) => name === 'oak:lang-change')[1]();
-  assert.deepEqual([...first.store.keys()], ['oak-draft:blog-chi-tiet.html:comment']);
-
-  // The reload the switch does is a second component over the same tab: the sentence is there.
-  const same = comment(first.store, { id: 1, name: 'Ngọc Anh' });
-  assert.equal(same.context.commentText, 'Bài này hợp với móng ngắn');
-
-  // And on a shared device, where the stash outlives the sign-out, it is not.
-  const other = comment(first.store, { id: 2, name: 'Minh' });
-  assert.equal(other.context.commentText, '');
-});
-
-test('the other two pages holding a half-written field stash it the same way', () => {
-  // A comment on an article…
-  const detail = read('ui/blog-chi-tiet.html');
-  assert.match(detail, /const draft = OAK\.takeDraft\('comment'\);/);
-  assert.match(detail, /OAK\.saveDraft\('comment', \{\n\s+text: this\.commentText,/);
-  // …and the contact fields and note of the booking wizard, through the stash the login
-  // round trip already used, which restoreForm() reads in init().
+test('the one page still holding a half-written field stashes it on the switch', () => {
+  // The contact fields and note of the booking wizard, through the stash the login round
+  // trip already used, which restoreForm() reads in init().
   const wizard = read('ui/dat-lich.html');
   assert.match(wizard,
     /oak:lang-change[\s\S]{0,240}sessionStorage\.setItem\(OAK_BOOKING_FORM_KEY/);

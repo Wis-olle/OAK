@@ -261,7 +261,6 @@
 <button @click="tryNextDay()" class="px-6 py-2 rounded-full border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button" x-show="canTryNextDay">Thử ngày mai</button>
 <button @click="clearNarrowing()" class="px-6 py-2 rounded-full border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button" x-show="hasNarrowing">Bỏ lọc giá, đánh giá, bán kính</button>
 <button @click="removeCriterion('district')" class="px-6 py-2 rounded-full border border-outline text-on-surface font-label-md text-label-md uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" type="button" x-show="incoming.district">Mọi khu vực</button>
-<a :href="assistantUrl" class="px-6 py-2 rounded-full bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider hover:bg-primary transition-colors" style="text-decoration:none">Hỏi Trợ lý tìm salon</a>
 </div>
 </div>
 </template>
@@ -378,7 +377,6 @@
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="gioi-thieu.html">Về chúng tôi</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="ket-qua-tim-kiem.html">Dịch vụ</a>
 <a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="uu-dai.html">Ưu đãi</a>
-<a class="font-caption text-caption text-on-tertiary/70 hover:text-on-tertiary hover:underline transition-all opacity-80 hover:opacity-100" href="blog.html">Blog</a>
 </div>
 <div class="flex flex-col gap-4">
 <span class="font-label-md text-label-md text-on-tertiary uppercase tracking-wider mb-2">Hỗ trợ</span>
@@ -796,7 +794,7 @@
                rides along with the day it narrows. The location never becomes a chip; it
                is held by the pill that folds away with the others, so it counts here. */
             get filterButtonLabel() {
-                var hidden = { q: true, style: true, time: true };
+                var hidden = { q: true, time: true };
                 var count = this.chips.filter(function (chip) {
                     return !hidden[chip.key];
                 }).length;
@@ -826,13 +824,6 @@
                worth dropping first when nothing came back. */
             get hasNarrowing() {
                 return Boolean(this.filters.price_max || this.filters.rating_min || this.filters.radius_km);
-            },
-
-            /* The assistant takes the sentence over, keyword and all. */
-            get assistantUrl() {
-                return this.incoming.q
-                    ? 'tim-kiem-thong-minh.html?q=' + encodeURIComponent(this.incoming.q)
-                    : 'tim-kiem-thong-minh.html';
             },
 
             /* Coordinates can arrive from the URL, so they are only usable once they parse. */
@@ -897,11 +888,6 @@
                         label: CATEGORY_LABELS.get(this.incoming.category) || this.incoming.category,
                     });
                 }
-                /* A style is free text the assistant read out of a sentence, so it is shown
-                   as it stands — there is no catalogue of styles to label it from. */
-                if (this.incoming.style) {
-                    list.push({ key: 'style', label: this.incoming.style });
-                }
                 if (this.incoming.district) {
                     list.push({ key: 'district', label: this.incoming.district });
                 }
@@ -909,8 +895,7 @@
                     list.push({ key: 'date', label: OAK.fmtDate(this.incoming.date) });
                 }
                 /* The hour window is one criterion in two parameters, so it is one chip —
-                   and only on a day, because that is the only place the search applies it.
-                   The assistant can read an hour out of a sentence that named no date. */
+                   and only on a day, because that is the only place the search applies it. */
                 if (this.incoming.date && (this.incoming.time_from || this.incoming.time_to)) {
                     list.push({ key: 'time', label: timeLabel(this.incoming.time_from, this.incoming.time_to) });
                 }
@@ -945,11 +930,9 @@
             query() {
                 var params = new URLSearchParams(location.search);
                 /* Every criterion that arrives in the URL rather than from a control here —
-                   the search box writes the first, the chip row switches any of them off.
-                   The list is the one tim-kiem-thong-minh.html sends, minus the filters
-                   below, so nothing the assistant asks for is beyond reach. */
+                   the search box writes the first, the chip row switches any of them off. */
                 var incoming = this.incoming;
-                ['q', 'category', 'style', 'district', 'date', 'time_from', 'time_to'].forEach(function (key) {
+                ['q', 'category', 'district', 'date', 'time_from', 'time_to'].forEach(function (key) {
                     if (incoming[key]) {
                         params.set(key, incoming[key]);
                     } else {

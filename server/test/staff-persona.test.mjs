@@ -927,7 +927,7 @@ function shownFor(user, groups = { guest: [], user: ['Thông báo'], staff: ['Th
 }
 
 test('the bar keeps the technician menu for a technician and the customer one for everyone else', () => {
-  // The whole of the persona's way into her own pages from a salon profile or the blog. A
+  // The whole of the persona's way into her own pages from a salon profile. A
   // decision that answered 'staff' to nobody would leave her the customer's six; one that
   // answered with the role itself would put every group away for a customer, leaving a menu
   // of nothing but the service list and no way to sign out of it.

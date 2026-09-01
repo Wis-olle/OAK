@@ -32,7 +32,7 @@ function surfaces() {
   // Not the vendored bundles: minified output is nothing but spread syntax.
   add('ui/assets/js', (name) => name.endsWith('.js') && !/-[0-9a-f]{8,}\.js$/.test(name));
   add('tools/i18n/parts', (name) => name.endsWith('.json'));
-  // Not server/src/seed.js: that is the salon's and the blog's own prose, not product copy.
+  // Not server/src/seed.js: that is the salon's own prose, not product copy.
   add('server/src/routes', (name) => name.endsWith('.js'));
   add('server/src/lib', (name) => name.endsWith('.js'));
   add('server/src/middleware', (name) => name.endsWith('.js'));

@@ -35,7 +35,7 @@ function harness(browser = {}) {
   const context = {
     JSON,
     String,
-    location: { pathname: browser.pathname ?? '/blog-chi-tiet.html' },
+    location: { pathname: browser.pathname ?? '/ket-qua-tim-kiem.html' },
     document: { referrer: browser.referrer ?? '' },
     navigator: {},
     Blob: function Blob(parts, options) {
@@ -64,8 +64,8 @@ function harness(browser = {}) {
 }
 
 test('an event leaves as a beacon, so it survives the page being left', () => {
-  const browser = harness({ referrer: 'https://oak.vn/ket-qua-tim-kiem.html?q=noi+mi' });
-  browser.track('blog_cta_click', { category: 'nail' });
+  const browser = harness({ pathname: '/uu-dai.html', referrer: 'https://oak.vn/ket-qua-tim-kiem.html?q=noi+mi' });
+  browser.track('promo_use', { type: 'discount' });
 
   assert.equal(browser.beacons.length, 1);
   assert.equal(browser.fetches.length, 0);
@@ -75,11 +75,11 @@ test('an event leaves as a beacon, so it survives the page being left', () => {
   // As JSON, or express.json() would never parse it.
   assert.equal(beacon.blob.type, 'application/json');
   assert.deepEqual(JSON.parse(beacon.blob.text), {
-    name: 'blog_cta_click',
-    page: 'blog-chi-tiet.html',
+    name: 'promo_use',
+    page: 'uu-dai.html',
     // The referring page, without the search terms its query string was carrying.
     ref: 'https://oak.vn/ket-qua-tim-kiem.html',
-    meta: { category: 'nail' },
+    meta: { type: 'discount' },
   });
 });
 
@@ -119,7 +119,7 @@ test('a browser with neither way of sending is not an error the visitor sees', (
 
 test('/api/events being down is nobody else’s problem', async () => {
   const browser = harness({ sendBeacon: false, fetch: 'fails' });
-  assert.doesNotThrow(() => browser.track('assistant_message'));
+  assert.doesNotThrow(() => browser.track('search_submit'));
   // The rejection is handled inside track(); nothing here is left for the process to
   // report as unhandled.
   await new Promise((resolve) => setImmediate(resolve));

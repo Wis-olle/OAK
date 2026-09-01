@@ -61,7 +61,7 @@ test('robots.txt keeps crawlers out of the API, the uploads and every private pa
 
 test('sitemap.xml lists the public pages and nothing behind a login', () => {
   const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
-  assert.equal(locs.length, 20);
+  assert.equal(locs.length, 17);
   assert.ok(new Set(locs).size === locs.length, 'a URL is listed twice');
 
   const origin = robots.match(/^Sitemap: (https:\/\/[^\s]+)\/sitemap\.xml$/m)[1];
@@ -81,7 +81,7 @@ test('sitemap.xml lists the public pages and nothing behind a login', () => {
 test('the page entries survive a checkout that lands sitemap.xml with CRLF', () => {
   /* The entry pattern ends on a bare \n, and this repo checks out with core.autocrlf=true — so
      on Windows the file arrives with CRLF and every entry falls out of the match. The route
-     still answers 200, with a map missing all sixteen pages, and nothing else would notice.
+     still answers 200, with a map missing all fourteen pages, and nothing else would notice.
      The shipped lines are run here over both spellings of the same file. */
   const source = appJs.replace(/\r\n/g, '\n');
   const from = source.indexOf('const SITEMAP_SHELL');
@@ -95,8 +95,8 @@ test('the page entries survive a checkout that lands sitemap.xml with CRLF', () 
   };
 
   const lf = parse(sitemap.replace(/\r\n/g, '\n'));
-  // The twenty listed URLs less the four query-driven shells the route replaces.
-  assert.equal(lf.length, 16, 'the parse no longer yields one entry per public page');
+  // The seventeen listed URLs less the three query-driven shells the route replaces.
+  assert.equal(lf.length, 14, 'the parse no longer yields one entry per public page');
   const crlf = parse(sitemap.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n'));
   assert.equal(crlf.length, lf.length, 'a CRLF checkout of sitemap.xml drops page entries');
   assert.equal(crlf.join(''), lf.join(''));
@@ -242,7 +242,7 @@ test('the privacy policy names where the data actually lives and under which law
   assert.match(privacy, /Singapore/);
   assert.match(privacy, /Render/);
   assert.match(privacy, /Luật Bảo vệ dữ liệu cá nhân/);
-  assert.match(privacy, /YouTube/, 'the embedded video sets its own cookies and goes unmentioned');
+  assert.doesNotMatch(privacy, /YouTube/, 'nothing embeds YouTube any more, so nothing sets its cookies');
   assert.match(privacy, /24 tháng/, 'no retention period');
   assert.match(privacy, /Rút lại đồng ý/, 'no right to withdraw consent');
   // The old text put the data "on OAK Beauty's own servers", which was never true.

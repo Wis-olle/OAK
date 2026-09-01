@@ -98,7 +98,7 @@ test('every phrase in the footer has an English translation', () => {
 
   // A brand name and a locale label read the same in both languages, so neither one is a
   // dictionary key — oak-i18n.js leaves a string it cannot find exactly as it stands.
-  const SAME = new Set(['OAK Beauty', 'Blog', 'Vietnam (VN)']);
+  const SAME = new Set(['OAK Beauty', 'Vietnam (VN)']);
 
   const texts = [...block.matchAll(/>([^<>]+)</g)]
     .map((match) => match[1].replace(/\s+/g, ' ').trim())

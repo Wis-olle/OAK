@@ -724,9 +724,9 @@
       window.OAK.track('lang_switch', { to: code });
     }
     /* The reload below is a page load like any other and throws away every unsaved field
-       on the way. Pages that hold one worth keeping — the blog composer, the comment box,
-       the note on the booking wizard — listen for this and stash it through OAK.saveDraft;
-       the listeners are synchronous, so they have all run before the reload starts. */
+       on the way. A page that holds one worth keeping — the note on the booking wizard —
+       listens for this and stashes it; the listeners are synchronous, so they have all run
+       before the reload starts. */
     window.dispatchEvent(new Event('oak:lang-change'));
     store(code);
     location.reload();

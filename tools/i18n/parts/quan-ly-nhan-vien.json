@@ -1,6 +1,5 @@
 {
   "Quản lý Nhân viên - OAK Beauty": "Staff management - OAK Beauty",
-
   "Tổng quan": "Overview",
   "Lịch hẹn": "Appointments",
   "Dịch vụ": "Services",
@@ -16,7 +15,6 @@
   "Tài khoản": "Account",
   "Ảnh đại diện chủ salon": "Salon owner avatar",
   "Đối tác": "Partner",
-
   "Quản lý nhân viên": "Staff management",
   "Quản lý đội ngũ, lịch làm việc và dịch vụ phụ trách.": "Manage your team, work schedules and assigned services.",
   "Thêm nhân viên": "Add staff",
@@ -24,7 +22,6 @@
   "Đang làm ca hôm nay": "On shift today",
   "Đánh giá trung bình": "Average rating",
   "Chưa có": "N/A",
-
   "Đang làm ca": "On shift",
   "Nghỉ hôm nay": "Off today",
   "Ca hôm nay": "Today's shift",
@@ -32,7 +29,6 @@
   "Chưa xếp lịch": "Not scheduled",
   "Sửa": "Edit",
   "Chưa có nhân viên nào phù hợp.": "No matching staff.",
-
   "Sửa nhân viên": "Edit staff",
   "Họ và tên": "Full name",
   "Chức danh": "Job title",
@@ -45,10 +41,8 @@
   "Xóa": "Delete",
   "Hủy": "Cancel",
   "Lưu thay đổi": "Save changes",
-
   "Xác nhận xóa": "Confirm deletion",
   "Để nguyên": "Leave it as is",
-
   "CN": "Sun",
   "T2": "Mon",
   "T3": "Tue",
@@ -56,7 +50,6 @@
   "T5": "Thu",
   "T6": "Fri",
   "T7": "Sat",
-
   "Không đọc được tệp ảnh.": "Could not read the image file.",
   "Ảnh gốc tối đa 15MB, trang sẽ tự nén trước khi gửi.": "Original images up to 15MB; the page compresses them before sending.",
   "Đã lưu thông tin nhân viên.": "Staff details saved.",
@@ -72,10 +65,7 @@
   "Vui lòng chọn ngày bắt đầu.": "Please choose a start date.",
   "Đã thêm ngày nghỉ.": "Days off added.",
   "Đã xóa ngày nghỉ.": "Days off removed.",
-
-  "Nội dung": "Content",
   "Đánh giá": "Reviews",
-
   "Đã liên kết": "Linked",
   "Đã mời": "Invited",
   "Mời lên OAK": "Invite to OAK",
@@ -92,7 +82,6 @@
   "Đã thu hồi liên kết mời.": "The invitation link has been revoked.",
   "Không sao chép được, vui lòng chép thủ công.": "Could not copy it. Please copy it by hand.",
   "Kỹ thuật viên này đã ngừng hoạt động, không thể tạo liên kết.": "This technician is no longer active, so no link can be created.",
-
   "Đã nghỉ": "Left",
   "Kỹ thuật viên khiếu nại ngày làm việc": "Technician disputes a working date",
   "Ngày vào làm": "Start date",
@@ -101,13 +90,11 @@
   "Ngày kết thúc đang ghi nhận:": "End date on record:",
   "Sửa ngày này bằng cách hủy ghi nhận nghỉ việc trên thẻ nhân viên, rồi ghi nhận lại.": "To correct this date, cancel the departure record on the staff card, then record it again.",
   "Đổi ngày vào làm sẽ gỡ khiếu nại, kể cả khi kỹ thuật viên đang nói về ngày kết thúc.": "Changing the start date will clear the dispute, even when the technician means the end date.",
-
   "Kết thúc hợp tác": "End collaboration",
   "Ngày làm việc cuối cùng": "Last day worked",
   "Lịch hẹn sau ngày này sẽ được chuyển sang kỹ thuật viên còn trống. Lịch không ai nhận được sẽ giữ nguyên và chờ bạn xử lý.": "Appointments after this date move to a technician who is free. Any that nobody can take stay where they are and wait for you to handle them.",
   "Sau khi xác nhận, muốn sửa ngày thì phải hủy ghi nhận nghỉ việc rồi ghi nhận lại.": "Once confirmed, correcting the date means cancelling the departure record and entering it again.",
   "quan-ly-nhan-vien.html::Kết thúc": "End",
-
   "Hủy ghi nhận nghỉ việc": "Cancel the departure record",
   "Hồ sơ trở lại trạng thái đang làm việc và kỹ thuật viên sẽ nhận được thông báo.": "The profile goes back to working here, and the technician is notified.",
   "Ghi nhận nhầm ngày thì đi đường này: hủy ghi nhận, rồi kết thúc hợp tác lại với ngày đúng.": "This is the way to fix a date recorded wrong: cancel the record, then end the collaboration again with the right day.",

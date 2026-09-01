@@ -103,8 +103,8 @@ test('the account block of the menu is in the same order as the account pages th
 });
 
 /* A technician meets this bar everywhere outside the console — on kham-pha.html, on a salon
-   profile, on the blog — and until she had a group of her own she met the customer's six
-   pages there, not one of which is hers. */
+   profile — and until she had a group of her own she met the customer's six pages there,
+   not one of which is hers. */
 test("the technician block of the menu is in the same order as her own pages", () => {
   const { markup } = header('/kham-pha.html');
 
@@ -216,13 +216,15 @@ test('exactly one entry the reader can reach is marked as the page they are on',
   }
 });
 
-test('Blog is a menu entry rather than a bar entry, and an article still marks it', () => {
-  const { markup } = header('/blog-chi-tiet.html');
+test('the bar offers neither the blog nor the search assistant any more', () => {
+  const { markup } = header('/kham-pha.html');
 
-  /* One of them, inside the panel: the bar gave its place up to the language. */
-  assert.deepEqual(hrefs(markup).filter((href) => href === 'blog.html'), ['blog.html']);
-  assert.ok(markup.indexOf('href="blog.html"') > markup.indexOf('id="oak-menu"'));
-  assert.match(markup, /href="blog\.html" aria-current="page"/);
+  /* Both pages are gone from the site, so an entry pointing at either is a 404 waiting
+     in the one menu every public page carries. */
+  assert.deepEqual(hrefs(markup).filter((href) => href === 'blog.html'), []);
+  assert.deepEqual(hrefs(markup).filter((href) => href === 'tim-kiem-thong-minh.html'), []);
+  assert.ok(!markup.includes('Blog'));
+  assert.ok(!markup.includes('Trợ lý'));
 });
 
 test('the language is on the bar at every width, and says which one is in force', () => {
@@ -279,12 +281,11 @@ test('the account tab strip scrolls to the tab the reader is on, and only when i
   assert.deepEqual(scrolled, [['overflowing', 'center', 'nearest']]);
 });
 
-test('the assistant is offered under one name, and that name does not claim to be an AI', () => {
+test('nothing on the bar claims to be an AI', () => {
   const { markup } = header('/kham-pha.html');
 
-  assert.ok(markup.includes('href="tim-kiem-thong-minh.html">Trợ lý tìm salon</a>'));
   /* A whole word, so the NAIL and HAIR category entries are left out of it. */
-  assert.ok(!/\bAI\b/.test(markup), 'the bar still calls the assistant an AI somewhere');
+  assert.ok(!/\bAI\b/.test(markup), 'the bar calls something an AI');
 });
 
 /**

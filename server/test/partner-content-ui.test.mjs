@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { readRepo, readServer, readUi } from './lib/read-source.mjs';
 
@@ -25,274 +24,6 @@ test('public salon profile renders only allowlisted links without x-html', () =>
   assert.doesNotMatch(html, /x-html/);
 });
 
-test('Blog integrates author scope, edit, delete, and role-guarded social source controls', () => {
-  const html = readUi('blog.html');
-  const script = readUi('assets/js/oak-blog.js');
-  assert.match(html, /Cộng đồng/);
-  assert.match(html, /Bài viết của tôi/);
-  assert.match(script, /\/api\/posts\/mine/);
-  assert.match(script, /method: 'PATCH'/);
-  assert.match(script, /method: 'DELETE'/);
-  assert.match(script, /window\.confirm/);
-  assert.match(script, /editingPost/);
-  assert.match(script, /user\.role === 'partner'/);
-  assert.match(script, /loadToken/);
-  assert.match(script, /token !== this\.loadToken/);
-  assert.match(script, /await this\.reloadFirstPage\(\)/);
-  assert.match(html, /x-show="canManage\(post\)"/);
-  assert.doesNotMatch(html, /x-show="scope === 'mine'"/);
-  assert.doesNotMatch(html + script, /x-html/);
-});
-
-test('a failed mine request clears community rows and grants no management actions', async () => {
-  const script = readUi('assets/js/oak-blog.js');
-  const communityRows = [{ id: 71, title: 'Bài của người khác', can_manage: false }];
-  communityRows.meta = { page: 1, limit: 9, total: 1 };
-  let confirmed = false;
-  const context = {
-    URL,
-    URLSearchParams,
-    // The feed mirrors what it is showing into the address bar.
-    location: { search: '', pathname: 'blog.html', href: '' },
-    history: { replaceState() {} },
-    FileReader: class {},
-    document: {
-      getElementById: () => null,
-      // The composer is a dialog now: it locks the page behind it and hands the
-      // caret back on close.
-      body: { classList: { add: () => {}, remove: () => {} } },
-      activeElement: null,
-      contains: () => false,
-    },
-    window: { confirm: () => { confirmed = true; return true; } },
-    OAK: {
-      api: async (path) => {
-        if (path.startsWith('/api/posts/mine')) {
-          throw new Error('Mine unavailable');
-        }
-        return communityRows;
-      },
-      toast: () => {},
-      // closeComposer() discards any stashed draft; this harness never stashes one.
-      takeDraft: () => null,
-    },
-  };
-  vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
-  const state = context.result;
-  /* Alpine's magic the composer uses: the caret is handed back a tick after it closes. */
-  state.$nextTick = (fn) => fn();
-  state.user = { id: 9, role: 'customer' };
-  await state.loadPage(1, false);
-  assert.equal(state.posts.length, 1);
-
-  const mineRequest = state.selectScope('mine');
-  assert.equal(state.scope, 'mine');
-  assert.equal(state.posts.length, 0);
-  assert.equal(state.total, 0);
-  assert.equal(state.page, 1);
-  await mineRequest;
-  assert.equal(state.posts.length, 0);
-  assert.equal(state.canManage(communityRows[0]), false);
-
-  state.editPost(communityRows[0]);
-  await state.removePost(communityRows[0]);
-  assert.equal(state.composerOpen, false);
-  assert.equal(confirmed, false);
-});
-
-test('a failed first page raises loadError instead of the empty state, and retrying clears it', async () => {
-  const script = readUi('assets/js/oak-blog.js');
-  const rows = [{ id: 12, title: 'Chăm sóc da mùa hanh khô', can_manage: false }];
-  rows.meta = { page: 1, limit: 9, total: 1 };
-  let failing = true;
-  const context = {
-    URL,
-    URLSearchParams,
-    // The feed mirrors what it is showing into the address bar.
-    location: { search: '', pathname: 'blog.html', href: '' },
-    history: { replaceState() {} },
-    FileReader: class {},
-    document: {
-      getElementById: () => null,
-      // The composer is a dialog now: it locks the page behind it and hands the
-      // caret back on close.
-      body: { classList: { add: () => {}, remove: () => {} } },
-      activeElement: null,
-      contains: () => false,
-    },
-    OAK: {
-      api: async () => {
-        if (failing) {
-          throw new Error('Không kết nối được máy chủ.');
-        }
-        return rows;
-      },
-      toast: () => {},
-      // closeComposer() discards any stashed draft; this harness never stashes one.
-      takeDraft: () => null,
-    },
-  };
-  vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
-  const state = context.result;
-  /* Alpine's magic the composer uses: the caret is handed back a tick after it closes. */
-  state.$nextTick = (fn) => fn();
-  await state.loadPage(1, false);
-  assert.equal(state.loadError, true);
-  assert.equal(state.posts.length, 0);
-
-  failing = false;
-  await state.reloadFirstPage();
-  assert.equal(state.loadError, false);
-  assert.equal(state.posts.length, 1);
-
-  assert.match(readUi('blog.html'), /x-if="!loading &amp;&amp; !loadError &amp;&amp; !posts\.length"/);
-});
-
-test('a failed load more keeps the loaded rows, the page number and the non-error state', async () => {
-  const script = readUi('assets/js/oak-blog.js');
-  const rows = [{ id: 31, title: 'Xu hướng nail mùa thu', can_manage: false }];
-  rows.meta = { page: 1, limit: 9, total: 3 };
-  let failing = false;
-  const context = {
-    URL,
-    URLSearchParams,
-    // The feed mirrors what it is showing into the address bar.
-    location: { search: '', pathname: 'blog.html', href: '' },
-    history: { replaceState() {} },
-    FileReader: class {},
-    document: {
-      getElementById: () => null,
-      // The composer is a dialog now: it locks the page behind it and hands the
-      // caret back on close.
-      body: { classList: { add: () => {}, remove: () => {} } },
-      activeElement: null,
-      contains: () => false,
-    },
-    OAK: {
-      api: async () => {
-        if (failing) {
-          throw new Error('Máy chủ bận.');
-        }
-        return rows;
-      },
-      toast: () => {},
-      // closeComposer() discards any stashed draft; this harness never stashes one.
-      takeDraft: () => null,
-    },
-  };
-  vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
-  const state = context.result;
-  /* Alpine's magic the composer uses: the caret is handed back a tick after it closes. */
-  state.$nextTick = (fn) => fn();
-  await state.loadPage(1, false);
-  assert.equal(state.posts.length, 1);
-
-  failing = true;
-  await state.loadMore();
-  assert.equal(state.posts.length, 1);
-  assert.equal(state.loadError, false);
-  assert.equal(state.page, 1);
-});
-
-test('resetting the composer invalidates an abandoned image upload', async () => {
-  const script = readUi('assets/js/oak-blog.js');
-  let finishUpload;
-  const upload = new Promise((resolve) => { finishUpload = resolve; });
-  class FakeFileReader {
-    readAsDataURL() {
-      this.result = 'data:image/png;base64,AA==';
-      this.onload();
-    }
-  }
-  const context = {
-    URL,
-    FileReader: FakeFileReader,
-    document: {
-      getElementById: () => ({ value: 'old-file' }),
-      body: { classList: { add: () => {}, remove: () => {} } },
-      activeElement: null,
-      contains: () => false,
-    },
-    // compressImage answers null where there is no canvas to re-draw on, which is the same
-    // answer a browser that could not decode the file gives — so the composer falls through
-    // to FakeFileReader above, and this test is left asking what it asked before: which
-    // upload the form accepts once the composer has moved on.
-    OAK: { api: () => upload, toast: () => {}, compressImage: async () => null },
-  };
-  vm.runInNewContext(`${script}\nresult = oakBlogFeed();`, context);
-  const state = context.result;
-  /* Alpine's magic the composer uses: the caret is handed back a tick after it closes. */
-  state.$nextTick = (fn) => fn();
-  const pending = state.uploadImage({ target: { files: [{ name: 'old.png' }] } });
-  await Promise.resolve();
-  assert.equal(state.uploading, true);
-
-  state.resetComposer();
-  state.form = { ...state.form, title: 'Bản nháp mới' };
-  assert.equal(state.uploading, false);
-  finishUpload({ url: '/uploads/old.png' });
-  await pending;
-
-  assert.equal(state.form.title, 'Bản nháp mới');
-  assert.equal(state.form.image, '');
-  assert.equal(state.uploading, false);
-});
-
-/* Every other stub here answers null, which exercises the FileReader fallback and nothing
-   else — so until this case there was no proof that the composer posts the SHRUNK picture
-   when one comes back. The whole point of compressing is what travels to the server, and a
-   composer that quietly posted the original instead would pass every other test in this file. */
-test('the composer posts the compressed picture, not the file that was picked', async () => {
-  const script = readUi('assets/js/oak-blog.js');
-  const posted = [];
-  class FakeFileReader {
-    readAsDataURL() {
-      this.result = 'data:image/png;base64,GOC=';
-      this.onload();
-    }
-  }
-  const context = {
-    URL,
-    FileReader: FakeFileReader,
-    document: {
-      getElementById: () => ({ value: '' }),
-      body: { classList: { add: () => {}, remove: () => {} } },
-      activeElement: null,
-      contains: () => false,
-    },
-    OAK: {
-      api: async (pathname, options) => {
-        posted.push(options.body);
-        return { url: '/uploads/anh-oak.webp' };
-      },
-      toast: () => {},
-      compressImage: async () => ({ filename: 'anh-oak.webp', data: 'data:image/webp;base64,AA' }),
-    },
-  };
-  vm.runInNewContext(`${script}
-result = oakBlogFeed();`, context);
-  const state = context.result;
-  state.$nextTick = (fn) => fn();
-
-  await state.uploadImage({ target: { files: [{ name: 'may-anh.jpg' }] } });
-
-  assert.deepEqual(posted, [{ filename: 'anh-oak.webp', data: 'data:image/webp;base64,AA' }]);
-  assert.equal(state.form.image, '/uploads/anh-oak.webp');
-});
-
-test('the blog delete icon is included in the shipped Material Symbols subset inputs', () => {
-  const names = readRepo('tools/icons/icon-names.txt').split(/\r?\n/);
-  const font = fs.statSync(path.join(root, 'ui', 'assets', 'fonts', 'font-material-subset.woff2'));
-  assert.ok(names.includes('delete'));
-  assert.ok(font.size > 0);
-  assert.match(readUi('blog.html'), /data-icon="delete">delete</);
-});
-
-test('owned post deletion verifies the scoped delete before committing comment removal', () => {
-  const route = readServer('routes/posts.js');
-  assert.match(route, /const deleted = await tx\.run\([\s\S]*?if \(deleted\.changes !== 1\)/);
-});
-
 test('post source migration deduplicates legacy URLs before creating the global index', () => {
   const schema = readServer('db.js');
   const dedupe = schema.indexOf('ROW_NUMBER() OVER');
@@ -302,12 +33,31 @@ test('post source migration deduplicates legacy URLs before creating the global 
   assert.match(schema, /source_platform IS NULL AND source_url IS NULL/);
 });
 
-test('partner console and sitemap have no separate post manager artifact', () => {
-  const files = ['tong-quan-doi-tac.html', 'quan-ly-lich-hen.html', 'quan-ly-dich-vu.html', 'quan-ly-nhan-vien.html', 'bao-cao-doanh-thu.html', 'cai-dat-salon.html'];
-  for (const file of files) {
-    assert.doesNotMatch(readUi(file), /quan-ly-bai-viet\.html/, file);
+test('the delete icon is included in the shipped Material Symbols subset inputs', () => {
+  const names = readRepo('tools/icons/icon-names.txt').split(/\r?\n/);
+  const font = fs.statSync(path.join(root, 'ui', 'assets', 'fonts', 'font-material-subset.woff2'));
+  assert.ok(names.includes('delete'));
+  assert.ok(font.size > 0);
+  assert.match(readUi('ho-so-nhan-vien.html'), /data-icon="delete">delete</);
+});
+
+/* The blog is gone: its two pages, the script behind them, the route they read and the
+   dictionary parts they were translated from. The tables stay — nothing here reads them —
+   so the only thing worth pinning is that none of the code came back. */
+test('nothing of the blog is left in the tree', () => {
+  for (const file of [
+    'ui/blog.html',
+    'ui/blog-chi-tiet.html',
+    'ui/assets/js/oak-blog.js',
+    'server/src/routes/posts.js',
+    'tools/i18n/parts/blog.json',
+    'tools/i18n/parts/blog-chi-tiet.json',
+  ]) {
+    assert.equal(fs.existsSync(path.join(root, file)), false, file);
   }
-  assert.doesNotMatch(readUi('sitemap.html'), /quan-ly-bai-viet\.html/);
-  assert.equal(fs.existsSync(path.join(root, 'ui', 'quan-ly-bai-viet.html')), false);
-  assert.equal(fs.existsSync(path.join(root, 'tools', 'i18n', 'parts', 'quan-ly-bai-viet.json')), false);
+  assert.doesNotMatch(readServer('app.js'), /posts/);
+  // And no page still points a reader at one of them.
+  for (const name of fs.readdirSync(path.join(root, 'ui')).filter((file) => file.endsWith('.html'))) {
+    assert.doesNotMatch(readUi(name), /href="blog(-chi-tiet)?\.html/, name);
+  }
 });

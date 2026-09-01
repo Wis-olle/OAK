@@ -1,8 +1,8 @@
 /*
  * The platform surfaces that hold the site together and show up nowhere on screen: the web
  * app manifest and the tags that point at it, the one line a reader without scripting gets,
- * the way in to Beauty Map, the salon owner's own account inside the console, the blog's
- * shareable address, and the moderation the terms promise. Every one of them breaks silently
+ * the way in to Beauty Map, and the salon owner's own account inside the console. Every one
+ * of them breaks silently
  * — an unreachable manifest is still a page that renders — so they are pinned here.
  */
 import test from 'node:test';
@@ -184,97 +184,6 @@ test('the console keeps a salon owner in the console', () => {
   assert.match(settings, /'\/api\/auth\/change-password'/);
 });
 
-/** oakBlogFeed() over a stand-in browser, with the address bar and the requests recorded. */
-function blogFeed(search = '', failing = false) {
-  const requests = [];
-  const location = { pathname: 'blog.html', search, href: '' };
-  const context = {
-    URL,
-    URLSearchParams,
-    location,
-    history: {
-      replaceState(state, title, url) {
-        const mark = url.indexOf('?');
-        location.search = mark === -1 ? '' : url.slice(mark);
-      },
-    },
-    FileReader: class {},
-    document: {
-      getElementById: () => null,
-      body: { classList: { add() {}, remove() {} } },
-      activeElement: null,
-      contains: () => false,
-    },
-    window: { addEventListener() {} },
-    OAK: {
-      api: async (pathname) => {
-        requests.push(pathname);
-        if (failing) {
-          throw new Error('Không tải được bài viết.');
-        }
-        const rows = [];
-        rows.meta = { page: 1, limit: 9, total: 40 };
-        return rows;
-      },
-      me: async () => ({ id: 1, role: 'customer' }),
-      qs: (name) => new URLSearchParams(location.search).get(name),
-      takeDraft: () => null,
-      toast() {},
-    },
-  };
-  vm.runInNewContext(
-    `${readUi('assets/js/oak-blog.js')}\nresult = oakBlogFeed();`,
-    context,
-  );
-  return { state: context.result, location, requests };
-}
-
-test('the blog feed keeps its state in the address bar, and reads it back', async () => {
-  const opened = blogFeed();
-  await opened.state.init();
-  // Nothing chosen is nothing in the URL: the default feed keeps a clean address.
-  assert.equal(opened.location.search, '');
-
-  await opened.state.selectCategory('nail');
-  await opened.state.selectType('video');
-  assert.equal(new URLSearchParams(opened.location.search).get('category'), 'nail');
-  assert.equal(new URLSearchParams(opened.location.search).get('type'), 'video');
-
-  await opened.state.loadMore();
-  assert.equal(new URLSearchParams(opened.location.search).get('page'), '2');
-
-  // What F5 does: the same address, a fresh component.
-  const reloaded = blogFeed(opened.location.search);
-  await reloaded.state.init();
-  assert.equal(reloaded.state.category, 'nail');
-  assert.equal(reloaded.state.type, 'video');
-  assert.equal(reloaded.state.page, 2);
-  // Two pages restored as one request, because the API caps a request at 50 rows.
-  assert.match(reloaded.requests[0], /limit=18&page=1/);
-  assert.match(reloaded.requests[0], /category=nail/);
-
-  // A value no chip offers filters the feed to nothing and lights nothing up.
-  const typed = blogFeed('?category=zzz');
-  await typed.state.init();
-  assert.equal(typed.state.category, '');
-
-  // A restored page that never lands is a failure of the whole list, not an empty topic:
-  // the reader gets the error and its "Thử lại" rather than "no posts here yet".
-  const broken = blogFeed('?page=2', true);
-  await broken.state.init();
-  assert.equal(broken.state.loadError, true, 'a failed restore reads as an empty feed');
-  assert.equal(broken.state.posts.length, 0);
-});
-
-test('a post can be sent to somebody who is not on OAK yet', () => {
-  const post = readUi('blog-chi-tiet.html');
-  assert.match(post, /aria-label="Chia sẻ"/);
-  assert.match(post, /navigator\.share/, 'no share sheet on a phone');
-  assert.match(post, /navigator\.clipboard\.writeText\(location\.href\)/, 'no fallback');
-  assert.match(post, /https:\/\/zalo\.me\/share\?url=' \+ encodeURIComponent\(location\.href\)/);
-  assert.match(post, /facebook\.com\/sharer\/sharer\.php\?u=' \+ encodeURIComponent\(location\.href\)/);
-});
-
 test('the about page shows salons that exist and admits when it cannot', () => {
   const about = readUi('gioi-thieu.html');
   // Sorted by rating, not by s.featured: that column is written by the seed and by nothing
@@ -322,39 +231,13 @@ test('the results page tells a search engine which search it is', () => {
   assert.match(results, /<title>Tìm salon - OAK Beauty<\/title>/);
 });
 
-test('the public feed is the published half of the blog, written at a human rate', () => {
-  const posts = readServer('routes/posts.js');
-  assert.match(posts, /const conditions = \["p\.status = 'published'"\]/);
-  assert.match(posts, /WHERE c\.post_id = \? AND c\.status = 'published'/);
-  assert.match(posts, /post\.status !== 'published'/, 'a hidden post is still at its own URL');
-  assert.match(posts, /POST_MAX_PER_HOUR = 5/);
-  assert.match(posts, /COMMENT_MAX_PER_HOUR = 20/);
-  assert.match(posts, /rateLimited\(postAttempts, req\.user\.id, POST_MAX_PER_HOUR\)/);
-  assert.match(posts, /rateLimited\(commentAttempts, req\.user\.id, COMMENT_MAX_PER_HOUR\)/);
-  // Hiding is an operator's tool, and an unset ADMIN_EMAILS means nobody rather than everybody.
-  assert.match(posts, /ADMIN_EMAILS\.has\(String\(req\.user\.email \|\| ''\)\.toLowerCase\(\)\)/);
-  assert.match(posts, /router\.patch\('\/:id\/status'/);
-  // "Bài viết của tôi" is not filtered on status, so it is the one list a hidden post is
-  // still on: it says which row that is rather than linking to a URL that answers 404.
-  const mine = posts.slice(posts.indexOf("router.get('/mine'"), posts.indexOf("router.post('/'"));
-  assert.match(mine, /status: row\.status,/);
-  const feed = readUi('blog.html');
-  assert.match(feed, /x-if="post\.status === 'hidden'"/);
-  assert.match(feed, />Đã ẩn</);
-
-  const schema = readServer('db.js');
-  assert.match(schema, /ALTER TABLE posts ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'published'/);
-  assert.match(schema, /ALTER TABLE post_comments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'published'/);
-});
-
 test('the site map is generated from what the site actually holds', () => {
   const app = readServer('app.js');
   assert.match(app, /app\.get\('\/sitemap\.xml'/);
   // Above the static handler, which would answer with the committed file instead.
   assert.ok(app.indexOf("app.get('/sitemap.xml'") < app.indexOf('express.static(uiDir'));
   assert.match(app, /FROM salons WHERE verified = 1 AND published = 1/);
-  assert.match(app, /FROM posts WHERE status = 'published'/);
-  // The four query-driven shells are replaced by the addresses that hold something, not
+  // The three query-driven shells are replaced by the addresses that hold something, not
   // added to — and the pages half still comes from the one committed list.
   assert.match(app, /SITEMAP_SHELL/);
   assert.match(app, /sitemap\.xml'\), 'utf8'\)/);

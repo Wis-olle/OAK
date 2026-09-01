@@ -1,6 +1,5 @@
 {
   "Quản lý Lịch hẹn - OAK Beauty": "Appointment management - OAK Beauty",
-
   "Tổng quan": "Overview",
   "Lịch hẹn": "Appointments",
   "Dịch vụ": "Services",
@@ -20,7 +19,6 @@
   "Tài khoản": "Account",
   "Ảnh đại diện chủ salon": "Salon owner avatar",
   "Đối tác": "Partner",
-
   "Ngày": "Day",
   "Tuần": "Week",
   "Khoảng thời gian trước": "Previous period",
@@ -37,7 +35,6 @@
   "Đã xác nhận": "Confirmed",
   "Đã hoàn thành": "Completed",
   "Đã hủy": "Cancelled",
-
   "Không có lịch hẹn nào trong khoảng thời gian này.": "No appointments in this time range.",
   "Dịch vụ đã xóa": "Deleted service",
   "Chọn một lịch hẹn trên lịch để xem chi tiết.": "Select an appointment on the calendar to see details.",
@@ -53,7 +50,6 @@
   "Hủy lịch": "Cancel appointment",
   "Xác nhận": "Confirm",
   "Hoàn thành": "Complete",
-
   "Tên khách hàng": "Customer name",
   "Số điện thoại": "Phone number",
   "Chọn dịch vụ": "Choose a service",
@@ -61,12 +57,10 @@
   "Giờ hẹn": "Appointment time",
   "Hủy": "Cancel",
   "Tạo lịch hẹn": "Create appointment",
-
   "Tóc": "Hair",
   "Chăm sóc da": "Skincare",
   "Nối mi": "Eyelash extensions",
   "Tiện ích": "Amenities",
-
   "CN": "Sun",
   "T2": "Mon",
   "T3": "Tue",
@@ -103,6 +97,5 @@
   "Khách sẽ nhận thông báo kèm lý do này.": "The customer is notified with this reason.",
   "Giữ lịch": "Keep appointment",
   "Đánh giá": "Reviews",
-  "Nội dung": "Content",
   "lần không đến": "times absent"
 }

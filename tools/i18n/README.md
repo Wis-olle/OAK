@@ -152,5 +152,5 @@ three spellings the product settled on:
 Vietnamese writes those two words either way, and OAK shipped both at once: the console said
 "Huỷ" while the customer side said "Hủy", so a reader cancelled an appointment with one
 spelling and was told about it by the server in the other. `server/src/seed.js` is exempt —
-it is the salon's and the blog's own prose, not product copy — and so are the vendored
+it is the salon's own prose, not product copy — and so are the vendored
 bundles, whose minified output is full of spread syntax.

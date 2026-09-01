@@ -508,7 +508,7 @@
 
   /* ------------------------------------------------------------------------- drafts
    * Choosing English reloads the page (see set() in oak-i18n.js), and a reload takes any
-   * half-written form with it — a blog post, a comment, the note on a booking. The pages
+   * half-written form with it — the note on a booking, say. The pages
    * that hold one listen for 'oak:lang-change', hand it over here, and ask for it back in
    * their own init(). Nothing else fires the event, so nothing else pays for it.
    *
@@ -542,7 +542,7 @@
   /**
    * What to pass as `behavior` to scrollIntoView(). The reduced-motion rule in oak-utils.css
    * cannot answer for these calls — an explicit behavior option beats the `scroll-behavior`
-   * property — so the four places that glide a step, an error or a composer into view ask
+   * property — so the four places that glide a step or an error into view ask
    * here instead of each testing the media query for itself.
    */
   function scrollBehavior() {

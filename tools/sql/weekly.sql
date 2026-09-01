@@ -11,7 +11,7 @@
 -- day the salon and the visitor were both living in — but the week is *selected* by
 -- comparing the raw text against a UTC string of the same shape: ISO-8601 sorts the same
 -- way as the instants it names, so the comparison is exact without casting the column.
--- All five queries filter on the date alone, so all five scan the table today:
+-- All four queries filter on the date alone, so all four scan the table today:
 -- idx_events_name_created_at (server/src/db.js) leads on `name`, and Postgres before 18
 -- has no skip scan. Keeping the column uncast is what would let a future query that also
 -- pins `name` use that index for the range. At this table's size the scan is the right
@@ -73,32 +73,7 @@ SELECT
   ROUND(100.0 * submitted / NULLIF(started, 0), 1) AS wizard_to_booking_pct
 FROM funnel;
 
--- 4. Does the blog send anyone to a booking?
---    Per page, the CTA presses and how many of those same visits went on to submit a
---    booking that day. This is the question the blog was written to answer.
-WITH week AS (
-  SELECT name, page, session_hash
-  FROM events
-  WHERE created_at >= to_char((now() - interval '7 days') AT TIME ZONE 'UTC',
-                              'YYYY-MM-DD"T"HH24:MI:SS')
-),
-clicks AS (
-  SELECT page, session_hash FROM week WHERE name = 'blog_cta_click'
-),
-booked AS (
-  SELECT DISTINCT session_hash FROM week WHERE name = 'booking_submit'
-)
-SELECT
-  clicks.page,
-  COUNT(*) AS cta_clicks,
-  COUNT(DISTINCT clicks.session_hash) AS sessions,
-  COUNT(DISTINCT booked.session_hash) AS sessions_that_booked
-FROM clicks
-LEFT JOIN booked ON booked.session_hash = clicks.session_hash
-GROUP BY clicks.page
-ORDER BY cta_clicks DESC;
-
--- 5. Where the week came from.
+-- 4. Where the week came from.
 --    Referrers are stored without their query string; an empty one is someone who typed
 --    the address, opened a bookmark, or came from an app that sends no referrer at all.
 SELECT

@@ -1047,129 +1047,6 @@ const FAVORITES = [
  * the database is seeded.
  */
 
-const POSTS = [
-  {
-    author: 'doitac@oak.vn',
-    type: 'article',
-    title: 'Xu hướng nail Hàn Quốc 2026: Tối giản nhưng tinh tế',
-    slug: 'xu-huong-nail-han-quoc-2026',
-    category: 'nail',
-    excerpt:
-      'Năm 2026 đánh dấu sự trở lại của những bộ móng tối giản: form ngắn, tone trong trẻo và điểm nhấn nhỏ đặt đúng chỗ.',
-    content:
-      'Nếu vài năm trước các mẫu nail Hàn Quốc chuộng đá đính dày và hoạ tiết phủ kín, thì năm 2026 xu hướng đã đảo chiều hoàn toàn. Bảng màu chủ đạo là các tone sữa, hồng phấn và be ấm - những sắc độ gần với màu da, tôn bàn tay mà vẫn giữ được vẻ chỉn chu khi đi làm.\n\nForm móng cũng ngắn lại. Dáng vuông bo tròn và oval ngắn lên ngôi vì vừa dễ sinh hoạt, vừa hạn chế gãy móng. Thay vì phủ kín hoạ tiết, kỹ thuật viên chỉ đặt một điểm nhấn duy nhất: một đường kẻ mảnh ở chân móng, một chấm ánh kim, hoặc lớp tráng gương mờ trên một ngón duy nhất.\n\nĐiều quan trọng nhất của xu hướng này lại nằm ở phần ít ai để ý: nền móng. Bộ móng tối giản chỉ đẹp khi da quanh móng sạch, form đều và bề mặt gel phẳng mịn. Vì vậy hãy ưu tiên salon làm kỹ khâu cắt da và dũa form, thay vì chỉ nhìn vào bộ ảnh mẫu.',
-    video_url: null,
-    image: IMG('img-c92fbe9a51.jpg'),
-    created_at: '2026-07-02T02:00:00.000Z',
-  },
-  {
-    author: 'quochuy@oak.vn',
-    type: 'article',
-    title: 'Chăm sóc da mùa mưa Sài Gòn: 5 bước không thể bỏ qua',
-    slug: 'cham-soc-da-mua-mua-sai-gon',
-    category: 'skincare',
-    excerpt:
-      'Độ ẩm cao, mưa bất chợt và máy lạnh cả ngày khiến da vừa bí vừa mất nước. Đây là quy trình tối giản mà hiệu quả cho mùa mưa.',
-    content:
-      'Mùa mưa ở TP.HCM có một nghịch lý: không khí ngoài trời ẩm tới mức bết dính, nhưng da lại thường xuyên mất nước vì ngồi phòng máy lạnh gần như cả ngày. Hệ quả là da vừa bóng dầu ở vùng chữ T, vừa khô căng ở hai bên má.\n\nQuy trình phù hợp nhất lúc này là quy trình tối giản. Làm sạch bằng sữa rửa mặt dịu nhẹ, độ pH quanh 5.5, ngày hai lần và không chà xát mạnh. Sau đó cấp ẩm bằng lớp mỏng dạng gel thay vì kem đặc, để da không bị bí trong thời tiết ẩm.\n\nĐừng bỏ kem chống nắng chỉ vì trời âm u - tia UVA vẫn xuyên qua mây và kính cửa sổ. Cuối cùng, hạn chế thử sản phẩm mới liên tục trong giai đoạn này; da đang mất cân bằng rất dễ phản ứng, và bạn sẽ không biết thủ phạm là sản phẩm nào. Nếu tình trạng mụn kéo dài quá ba tuần, hãy đến chuyên viên da liễu để được soi da và xây dựng phác đồ riêng.',
-    video_url: null,
-    image: IMG('img-5b691ffccb.jpg'),
-    created_at: '2026-07-15T03:30:00.000Z',
-  },
-  {
-    author: 'minhchau@oak.vn',
-    type: 'article',
-    title: 'Phục hồi tóc hư tổn sau nhuộm: Lộ trình 8 tuần',
-    slug: 'phuc-hoi-toc-hu-ton-sau-nhuom',
-    category: 'hair',
-    excerpt:
-      'Tóc khô xơ, chẻ ngọn và mất độ đàn hồi sau khi tẩy nhuộm hoàn toàn có thể cải thiện, nhưng cần đúng thứ tự và đủ kiên nhẫn.',
-    content:
-      'Sau khi tẩy hoặc nhuộm màu sáng, lớp biểu bì tóc bị nâng lên và một phần keratin bên trong bị rửa trôi. Đó là lý do tóc trở nên khô, rối và mất độ đàn hồi. Tin tốt là cấu trúc này có thể được bù đắp, nhưng không thể xong trong một buổi hấp dầu.\n\nHai tuần đầu tiên nên tập trung vào việc ngưng gây thêm tổn thương: hạ nhiệt độ máy sấy, tạm dừng máy duỗi và ép, gội bằng dầu gội không sulfate. Từ tuần thứ ba, bổ sung liệu trình phục hồi tại salon mỗi 7-10 ngày để nạp lại keratin và lipid cho sợi tóc.\n\nTừ tuần thứ sáu trở đi, khi tóc đã bớt xốp, mới nên tính đến việc chỉnh lại màu hoặc cắt tỉa phần ngọn chẻ. Song song đó, hãy duy trì mặt nạ dưỡng tại nhà một đến hai lần mỗi tuần. Sau 8 tuần, phần lớn khách hàng lấy lại được độ bóng và độ đàn hồi rõ rệt - miễn là không quay lại tẩy tóc giữa chừng.',
-    video_url: null,
-    image: IMG('img-c5600bb11b.jpg'),
-    created_at: '2026-07-24T07:15:00.000Z',
-  },
-  {
-    author: 'quochuy@oak.vn',
-    type: 'article',
-    title: 'Chọn spa trị liệu: 6 tiêu chí người Sài Gòn nên biết',
-    slug: 'chon-spa-tri-lieu-6-tieu-chi',
-    category: 'spa',
-    excerpt:
-      'Giữa hàng trăm lựa chọn, đâu là dấu hiệu của một spa trị liệu thực sự chỉn chu? Sáu tiêu chí dưới đây sẽ giúp bạn sàng lọc nhanh.',
-    content:
-      'Tiêu chí đầu tiên luôn là vệ sinh. Khăn, ga giường và dụng cụ phải được thay mới cho từng khách, và bạn hoàn toàn có quyền hỏi về quy trình tiệt trùng. Thứ hai là sự minh bạch: bảng giá rõ ràng, không phát sinh chi phí giữa buổi trị liệu.\n\nThứ ba, hãy chú ý đến bước tư vấn trước liệu trình. Một spa nghiêm túc sẽ hỏi về tình trạng sức khoẻ, vùng đau mỏi và mức lực massage bạn mong muốn, thay vì áp dụng một quy trình giống nhau cho mọi khách. Thứ tư là chuyên môn của kỹ thuật viên - chứng chỉ đào tạo và số năm kinh nghiệm nên được công khai.\n\nHai tiêu chí cuối cùng thiên về trải nghiệm: không gian cần đủ yên tĩnh và riêng tư, còn chính sách đặt lịch phải linh hoạt, cho phép dời hoặc huỷ trong khoảng thời gian hợp lý. Khi cả sáu yếu tố này đều đạt, khả năng cao bạn đã tìm được nơi đáng để quay lại lâu dài.',
-    video_url: null,
-    image: IMG('img-432c4666c7.jpg'),
-    created_at: '2026-08-03T04:45:00.000Z',
-  },
-  {
-    author: 'doitac@oak.vn',
-    type: 'article',
-    title: 'Giữ nếp mi sau khi nối: 5 thói quen nên bỏ',
-    slug: 'giu-nep-mi-sau-khi-noi',
-    category: 'eyelash',
-    excerpt:
-      'Bộ mi nối bền được bao lâu phụ thuộc vào hai tuần đầu nhiều hơn là vào tay nghề của kỹ thuật viên.',
-    content:
-      'Keo nối mi cần khoảng 24 giờ để khô hoàn toàn. Trong ngày đầu tiên, hãy tránh xông hơi, tắm nước quá nóng và mọi việc khiến vùng mắt đẫm hơi nước - đó là lý do phổ biến nhất khiến một bộ mi vừa làm đã rụng lác đác sau vài hôm.\n\nThói quen thứ hai nên bỏ là dụi mắt và nằm sấp úp mặt vào gối. Sợi mi nối chịu lực kém theo phương ngang, và phần lớn các khoảng trống lệch bên đều đến từ tư thế ngủ chứ không phải từ keo. Một chiếc vỏ gối lụa và thói quen nằm nghiêng vừa phải giúp ích nhiều hơn mọi loại dưỡng mi.\n\nBa thói quen còn lại nằm ở khâu làm sạch: dùng tẩy trang gốc dầu quanh mắt, chải mi khi mi còn ướt, và bỏ hẳn việc chải mascara lên phần mi đã nối. Thay vào đó, hãy rửa vùng mắt bằng sữa rửa mặt dịu nhẹ mỗi tối, thấm khô rồi chải nhẹ bằng lược mi sạch. Giữ được nếp mi, bạn thường chỉ cần dặm lại sau ba đến bốn tuần thay vì làm mới cả bộ.',
-    video_url: null,
-    image: IMG('img-9c7add0d36.jpg'),
-    created_at: '2026-06-20T06:00:00.000Z',
-  },
-  {
-    author: 'quochuy@oak.vn',
-    type: 'video',
-    title: 'Video: Routine chăm sóc da phù hợp cho mọi loại da',
-    slug: 'video-routine-cham-soc-da-moi-loai-da',
-    category: 'skincare',
-    excerpt:
-      'Da dầu, da khô hay da hỗn hợp đều dùng chung một bộ khung routine - khác biệt nằm ở kết cấu sản phẩm bạn chọn.',
-    content:
-      'Chuyên viên của Glow Skincare Clinic phân tích cách điều chỉnh một chu trình chăm sóc da chuẩn cho từng loại da, từ da dầu mụn đến da khô nhạy cảm. Bộ khung các bước gần như giống nhau, thứ thay đổi là kết cấu và nồng độ hoạt chất.\n\nLưu ý quan trọng: hãy thử sản phẩm mới trên một vùng da nhỏ trước khi dùng cho toàn mặt, và chỉ thêm một hoạt chất mới mỗi lần. Nếu da có dấu hiệu kích ứng kéo dài, hãy dừng lại và tới gặp chuyên viên da liễu thay vì tự đổi sản phẩm liên tục.',
-    video_url: 'https://www.youtube.com/embed/RiFhMDCnCM8',
-    image: IMG('img-bdddd609ce.jpg'),
-    created_at: '2026-08-06T09:30:00.000Z',
-  },
-];
-
-const POST_COMMENTS = [
-  {
-    post: 'xu-huong-nail-han-quoc-2026',
-    user: 'khach@oak.vn',
-    content:
-      'Bài viết đúng gu mình quá. Mình cũng đang chuyển sang form ngắn tone sữa, đi làm nhìn gọn gàng hẳn.',
-    created_at: '2026-07-03T08:12:00.000Z',
-  },
-  {
-    post: 'xu-huong-nail-han-quoc-2026',
-    user: 'hoangyen@oak.vn',
-    content: 'Cho mình hỏi tone be ấm có hợp với da ngăm không ạ? Mình sợ bị nhợt tay.',
-    created_at: '2026-07-05T01:47:00.000Z',
-  },
-  {
-    post: 'cham-soc-da-mua-mua-sai-gon',
-    user: 'baolong@oak.vn',
-    content:
-      'Mình bỏ kem chống nắng mấy hôm trời mưa thật, đọc xong mới biết là sai. Cảm ơn bài viết nhé!',
-    created_at: '2026-07-17T10:05:00.000Z',
-  },
-  {
-    post: 'phuc-hoi-toc-hu-ton-sau-nhuom',
-    user: 'khach@oak.vn',
-    content:
-      'Mình vừa tẩy tóc tháng trước, đang làm theo lộ trình này tới tuần thứ tư và thấy tóc mềm hơn rõ.',
-    created_at: '2026-08-02T03:33:00.000Z',
-  },
-  {
-    post: 'video-routine-cham-soc-da-moi-loai-da',
-    user: 'hoangyen@oak.vn',
-    content: 'Routine gọn mà dễ theo, mình duy trì hơn một tháng rồi và da đỡ khô hẳn.',
-    created_at: '2026-08-08T13:20:00.000Z',
-  },
-];
-
 const INSERT_USER =
   'INSERT INTO users (name, email, phone, password_hash, role, avatar, city, district, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
 const INSERT_SALON =
@@ -1207,10 +1084,6 @@ const INSERT_NOTIFICATION =
   'INSERT INTO notifications (user_id, title, body, type, "read", booking_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)';
 const INSERT_PROMOTION =
   'INSERT INTO promotions (salon_id, code, type, title, description, discount_percent, discount_amount, original_price, sale_price, service_ids, image, starts_at, ends_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)';
-const INSERT_POST =
-  'INSERT INTO posts (author_id, type, title, slug, excerpt, content, video_url, image, category, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
-const INSERT_COMMENT =
-  'INSERT INTO post_comments (post_id, user_id, content, created_at) VALUES (?, ?, ?, ?)';
 
 /**
  * Whether an empty database should be filled with the demo data above.
@@ -1460,34 +1333,6 @@ export async function seed(db) {
         WELCOME_IMAGE,
         welcome.starts_at,
         welcome.ends_at,
-      );
-    }
-
-    const postIds = new Map();
-    for (const post of POSTS) {
-      const { lastInsertRowid } = await tx.run(
-        INSERT_POST,
-        userIds.get(post.author),
-        post.type,
-        post.title,
-        post.slug,
-        post.excerpt,
-        post.content,
-        post.video_url,
-        post.image,
-        post.category,
-        post.created_at,
-      );
-      postIds.set(post.slug, Number(lastInsertRowid));
-    }
-
-    for (const comment of POST_COMMENTS) {
-      await tx.run(
-        INSERT_COMMENT,
-        postIds.get(comment.post),
-        userIds.get(comment.user),
-        comment.content,
-        comment.created_at,
       );
     }
   });

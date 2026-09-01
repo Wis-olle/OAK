@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- blog-chi-tiet.html, chi-tiet-dich-vu.html, ho-so-chuyen-gia.html and salon-profile.html
-       are query-driven shells: without ?slug / ?id / ?salon each renders a not-found panel.
-       They are listed because this static map is the 20 public pages; the real per-post,
-       per-service and per-salon URLs come with the dynamic sitemap, which replaces these
-       four entries rather than adding to them. -->
+  <!-- chi-tiet-dich-vu.html, ho-so-chuyen-gia.html and salon-profile.html are query-driven
+       shells: without ?slug / ?id / ?salon each renders a not-found panel. They are listed
+       because this static map is the 17 public pages; the real per-service and per-salon
+       URLs come with the dynamic sitemap, which replaces these three entries rather than
+       adding to them. -->
   <url>
     <loc>https://oakbeauty.vn/</loc>
     <changefreq>weekly</changefreq>
@@ -12,16 +12,6 @@
   </url>
   <url>
     <loc>https://oakbeauty.vn/bao-mat.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://oakbeauty.vn/blog-chi-tiet.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://oakbeauty.vn/blog.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -94,11 +84,6 @@
     <loc>https://oakbeauty.vn/spa-massage.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://oakbeauty.vn/tim-kiem-thong-minh.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://oakbeauty.vn/uu-dai.html</loc>

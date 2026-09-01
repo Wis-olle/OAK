@@ -410,8 +410,8 @@ for (const key of Object.keys(dictionary)) {
    English site reads, the parts it is built from, and every server file that can put a
    Vietnamese sentence in front of a reader — the routes, the libraries, the auth middleware
    and app.js/db.js, which carry their own error messages. NOT server/src/seed.js: that is
-   the salon's and the blog's own prose, which section 5 above already treats as data rather
-   than as product copy, and not the vendored bundles, whose minified output is full of
+   the salon's own prose, which section 5 above already treats as data rather than as
+   product copy, and not the vendored bundles, whose minified output is full of
    spread syntax.
 
    The ellipsis pattern asks for three dots ENDING a word, which is what a busy label looks

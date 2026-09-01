@@ -106,9 +106,9 @@
     }
   });
 
-  /** Is this where the reader already is? An article counts as its own feed. */
+  /** Is this where the reader already is? */
   function isHere(href) {
-    return href === PAGE || (href === 'blog.html' && PAGE === 'blog-chi-tiet.html');
+    return href === PAGE;
   }
 
   var TOP_BASE =
@@ -151,12 +151,7 @@
 
   var everyone =
     entry('dat-lich.html', 'Đặt lịch') +
-    entry('uu-dai.html', 'Ưu đãi') +
-    /* One name for the assistant, here and on the hero, the title and the H1 of its own
-       page: it is a rule-based helper for finding a salon, and three names for it (two of
-       them promising "AI") is what makes a reader expect something it is not. */
-    entry('tim-kiem-thong-minh.html', 'Trợ lý tìm salon') +
-    entry('blog.html', 'Blog');
+    entry('uu-dai.html', 'Ưu đãi');
 
   var categories =
     '<p class="px-5 pt-3 pb-1 font-caption text-caption uppercase tracking-widest ' +

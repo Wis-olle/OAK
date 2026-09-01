@@ -35,13 +35,11 @@ function meta(value) {
   return stored === null ? null : JSON.parse(stored);
 }
 
-test('the eight instrumented events are accepted, and prose is not', () => {
+test('the six instrumented events are accepted, and prose is not', () => {
   for (const name of [
     'search_submit',
     'wizard_start',
     'booking_submit',
-    'assistant_message',
-    'blog_cta_click',
     'contact_submit',
     'lang_switch',
     'promo_use',
@@ -108,7 +106,7 @@ test('a page cannot fill a row with its own shape of data', () => {
 });
 
 test('page and ref are trimmed to something a row can hold', () => {
-  assert.equal(text('  blog-chi-tiet.html  '), 'blog-chi-tiet.html');
+  assert.equal(text('  ket-qua-tim-kiem.html  '), 'ket-qua-tim-kiem.html');
   assert.equal(text('a'.repeat(300)).length, 200);
   assert.equal(text('   '), null);
   assert.equal(text(''), null);

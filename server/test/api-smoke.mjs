@@ -14,8 +14,8 @@
  *     Skips the reset and the spawn and runs against an already-running server. The
  *     database is that server's own, so a re-run reuses whatever the previous one wrote.
  *
- * Every date is derived from the SERVER's notion of today (probed through the
- * assistant parser), never hardcoded.
+ * Every date is derived from the SERVER's notion of today (read off the clock it stamps
+ * its own responses with), never hardcoded.
  */
 
 import { spawn } from 'node:child_process';
@@ -38,10 +38,6 @@ const TEST_DATABASE_URL =
 const HEALTH_TIMEOUT_MS = 15000;
 const HEALTH_INTERVAL_MS = 200;
 const BODY_PREVIEW_CHARS = 300;
-/* The account routes/posts.js is told to trust with moderation, handed to the server this
-   suite spawns. In external mode the server was started by somebody else, so the blocks
-   that need it say so and step around it. */
-const ADMIN_EMAIL = 'hoangyen@oak.vn';
 /* The key the spawned server is given for GET /api/internal/tick, and the one this suite
    knocks with. Nothing sweeps itself in a test run — the child also gets TICK_INTERVAL_MS=0 —
    so every close-out and every reminder below happens because a group asked for one, at the
@@ -226,9 +222,6 @@ function spawnServer() {
     ...process.env,
     PORT: String(TEST_PORT),
     DATABASE_URL: TEST_DATABASE_URL,
-    // Who may hide a post. An address, not a role: hoangyen@oak.vn is an ordinary
-    // customer account, which is what makes the check worth testing.
-    ADMIN_EMAILS: ADMIN_EMAIL,
     // This suite uses the demo seed as its fixture, so it asks for the seed by name
     // rather than depending on whatever NODE_ENV the shell happens to carry.
     SEED_DEMO: '1',
@@ -472,6 +465,13 @@ function findSharedSlot(grids) {
 
 async function groupHealthAuth() {
   const guest = new Session();
+
+  /* The blog is gone: its route is not mounted and its pages are not on disk, so both
+     answer 404 — the API in JSON, the page through the static handler's own 404 body. */
+  const postsResponse = await guest.fetch('/api/posts');
+  assert(postsResponse.status === 404, 'GET /api/posts: expected HTTP 404', postsResponse);
+  const blogPageResponse = await guest.fetch('/blog.html');
+  assert(blogPageResponse.status === 404, 'GET /blog.html: expected HTTP 404', blogPageResponse);
   state.sessions.guest = guest;
 
   const health = ok(await guest.fetch('/api/health'), 'GET /api/health');
@@ -1020,20 +1020,17 @@ async function groupSearch() {
     junkSearchResponse,
   );
 
-  // style is free text over one service's subcategory and name, and reads unaccented too.
+  /* `style` was the assistant's own filter and went with it. A parameter the route no
+     longer knows is ignored rather than obeyed, so the same list comes back — an empty
+     page would be the old filter still narrowing on free text nothing produces. */
+  const unfilteredResponse = await guest.fetch('/api/search/salons');
+  const unfiltered = ok(unfilteredResponse, 'GET /api/search/salons');
   const styleResponse = await guest.fetch(`/api/search/salons?style=${encodeURIComponent('noi mi')}`);
-  const styled = ok(styleResponse, "GET /api/search/salons?style=noi mi");
-  assert(styled.length > 0, "search style 'noi mi': expected at least one salon", styleResponse);
-
-  // A style has to sit in one service: 'Sơn gel' plus 'Nối mi' is not a "sơn mi".
-  const splitStyleResponse = await guest.fetch(
-    `/api/search/salons?style=${encodeURIComponent('son mi')}`,
-  );
-  const splitStyle = ok(splitStyleResponse, "GET /api/search/salons?style=son mi");
+  const styled = ok(styleResponse, 'GET /api/search/salons?style=noi mi');
   assert(
-    splitStyle.length === 0,
-    "search style 'son mi': a style pieced together from two services is not a match",
-    splitStyleResponse,
+    unfiltered.length > 0 && styled.length === unfiltered.length,
+    'search: a parameter the route does not know must not narrow the results',
+    styleResponse,
   );
 
   // The wizard's salon picker answers the same way, over the salon name.
@@ -1049,53 +1046,6 @@ async function groupSearch() {
     'salons: nonsense must report meta.total 0',
     pickerJunkResponse,
   );
-
-  const assistantResponse = await guest.fetch('/api/search/assistant', {
-    method: 'POST',
-    json: { message: 'nail gel Quận 1 chiều mai dưới 500k' },
-  });
-  const assistant = ok(assistantResponse, 'POST /api/search/assistant');
-  const criteria = assistant.criteria;
-  assert(criteria.category === 'nail', 'assistant: expected category "nail"', assistantResponse);
-  assert(criteria.district === 'Quận 1', 'assistant: expected district "Quận 1"', assistantResponse);
-  assert(criteria.price_max === 500000, 'assistant: expected price_max 500000', assistantResponse);
-  assert(criteria.budget === 500000, 'assistant: expected budget 500000', assistantResponse);
-  assert(criteria.date === tomorrow, `assistant: expected date ${tomorrow}`, assistantResponse);
-  assert(criteria.time_from === '13:00', 'assistant: expected time_from 13:00 (chiều)', assistantResponse);
-  assert(criteria.time_to === '17:00', 'assistant: expected time_to 17:00 (chiều)', assistantResponse);
-  assert(
-    typeof assistant.reply === 'string' && assistant.reply.length > 0,
-    'assistant: expected a natural-language reply',
-    assistantResponse,
-  );
-  assert(
-    Array.isArray(assistant.chips) && assistant.chips.length > 0 && assistant.chips.length <= 3,
-    'assistant: expected 1-3 refinement chips',
-    assistantResponse,
-  );
-
-  const mergedResponse = await guest.fetch('/api/search/assistant', {
-    method: 'POST',
-    json: { message: 'tối nay', criteria: { rating_min: 4.5, radius_km: 3 } },
-  });
-  const merged = ok(mergedResponse, 'POST /api/search/assistant (merge)');
-  assert(merged.criteria.rating_min === 4.5, 'assistant merge: rating_min must survive', mergedResponse);
-  assert(merged.criteria.radius_km === 3, 'assistant merge: radius_km must survive', mergedResponse);
-  assert(merged.criteria.time_from === '17:00', 'assistant merge: expected the tối window', mergedResponse);
-
-  // Criteria come straight back from the client, so a value of the wrong type must be
-  // dropped rather than reaching the reply builder's date/time formatting.
-  const junkResponse = await guest.fetch('/api/search/assistant', {
-    method: 'POST',
-    json: { message: 'nail', criteria: { date: 5, time_from: 7, price_max: 'nhiều', category: {} } },
-  });
-  const junk = ok(junkResponse, 'POST /api/search/assistant with malformed criteria');
-  assert(
-    typeof junk.reply === 'string' && junk.reply.length > 0,
-    'assistant: malformed criteria must still produce a reply, never a 500',
-    junkResponse,
-  );
-  assert(junk.criteria.date === undefined, 'assistant: a malformed date must not be echoed back', junkResponse);
 
   const suggestionsResponse = await guest.fetch('/api/search/suggestions');
   const suggestions = ok(suggestionsResponse, 'GET /api/search/suggestions');
@@ -2905,479 +2855,13 @@ async function groupPromotions() {
 }
 
 /* ============================================================================
- * 11 — posts
- * ========================================================================= */
-
-async function groupPosts() {
-  const guest = session('guest');
-  const customer = session('customer');
-  const partnerA = session('partnerA');
-  const partnerB = session('partnerB');
-
-  const listResponse = await guest.fetch('/api/posts');
-  const list = ok(listResponse, 'GET /api/posts');
-  assert(list.length > 0, 'posts: expected a feed', listResponse);
-  assert('comment_count' in list[0] && 'author' in list[0], 'posts: expected comment_count and author', listResponse);
-  assert(list.every((post) => post.can_manage !== true), 'public posts: must never expose a true management capability', listResponse);
-
-  const videoResponse = await guest.fetch('/api/posts?type=video');
-  const videos = ok(videoResponse, 'GET /api/posts?type=video');
-  assert(
-    videos.length > 0 && videos.every((item) => item.type === 'video'),
-    'posts?type=video: every item must be a video',
-    videoResponse,
-  );
-
-  const detailResponse = await guest.fetch('/api/posts/xu-huong-nail-han-quoc-2026');
-  const detail = ok(detailResponse, 'GET /api/posts/:slug');
-  assert(typeof detail.content === 'string', 'post detail: expected full content', detailResponse);
-  assert(detail.comments.length >= 2, 'post detail: expected the seeded comments', detailResponse);
-  assert(detail.source === null && detail.salon === null, 'legacy post: social attribution must be null', detailResponse);
-
-  const title = 'Bài viết trùng tên từ bộ kiểm thử';
-  const first = ok(
-    await customer.fetch('/api/posts', { method: 'POST', json: { type: 'article', title, content: 'Nội dung một.' } }),
-    'POST /api/posts (first)',
-  );
-  const second = ok(
-    await customer.fetch('/api/posts', { method: 'POST', json: { type: 'article', title, content: 'Nội dung hai.' } }),
-    'POST /api/posts (same title)',
-  );
-  assert(first.slug !== second.slug, 'posts: two posts sharing a title must get distinct slugs');
-  assert(first.source === null && first.salon === null, 'normal post: social attribution must stay optional');
-
-  const socialUrl = 'https://www.instagram.com/p/oak-smoke-test/';
-  expectError(
-    await customer.fetch('/api/posts', {
-      method: 'POST',
-      json: {
-        type: 'article',
-        title: 'Nguồn xã hội từ tài khoản khách',
-        content: 'Không được phép.',
-        source_platform: 'instagram',
-        source_url: socialUrl,
-      },
-    }),
-    403,
-    'FORBIDDEN',
-    'POST /api/posts social source as customer',
-  );
-
-  for (const [label, source_platform, source_url] of [
-    ['an unsupported platform', 'threads', 'https://threads.net/@oak/post/123'],
-    ['an insecure URL', 'facebook', 'http://facebook.com/oak/posts/123'],
-    ['a mismatched domain', 'instagram', 'https://facebook.com/oak/posts/123'],
-    ['a deceptive domain', 'facebook', 'https://facebook.com.evil.example/oak/posts/123'],
-    ['a Facebook redirector', 'facebook', 'https://l.facebook.com/l.php?u=https%3A%2F%2Fevil.example'],
-    ['a platform homepage', 'youtube', 'https://www.youtube.com/'],
-    ['a profile instead of a post', 'instagram', 'https://www.instagram.com/oak'],
-  ]) {
-    expectError(
-      await partnerA.fetch('/api/posts', {
-        method: 'POST',
-        json: {
-          type: 'article',
-          title: `Bài nguồn ${label}`,
-          content: 'Nội dung kiểm thử.',
-          source_platform,
-          source_url,
-        },
-      }),
-      400,
-      'VALIDATION_ERROR',
-      `POST /api/posts social source with ${label}`,
-    );
-  }
-
-  expectError(
-    await partnerA.fetch('/api/posts', {
-      method: 'POST',
-      json: {
-        type: 'article',
-        title: 'Sai nền tảng khai báo',
-        content: 'Nội dung kiểm thử.',
-        source_platform: 'facebook',
-        source_url: 'https://www.instagram.com/p/mismatch',
-      },
-    }),
-    400,
-    'VALIDATION_ERROR',
-    'POST /api/posts with a mismatched optional platform claim',
-  );
-
-  const social = ok(
-    await partnerA.fetch('/api/posts', {
-      method: 'POST',
-      json: {
-        type: 'article',
-        title: 'Mẫu nail mới từ Instagram',
-        content: 'Nội dung do salon biên tập cho OAK.',
-        excerpt: 'Xu hướng mới từ trang Instagram của salon.',
-        source_url: socialUrl,
-      },
-    }),
-    'POST /api/posts with social source as partner',
-  );
-  assert(
-    social.source?.platform === 'instagram' && social.source?.url === 'https://www.instagram.com/p/oak-smoke-test',
-    'social post: source must be normalized and returned',
-  );
-  assert(social.salon?.id && social.salon?.name && social.salon?.slug, 'social post: salon attribution is required');
-
-  const socialDetail = ok(
-    await guest.fetch(`/api/posts/${encodeURIComponent(social.slug)}`),
-    'GET /api/posts/:slug for social post',
-  );
-  assert(
-    socialDetail.source?.url === social.source.url && socialDetail.salon?.id === social.salon.id,
-    'social post detail: source and salon must survive reload',
-  );
-  const socialList = ok(await guest.fetch('/api/posts?limit=50'), 'GET /api/posts after social post');
-  const listedSocial = socialList.find((item) => item.id === social.id);
-  assert(
-    listedSocial?.source?.platform === 'instagram' && listedSocial?.salon?.id === social.salon.id,
-    'social post list: source and salon attribution must be public',
-  );
-
-  expectError(
-    await partnerA.fetch('/api/posts', {
-      method: 'POST',
-      json: {
-        type: 'article',
-        title: 'Bản nhập trùng',
-        content: 'Nội dung trùng nguồn.',
-        source_platform: 'instagram',
-        source_url: `${socialUrl}?foo=one#comments`,
-      },
-    }),
-    409,
-    'DUPLICATE_SOURCE',
-    'POST /api/posts with a duplicate source in the same salon',
-  );
-
-  expectError(
-    await partnerB.fetch('/api/posts', {
-      method: 'POST',
-      json: {
-        type: 'article',
-        title: 'Cùng nguồn từ salon khác',
-        content: 'Nguồn đã tồn tại trên toàn blog.',
-        source_url: 'https://instagram.com/p/oak-smoke-test?foo=another-value#comments',
-      },
-    }),
-    409,
-    'DUPLICATE_SOURCE',
-    'POST /api/posts with a duplicate canonical source in another salon',
-  );
-
-  if (!EXTERNAL_URL) {
-    const otherSalon = ok(await partnerB.fetch('/api/partner/salon'), 'partner B salon for DB constraints');
-    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
-    await directClient.connect();
-    try {
-      let uniqueError = null;
-      try {
-        await directClient.query(
-          `INSERT INTO posts
-             (author_id, salon_id, type, title, slug, content, source_platform, source_url, created_at)
-           SELECT owner_id, id, 'article', $1, $2, $3, 'instagram', $4, $5
-           FROM salons WHERE id = $6`,
-          [
-            'Race-safe duplicate',
-            `race-safe-duplicate-${Date.now()}`,
-            'The database index must reject this even without the route pre-check.',
-            social.source.url,
-            new Date().toISOString(),
-            otherSalon.id,
-          ],
-        );
-      } catch (error) {
-        uniqueError = error;
-      }
-      assert(
-        uniqueError?.code === '23505' && uniqueError?.constraint === 'idx_posts_source_url',
-        'posts DB: the global partial unique index must close the duplicate race',
-      );
-
-      let shapeError = null;
-      try {
-        await directClient.query(
-          `INSERT INTO posts (author_id, type, title, slug, content, source_platform, created_at)
-           SELECT owner_id, 'article', $1, $2, $3, 'instagram', $4
-           FROM salons WHERE id = $5`,
-          [
-            'Incomplete social fields',
-            `incomplete-social-fields-${Date.now()}`,
-            'The all-or-none constraint must reject this row.',
-            new Date().toISOString(),
-            otherSalon.id,
-          ],
-        );
-      } catch (error) {
-        shapeError = error;
-      }
-      assert(
-        shapeError?.code === '23514' && shapeError?.constraint === 'posts_social_fields_all_or_none',
-        'posts DB: source platform and URL must be paired and require salon attribution',
-      );
-      const constraintDefinition = await directClient.query(`
-        SELECT pg_get_constraintdef(oid) AS definition
-        FROM pg_constraint
-        WHERE conname = 'posts_social_fields_all_or_none' AND conrelid = 'posts'::regclass
-      `);
-      assert(
-        constraintDefinition.rows[0]?.definition.includes('source_platform IS NULL')
-          && !constraintDefinition.rows[0]?.definition.includes('salon_id IS NULL'),
-        'posts DB: native salon posts must be allowed without social source fields',
-      );
-
-      let platformError = null;
-      try {
-        await directClient.query(
-          `INSERT INTO posts
-             (author_id, salon_id, type, title, slug, content, source_platform, source_url, created_at)
-           SELECT owner_id, id, 'article', $1, $2, $3, 'threads', $4, $5
-           FROM salons WHERE id = $6`,
-          [
-            'Unsupported DB platform',
-            `unsupported-db-platform-${Date.now()}`,
-            'The platform check must reject this row.',
-            `https://threads.net/oak/${Date.now()}`,
-            new Date().toISOString(),
-            otherSalon.id,
-          ],
-        );
-      } catch (error) {
-        platformError = error;
-      }
-      assert(
-        platformError?.code === '23514' && platformError?.constraint === 'posts_source_platform_allowed',
-        'posts DB: source platform must stay inside the supported allowlist',
-      );
-    } finally {
-      await directClient.end();
-    }
-  }
-
-  const comment = ok(
-    await customer.fetch(`/api/posts/${first.id}/comments`, {
-      method: 'POST',
-      json: { content: 'Bình luận từ bộ kiểm thử.' },
-    }),
-    'POST /api/posts/:id/comments',
-  );
-  assert(comment.content === 'Bình luận từ bộ kiểm thử.', 'post comment: expected the content back');
-
-  expectError(await guest.fetch('/api/posts/mine'), 401, 'UNAUTHENTICATED', 'guest GET /api/posts/mine');
-  const customerMineResponse = await customer.fetch('/api/posts/mine?limit=50');
-  const customerMine = ok(customerMineResponse, 'customer GET /api/posts/mine');
-  assert(
-    customerMine.some((post) => post.id === first.id) && customerMine.some((post) => post.id === second.id),
-    'posts mine: a customer must see their own posts',
-  );
-  assert(customerMine.every((post) => post.can_manage === true), 'posts mine: every owned row must carry a server-issued management capability');
-  assert(
-    customerMine.every((post) => post.author?.name && post.id !== social.id),
-    'posts mine: editable rows include author data and never leak another author',
-  );
-  const otherPost = ok(
-    await partnerB.fetch('/api/posts', {
-      method: 'POST',
-      json: { type: 'video', title: 'Video riêng của salon B', video_url: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
-    }),
-    'partner B creates a post for ownership tests',
-  );
-  assert(otherPost.salon?.id, 'partner native post: salon attribution must be derived by the server');
-  const mineResponse = await partnerA.fetch('/api/posts/mine?limit=1');
-  const mine = ok(mineResponse, 'GET /api/posts/mine with pagination');
-  assert(mineResponse.body.meta.page === 1 && mineResponse.body.meta.limit === 1, 'posts mine: pagination meta must be returned');
-  assert(mine.every((post) => post.can_manage === true), 'partner posts mine: every row must be explicitly manageable');
-  assert(mine.every((post) => post.id !== otherPost.id), 'posts mine: another author must never leak into the list');
-  const mineArticlesResponse = await partnerA.fetch('/api/posts/mine?type=article&limit=50');
-  const mineArticles = ok(mineArticlesResponse, 'GET /api/posts/mine?type=article');
-  assert(mineArticles.some((post) => post.id === social.id) && mineArticles.every((post) => post.type === 'article'), 'posts mine: type filter and author scope must both apply');
-
-  const customerPatched = ok(
-    await customer.fetch(`/api/posts/${first.id}`, {
-      method: 'PATCH',
-      json: { title: 'Bài của tôi đã cập nhật', content: 'Nội dung của khách đã cập nhật.' },
-    }),
-    'customer PATCH own post',
-  );
-  assert(customerPatched.slug === first.slug && customerPatched.type === first.type, 'customer patch: slug and type stay immutable');
-  const customerPersisted = ok(await guest.fetch(`/api/posts/${first.slug}`), 'GET customer patched post publicly');
-  assert(customerPersisted.title === customerPatched.title, 'customer patch: public detail must persist edits');
-  expectError(
-    await customer.fetch(`/api/posts/${first.id}`, { method: 'PATCH', json: { source_url: socialUrl } }),
-    403,
-    'FORBIDDEN',
-    'customer PATCH own social source',
-  );
-  expectError(await guest.fetch(`/api/posts/${social.id}`, { method: 'DELETE' }), 401, 'UNAUTHENTICATED', 'guest DELETE /api/posts/:id');
-  expectError(await partnerB.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { title: 'No' } }), 404, 'NOT_FOUND', 'other owner PATCH /api/posts/:id');
-  expectError(await partnerB.fetch(`/api/posts/${first.id}`, { method: 'DELETE' }), 404, 'NOT_FOUND', 'other owner DELETE /api/posts/:id');
-  expectError(await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { type: 'video' } }), 400, 'VALIDATION_ERROR', 'PATCH /api/posts/:id attempting to mutate type');
-  expectError(await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { content: '' } }), 400, 'VALIDATION_ERROR', 'PATCH /api/posts/:id with invalid article content');
-
-  const changedSource = 'https://www.facebook.com/oak/posts/partner-management-smoke';
-  const patchedPost = ok(
-    await partnerA.fetch(`/api/posts/${social.id}`, {
-      method: 'PATCH',
-      json: { title: 'Mẫu nail đã cập nhật', content: 'Nội dung mới.', source_url: changedSource },
-    }),
-    'PATCH /api/posts/:id as owner',
-  );
-  assert(patchedPost.slug === social.slug, 'post patch: slug must remain stable');
-  assert(patchedPost.source?.platform === 'facebook', 'post patch: platform must be derived from the source URL');
-  const persisted = ok(await guest.fetch(`/api/posts/${social.slug}`), 'GET patched post publicly');
-  assert(persisted.title === 'Mẫu nail đã cập nhật' && persisted.source.url === changedSource, 'post patch: public detail must persist edits');
-  const ordinaryPartnerEdit = ok(
-    await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { excerpt: 'Chỉ đổi mô tả.' } }),
-    'PATCH partner post without touching attribution',
-  );
-  assert(
-    ordinaryPartnerEdit.source?.url === changedSource && ordinaryPartnerEdit.salon?.id === social.salon.id,
-    'post patch: an ordinary edit must preserve source and salon attribution',
-  );
-
-  const duplicateTarget = ok(
-    await partnerB.fetch('/api/posts', { method: 'POST', json: { type: 'article', title: 'Nguồn khác', content: 'Nguồn khác.', source_url: 'https://www.instagram.com/p/oak-other-source' } }),
-    'create another source for patch duplicate test',
-  );
-  expectError(
-    await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { source_url: duplicateTarget.source.url } }),
-    409,
-    'DUPLICATE_SOURCE',
-    'PATCH /api/posts/:id with a duplicate source',
-  );
-  const selfSource = ok(
-    await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { source_url: changedSource } }),
-    'PATCH /api/posts/:id retaining its own source URL',
-  );
-  assert(selfSource.source.url === changedSource, 'post patch: duplicate check must exclude the current id');
-  const clearedSource = ok(
-    await partnerA.fetch(`/api/posts/${social.id}`, { method: 'PATCH', json: { source_url: '' } }),
-    'PATCH /api/posts/:id clearing its social source',
-  );
-  assert(
-    clearedSource.source === null && clearedSource.salon?.id === social.salon.id,
-    'post patch: clearing source must retain immutable salon attribution',
-  );
-  expectError(
-    await partnerA.fetch(`/api/posts/${social.id}`, {
-      method: 'PATCH',
-      json: { source_url: '', source_platform: 'threads' },
-    }),
-    400,
-    'VALIDATION_ERROR',
-    'PATCH /api/posts/:id clearing source with a non-empty platform claim',
-  );
-
-  if (!EXTERNAL_URL) {
-    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
-    await directClient.connect();
-    try {
-      const legacy = await directClient.query(
-        `INSERT INTO posts (author_id, type, title, slug, content, created_at)
-         SELECT owner_id, 'article', $1, $2, $3, $4 FROM salons WHERE id = $5 RETURNING id, slug`,
-        ['Legacy partner post', `legacy-partner-post-${Date.now()}`, 'Legacy content.', new Date().toISOString(), social.salon.id],
-      );
-      const legacyPost = legacy.rows[0];
-      const attributed = ok(
-        await partnerA.fetch(`/api/posts/${legacyPost.id}`, {
-          method: 'PATCH',
-          json: { source_url: `https://www.facebook.com/oak/posts/legacy-${Date.now()}` },
-        }),
-        'PATCH a legacy partner post to add social source',
-      );
-      assert(
-        attributed.salon?.id === social.salon.id && attributed.source?.platform === 'facebook',
-        'post patch: adding a source to a legacy partner row derives its owned salon',
-      );
-      ok(await partnerA.fetch(`/api/posts/${legacyPost.id}`, { method: 'DELETE' }), 'delete legacy partner smoke post');
-    } finally {
-      await directClient.end();
-    }
-  }
-
-  /* Writing to the public feed is throttled per account, and only a post that actually
-     lands spends the allowance: everything above this line was either refused or one of
-     the two the customer has already published. */
-  const throttled = [];
-  for (let n = 3; n <= 5; n += 1) {
-    throttled.push(ok(
-      await customer.fetch('/api/posts', {
-        method: 'POST',
-        json: { type: 'article', title: `Bài chạm hạn mức ${n}`, content: 'Nội dung kiểm thử.' },
-      }),
-      `POST /api/posts (${n} of five in the hour)`,
-    ));
-  }
-  expectError(
-    await customer.fetch('/api/posts', {
-      method: 'POST',
-      json: { type: 'article', title: 'Bài thứ sáu trong giờ', content: 'Vượt hạn mức.' },
-    }),
-    429,
-    'RATE_LIMITED',
-    'POST /api/posts beyond five in one hour',
-  );
-
-  /* Moderation: a post leaves the public feed without anybody's words being deleted, and
-     only an account named in ADMIN_EMAILS can do it. */
-  const moderated = throttled[0];
-  expectError(
-    await customer.fetch(`/api/posts/${moderated.id}/status`, { method: 'PATCH', json: { status: 'hidden' } }),
-    403,
-    'FORBIDDEN',
-    'PATCH /api/posts/:id/status as the post\'s own author',
-  );
-  if (EXTERNAL_URL) {
-    skip('hiding a post: the running server declares its own ADMIN_EMAILS');
-  } else {
-    const admin = session('customer2');
-    ok(
-      await admin.fetch(`/api/posts/${moderated.id}/status`, { method: 'PATCH', json: { status: 'hidden' } }),
-      'PATCH /api/posts/:id/status as an admin',
-    );
-    const feed = ok(await guest.fetch('/api/posts?limit=50'), 'GET /api/posts after hiding one');
-    assert(feed.every((post) => post.id !== moderated.id), 'moderation: a hidden post must leave the public feed');
-    expectError(
-      await guest.fetch(`/api/posts/${moderated.slug}`),
-      404,
-      'NOT_FOUND',
-      'hidden post at its own address',
-    );
-    expectError(
-      await admin.fetch(`/api/posts/${moderated.id}/status`, { method: 'PATCH', json: { status: 'draft' } }),
-      400,
-      'VALIDATION_ERROR',
-      'PATCH /api/posts/:id/status with a status nobody defined',
-    );
-    ok(
-      await admin.fetch(`/api/posts/${moderated.id}/status`, { method: 'PATCH', json: { status: 'published' } }),
-      'PATCH /api/posts/:id/status back to published',
-    );
-    const restored = ok(await guest.fetch('/api/posts?limit=50'), 'GET /api/posts after publishing it again');
-    assert(restored.some((post) => post.id === moderated.id), 'moderation: publishing must put it back');
-  }
-
-  ok(await customer.fetch(`/api/posts/${first.id}`, { method: 'DELETE' }), 'customer DELETE own post with comments');
-  expectError(await guest.fetch(`/api/posts/${first.slug}`), 404, 'NOT_FOUND', 'customer-deleted post public detail');
-  ok(await customer.fetch(`/api/posts/${social.id}/comments`, { method: 'POST', json: { content: 'Sẽ bị xóa cùng bài.' } }), 'comment before owned post deletion');
-  ok(await partnerA.fetch(`/api/posts/${social.id}`, { method: 'DELETE' }), 'DELETE /api/posts/:id as owner');
-  expectError(await guest.fetch(`/api/posts/${social.slug}`), 404, 'NOT_FOUND', 'deleted post public detail');
-  expectError(await partnerA.fetch(`/api/posts/${social.id}`, { method: 'DELETE' }), 404, 'NOT_FOUND', 'deleting an already deleted post');
-}
-
-/* ============================================================================
  * 11b — sitemap
  * ========================================================================= */
 
 /* The map a crawler reads. The pages half is the committed ui/sitemap.xml (pinned by
    server/test/seo-ui.test.mjs); what is asserted here is the half that can only come from
-   the database — one entry per listed salon and per published post, in place of the four
-   query-driven shells that render "not found" without a ?slug. */
+   the database — one entry per listed salon, in place of the three query-driven shells
+   that render "not found" without a ?slug. */
 async function groupSitemap() {
   const guest = session('guest');
 
@@ -3410,18 +2894,9 @@ async function groupSitemap() {
     );
   }
 
-  const posts = ok(await guest.fetch('/api/posts?limit=50'), 'GET /api/posts for the sitemap');
-  for (const post of posts) {
-    assert(
-      locations.includes(`${origin}/blog-chi-tiet.html?slug=${encodeURIComponent(post.slug)}`),
-      `sitemap: the published post ${post.slug} is missing from the map`,
-      response,
-    );
-  }
-
   // The shells themselves are replaced, not added to: a bare salon-profile.html or a
   // service page with no ?id is a "không tìm thấy" panel with a brand's name on it.
-  for (const shell of ['salon-profile.html', 'blog-chi-tiet.html', 'chi-tiet-dich-vu.html', 'ho-so-chuyen-gia.html']) {
+  for (const shell of ['salon-profile.html', 'chi-tiet-dich-vu.html', 'ho-so-chuyen-gia.html']) {
     assert(
       !locations.includes(`${origin}/${shell}`),
       `sitemap: ${shell} is listed without the query that gives it something to show`,
@@ -3429,8 +2904,13 @@ async function groupSitemap() {
     );
   }
   assert(
-    locations.includes(`${origin}/`) && locations.includes(`${origin}/blog.html`),
+    locations.includes(`${origin}/`) && locations.includes(`${origin}/gioi-thieu.html`),
     'sitemap: the ordinary pages must still be in it',
+    response,
+  );
+  assert(
+    !locations.some((loc) => loc.includes('blog')),
+    'sitemap: the blog is gone, so no address of it belongs in the map',
     response,
   );
 }
@@ -12416,12 +11896,17 @@ async function groupRegisterThrottle() {
 async function main() {
   const guest = new Session();
 
-  // The server's own notion of today, straight from the date parser it ships with.
-  const probe = await guest.fetch('/api/search/assistant', { method: 'POST', json: { message: 'hôm nay' } });
-  state.today = probe.body?.data?.criteria?.date;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(state.today ?? '')) {
-    throw new Error(`could not resolve the server's today: ${preview(probe)}`);
+  /* The server's own notion of today, off the clock it stamps every response with. The
+     Date header is UTC; src/lib/time.js reads "now" in Vietnam, which has kept no daylight
+     saving since 1975, so the fixed offset that file names turns the instant into the day
+     the server itself would call today. Not the runner's own clock: in external mode the
+     server may be on another machine, and on Render it is on another continent. */
+  const clock = await fetch(`${BASE_URL}/api/health`);
+  const stamped = Date.parse(clock.headers.get('date') ?? '');
+  if (!Number.isFinite(stamped)) {
+    throw new Error(`the server sent no readable Date header (HTTP ${clock.status})`);
   }
+  state.today = new Date(stamped + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
   console.log(`Base URL: ${BASE_URL}`);
   console.log(`Server today: ${state.today}\n`);
 
@@ -12439,7 +11924,6 @@ async function main() {
   await group('08 favorites', groupFavorites);
   await group('09 notifications', groupNotifications);
   await group('10 promotions', groupPromotions);
-  await group('11 posts', groupPosts);
   await group('11b sitemap', groupSitemap);
   await group('12 users', groupUsers);
   await group('13 uploads', groupUploads);

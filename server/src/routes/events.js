@@ -1,8 +1,8 @@
 /*
  * Anonymous product measurement: POST /api/events, one row per thing that happened.
  *
- * The point is to know whether anyone uses the blog CTA, the assistant, the language
- * switch — questions that are otherwise answered by guessing. The cost of asking them has
+ * The point is to know whether anyone uses the search box, the booking wizard, the
+ * language switch — questions that are otherwise answered by guessing. The cost of asking them has
  * to stay near zero: no account, no cookie of its own, nothing personal in a row, and
  * nothing here that can make a page fail. Callers are pages, via OAK.track() in
  * ui/assets/js/oak-api.js, which sends and forgets.

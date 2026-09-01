@@ -46,8 +46,6 @@ Trong Render dashboard → service `oak-demo` → **Environment**, thêm 5 biế
 | `RESEND_API_KEY` | API key của Resend — kênh gửi mail đặt lại mật khẩu (§7) |
 | `RESET_MAIL_FROM` | Địa chỉ gửi, vd. `OAK Beauty <no-reply@oakbeauty.vn>` — phải thuộc domain đã xác minh ở Resend |
 
-Một biến **tùy chọn**: `ADMIN_EMAILS` — danh sách email (ngăn cách bằng dấu phẩy) được phép ẩn/hiện bài blog qua `PATCH /api/posts/:id/status`. Không khai thì không tài khoản nào ẩn được bài (route trả 403), tức là lời hứa "gỡ nội dung vi phạm" ở Điều khoản chưa có công cụ thực thi — khai một địa chỉ trước khi mở blog cho người dùng thật.
-
 Các biến còn lại đã có sẵn giá trị trong `render.yaml`, không cần khai trong dashboard — đáng chú ý là `TZ=Asia/Ho_Chi_Minh`: container Render chạy UTC, biến này đưa đồng hồ hệ thống của container về đúng quy ước sản xuất, cho mọi thứ đọc trực tiếp từ đồng hồ đó. ("Hôm nay" và "bây giờ" của phần đặt lịch do `server/src/lib/time.js` tự ép về múi giờ VN nên đúng kể cả khi thiếu biến này.)
 
 Sau đó **Save & Deploy** (hoặc push commit mới). Lần boot đầu tiên server tự tạo bảng, nhưng **không** seed dữ liệu mẫu: mọi tài khoản demo dùng chung một mật khẩu in công khai trong `server/README.md`, nên `NODE_ENV=production` là đủ để server bỏ qua seed và ghi một dòng log nói vậy. Muốn có dữ liệu mẫu trên một database production thì tự khai `SEED_DEMO=1`.
@@ -61,7 +59,7 @@ Lưu ý: script **chỉ đóng lối đăng nhập**. Sáu salon demo vẫn còn
 `render.yaml` khai `region: singapore` — cạnh project Supabase ở Singapore. Nhưng service `oak-demo` **đang chạy ở Oregon**, và Render **không đổi được region của một service đã tạo**. Muốn chuyển:
 
 1. **New → Blueprint** từ chính repo này: service mới đọc `render.yaml` nên nhận `singapore`.
-2. Chép 5 biến đặt tay ở bảng trên (và `ADMIN_EMAILS` nếu có khai) sang service mới.
+2. Chép 5 biến đặt tay ở bảng trên sang service mới.
 3. Chép cả `JWT_SECRET` từ tab **Environment** của service cũ sang service mới. `render.yaml` khai `generateValue: true` nên service mới tự sinh một khoá khác, và một khoá khác nghĩa là **mọi người đang đăng nhập đều bị đăng xuất** ngay lúc chuyển.
 4. Gọi `https://<service-mới>.onrender.com/api/health` — phải trả `{"success":true,...}`.
 5. Trỏ domain và monitor UptimeRobot (§8) sang service mới, rồi mới xoá service cũ.
@@ -73,8 +71,6 @@ Database không đổi: cả hai service dùng chung một `DATABASE_URL`, nên 
 Render gói free không có `preDeployCommand`, nên cổng kiểm tra được đặt thẳng vào `buildCommand`: `npm ci && npm run test:unit`. Unit test đỏ thì build hỏng, và build hỏng thì Render giữ nguyên bản đang chạy — đây là thứ duy nhất chặn được một bản deploy hỏng trên gói free. Bộ unit không mở database nào; nó đọc mã nguồn, đọc markup, chạy các hàm được tách ra, và chỉ mở đúng một cổng loopback tạm thời (`test/static-headers.test.mjs` dựng một app express trần để đọc lại header tĩnh) — nếu một ngày nào đó môi trường build cấm cả `listen` loopback thì đó là chỗ build sẽ đỏ. Cả bộ chạy khoảng ba giây, và `node:test` có sẵn trong Node nên không cần cài thêm gì.
 
 Smoke test cần một Postgres riêng nên vẫn ở GitHub Actions — [`.github/workflows/test.yml`](.github/workflows/test.yml) chạy unit test, smoke test (Postgres 17 dựng làm service container) và các bộ kiểm tra i18n/CSS trên mỗi push và pull request vào `main`. Những thứ đó Render không chạy, nên vẫn đọc tab **Actions** trước khi tin một bản deploy.
-
-Nhân tiện, kiểm tra `ADMIN_EMAILS` trong Render: nó **không được** là một địa chỉ demo (bộ smoke test dùng `hoangyen@oak.vn`), nếu không thì quyền ẩn/hiện bài blog nằm ở một tài khoản mà script trên vừa khoá.
 
 ---
 
@@ -249,7 +245,7 @@ Các trang gọi `OAK.track(name, meta)` (`ui/assets/js/oak-api.js`) → `POST /
 
 Không cần cấu hình gì khi deploy — bảng `events` được tạo bằng `CREATE TABLE IF NOT EXISTS` lúc boot như mọi bảng khác.
 
-Đọc số hằng tuần bằng `tools/sql/weekly.sql`: mở **Supabase → SQL Editor** (hoặc `psql "$DATABASE_URL"`), dán từng truy vấn trong 5 truy vấn — tuần này so tuần trước, lượt truy cập theo ngày, phễu tìm kiếm → wizard → đặt lịch, blog CTA có dẫn tới đặt lịch không, và lượt truy cập đến từ đâu. File chỉ đọc, không ghi gì.
+Đọc số hằng tuần bằng `tools/sql/weekly.sql`: mở **Supabase → SQL Editor** (hoặc `psql "$DATABASE_URL"`), dán từng truy vấn trong 4 truy vấn — tuần này so tuần trước, lượt truy cập theo ngày, phễu tìm kiếm → wizard → đặt lịch, và lượt truy cập đến từ đâu. File chỉ đọc, không ghi gì.
 
 ---
 

@@ -15,8 +15,8 @@
  *     there to remove — so every pair written is checked against the ratio of its own box, and
  *     an image in a pixel-height or grid-sized box (ket-qua-tim-kiem.html's result card, the
  *     ho-so-chuyen-gia portrait) is left alone until real intrinsic sizes are known for it.
- *   - the two heavy things that are not needed for the first screen: the video embed on a blog
- *     post, and the blur behind the fixed top bar on a phone.
+ *   - the heavy thing that is not needed for the first screen: the blur behind the fixed top
+ *     bar on a phone.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -206,11 +206,7 @@ test('a nominal size on a card image is the ratio of the box the CSS draws', () 
   assert.ok(checked > 12, `only ${checked} card images carry a nominal size`);
 });
 
-test('the video embed and the blur behind the top bar wait for a reason to run', () => {
-  const post = read('ui/blog-chi-tiet.html');
-  const iframe = post.match(/<iframe[^>]*>/)[0];
-  assert.match(iframe, /loading="lazy"/, 'a blog post loads its YouTube embed before anyone scrolls to it');
-
+test('the blur behind the top bar waits for a reason to run', () => {
   const utils = read('ui/assets/css/oak-utils.css');
   const nav = utils.slice(utils.indexOf('.glass-nav {'));
   const plain = nav.slice(0, nav.indexOf('}'));
