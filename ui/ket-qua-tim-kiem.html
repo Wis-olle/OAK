@@ -279,12 +279,22 @@
 <span class="material-symbols-outlined text-4xl text-on-surface-variant/50" data-icon="spa">spa</span>
 </div>
 </template>
+<!-- The two things a card may single out, laid one under the other so a salon that is both
+     does not draw a chip over a chip. -->
+<div class="absolute top-2 left-2 flex flex-col items-start gap-1">
+<!-- A placement the salon paid OAK for, and the only thing on this card that money buys.
+     It is drawn as a label rather than left to the ordering alone, because a reader who is
+     not told which salon is here because it paid cannot tell. -->
+<div class="bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs font-label-md text-primary flex items-center gap-1" x-show="salon.featured">
+<span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-weight="fill">stars</span> Nổi bật
+                        </div>
 <!-- The verified badge sat on every card: a salon is verified=1 the moment it signs up, so
      it separated nobody from anybody. What the card can honestly single out is a salon its
      own reviews have already singled out. -->
-<div class="absolute top-2 left-2 bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs font-label-md text-primary flex items-center gap-1" x-show="salon.review_count &gt;= 10 &amp;&amp; salon.rating &gt;= 4.7">
+<div class="bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs font-label-md text-primary flex items-center gap-1" x-show="salon.review_count &gt;= 10 &amp;&amp; salon.rating &gt;= 4.7">
 <span aria-hidden="true" class="material-symbols-outlined text-[14px]" data-weight="fill">favorite</span> Được yêu thích
                         </div>
+</div>
 <!-- Saving a salon from the results is the shortest path back to it; a guest is sent to
      sign in and comes back here, to this very search. -->
 <button :aria-pressed="isFavorite(salon)" @click.stop="toggleFavorite(salon)" aria-label="Lưu salon yêu thích" class="absolute top-3 right-3 w-11 h-11 rounded-full bg-surface/90 backdrop-blur flex items-center justify-center text-secondary hover:bg-surface transition-colors" type="button">

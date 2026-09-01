@@ -226,8 +226,8 @@ test('no page still calls itself a demo', () => {
 test('the partner half of the terms exists and is what partners are asked to accept', () => {
   const terms = readUi('dieu-khoan.html');
   assert.match(terms, /id="doi-tac"/);
-  assert.match(terms, /Phiên bản 1\.1/);
-  for (const promise of [/4 giờ làm việc/, /31\/12\/2026/, /30 ngày/]) {
+  assert.match(terms, /Phiên bản 1\.2/);
+  for (const promise of [/4 giờ làm việc/, /31\/12\/2026/, /30 ngày/, /không thu hoa hồng/]) {
     assert.match(terms, promise, `the partner section does not state ${promise}`);
   }
   assert.match(readUi('dang-nhap-doi-tac.html'), /href="dieu-khoan\.html#doi-tac"/);

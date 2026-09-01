@@ -5612,8 +5612,8 @@ test('each legal page gained one section at the end, and nothing above it moved'
      page's cross-reference. Read as whole lists rather than as substrings, so an insertion
      anywhere but the end fails here.
 
-     Note test/seo-ui.test.mjs pins /Phiên bản 1\.1/ on dieu-khoan.html. That line names the
-     mục-7 revision and was deliberately not bumped, so it is left exactly as it stands. */
+     Note test/seo-ui.test.mjs pins the version line on dieu-khoan.html. That line names the
+     latest mục-7 revision, so it moves whenever mục 7 does and is not this test's business. */
   const pages = [
     ['dieu-khoan.html', termsHtml, 'chuyen-vien', '9. Dành cho chuyên viên', [
       've-oak-beauty', 'tai-khoan', 'huy-lich', 'gia-va-thanh-toan',

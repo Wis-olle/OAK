@@ -132,6 +132,19 @@
 <!-- Partner registration -->
 <form @submit.prevent="register()" class="space-y-4" x-cloak="" x-show="mode === 'register'">
 <h3 class="font-headline-sm text-headline-sm text-primary text-center mb-2">Đăng ký tạo cửa hàng mới</h3>
+<!-- What joining costs, said before the form and not in the terms alone. Every line is a
+     commitment OAK is already keeping today, and the last one is the only future charge
+     anybody is being warned about — a price list that promises no fee forever would be the
+     one sentence this page could not honour. -->
+<div class="rounded-xl border border-outline-variant/30 p-4">
+<h4 class="font-label-md text-label-md text-primary uppercase tracking-wider mb-3">Bảng giá</h4>
+<ul class="flex flex-col gap-2 font-caption text-caption text-on-surface-variant list-disc pl-5">
+<li>Miễn phí đến hết 31/12/2026: không phí đăng ký, không phí hàng tháng.</li>
+<li>Không thu hoa hồng trên lịch hẹn. Tiền khách trả là của salon.</li>
+<li>Sau ngày đó, OAK Beauty có thể bán vị trí “Nổi bật” — salon trả tiền để được xếp lên đầu danh sách trong một khoảng thời gian. Đây là lựa chọn, không bắt buộc.</li>
+<li>Mọi mức phí đều được báo trước ít nhất 30 ngày qua Thông báo trong ứng dụng, trước khi bắt đầu thu.</li>
+</ul>
+</div>
 <div>
 <label class="block font-caption text-caption text-on-surface-variant mb-1" for="register-name">Họ và tên chủ salon</label>
 <input class="oak-field" id="register-name" required="" type="text" x-model="form.name">

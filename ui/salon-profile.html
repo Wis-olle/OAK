@@ -147,6 +147,11 @@
 <!-- Every salon is verified=1 the moment it signs up, so a verification claim here said
      nothing. What the icon can honestly claim is that this salon registered with OAK. -->
 <span :style="filled" aria-label="Đối tác OAK" class="material-symbols-outlined text-secondary-container" role="img" x-show="salon.verified">verified</span>
+<!-- A placement the salon paid OAK for, said in a word rather than left to the ordering of
+     a list this reader may never have seen. -->
+<span class="shrink-0 flex items-center gap-1 px-2 py-1 rounded bg-surface-container-low text-primary font-label-md text-xs" x-show="salon.featured">
+<span :style="filled" aria-hidden="true" class="material-symbols-outlined text-[14px]">stars</span> Nổi bật
+                        </span>
 <button :aria-pressed="isFavorite" @click="toggleFavorite()" aria-label="Lưu salon yêu thích" class="shrink-0 w-11 h-11 flex items-center justify-center rounded-full border border-outline-variant/30 text-secondary-container hover:bg-surface-container-low transition-colors" type="button">
 <span :style="isFavorite ? filled : ''" class="material-symbols-outlined">favorite</span>
 </button>
