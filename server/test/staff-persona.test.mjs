@@ -1173,11 +1173,28 @@ test('the panel says what registering freely gets you, and what it does not', ()
   assert.match(loginHtml, /Nhận hồ sơ không đưa thêm thông tin nào của chiếc ghế này ra công khai/);
   assert.doesNotMatch(loginHtml, /không đưa thêm thông tin nào của bạn/);
 
-  /* The enumeration is the SELECT list of selectSalonStaff in routes/salons.js, which serves
-     the rating and the years on an unclaimed row like everything else on it. */
-  for (const served of ['chức danh', 'chuyên môn', 'điểm đánh giá', 'số năm kinh nghiệm']) {
+  /* The enumeration is everything an unclaimed row already answers with, and it is served out
+     of TWO places: selectSalonStaff in routes/salons.js, which hands the salon page the name,
+     photo, title, specialty, rating and years; and GET /api/staff/:id, whose personalHalf()
+     falls back to the roster row's own bio and portfolio when nobody has claimed it — so the
+     chair's page shows her write-up and her gallery to anyone with the link. Those last two
+     were missing from the list, which made the sentence understate what is already public and
+     therefore overstate what claiming puts there. */
+  for (const served of [
+    'chức danh',
+    'chuyên môn',
+    'giới thiệu',
+    'ảnh tác phẩm',
+    'điểm đánh giá',
+    'số năm kinh nghiệm',
+  ]) {
     assert.match(loginHtml, new RegExp(served), served);
   }
+  // And the route really does serve those two off the roster row when there is nobody behind it.
+  assert.match(
+    staffSource,
+    /return \{\s*bio: row\.bio,\s*image: row\.image,\s*portfolio: parseJsonArray\(row\.portfolio\),/,
+  );
 
   /* And the consequence she is actually consenting to: GET /api/staff/:id answers a claimed
      row through careerOf(user_id), so a visitor who opens her chair at one salon is handed

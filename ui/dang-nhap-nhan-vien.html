@@ -120,7 +120,7 @@
      since the salon typed it in — /api/salons/:id/staff serves an unclaimed row like any
      other — so this is not the moment anything of hers goes public, and a sentence that let
      her think it was would be asking for consent to something that already happened. -->
-<p class="font-caption text-caption text-on-surface-variant">Hồ sơ của bạn trên trang salon đã công khai sẵn: tên, ảnh, chức danh, chuyên môn, điểm đánh giá và số năm kinh nghiệm salon nhập cho chiếc ghế này. Nhận hồ sơ không đưa thêm thông tin nào của chiếc ghế này ra công khai — nó cho bạn quyền sửa phần đó và ẩn nó bất cứ lúc nào.</p>
+<p class="font-caption text-caption text-on-surface-variant">Hồ sơ của bạn trên trang salon đã công khai sẵn: tên, ảnh, chức danh, chuyên môn, giới thiệu, ảnh tác phẩm, điểm đánh giá và số năm kinh nghiệm salon nhập cho chiếc ghế này. Nhận hồ sơ không đưa thêm thông tin nào của chiếc ghế này ra công khai — nó cho bạn quyền sửa phần đó và ẩn nó bất cứ lúc nào.</p>
 <p class="font-caption text-caption text-on-surface-variant">Nhận hồ sơ cũng nối chiếc ghế này vào trang nghề nghiệp của bạn: người mở hồ sơ của bạn ở một salon sẽ thấy cả những chiếc ghế khác bạn đã nhận.</p>
 <p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
 <button :disabled="busy" @click="claim()" class="block w-full py-4 bg-primary-container text-on-primary font-label-md text-label-md uppercase tracking-wider text-center rounded-full hover:bg-primary transition-colors disabled:opacity-60" type="button" x-text="busy ? 'Đang xử lý…' : 'Dùng tài khoản hiện tại'">Dùng tài khoản hiện tại</button>
@@ -206,7 +206,7 @@
 <span class="font-caption text-caption text-on-surface-variant">
 <span x-cloak="" x-show="!token">Tôi đồng ý mở hồ sơ kỹ thuật viên công khai trên OAK Beauty.</span>
 <span x-cloak="" x-show="token">Tôi đồng ý nhận hồ sơ kỹ thuật viên này về tài khoản của mình.</span>
-<span x-cloak="" x-show="token">Hồ sơ của bạn trên trang salon đã công khai sẵn: tên, ảnh, chức danh, chuyên môn, điểm đánh giá và số năm kinh nghiệm salon nhập cho chiếc ghế này. Nhận hồ sơ không đưa thêm thông tin nào của chiếc ghế này ra công khai — nó cho bạn quyền sửa phần đó và ẩn nó bất cứ lúc nào.</span>
+<span x-cloak="" x-show="token">Hồ sơ của bạn trên trang salon đã công khai sẵn: tên, ảnh, chức danh, chuyên môn, giới thiệu, ảnh tác phẩm, điểm đánh giá và số năm kinh nghiệm salon nhập cho chiếc ghế này. Nhận hồ sơ không đưa thêm thông tin nào của chiếc ghế này ra công khai — nó cho bạn quyền sửa phần đó và ẩn nó bất cứ lúc nào.</span>
 <span x-cloak="" x-show="token">Nhận hồ sơ cũng nối chiếc ghế này vào trang nghề nghiệp của bạn: người mở hồ sơ của bạn ở một salon sẽ thấy cả những chiếc ghế khác bạn đã nhận.</span>
 <span x-cloak="" x-show="token">Nhận hồ sơ gắn đánh giá của khách và số liệu làm việc tổng hợp vào tài khoản của tôi; số liệu tổng hợp sau này có thể gộp cả công việc của tôi ở các salon khác.</span>
 <span x-cloak="" x-show="token">Trang hồ sơ nghề nghiệp riêng của tôi vẫn là bản nháp cho tới khi tôi tự bấm đăng.</span>
