@@ -33,6 +33,7 @@ test('the live URL is matched as a database, not as text', () => {
     false,
   );
   assert.equal(isSafeTestDatabaseUrl(TEST_URL, 'postgres://postgres@LOCALHOST:5432/oak_test'), false);
+  assert.equal(isSafeTestDatabaseUrl(TEST_URL, 'postgres://postgres@localhost/oak_test'), false);
 });
 
 // `_test` has to be where the name ENDS. Every one of these is a database somebody named on

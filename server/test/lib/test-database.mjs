@@ -10,7 +10,9 @@ import pg from 'pg';
    compared as written, either of those would read as a difference and clear the way. */
 function identity(parsed) {
   const name = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
-  return `${parsed.hostname}:${parsed.port}${name}`.toLowerCase();
+  // An omitted port is 5432, which is what the other spelling writes out in full.
+  const port = parsed.port || '5432';
+  return `${parsed.hostname}:${port}${name}`.toLowerCase();
 }
 
 /**
