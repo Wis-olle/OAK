@@ -12859,11 +12859,18 @@ async function groupFeaturedAndAnnouncements() {
     );
   }
 
-  // And the owner was told, in their own bell, with the day it ends in the sentence.
+  /* And the owner was told, in their own bell, with the LAST DAY THEY HOLD in the sentence —
+     which is the day before the stored one, because featured_until is exclusive. An owner who
+     bought "đến hết hôm nay" and is told "đến hết ngày mai" has been promised a day more than
+     was sold, on the one thing this slice exists to keep honest. */
   const ownerBell = ok(await ownerClient.fetch('/api/notifications'), 'the owner’s bell');
   assert(
-    ownerBell.some((item) => item.type === 'system' && item.body.includes(formatDateVN(tomorrow))),
-    'the owner is told their salon was pinned, and until when',
+    ownerBell.some((item) => item.type === 'system' && item.body.includes(formatDateVN(state.today))),
+    'the owner is told their salon was pinned, and through which day',
+  );
+  assert(
+    !ownerBell.some((item) => item.type === 'system' && item.body.includes(formatDateVN(tomorrow))),
+    'and never the exclusive end date, which would promise a day nobody paid for',
   );
   const pinnedConsole = ok(
     await ownerClient.fetch('/api/partner/salon'),

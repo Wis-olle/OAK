@@ -71,6 +71,20 @@ test('a paid placement is labelled where it ranks, not left to the ordering alon
   }
 });
 
+test('the fee notice is fanned out to living accounts only', () => {
+  /* The channel the terms' thirty days' notice travels down writes one bell per account of
+     the audience. An account its holder erased must not be one of them: the erasure DELETEd
+     the notifications it had, nobody can sign in to read a new one, and it would inflate the
+     `notified` count the operator reconciles the notice against. Both queries, because the
+     audience 'all' takes the other branch. */
+  const recipients = /const recipients = ([\s\S]*?);\n/.exec(readServer('routes/admin.js'))[1];
+  assert.equal(
+    (recipients.match(/deleted_at IS NULL/g) || []).length,
+    2,
+    'an announcement reaches erased accounts',
+  );
+});
+
 test('the partner is told what OAK charges before signing up, and it matches the terms', () => {
   const register = readUi('dang-nhap-doi-tac.html');
   const about = readUi('gioi-thieu.html');

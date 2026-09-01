@@ -11,7 +11,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { notifyUser } from '../lib/notify.js';
-import { formatDateVN, isISODate } from '../lib/time.js';
+import { addDaysISO, formatDateVN, isISODate } from '../lib/time.js';
 import { httpError, requireAdmin, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -107,7 +107,11 @@ router.patch('/salons/:id/featured', async (req, res, next) => {
           tx,
           salon.owner_id,
           'Salon của bạn được ghim Nổi bật',
-          `Salon của bạn được ghim Nổi bật đến ngày ${formatDateVN(until)}. Trong thời gian này, ${salon.name} được xếp lên đầu danh sách và trang tìm kiếm.`,
+          // The day the owner is told is the last day they actually hold, not the stored one:
+          // featured_until is exclusive, so a pin stored as the 1st is a pin through the 30th.
+          // The owner never reads lib/featured.js, and a sentence promising one day more than
+          // was sold is a broken promise on the first thing OAK charges for.
+          `Salon của bạn được ghim Nổi bật đến hết ngày ${formatDateVN(addDaysISO(until, -1))}. Trong thời gian này, ${salon.name} được xếp lên đầu danh sách và trang tìm kiếm.`,
           SYSTEM_NOTIFICATION_TYPE,
         );
       }
@@ -160,9 +164,16 @@ router.post('/announcements', async (req, res, next) => {
         req.user.id,
         createdAt,
       );
+      /* Living accounts only. An account holder who erased themselves had their notifications
+         DELETEd by that erasure (routes/users.js), and nobody can ever sign in to read a new
+         one — writing a bell there would partly undo the erasure and would inflate `notified`,
+         the very number DEPLOY.md §12 tells the operator to reconcile the fee notice against. */
       const recipients = role
-        ? await tx.all('SELECT id FROM users WHERE role = ? ORDER BY id', role)
-        : await tx.all('SELECT id FROM users ORDER BY id');
+        ? await tx.all(
+            'SELECT id FROM users WHERE role = ? AND deleted_at IS NULL ORDER BY id',
+            role,
+          )
+        : await tx.all('SELECT id FROM users WHERE deleted_at IS NULL ORDER BY id');
       for (let start = 0; start < recipients.length; start += FANOUT_BATCH) {
         const batch = recipients.slice(start, start + FANOUT_BATCH).map((row) => row.id);
         await tx.run(

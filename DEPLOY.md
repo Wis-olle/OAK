@@ -303,11 +303,16 @@ Hai việc OAK làm với **nền tảng** chứ không với một tài khoản
 
 Biến `ADMIN_EMAILS` (danh sách email, ngăn nhau bằng dấu phẩy). **Không khai thì không ai vào được** — mặc định là cửa đóng, không phải cửa mở. Người vận hành đăng nhập bằng tài khoản thường ở `dang-nhap-nguoi-dung.html`; cửa này nhận ra họ qua địa chỉ email chứ không qua vai trò.
 
+**Thứ tự bắt buộc — đăng ký tài khoản TRƯỚC, đặt biến SAU:**
+
+1. Vào `dang-nhap-nguoi-dung.html` trên site đang chạy, **đăng ký tài khoản vận hành** bằng đúng địa chỉ sắp khai.
+2. Rồi mới đặt `ADMIN_EMAILS` trong Render và **redeploy** (biến được đọc một lần lúc import).
+
+Làm ngược lại là mở cửa: đăng ký **không xác minh email**, nên trong khoảng thời gian địa chỉ đã nằm trong `ADMIN_EMAILS` mà chưa có tài khoản nào, ai đăng ký địa chỉ đó trước sẽ thành người vận hành — ghim salon lên đầu trang tìm kiếm và gửi thông báo toàn nền tảng dưới tên OAK. Nếu lỡ làm ngược, log lúc boot có một dòng `ADMIN_EMAILS: chưa có tài khoản nào cho …` cho tới khi địa chỉ đó có chủ; thấy dòng đó thì đăng ký ngay, và nếu nghi đã bị chiếm thì đổi sang địa chỉ khác rồi redeploy.
+
 ```
 ADMIN_EMAILS=ban@oakbeauty.vn,vanhanh@oakbeauty.vn
 ```
-
-Đổi biến này phải **redeploy** mới có hiệu lực (đọc một lần lúc import).
 
 ### Ghim "Nổi bật" cho một salon
 
@@ -333,7 +338,7 @@ curl -s -b /tmp/oak.txt -X PATCH "$BASE/api/admin/salons/12/featured" \
   -H 'Content-Type: application/json' -d '{"until":null}'
 ```
 
-Khi ghim, chủ salon nhận một thông báo trong chuông ("Salon của bạn được ghim Nổi bật đến ngày …"). Gỡ ghim thì không — người vận hành sửa lỗi gõ của chính mình không nên rung chuông nhà người khác.
+Khi ghim, chủ salon nhận một thông báo trong chuông ("Salon của bạn được ghim Nổi bật đến hết ngày …" — thông báo ghi **ngày cuối còn được ghim**, tức là ngày trước `until`, đúng như đã bán). Gỡ ghim thì không — người vận hành sửa lỗi gõ của chính mình không nên rung chuông nhà người khác.
 
 ### Thông báo hệ thống — **đây là kênh báo trước 30 ngày**
 
@@ -354,6 +359,6 @@ curl -s -b /tmp/oak.txt -X POST "$BASE/api/admin/announcements" \
 curl -s -b /tmp/oak.txt "$BASE/api/admin/announcements"
 ```
 
-Giới hạn: tiêu đề ≤ 120 ký tự, nội dung ≤ 1000 ký tự. Câu trả lời có `notified` — số chuông đã rung, để đối chiếu với số tài khoản đáng lẽ phải nhận.
+Giới hạn: tiêu đề ≤ 120 ký tự, nội dung ≤ 1000 ký tự. Câu trả lời có `notified` — số chuông đã rung, để đối chiếu với số tài khoản đáng lẽ phải nhận. Tài khoản đã bị chủ nhân xóa **không** nằm trong đó: chuông cũ của họ đã bị xóa cùng tài khoản và không ai đăng nhập vào đó được nữa.
 
 Không cần cấu hình gì thêm khi deploy ngoài `ADMIN_EMAILS`: bảng `announcements` được tạo bằng `CREATE TABLE IF NOT EXISTS` lúc boot như mọi bảng khác.
