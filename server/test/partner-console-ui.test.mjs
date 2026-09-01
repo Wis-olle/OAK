@@ -5,15 +5,11 @@
    These drive the three console pages' own factories. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 
 import { bookingStatus, BOOKING_STATUSES } from './booking-status.mjs';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
+import { readUi } from './lib/read-source.mjs';
 
 const calendarHtml = readUi('quan-ly-lich-hen.html');
 const dashboardHtml = readUi('tong-quan-doi-tac.html');

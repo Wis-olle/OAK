@@ -5,13 +5,10 @@
    nobody can leave. These tests drive the shipped functions against a stopped clock. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const clientJs = fs.readFileSync(path.join(root, 'ui', 'assets', 'js', 'oak-api.js'), 'utf8');
+const clientJs = readUi('assets/js/oak-api.js');
 
 const COLD_START = 'OAK đang khởi động, vui lòng đợi khoảng 30 giây…';
 const READY = 'Máy chủ đã sẵn sàng. Vui lòng tải lại trang để xem nội dung.';

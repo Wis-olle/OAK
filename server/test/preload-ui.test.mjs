@@ -24,10 +24,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { readRepo as read } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const ui = path.join(root, 'ui');
-const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 const pages = fs.readdirSync(ui).filter((name) => name.endsWith('.html')).sort();
 const source = new Map(pages.map((page) => [page, read(`ui/${page}`)]));

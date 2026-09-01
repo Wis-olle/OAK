@@ -1,12 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
+import { readUi } from './lib/read-source.mjs';
 
 /* The five category pages are one page written five times: same control block, one
    category key apart. Every assertion below runs over all of them. */

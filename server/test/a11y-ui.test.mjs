@@ -13,9 +13,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { readRepo as read } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 const apiJs = read('ui/assets/js/oak-api.js');
 const headerJs = read('ui/assets/js/oak-header.js');

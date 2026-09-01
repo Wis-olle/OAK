@@ -4,9 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { readServer, readUi } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 const script = readUi('assets/js/oak-blog.js');
 
 /** oakBlogFeed() in a sandbox, with the API calls and login redirects it makes recorded. */
@@ -116,7 +116,7 @@ test('a guest sent to sign in comes back to the composer, not just the feed', ()
   assert.match(logins[0], /^blog\.html\?/);
   assert.match(logins[0], /compose=1/);
   assert.match(logins[0], /type=video/);
-  const api = fs.readFileSync(path.join(root, 'ui', 'assets', 'js', 'oak-api.js'), 'utf8');
+  const api = readUi('assets/js/oak-api.js');
   assert.match(api, /function requireLogin\(next\)/);
   assert.match(api, /redirectToLogin\(LOGIN_PAGE, next\)/);
   assert.match(api, /encodeURIComponent\(next \|\| currentUrl\(\)\)/);
@@ -149,7 +149,7 @@ test('the article ends on the salons that offer what it is about', () => {
 });
 
 test('all three category tables name exactly the categories the API accepts', () => {
-  const route = fs.readFileSync(path.join(root, 'server', 'src', 'routes', 'posts.js'), 'utf8');
+  const route = readServer('routes/posts.js');
   const detail = readUi('blog-chi-tiet.html');
 
   const api = [...route.match(/const CATEGORIES = \[([^\]]*)\]/)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
@@ -164,8 +164,8 @@ test('all three category tables name exactly the categories the API accepts', ()
 });
 
 test('the posts route stores, filters and validates the five service categories', () => {
-  const route = fs.readFileSync(path.join(root, 'server', 'src', 'routes', 'posts.js'), 'utf8');
-  const schema = fs.readFileSync(path.join(root, 'server', 'src', 'db.js'), 'utf8');
+  const route = readServer('routes/posts.js');
+  const schema = readServer('db.js');
   assert.match(route, /const CATEGORIES = \['nail', 'hair', 'skincare', 'spa', 'eyelash'\]/);
   assert.match(route, /CATEGORIES\.includes\(req\.query\.category\)/);
   assert.match(route, /Chủ đề bài viết không hợp lệ\./);

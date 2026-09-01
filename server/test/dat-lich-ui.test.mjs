@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const html = fs.readFileSync(path.join(root, 'ui', 'dat-lich.html'), 'utf8');
+const html = readUi('dat-lich.html');
 
 /* The factory is inline in the page, so lift it out of its <script> to drive it here.
    The slice starts at oakToday() because loadSlots() leans on the helpers above it.
@@ -1110,7 +1110,7 @@ test('an opening price turns the sidebar total into an estimate', () => {
 });
 
 test('the help block is the same block, in the same order, as the confirmation page carries', () => {
-  const confirmation = fs.readFileSync(path.join(root, 'ui', 'xac-nhan-dat-lich.html'), 'utf8');
+  const confirmation = readUi('xac-nhan-dat-lich.html');
   for (const source of [html, confirmation]) {
     // WCAG 2.2 SC 3.2.6: the same help, in the same place, at every step of the process.
     assert.match(source, /Cần hỗ trợ\?/);

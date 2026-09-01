@@ -1,14 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
-
-const clientJs = fs.readFileSync(path.join(root, 'ui', 'assets', 'js', 'oak-api.js'), 'utf8');
+const clientJs = readUi('assets/js/oak-api.js');
 const favoritesHtml = readUi('yeu-thich.html');
 
 // ------------------------------------------------------------------ OAK.toast

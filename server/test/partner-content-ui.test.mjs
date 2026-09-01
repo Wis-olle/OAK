@@ -4,9 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { readRepo, readServer, readUi } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 
 test('salon settings exposes all five social profile fields and saves the object', () => {
   const html = readUi('cai-dat-salon.html');
@@ -281,7 +281,7 @@ result = oakBlogFeed();`, context);
 });
 
 test('the blog delete icon is included in the shipped Material Symbols subset inputs', () => {
-  const names = fs.readFileSync(path.join(root, 'tools', 'icons', 'icon-names.txt'), 'utf8').split(/\r?\n/);
+  const names = readRepo('tools/icons/icon-names.txt').split(/\r?\n/);
   const font = fs.statSync(path.join(root, 'ui', 'assets', 'fonts', 'font-material-subset.woff2'));
   assert.ok(names.includes('delete'));
   assert.ok(font.size > 0);
@@ -289,12 +289,12 @@ test('the blog delete icon is included in the shipped Material Symbols subset in
 });
 
 test('owned post deletion verifies the scoped delete before committing comment removal', () => {
-  const route = fs.readFileSync(path.join(root, 'server', 'src', 'routes', 'posts.js'), 'utf8');
+  const route = readServer('routes/posts.js');
   assert.match(route, /const deleted = await tx\.run\([\s\S]*?if \(deleted\.changes !== 1\)/);
 });
 
 test('post source migration deduplicates legacy URLs before creating the global index', () => {
-  const schema = fs.readFileSync(path.join(root, 'server', 'src', 'db.js'), 'utf8');
+  const schema = readServer('db.js');
   const dedupe = schema.indexOf('ROW_NUMBER() OVER');
   const globalIndex = schema.indexOf('CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_source_url');
   assert.ok(dedupe >= 0 && globalIndex > dedupe);

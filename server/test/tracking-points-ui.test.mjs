@@ -9,14 +9,8 @@
    is exactly the case a bare `OAK.track(...)` would turn into a broken page. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-
-const read = (file) => fs.readFileSync(path.join(root, 'ui', file), 'utf8');
+import { readUi as read, readUi } from './lib/read-source.mjs';
 
 /**
  * Lift one inline factory out of its page and run it.
@@ -199,7 +193,7 @@ test('a service page whose oak-api.js has no track() still picks a technician', 
  * that is the single place the switch can be counted without counting some of them twice.
  */
 function langSwitch({ tracking = true } = {}) {
-  const source = fs.readFileSync(path.join(root, 'ui', 'assets', 'js', 'oak-i18n.js'), 'utf8');
+  const source = readUi('assets/js/oak-i18n.js');
   const from = source.indexOf('function set(next) {');
   const to = source.indexOf('function start() {');
   assert.ok(from !== -1 && to > from, 'oak-i18n.js no longer contains set()');

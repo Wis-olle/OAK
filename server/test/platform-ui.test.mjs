@@ -11,11 +11,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { readServer, readUi } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const ui = path.join(root, 'ui');
-const readUi = (name) => fs.readFileSync(path.join(ui, name), 'utf8');
-const readServer = (name) => fs.readFileSync(path.join(root, 'server/src', name), 'utf8');
 
 /* The same split robots.txt, ui/sitemap.xml and server/test/seo-ui.test.mjs are built on. */
 const PRIVATE = [
@@ -61,12 +60,12 @@ function header(pathname = 'kham-pha.html') {
     },
     window: { addEventListener() {} },
   };
-  vm.runInNewContext(fs.readFileSync(path.join(ui, 'assets/js/oak-header.js'), 'utf8'), context);
+  vm.runInNewContext(readUi('assets/js/oak-header.js'), context);
   return { markup: shell.innerHTML, head };
 }
 
 test('the manifest names an installable app and every icon it promises exists', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(ui, 'manifest.webmanifest'), 'utf8'));
+  const manifest = JSON.parse(readUi('manifest.webmanifest'));
   assert.equal(manifest.name, 'OAK Beauty');
   assert.ok(manifest.short_name, 'no short name for the home screen');
   assert.equal(manifest.display, 'standalone');
@@ -98,7 +97,7 @@ test('the top bar installs the manifest, the theme colour and the iOS icon', () 
   assert.equal(written['apple-touch-icon'].href, 'assets/images/icon-192.png');
   assert.equal(
     written['theme-color'].content,
-    JSON.parse(fs.readFileSync(path.join(ui, 'manifest.webmanifest'), 'utf8')).theme_color,
+    JSON.parse(readUi('manifest.webmanifest')).theme_color,
     'the browser chrome and the installed app are painted different colours',
   );
   // Relative, like every other asset a page asks for: '/'-rooted would break a sub-path deploy.
@@ -224,7 +223,7 @@ function blogFeed(search = '', failing = false) {
     },
   };
   vm.runInNewContext(
-    `${fs.readFileSync(path.join(ui, 'assets/js/oak-blog.js'), 'utf8')}\nresult = oakBlogFeed();`,
+    `${readUi('assets/js/oak-blog.js')}\nresult = oakBlogFeed();`,
     context,
   );
   return { state: context.result, location, requests };
@@ -315,7 +314,7 @@ test('the results page tells a search engine which search it is', () => {
 
   // Assembled in JS, so neither shape can be a dictionary key: each carries a rule, and
   // tools/i18n/check-rules.js holds the English they make.
-  const engine = fs.readFileSync(path.join(ui, 'assets/js/oak-i18n.js'), 'utf8');
+  const engine = readUi('assets/js/oak-i18n.js');
   assert.match(engine, /\^Salon\(\?: \(\.\+\)\)\? tại \(\.\+\) - OAK Beauty\$/);
   assert.match(engine, /\^Danh sách salon\(\?: \(\.\+\)\)\? tại \(\.\+\) trên OAK Beauty/);
   // The static title the page ships with is what Phase 2 pinned; this only replaces it
@@ -343,7 +342,7 @@ test('the public feed is the published half of the blog, written at a human rate
   assert.match(feed, /x-if="post\.status === 'hidden'"/);
   assert.match(feed, />Đã ẩn</);
 
-  const schema = fs.readFileSync(path.join(root, 'server/src/db.js'), 'utf8');
+  const schema = readServer('db.js');
   assert.match(schema, /ALTER TABLE posts ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'published'/);
   assert.match(schema, /ALTER TABLE post_comments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'published'/);
 });
@@ -377,7 +376,7 @@ test('a salon or service image cannot be a script URL', () => {
 });
 
 test('a week of one service asks about each day once', () => {
-  const availability = fs.readFileSync(path.join(root, 'server/src/lib/availability.js'), 'utf8');
+  const availability = readServer('lib/availability.js');
   assert.match(
     availability,
     /staffId, serviceId, date, knownOff = null, leadMin = null, exceptBookingId = null,/,

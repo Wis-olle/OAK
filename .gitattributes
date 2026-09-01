@@ -4,6 +4,12 @@
 # they assert. The index has always stored LF; this is the line that says so out loud.
 * text=auto eol=lf
 
+# Second line of defence, for a checkout made before that line existed or a file an editor
+# rewrote in passing: server/test/lib/read-source.mjs folds CRLF to LF on the way in, so
+# every suite here reads the same bytes whatever is on disk. This line is still the one
+# that matters — it is what keeps the working copy and the index identical — but a test
+# about markup should not be able to fail over line endings even when it has been undone.
+
 # Binaries git must never inspect for line endings, let alone rewrite.
 *.woff2 -text
 *.woff -text

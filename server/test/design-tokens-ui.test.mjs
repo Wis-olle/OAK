@@ -15,18 +15,18 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 import { bookingStatus, BOOKING_STATUSES } from './booking-status.mjs';
+import { readUi } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 const pages = fs.readdirSync(path.join(root, 'ui')).filter((name) => name.endsWith('.html'));
 
-const utils = fs.readFileSync(path.join(root, 'ui/assets/css/oak-utils.css'), 'utf8');
-const client = fs.readFileSync(path.join(root, 'ui/assets/js/oak-api.js'), 'utf8');
+const utils = readUi('assets/css/oak-utils.css');
+const client = readUi('assets/js/oak-api.js');
 
 /* The tokens, read the way tools/tailwind/tailwind.build.config.js reads them. */
 const tokenContext = { tailwind: {} };
 vm.runInNewContext(
-  fs.readFileSync(path.join(root, 'ui/assets/js/oak-tailwind-config.js'), 'utf8'),
+  readUi('assets/js/oak-tailwind-config.js'),
   tokenContext,
 );
 const TOKENS = tokenContext.tailwind.config.theme.extend;
@@ -83,7 +83,7 @@ test('rounded-full is a pill, so nothing has to spell 9999px out by hand', () =>
   for (const name of pages) {
     assert.doesNotMatch(readUi(name), /rounded-\[9999px\]/, name);
   }
-  const css = fs.readFileSync(path.join(root, 'ui/assets/css/oak-tailwind.css'), 'utf8');
+  const css = readUi('assets/css/oak-tailwind.css');
   assert.ok(css.includes('.rounded-full{border-radius:9999px}'), 'the built CSS is stale');
 });
 

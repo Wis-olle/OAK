@@ -1,14 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 /* Finding a salon is one page now; danh-sach-salon.html only forwards to it. */
-const html = fs.readFileSync(path.join(root, 'ui', 'ket-qua-tim-kiem.html'), 'utf8');
-const redirect = fs.readFileSync(path.join(root, 'ui', 'danh-sach-salon.html'), 'utf8');
+const html = readUi('ket-qua-tim-kiem.html');
+const redirect = readUi('danh-sach-salon.html');
 
 const rows = [{ id: 4, name: 'Lala Nail Studio', slug: 'lala-nail-studio', district: 'Quận 1' }];
 rows.meta = { page: 1, limit: 20, total: 1 };
@@ -799,7 +796,7 @@ test('every filter dropdown says whether it is open', () => {
  * category no salon or service is named after, so as a keyword it landed on an empty page.
  */
 
-const heroHtml = fs.readFileSync(path.join(root, 'ui', 'kham-pha.html'), 'utf8');
+const heroHtml = readUi('kham-pha.html');
 
 function heroBox(options = {}) {
   const tail = heroHtml.slice(heroHtml.indexOf('function oakSearchBox()'));

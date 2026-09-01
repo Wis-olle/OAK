@@ -13,13 +13,10 @@
    mock: the real Nominatim is never called from a test. */
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { readServer } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const routeJs = fs.readFileSync(path.join(root, 'src', 'routes', 'geo.js'), 'utf8');
+const routeJs = readServer('routes/geo.js');
 
 const USER_AGENT = 'OAKBeautyDemo/1.0 (hello@oakbeauty.vn)';
 

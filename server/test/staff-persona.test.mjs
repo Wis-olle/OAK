@@ -13,9 +13,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { readRepo, readServer, readUi as ui } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const source = (...parts) => fs.readFileSync(path.join(root, 'src', ...parts), 'utf8');
+const source = (...parts) => readServer(parts.join('/'));
 
 const authSource = source('routes', 'auth.js');
 const dbSource = source('db.js');
@@ -23,7 +24,6 @@ const partnerSource = source('routes', 'partner.js');
 const rateLimitSource = source('lib', 'rate-limit.js');
 const staffMeSource = source('routes', 'staff-me.js');
 const usersSource = source('routes', 'users.js');
-const ui = (name) => fs.readFileSync(path.join(root, '..', 'ui', name), 'utf8');
 const loginHtml = ui('dang-nhap-nhan-vien.html');
 const profileHtml = ui('ho-so-chuyen-gia.html');
 const scheduleHtml = ui('lich-cua-toi.html');
@@ -1240,7 +1240,7 @@ test('the panel says what registering freely gets you, and what it does not', ()
 
   // Both new sentences are in the dictionary, or an English reader gets the Vietnamese ones.
   const dictionary = JSON.parse(
-    fs.readFileSync(path.join(root, '..', 'tools', 'i18n', 'parts', 'dang-nhap-nhan-vien.json'), 'utf8'),
+    readRepo('tools/i18n/parts/dang-nhap-nhan-vien.json'),
   );
   for (const key of [
     'Tạo hồ sơ nghề nghiệp miễn phí',
@@ -1312,7 +1312,7 @@ test('§8 describes both hide switches, because they reach different pages', () 
   // a key nothing can resolve is a translation nobody notices has gone stale. "Ẩn hồ sơ:" is
   // not asserted gone: dieu-khoan.json defines it too, for its own §9 bullet.
   const dictionary = JSON.parse(
-    fs.readFileSync(path.join(root, '..', 'tools', 'i18n', 'parts', 'bao-mat.json'), 'utf8'),
+    readRepo('tools/i18n/parts/bao-mat.json'),
   );
   for (const key of ['Ẩn trang hồ sơ nghề nghiệp:', 'Ẩn hồ sơ tại từng salon:']) {
     assert.ok(dictionary[key], key);
@@ -1364,7 +1364,7 @@ test('§9 draws the boundary the code keeps, field for field', () => {
   // Every sentence just written resolves in the dictionary, and the ones they replaced are out
   // of the parts: a key nothing can reach is a translation nobody notices has gone stale.
   const partsDir = path.join(root, '..', 'tools', 'i18n', 'parts');
-  const part = (name) => JSON.parse(fs.readFileSync(path.join(partsDir, name), 'utf8'));
+  const part = (name) => JSON.parse(readRepo(`tools/i18n/parts/${name}`));
   const terms = part('dieu-khoan.json');
   const privacy = part('bao-mat.json');
   // Merged the way build.js merges them, because a shared word like "không" is defined once in

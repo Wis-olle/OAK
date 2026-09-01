@@ -4,14 +4,11 @@
    — and that every line it says has English, since the console is bilingual. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const page = fs.readFileSync(path.join(root, 'ui/cai-dat-salon.html'), 'utf8');
+const page = readUi('cai-dat-salon.html');
 
-const dictionaryJs = fs.readFileSync(path.join(root, 'ui/assets/js/oak-i18n-en.js'), 'utf8');
+const dictionaryJs = readUi('assets/js/oak-i18n-en.js');
 const dictionary = JSON.parse(dictionaryJs.replace(/^window\.OAK_I18N_EN = /, '').trim().replace(/;$/, ''));
 
 /* Every Vietnamese line the card can show. All of them are static markup: a failure is

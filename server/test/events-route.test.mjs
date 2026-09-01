@@ -5,13 +5,10 @@
    fail here rather than quietly widen what a row can hold. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { readServer } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const routeJs = fs.readFileSync(path.join(root, 'src', 'routes', 'events.js'), 'utf8');
+const routeJs = readServer('routes/events.js');
 
 /* One contiguous run of source, from the name pattern down to the last pure helper. Both
    markers are declarations, so rewording a comment in events.js cannot change what is

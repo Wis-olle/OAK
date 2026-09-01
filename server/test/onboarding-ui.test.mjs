@@ -4,15 +4,10 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 
 import { bookingStatus } from './booking-status.mjs';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
+import { readServer, readUi } from './lib/read-source.mjs';
 
 /* A localStorage that can be told to throw, the way a browser with site data blocked does. */
 function storage(broken) {
@@ -550,8 +545,7 @@ test('a technician linked only to a hidden service does not tick the roster row'
 });
 
 test('the publish gate and the boot backfill ask the same thing of a roster', () => {
-    const readSrc = (...parts) =>
-        fs.readFileSync(path.join(root, 'server', 'src', ...parts), 'utf8');
+    const readSrc = (...parts) => readServer(parts.join('/'));
     const flat = (text) => text.replace(/\s+/g, ' ');
     const partnerJs = readSrc('routes', 'partner.js');
     const gate = flat(partnerJs.slice(partnerJs.indexOf('const PUBLISH_READINESS_SQL')));

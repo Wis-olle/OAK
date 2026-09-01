@@ -4,13 +4,10 @@
    GET /api/salons?sort=newest and GET /api/promotions. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const html = fs.readFileSync(path.join(root, 'ui', 'kham-pha.html'), 'utf8');
+const html = readUi('kham-pha.html');
 
 const LALA = { name: 'Lala Nail Studio', slug: 'lala-nail-studio' };
 

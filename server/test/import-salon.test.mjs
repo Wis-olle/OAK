@@ -11,7 +11,6 @@
    private IP, localhost, ::1 — so the refusals it makes are proven with no network in the
    room. */
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import test, { mock } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +30,7 @@ import {
 } from '../src/lib/import-extract.js';
 import { UnsafeUrlError, isPrivateAddress, safeFetch } from '../src/lib/safe-fetch.js';
 import { SocialProfileError, validateSocialProfile } from '../src/lib/social-profile.js';
+import { readServer } from './lib/read-source.mjs';
 
 const TENANT = {
   Status: 1,
@@ -851,14 +851,13 @@ test('a body over the cap is refused while it arrives, not once it has all arriv
    The extraction libraries go in for real: what is faked here is the database, the network
    and the image store, and nothing else. */
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const routeJs = fs.readFileSync(path.join(root, 'src', 'routes', 'import-salon.js'), 'utf8');
+const routeJs = readServer('routes/import-salon.js');
 
 /* The city sign-up guesses, read out of the file that writes it rather than typed again
    here: the whole point of routes/auth.js exporting it is that the two cannot drift, and a
    copy in the test would be a third one that could. Read as text for the same reason
    nothing else in this file imports the route — auth.js opens a database connection. */
-const REGISTRATION_CITY = fs
-  .readFileSync(path.join(root, 'src', 'routes', 'auth.js'), 'utf8')
+const REGISTRATION_CITY = readServer('routes/auth.js')
   .match(/export const REGISTRATION_CITY = '([^']*)'/)[1];
 
 const REGISTERED_SALON = Object.freeze({

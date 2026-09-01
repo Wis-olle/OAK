@@ -1,17 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 import { sendResetMail } from '../src/lib/mailer.js';
+import { readRepo, readServer, readUi as page, readUi } from './lib/read-source.mjs';
 
 /* The bug the pinned assertion below guards is a calendar-day rollover, so the day has to be
    pinned as well as the instant: in UTC the buggy and the correct answer are the same string. */
 process.env.TZ = 'Asia/Ho_Chi_Minh';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const page = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 
 const loginHtml = page('dang-nhap-nguoi-dung.html');
 const registerHtml = page('dang-ky.html');
@@ -21,14 +17,14 @@ const settingsHtml = page('cai-dat.html');
 const sitemapHtml = page('sitemap.html');
 const partnerHtml = page('dang-nhap-doi-tac.html');
 const privacyHtml = page('bao-mat.html');
-const headerSource = fs.readFileSync(path.join(root, 'ui/assets/js/oak-header.js'), 'utf8');
-const authSource = fs.readFileSync(path.join(root, 'server/src/routes/auth.js'), 'utf8');
+const headerSource = readUi('assets/js/oak-header.js');
+const authSource = readServer('routes/auth.js');
 // The counter itself moved to a lib of its own once a second route needed it; the ALLOWANCE
 // this suite is about is still auth.js's.
-const rateLimitSource = fs.readFileSync(path.join(root, 'server/src/lib/rate-limit.js'), 'utf8');
-const middlewareSource = fs.readFileSync(path.join(root, 'server/src/middleware/auth.js'), 'utf8');
-const schemaSource = fs.readFileSync(path.join(root, 'server/src/db.js'), 'utf8');
-const mailerSource = fs.readFileSync(path.join(root, 'server/src/lib/mailer.js'), 'utf8');
+const rateLimitSource = readServer('lib/rate-limit.js');
+const middlewareSource = readServer('middleware/auth.js');
+const schemaSource = readServer('db.js');
+const mailerSource = readServer('lib/mailer.js');
 
 /* Each factory is inline in its page, so lift it out of its <script> and drive it here.
    `from` is the first line of the slice — everything the factory leans on sits below it. */
@@ -587,8 +583,7 @@ test('the settings page is reachable from the account menu and the sitemap', () 
 test('every password box on the four pages can be revealed, and the icon is subsetted', () => {
   // Four: the three auth pages and the settings page. The profile page has none left.
   // Trimmed per line, the way tools/icons/subset_icons.py reads the same file.
-  const names = fs
-    .readFileSync(path.join(root, 'tools/icons/icon-names.txt'), 'utf8')
+  const names = readRepo('tools/icons/icon-names.txt')
     .split('\n')
     .map((line) => line.trim());
   // The toggle swaps the ligature at runtime, so neither name reaches icon-names.txt

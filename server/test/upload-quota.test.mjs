@@ -3,9 +3,6 @@
    which uploads now has one function to shrink a picture with. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
 import { startOfDayUTC } from '../src/lib/time.js';
@@ -13,10 +10,10 @@ import { startOfDayUTC } from '../src/lib/time.js';
    module opens no database and loads no driver until its main() runs, and main() runs
    only when the file was started from the command line. */
 import { IMAGE_COLUMNS, objectNameOf, referencedNames } from '../../tools/uploads-reconcile.mjs';
+import { readServer, readUi } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const clientJs = fs.readFileSync(path.join(root, 'ui', 'assets', 'js', 'oak-api.js'), 'utf8');
-const quotaJs = fs.readFileSync(path.join(root, 'server', 'src', 'lib', 'upload-quota.js'), 'utf8');
+const clientJs = readUi('assets/js/oak-api.js');
+const quotaJs = readServer('lib/upload-quota.js');
 
 /* The lib itself imports db.js, which opens a pool and applies the schema on load, so it
    cannot be imported into a file that is meant to run with no database in the room. The two
@@ -223,7 +220,7 @@ test('every column of the schema that can hold a picture is on the list', () => 
   /* A column added to db.js and forgotten here is a column whose pictures the sweep deletes,
      so this reads the schema rather than trusting the list. Every TEXT column named image,
      avatar or portfolio has to appear, together with the table it belongs to. */
-  const schema = fs.readFileSync(path.join(root, 'server', 'src', 'db.js'), 'utf8');
+  const schema = readServer('db.js');
   const declared = new Set(IMAGE_COLUMNS.map(([table, column]) => `${table}.${column}`));
   let table = null;
   for (const line of schema.split('\n')) {

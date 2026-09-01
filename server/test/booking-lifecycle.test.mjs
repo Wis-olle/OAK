@@ -7,23 +7,18 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 
 import { bookingStatus, BOOKING_STATUSES } from './booking-status.mjs';
 
 import { toMinutes } from '../src/lib/time.js';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
+import { readServer, readUi } from './lib/read-source.mjs';
 
 const settingsHtml = readUi('cai-dat-salon.html');
 const staffHtml = readUi('quan-ly-nhan-vien.html');
 const calendarHtml = readUi('quan-ly-lich-hen.html');
 
-const source = fs.readFileSync(path.join(root, 'server', 'src', 'routes', 'bookings.js'), 'utf8');
+const source = readServer('routes/bookings.js');
 
 /* The fixed "now" the cancel-window test measures from: 10:30 on 2026-08-23, Vietnam time. */
 const TODAY = '2026-08-23';
@@ -303,10 +298,7 @@ test('the cancellation window is measured in Vietnam time, whatever the host run
 
 /* ---------------------------------------------- who performs what, and when - */
 
-const availabilitySource = fs.readFileSync(
-  path.join(root, 'server', 'src', 'lib', 'availability.js'),
-  'utf8',
-);
+const availabilitySource = readServer('lib/availability.js');
 
 /**
  * One function lifted out of lib/availability.js and driven in a bare context — or several,
@@ -353,10 +345,7 @@ test('the one rule about who performs what is asked in exactly one place', async
   assert.equal(await canDo(tx, 9, 4), false);
 
   // And the two routes that ask it hold no staff_services SELECT of their own.
-  const partnerSource = fs.readFileSync(
-    path.join(root, 'server', 'src', 'routes', 'partner.js'),
-    'utf8',
-  );
+  const partnerSource = readServer('routes/partner.js');
   for (const [name, text] of [['bookings.js', source], ['partner.js', partnerSource]]) {
     assert.ok(text.includes('staffCanDo'), `${name} must ask the rule rather than restate it`);
     assert.ok(
@@ -510,10 +499,7 @@ test('the four routes that hold an hour all answer a lost lock as SLOT_BUSY', ()
      LOCK_TIMEOUT. Nothing is booked and the same request a moment later is expected to
      work, so it must not be said as a taken hour — a customer told "that hour has gone"
      goes and picks another one for no reason. */
-  const partnerSource = fs.readFileSync(
-    path.join(root, 'server', 'src', 'routes', 'partner.js'),
-    'utf8',
-  );
+  const partnerSource = readServer('routes/partner.js');
   for (const [name, text] of [['bookings.js', source], ['partner.js', partnerSource]]) {
     assert.match(text, /error\.code === '55P03'/, `${name} must answer a lock it could not get`);
     assert.match(
@@ -531,10 +517,7 @@ test('the four routes that hold an hour all answer a lost lock as SLOT_BUSY', ()
   );
   // withBookingCode retries a duplicate CODE and nothing else, so a timed-out lock is not
   // silently attempted five times over — it comes straight back out.
-  const codeSource = fs.readFileSync(
-    path.join(root, 'server', 'src', 'lib', 'booking-code.js'),
-    'utf8',
-  );
+  const codeSource = readServer('lib/booking-code.js');
   assert.match(codeSource, /if \(!\(error\.code === '23505' && error\.constraint === 'bookings_code_key'\)\) \{\s*throw error;/);
 });
 
@@ -596,10 +579,7 @@ test('an overlap and the very same minute are two different answers', async () =
 });
 
 test('the counter is told before it books over her, and may still say yes', () => {
-  const partnerSource = fs.readFileSync(
-    path.join(root, 'server', 'src', 'routes', 'partner.js'),
-    'utf8',
-  );
+  const partnerSource = readServer('routes/partner.js');
 
   /* Both counter doors — the walk-in create and the edit — take the same lock, ask the same
      question and accept the same override. Counted, because a rule enforced on one of them

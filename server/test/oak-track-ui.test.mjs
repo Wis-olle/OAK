@@ -6,13 +6,13 @@
    not. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const clientJs = fs.readFileSync(path.join(root, 'ui', 'assets', 'js', 'oak-api.js'), 'utf8');
+const clientJs = readUi('assets/js/oak-api.js');
 
 /* track() lives inside the oak-api.js IIFE, which builds a header on load, so it is
    lifted out and driven against the smallest browser it touches. `browser` says which

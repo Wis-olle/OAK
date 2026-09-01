@@ -6,14 +6,9 @@
    none of this may open a connection. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 import { isValidPhone, normalisePhone, phoneHeldByAnother } from '../src/lib/phone.js';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const source = (name) => fs.readFileSync(path.join(root, name), 'utf8');
+import { readRepo as source } from './lib/read-source.mjs';
 
 const authSource = source('server/src/routes/auth.js');
 const usersSource = source('server/src/routes/users.js');

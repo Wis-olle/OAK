@@ -7,13 +7,10 @@
  * declaration is sliced out of the client and evaluated — the same trick the page factories
  * are lifted with. Not a *.test.mjs file, so `node --test test/*.test.mjs` never runs it.
  */
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const source = fs.readFileSync(path.join(root, 'ui/assets/js/oak-api.js'), 'utf8');
+const source = readUi('assets/js/oak-api.js');
 
 const from = source.indexOf('var BOOKING_STATUSES = [');
 const until = source.indexOf('/* One set of promises');

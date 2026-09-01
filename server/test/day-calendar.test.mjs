@@ -14,10 +14,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 
 import {
   addDaysISO,
@@ -27,12 +24,9 @@ import {
   toMinutes,
   weekdayOf,
 } from '../src/lib/time.js';
+import { readServer } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const availabilityJs = fs.readFileSync(
-  path.join(root, 'src', 'lib', 'availability.js'),
-  'utf8',
-);
+const availabilityJs = readServer('lib/availability.js');
 
 /* Everything the module declares, from the first constant to the end of the file — the
    imports above it are what the context replaces. `export` is stripped because a vm script
@@ -210,8 +204,8 @@ test('a single shift and a union across two run through the same arithmetic', ()
  * ========================================================================= */
 
 test('the dated search and the week strip read their calendars in one go', () => {
-  const search = fs.readFileSync(path.join(root, 'src', 'routes', 'search.js'), 'utf8');
-  const services = fs.readFileSync(path.join(root, 'src', 'routes', 'services.js'), 'utf8');
+  const search = readServer('routes/search.js');
+  const services = readServer('routes/services.js');
 
   /* The whole point: one call for every salon the search matched, and one for every day of
      the strip. A `for` loop with an `await` inside it is the shape that was costing a round

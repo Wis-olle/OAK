@@ -14,9 +14,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readRepo as read } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 /** Every file whose strings a reader can end up looking at. */
 function surfaces() {

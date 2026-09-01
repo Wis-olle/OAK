@@ -8,11 +8,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { readServer, readUi } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const ui = path.join(root, 'ui');
 const pages = fs.readdirSync(ui).filter((name) => name.endsWith('.html')).sort();
-const readUi = (name) => fs.readFileSync(path.join(ui, name), 'utf8');
 
 /* The account area, the partner console, the auth screens, the two redirect stubs and the one
    hard-coded salon sample. Behind a login or a redirect, so an indexed copy is an empty page. */
@@ -33,9 +33,9 @@ const CATEGORIES = [
   'spa-massage.html', 'dich-vu-mi.html',
 ];
 
-const robots = fs.readFileSync(path.join(ui, 'robots.txt'), 'utf8');
-const sitemap = fs.readFileSync(path.join(ui, 'sitemap.xml'), 'utf8');
-const appJs = fs.readFileSync(path.join(root, 'server/src/app.js'), 'utf8');
+const robots = readUi('robots.txt');
+const sitemap = readUi('sitemap.xml');
+const appJs = readServer('app.js');
 
 test('exactly the private pages are noindexed', () => {
   const noindexed = pages.filter((page) => /<meta content="noindex,nofollow" name="robots">/.test(readUi(page)));

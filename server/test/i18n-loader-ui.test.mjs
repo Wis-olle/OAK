@@ -12,11 +12,11 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const ui = path.join(root, 'ui');
 const pages = fs.readdirSync(ui).filter((name) => name.endsWith('.html')).sort();
-const readUi = (name) => fs.readFileSync(path.join(ui, name), 'utf8');
 
 const ENGINE = '<script src="assets/js/oak-i18n.js"></script>';
 const UNCONDITIONAL = '<script src="assets/js/oak-i18n-en.js"></script>';
@@ -92,7 +92,7 @@ function element() {
  * one row above the other — while every other home keeps the pair of codes.
  */
 function toggle(marked) {
-  const source = fs.readFileSync(path.join(root, 'ui', 'assets', 'js', 'oak-i18n.js'), 'utf8');
+  const source = readUi('assets/js/oak-i18n.js');
   const from = source.indexOf('var HEADER_SKIN = {');
   const to = source.indexOf('function set(next) {');
   assert.ok(from !== -1 && to > from, 'oak-i18n.js no longer builds the toggle here');

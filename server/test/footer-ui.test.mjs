@@ -9,11 +9,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { readRepo, readUi } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const ui = path.join(root, 'ui');
 const pages = fs.readdirSync(ui).filter((name) => name.endsWith('.html')).sort();
-const readUi = (name) => fs.readFileSync(path.join(ui, name), 'utf8');
 
 /* The three pages that own a dialog bind `:inert` on the footer, so the page behind an open
    dialog leaves the tab order (WCAG 2.4.11 / 2.1.2). That attribute is the page's state, not
@@ -93,7 +93,7 @@ test('every phrase in the footer has an English translation', () => {
   // The footer is shared chrome, so oak-i18n.js resolves it through _chrome.json alone —
   // a page part could never cover a string that went missing here.
   const chrome = JSON.parse(
-    fs.readFileSync(path.join(root, 'tools/i18n/parts/_chrome.json'), 'utf8'),
+    readRepo('tools/i18n/parts/_chrome.json'),
   );
 
   // A brand name and a locale label read the same in both languages, so neither one is a

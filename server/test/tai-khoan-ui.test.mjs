@@ -1,14 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 
 import { bookingStatus } from './booking-status.mjs';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const page = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
+import { readRepo, readServer, readUi as page } from './lib/read-source.mjs';
 
 const bookingsHtml = page('lich-hen-cua-toi.html');
 const notificationsHtml = page('thong-bao.html');
@@ -180,18 +176,15 @@ test('a booking the salon never closed out says so on its own card', () => {
   );
   // Both readings are in the markup, so the dictionary can find them.
   const dictionary = JSON.parse(
-    fs.readFileSync(path.join(root, 'tools', 'i18n', 'parts', 'lich-hen-cua-toi.json'), 'utf8'),
+    readRepo('tools/i18n/parts/lich-hen-cua-toi.json'),
   );
   assert.ok(dictionary['Tự động hoàn tất']);
   assert.ok(dictionary['Salon không xác nhận']);
 });
 
 test('the sweep that sets that flag runs on a clock, for everybody, once per booking', () => {
-  const route = fs.readFileSync(
-    path.join(root, 'server', 'src', 'routes', 'bookings.js'),
-    'utf8',
-  );
-  const tick = fs.readFileSync(path.join(root, 'server', 'src', 'lib', 'tick.js'), 'utf8');
+  const route = readServer('routes/bookings.js');
+  const tick = readServer('lib/tick.js');
 
   /* Reading a list is a read again. It used to close the caller's stale bookings on the way
      past, which left the walk-in — nobody's list to open — confirmed for ever, and made two
@@ -217,10 +210,7 @@ test('the sweep that sets that flag runs on a clock, for everybody, once per boo
 });
 
 test('the salon owner is told about a booking the customer made or dropped', () => {
-  const route = fs.readFileSync(
-    path.join(root, 'server', 'src', 'routes', 'bookings.js'),
-    'utf8',
-  );
+  const route = readServer('routes/bookings.js');
   // The owner id comes off the salon join, never off the request body.
   assert.match(route, /s\.owner_id AS salon_owner_id,/);
   assert.equal(route.split('booking.salon_owner_id').length - 1, 3);
@@ -732,7 +722,7 @@ test('"Đặt lại" keeps the technician the appointment named, and "Đổi l�
     /x-show="booking\.staff &amp;&amp; booking\.status === 'completed'"><span>KTV:<\/span>/,
   );
   const dictionary = JSON.parse(
-    fs.readFileSync(path.join(root, 'tools', 'i18n', 'parts', 'lich-hen-cua-toi.json'), 'utf8'),
+    readRepo('tools/i18n/parts/lich-hen-cua-toi.json'),
   );
   assert.ok(dictionary['KTV:']);
 });

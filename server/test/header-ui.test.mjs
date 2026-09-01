@@ -5,13 +5,10 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const source = fs.readFileSync(path.join(root, 'ui/assets/js/oak-header.js'), 'utf8');
+const source = readUi('assets/js/oak-header.js');
 
 /** The six account pages, in the order their own rail and mobile strip carry them. */
 const ACCOUNT_PAGES = [
@@ -416,7 +413,7 @@ test('nothing is asked of the server for a visitor who is not signed in', async 
    is inert there until item 12's page work lifts the strip out of it. */
 test('every account page carries the strip the scroll looks for', () => {
   for (const name of ACCOUNT_PAGES) {
-    const html = fs.readFileSync(path.join(root, 'ui', name), 'utf8');
+    const html = readUi(name);
     assert.match(html, /data-oak-account-tabs/, name + ' has no account tab strip');
   }
 });

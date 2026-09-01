@@ -19,14 +19,16 @@ import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import compression from 'compression';
 import express from 'express';
+import { readRepo } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ui = path.resolve(root, '../ui');
 const uploads = path.resolve(root, 'uploads');
-/* Newlines normalised because the assertions below match code across line breaks and this repo
-   checks out with core.autocrlf=true — a fresh clone lands app.js with CRLF, and a bare \n in a
-   pattern would then match nothing, failing a test whose subject is perfectly intact. */
-const source = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8').replace(/\r\n/g, '\n');
+/* The assertions below match code across line breaks, so the newlines have to be LF whatever
+   the checkout did — with core.autocrlf=true a fresh clone lands app.js with CRLF and a bare
+   \n in a pattern matches nothing, failing a test whose subject is perfectly intact. This
+   file used to fold them itself; lib/read-source.mjs now does it for every suite here. */
+const source = (...parts) => readRepo(['server', ...parts].join('/'));
 const appJs = source('src', 'app.js');
 
 const IMMUTABLE = 'public, max-age=31536000, immutable';
@@ -253,7 +255,7 @@ test('the site answers a text asset compressed, and app.js is where that happens
     mounted < appJs.indexOf('express.static(uiDir'),
     'compression is mounted below the ui/ static mount, so every page and bundle goes out raw',
   );
-  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const pkg = JSON.parse(readRepo('server/package.json'));
   assert.ok(pkg.dependencies.compression, 'compression is not a declared dependency — a clean install would not have it');
 
   /* The other half is that it actually shrinks this repo's own bytes. Same two lines as app.js,

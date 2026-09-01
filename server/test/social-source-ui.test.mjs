@@ -1,14 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const blogHtml = fs.readFileSync(path.join(root, 'ui/blog.html'), 'utf8');
-const blogScript = fs.readFileSync(path.join(root, 'ui/assets/js/oak-blog.js'), 'utf8');
+const blogHtml = readUi('blog.html');
+const blogScript = readUi('assets/js/oak-blog.js');
 const blog = blogHtml + blogScript;
-const detail = fs.readFileSync(path.join(root, 'ui/blog-chi-tiet.html'), 'utf8');
+const detail = readUi('blog-chi-tiet.html');
 
 test('partner composer auto-detects a source platform without a platform select', () => {
   assert.match(blog, /user\.role === 'partner'/);

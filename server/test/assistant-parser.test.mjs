@@ -6,10 +6,7 @@
    IS lib/locations.js, and a stub of it would test nothing. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 
 import { CITY_DISTRICTS } from '../src/lib/locations.js';
 import { bestMatchTier, countMatchedTokens, normalize, searchTokens } from '../src/lib/text.js';
@@ -23,9 +20,9 @@ import {
   todayISO,
   weekdayOf,
 } from '../src/lib/time.js';
+import { readServer } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const routeJs = fs.readFileSync(path.join(root, 'src', 'routes', 'search.js'), 'utf8');
+const routeJs = readServer('routes/search.js');
 
 /* Everything the module declares, with the imports and the default export cut away. Both
    markers are code, not comments, so rewording a comment cannot change what is under test —

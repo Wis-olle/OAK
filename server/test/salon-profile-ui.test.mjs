@@ -6,13 +6,10 @@
    the endpoints it calls. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { readRepo, readUi } from './lib/read-source.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const html = fs.readFileSync(path.join(root, 'ui', 'salon-profile.html'), 'utf8');
+const html = readUi('salon-profile.html');
 
 /* Monday 09:00-21:00 through Saturday, closed on Sunday. */
 const WEEK_HOURS = [
@@ -309,20 +306,20 @@ test('the service menu scrolls on its own so the booking button stays on screen'
 
 test('the share button is on all three pages a link is shared from', () => {
   for (const name of ['salon-profile.html', 'chi-tiet-dich-vu.html', 'ho-so-chuyen-gia.html']) {
-    const page = fs.readFileSync(path.join(root, 'ui', name), 'utf8');
+    const page = readUi(name);
     assert.match(page, /@click="share\(\)" aria-label="Chia sẻ"/, name);
     // 44px, the way the heart beside it is, and the icon has to be in the subset font.
     assert.match(page, /aria-label="Chia sẻ" class="shrink-0 w-11 h-11/, name);
     assert.match(page, /<span aria-hidden="true" class="material-symbols-outlined">share<\/span>/, name);
   }
-  const names = fs.readFileSync(path.join(root, 'tools/icons/icon-names.txt'), 'utf8');
+  const names = readRepo('tools/icons/icon-names.txt');
   assert.equal(names.split(/\r?\n/).filter((line) => line === 'share').length, 1);
 });
 
 /* The service page's own free-hours block: seven days in one request, a booked hour that
    stays on screen struck through, and a day the salon does not open labelled as such. */
 async function servicePage({ week, slots, failSlots = false } = {}) {
-  const serviceHtml = fs.readFileSync(path.join(root, 'ui', 'chi-tiet-dich-vu.html'), 'utf8');
+  const serviceHtml = readUi('chi-tiet-dich-vu.html');
   const context = {
     URL,
     URLSearchParams,
@@ -389,7 +386,7 @@ test('the service page offers seven days, and says which ones are off and which 
   assert.equal(chips[1].closed, false);
   // No hours at all: the chip reads 'Nghỉ' in place of the date.
   assert.equal(chips[2].closed, true);
-  const serviceHtml = fs.readFileSync(path.join(root, 'ui', 'chi-tiet-dich-vu.html'), 'utf8');
+  const serviceHtml = readUi('chi-tiet-dich-vu.html');
   assert.match(serviceHtml, /x-text="chip.closed \? 'Nghỉ' : chip.day"/);
 
   // The panel underneath says nothing about opening hours: an empty answer is an empty
@@ -401,7 +398,7 @@ test('the service page offers seven days, and says which ones are off and which 
 test('a reader who has already reviewed everything here is not told they may not', () => {
   // Three states, not two: may write one, has none to write, has written them all.
   for (const name of ['salon-profile.html', 'chi-tiet-dich-vu.html']) {
-    const page = fs.readFileSync(path.join(root, 'ui', name), 'utf8');
+    const page = readUi(name);
     assert.match(page, /x-if="!reviewGate.href &amp;&amp; !reviewGate.done"/, name);
     assert.match(page, /x-if="!reviewGate.href &amp;&amp; reviewGate.done"/, name);
     assert.match(page, /Bạn đã đánh giá các lịch hẹn tại salon này rồi\./, name);
@@ -412,7 +409,7 @@ test('a booked hour stays on screen instead of making a busy day look like a clo
   const page = await servicePage({ week: [], slots: [{ time: '23:59', available: true }, { time: '23:58', available: false }] });
   // Both hours are listed; the unavailable one is disabled rather than dropped.
   assert.equal([...page.slots].length, 2);
-  const serviceHtml = fs.readFileSync(path.join(root, 'ui', 'chi-tiet-dich-vu.html'), 'utf8');
+  const serviceHtml = readUi('chi-tiet-dich-vu.html');
   assert.match(serviceHtml, /:disabled="!slot.available"/);
   assert.match(serviceHtml, /disabled:opacity-40 disabled:line-through/);
 });
@@ -434,7 +431,7 @@ test('a failed slot request says so, instead of reading as a fully booked day', 
   const page = await servicePage({ week: [], slots: [], failSlots: true });
   assert.equal(page.slotsError, 'Không tải được khung giờ trống.');
   assert.equal([...page.slots].length, 0);
-  const serviceHtml = fs.readFileSync(path.join(root, 'ui', 'chi-tiet-dich-vu.html'), 'utf8');
+  const serviceHtml = readUi('chi-tiet-dich-vu.html');
   // The "no hours left" line waits for both the load and the error to clear.
   assert.match(serviceHtml, /x-show="!slotsLoading &amp;&amp; !slotsError &amp;&amp; !slots.length"/);
   assert.match(serviceHtml, /x-show="slotsLoading &amp;&amp; !slots.length"/);

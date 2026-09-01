@@ -8,10 +8,7 @@
    spend is not an offer. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 import { slugify } from '../src/lib/text.js';
 import { addDaysISO, todayISO } from '../src/lib/time.js';
 import {
@@ -27,9 +24,7 @@ import {
   welcomeCode,
   welcomeWindow,
 } from '../src/lib/welcome-promotion.js';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const source = (name) => fs.readFileSync(path.join(root, name), 'utf8');
+import { readRepo as source } from './lib/read-source.mjs';
 
 const authSource = source('server/src/routes/auth.js');
 const bookingsSource = source('server/src/routes/bookings.js');

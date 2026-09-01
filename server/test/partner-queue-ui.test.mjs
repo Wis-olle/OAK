@@ -1,14 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
 
 import { bookingStatus } from './booking-status.mjs';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
+import { readRepo, readServer, readUi } from './lib/read-source.mjs';
 
 const CONSOLE_PAGES = [
   'tong-quan-doi-tac.html',
@@ -249,7 +245,7 @@ test('both console pages start that poll and paint the same badge and title', ()
 });
 
 test('the console bell stays in the console and is filled from one shared helper', () => {
-  const client = fs.readFileSync(path.join(root, 'ui', 'assets', 'js', 'oak-api.js'), 'utf8');
+  const client = readUi('assets/js/oak-api.js');
   for (const page of CONSOLE_PAGES) {
     const html = readUi(page);
     assert.doesNotMatch(html, /thong-bao\.html/, page);
@@ -317,7 +313,7 @@ test('salon settings warns before an unsaved edit is navigated away from', () =>
    of the clause. The real round trip (order=asc actually reversing the page) belongs in
    test/api-smoke.mjs, which needs Postgres — backlog. */
 test('the bookings list keeps its newest-first default and never binds the sort direction', () => {
-  const route = fs.readFileSync(path.join(root, 'server', 'src', 'routes', 'partner.js'), 'utf8');
+  const route = readServer('routes/partner.js');
   assert.match(route, /const direction = req\.query\.order === 'asc' \? 'ASC' : 'DESC';/);
   assert.match(route, /ORDER BY b\.date \$\{direction\}, b\.time \$\{direction\}, b\.id \$\{direction\}/);
 });
@@ -493,7 +489,7 @@ test('the queue is a block of its own, with both answers on every row', () => {
   assert.match(html, /@click="completeAll\(\)"/);
   // The glyph is in the committed subset font, so it renders rather than showing its name.
   assert.match(html, /data-icon="person_off">person_off<\/span>/);
-  const names = fs.readFileSync(path.join(root, 'tools/icons/icon-names.txt'), 'utf8').split(/\r?\n/);
+  const names = readRepo('tools/icons/icon-names.txt').split(/\r?\n/);
   assert.ok(names.includes('person_off'));
 });
 

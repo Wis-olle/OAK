@@ -1,11 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
+import { readUi } from './lib/read-source.mjs';
 
 /* Every skeleton is gated on "loading and nothing to show yet", so a rerun keeps the
    results already on screen and a failed load keeps its own error state to itself —

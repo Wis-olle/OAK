@@ -1,9 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { readUi } from './lib/read-source.mjs';
 
 /* OAK.fmtDate turns two different kinds of thing into the same Vietnamese date line, and
    they have to be read differently. A booking's 'YYYY-MM-DD' is a calendar day and means
@@ -14,8 +12,7 @@ import { fileURLToPath } from 'node:url';
    The reader's clock is what decides here, so these tests set one. */
 process.env.TZ = 'Asia/Ho_Chi_Minh';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const clientJs = fs.readFileSync(path.join(root, 'ui', 'assets', 'js', 'oak-api.js'), 'utf8');
+const clientJs = readUi('assets/js/oak-api.js');
 
 /** The source between two markers, so a test drives the shipped function itself.
     Both markers are declarations rather than prose, so rewording a neighbouring comment

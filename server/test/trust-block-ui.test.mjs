@@ -12,16 +12,16 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 import { bookingStatus } from './booking-status.mjs';
+import { readServer, readUi } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const readUi = (name) => fs.readFileSync(path.join(root, 'ui', name), 'utf8');
 
 const confirmation = readUi('xac-nhan-dat-lich.html');
 const salon = readUi('salon-profile.html');
 const service = readUi('chi-tiet-dich-vu.html');
 const wizard = readUi('dat-lich.html');
-const api = fs.readFileSync(path.join(root, 'ui/assets/js/oak-api.js'), 'utf8');
-const cards = fs.readFileSync(path.join(root, 'server/src/lib/cards.js'), 'utf8');
+const api = readUi('assets/js/oak-api.js');
+const cards = readServer('lib/cards.js');
 
 /* The factory is inline in the page, so lift it out of its <script> to drive it here. */
 const TRUST_CANCEL_POLICY = 'Hủy/đổi miễn phí đến trước 2 tiếng';
