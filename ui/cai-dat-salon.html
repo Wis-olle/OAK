@@ -197,7 +197,7 @@
 <span x-show="!overwritten">
 <span x-show="result.mode === 'kiotviet'">Đã nhập từ trang KiotViet của bạn</span>
 <span x-show="result.mode === 'generic'">Đã điền sẵn được một phần từ trang của bạn</span>
-<span x-show="result.mode === 'social'">Đã lưu link mạng xã hội của bạn — điền các mục còn lại giúp OAK nhé</span>
+<span x-show="result.mode === 'social'">Đã lưu link mạng xã hội vào hồ sơ salon — OAK chưa hiển thị link này, bạn điền giúp các mục còn lại nhé</span>
 </span>
 <span x-show="overwritten">Đã cập nhật hồ sơ theo dữ liệu từ trang của bạn</span>
 </p>
@@ -205,7 +205,7 @@
 <li x-show="result.filled.length"><span x-text="result.filled.length"></span> mục thông tin salon đã điền</li>
 <li x-show="result.services_added"><span x-text="result.services_added"></span> dịch vụ</li>
 <li x-show="result.photos_added"><span x-text="result.photos_added"></span> ảnh</li>
-<li x-show="result.social_links_added"><span x-text="result.social_links_added"></span> link mạng xã hội</li>
+<li x-show="result.social_links_added"><span x-text="result.social_links_added"></span> link mạng xã hội (lưu trong hồ sơ, chưa hiển thị)</li>
 <li x-show="result.hours_set">Giờ mở cửa</li>
 <li x-show="result.geocoded">Vị trí trên bản đồ</li>
 <li x-show="result.skipped.length"><span x-text="result.skipped.length"></span> mục bạn đã điền từ trước được giữ nguyên</li>

@@ -740,7 +740,8 @@
             // Step 4's own sign-in, so a guest never leaves the wizard to make one.
             authTab: 'login',
             auth: { email: '', password: '' },
-            // Off unless it is ticked: an offer nobody asked for is not one they agreed to.
+            // Never pre-ticked: agreeing to the Terms is the customer's own act, not the
+            // form's default.
             authConsent: false,
             authError: '',
             authBusy: false,
