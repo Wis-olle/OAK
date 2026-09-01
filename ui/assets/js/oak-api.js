@@ -506,39 +506,6 @@
     return new URLSearchParams(location.search).get(name);
   }
 
-  /* ------------------------------------------------------------------------- drafts
-   * Choosing English reloads the page (see set() in oak-i18n.js), and a reload takes any
-   * half-written form with it — the note on a booking, say. The pages
-   * that hold one listen for 'oak:lang-change', hand it over here, and ask for it back in
-   * their own init(). Nothing else fires the event, so nothing else pays for it.
-   *
-   * sessionStorage and keyed by page: the draft belongs to this tab and to the load that
-   * comes straight after, and taking it clears it, so a later visit starts clean. Blocked
-   * storage costs the draft and nothing else, which is why both halves swallow.
-   */
-  function draftKey(name) {
-    return 'oak-draft:' + pageName() + ':' + name;
-  }
-
-  function saveDraft(name, value) {
-    try {
-      sessionStorage.setItem(draftKey(name), JSON.stringify(value));
-    } catch (error) {
-      // Site data is blocked: the visitor retypes it.
-    }
-  }
-
-  /** The stashed draft, cleared as it is handed over; null when there is none. */
-  function takeDraft(name) {
-    try {
-      var stashed = sessionStorage.getItem(draftKey(name));
-      sessionStorage.removeItem(draftKey(name));
-      return stashed ? JSON.parse(stashed) : null;
-    } catch (error) {
-      return null;
-    }
-  }
-
   /**
    * What to pass as `behavior` to scrollIntoView(). The reduced-motion rule in oak-utils.css
    * cannot answer for these calls — an explicit behavior option beats the `scroll-behavior`
@@ -1268,8 +1235,6 @@
     setPendingBadge: setPendingBadge,
     qs: qs,
     scrollBehavior: scrollBehavior,
-    saveDraft: saveDraft,
-    takeDraft: takeDraft,
     meta: meta,
     toast: toast,
     liveRegions: liveRegions,

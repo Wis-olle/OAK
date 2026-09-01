@@ -339,35 +339,6 @@ test('the same wait guards the two photo viewers and the console sheet', () => {
 
 /* ---------------------------------------------------------------- the language switch -- */
 
-/** OAK.saveDraft / OAK.takeDraft, lifted with the pageName() they key on. */
-function drafts(page = 'dat-lich.html') {
-  const script = between(apiJs, 'function pageName()', 'function currentUrl(') +
-    between(apiJs, '  function draftKey(name) {', '  function scrollBehavior()');
-  const store = new Map();
-  const context = {
-    location: { pathname: `/${page}` },
-    JSON,
-    sessionStorage: {
-      getItem: (key) => (store.has(key) ? store.get(key) : null),
-      setItem: (key, value) => store.set(key, value),
-      removeItem: (key) => store.delete(key),
-    },
-  };
-  vm.runInNewContext(`${script}
-saveDraftFn = saveDraft; takeDraftFn = takeDraft;`, context);
-  return { saveDraft: context.saveDraftFn, takeDraft: context.takeDraftFn, store };
-}
-
-test('a draft belongs to one page and to the load that follows, and only that one', () => {
-  const wizard = drafts('dat-lich.html');
-  wizard.saveDraft('note', { text: 'Cho mình ghế cạnh cửa sổ' });
-  assert.deepEqual([...wizard.store.keys()], ['oak-draft:dat-lich.html:note']);
-
-  // Taking it clears it: a later visit to the same page starts clean.
-  assert.deepEqual(wizard.takeDraft('note'), { text: 'Cho mình ghế cạnh cửa sổ' });
-  assert.equal(wizard.takeDraft('note'), null);
-});
-
 test('the one page still holding a half-written field stashes it on the switch', () => {
   // The contact fields and note of the booking wizard, through the stash the login round
   // trip already used, which restoreForm() reads in init().
