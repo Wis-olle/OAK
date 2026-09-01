@@ -166,7 +166,6 @@ const SALONS = [
     close_time: '21:00',
     lat: 10.7725,
     lng: 106.698,
-    featured: 1,
     flagship: 1,
     tags: ['Nail', 'Cao cấp', 'Gần trung tâm'],
     amenities: ['Wifi miễn phí', 'Chỗ đậu xe', 'Phòng VIP', 'Nước uống miễn phí'],
@@ -186,7 +185,6 @@ const SALONS = [
     close_time: '20:30',
     lat: 10.778,
     lng: 106.703,
-    featured: 1,
     flagship: 0,
     tags: ['Nail', 'Nối mi', 'Phong cách Pháp'],
     amenities: ['Wifi miễn phí', 'Phòng riêng', 'Trà & bánh ngọt'],
@@ -206,7 +204,6 @@ const SALONS = [
     close_time: '20:00',
     lat: 10.7765,
     lng: 106.701,
-    featured: 0,
     flagship: 0,
     tags: ['Tóc', 'Chuẩn Hàn Quốc', 'Stylist riêng'],
     amenities: ['Wifi miễn phí', 'Gội massage đầu', 'Trà thảo mộc'],
@@ -226,7 +223,6 @@ const SALONS = [
     close_time: '19:30',
     lat: 10.774,
     lng: 106.704,
-    featured: 0,
     flagship: 0,
     tags: ['Chăm sóc da', 'Chuẩn y khoa', 'Trị mụn'],
     amenities: ['Wifi miễn phí', 'Chỗ đậu xe', 'Tư vấn soi da miễn phí'],
@@ -246,7 +242,6 @@ const SALONS = [
     close_time: '21:30',
     lat: 10.777,
     lng: 106.689,
-    featured: 1,
     flagship: 0,
     tags: ['Spa', 'Nối mi', 'Đa dịch vụ'],
     amenities: ['Wifi miễn phí', 'Phòng xông hơi', 'Chỗ đậu xe', 'Phòng VIP'],
@@ -266,7 +261,6 @@ const SALONS = [
     close_time: '22:00',
     lat: 10.788,
     lng: 106.7185,
-    featured: 0,
     flagship: 0,
     tags: ['Massage', 'Trị liệu', 'Không gian yên tĩnh'],
     amenities: ['Wifi miễn phí', 'Chỗ đậu xe', 'Trà thảo mộc', 'Phòng đôi'],
@@ -1050,7 +1044,7 @@ const FAVORITES = [
 const INSERT_USER =
   'INSERT INTO users (name, email, phone, password_hash, role, avatar, city, district, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
 const INSERT_SALON =
-  'INSERT INTO salons (owner_id, name, slug, description, address, district, city, phone, image, open_time, close_time, lat, lng, verified, featured, flagship, tags, amenities, tour_url, published, created_at, welcome_promo_opt_in) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 1, ?, 1)';
+  'INSERT INTO salons (owner_id, name, slug, description, address, district, city, phone, image, open_time, close_time, lat, lng, verified, flagship, tags, amenities, tour_url, published, created_at, welcome_promo_opt_in) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 1, ?, 1)';
 const INSERT_SALON_PHOTO =
   'INSERT INTO salon_photos (salon_id, image, caption, sort) VALUES (?, ?, ?, ?)';
 const INSERT_SERVICE =
@@ -1147,7 +1141,6 @@ export async function seed(db) {
         salon.close_time,
         salon.lat,
         salon.lng,
-        salon.featured,
         salon.flagship,
         JSON.stringify(salon.tags),
         JSON.stringify(salon.amenities),

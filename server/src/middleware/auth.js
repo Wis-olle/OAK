@@ -139,6 +139,29 @@ export function requirePartner(req, res, next) {
   return next();
 }
 
+/* Who operates OAK. Nobody, unless the deploy names them: ADMIN_EMAILS is a comma-separated
+   list of accounts, and a deploy that sets nothing has no operators rather than an open door.
+   Matched on the address because that is what an operator knows about an account; the three
+   roles are 'customer', 'partner' and 'staff', none of which is this — an operator signs in
+   through the ordinary door with an ordinary account and is recognised by its address. */
+const ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+/** Allow only the accounts ADMIN_EMAILS names. Expects requireAuth to have run first. */
+export function requireAdmin(req, res, next) {
+  if (!req.user) {
+    return next(httpError(401, 'UNAUTHENTICATED', 'Bạn cần đăng nhập để tiếp tục.'));
+  }
+  if (!ADMIN_EMAILS.has(String(req.user.email || '').toLowerCase())) {
+    return next(httpError(403, 'FORBIDDEN', 'Chức năng này chỉ dành cho quản trị viên.'));
+  }
+  return next();
+}
+
 /** Allow only staff accounts. Expects requireAuth to have run first. */
 export function requireStaff(req, res, next) {
   if (!req.user) {

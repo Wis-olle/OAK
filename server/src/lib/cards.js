@@ -6,6 +6,7 @@
  * caller aliased salons as `s` and services as `sv`. They contain no user input.
  */
 
+import { isFeatured } from './featured.js';
 import { parseJsonArray } from './query.js';
 
 /* auto_confirm rides along on the card, and it is the cheapest column here — a plain integer
@@ -19,6 +20,7 @@ import { parseJsonArray } from './query.js';
 export const SALON_CARD_COLUMNS = `
   s.id, s.slug, s.name, s.address, s.district, s.city, s.image, s.verified, s.tags, s.lat, s.lng,
   s.auto_confirm,
+  s.featured_until,
   (SELECT ROUND(AVG(r.rating), 1) FROM reviews r WHERE r.salon_id = s.id) AS rating,
   (SELECT COUNT(*) FROM reviews r WHERE r.salon_id = s.id) AS review_count,
   (SELECT MIN(sv.price) FROM services sv
@@ -38,6 +40,10 @@ export function toSalonCard(row) {
     // The column is born 1 and older rows may hold null; anything that is not a 1 is a salon
     // that confirms by hand, which is the half of the pair a page is safe to promise.
     auto_confirm: row.auto_confirm === 1,
+    // Computed rather than stored, and computed here so every surface that draws a card
+    // draws the same chip: see lib/featured.js. The date itself stays off the card — a
+    // customer is being told this salon is featured, not until when it has been paid for.
+    featured: isFeatured(row.featured_until),
     tags: parseJsonArray(row.tags),
     rating: row.rating ?? 0,
     review_count: row.review_count ?? 0,

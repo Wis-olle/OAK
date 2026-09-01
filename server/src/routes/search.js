@@ -53,7 +53,14 @@ const SORTS = {
 };
 // No matched_tokens term: bestMatchTier() runs immediately before this sort and leaves
 // only the rows that matched the most words, so every row here carries the same count.
-const BY_RELEVANCE = (a, b) => b.score - a.score || b.rating - a.rating;
+//
+// A paid 'Nổi bật' placement is the first key, and only here: the three comparators in SORTS
+// are what the reader asked for by name, and a placement that outranked "rẻ nhất trước" would
+// answer a question about price with an advertisement. It sits above `score` rather than
+// beside it because the salons it reorders all matched the query — bestMatchTier() already
+// dropped the ones that did not, so this can never push an irrelevant salon onto the page.
+const BY_RELEVANCE = (a, b) =>
+  Number(b.featured) - Number(a.featured) || b.score - a.score || b.rating - a.rating;
 
 /**
  * The bookable services of every candidate salon, cheapest first, keyed by salon id. One

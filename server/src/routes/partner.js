@@ -13,6 +13,7 @@ import {
 } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
 import { recordEvent } from '../lib/events.js';
+import { isFeatured } from '../lib/featured.js';
 import { notifyStaff, notifyUser } from '../lib/notify.js';
 import { normalisePhone, normalisedPhoneSql } from '../lib/phone.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
@@ -521,7 +522,10 @@ async function salonShape(row) {
     lat: row.lat,
     lng: row.lng,
     verified: row.verified,
-    featured: row.featured,
+    // The console reads the pin, it does not set it: 'Nổi bật' is sold by hand and written
+    // by the admin route, so the owner gets the answer and the day it runs out.
+    featured: isFeatured(row.featured_until),
+    featured_until: row.featured_until,
     flagship: row.flagship,
     tags: parseJsonArray(row.tags),
     amenities: parseJsonArray(row.amenities),

@@ -7,6 +7,7 @@ import {
   toSalonCard,
   toServiceCard,
 } from '../lib/cards.js';
+import { IS_FEATURED_SQL } from '../lib/featured.js';
 import { parseJsonArray, parsePagination } from '../lib/query.js';
 import { SOCIAL_PROFILE_PLATFORMS } from '../lib/social-profile.js';
 import { salonVisibleTo } from '../lib/salon-visibility.js';
@@ -33,13 +34,16 @@ const SORTS = {
   popular: '(SELECT COUNT(*) FROM bookings b WHERE b.salon_id = s.id) DESC, s.id',
   newest: 's.id DESC', // id is identity-generated, so descending id is newest first.
 };
-const DEFAULT_SORT = 's.featured DESC, s.flagship DESC, s.id';
+// A salon that has bought 'Nổi bật' is at the top of the unsorted list for as long as it has
+// paid for, and nowhere else: the three keys in SORTS are what the reader asked for by name,
+// and a placement that outranked a price sort would be a lie about the cheapest salon.
+const DEFAULT_SORT = `${IS_FEATURED_SQL} DESC, s.flagship DESC, s.id`;
 
 // owner_id and published ride along for the draft gate below and are read there only:
 // toSalonProfile names every field it answers with, so neither reaches a client.
 const SALON_DETAIL_COLUMNS = `
   ${SALON_CARD_COLUMNS},
-  s.description, s.phone, s.open_time, s.close_time, s.featured, s.flagship, s.amenities,
+  s.description, s.phone, s.open_time, s.close_time, s.flagship, s.amenities,
   s.tour_url, s.created_at, s.cancel_cutoff_hours, s.cancel_policy_text,
   s.owner_id, s.published
 `;
@@ -136,7 +140,6 @@ async function toSalonProfile(row) {
     open_time: row.open_time,
     close_time: row.close_time,
     hours: await selectSalonHours.all(row.id),
-    featured: Boolean(row.featured),
     flagship: Boolean(row.flagship),
     amenities: parseJsonArray(row.amenities),
     tour_url: row.tour_url,
@@ -185,7 +188,7 @@ router.get('/', async (req, res, next) => {
     }
 
     if (req.query.featured === '1') {
-      conditions.push('s.featured = 1');
+      conditions.push(IS_FEATURED_SQL);
     }
     if (req.query.flagship === '1') {
       conditions.push('s.flagship = 1');

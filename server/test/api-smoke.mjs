@@ -24,6 +24,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 // The one offer OAK runs, so the suite spells the code the same way the server does.
+import { formatDateVN } from '../src/lib/time.js';
 import { WELCOME_PERCENT, welcomeCode } from '../src/lib/welcome-promotion.js';
 // The schema drop below, behind the guard that decides which database may be dropped.
 import { resetDatabase } from './lib/test-database.mjs';
@@ -44,6 +45,10 @@ const BODY_PREVIEW_CHARS = 300;
    moment it asked. In external mode the server was started by somebody else: give it this
    value as TICK_SECRET, or set OAK_TEST_TICK_SECRET here to whatever it was given. */
 const TICK_SECRET = process.env.OAK_TEST_TICK_SECRET ?? 'oak-smoke-tick-key';
+/* The address the spawned server is told to treat as the operator's, and the one group 20g
+   opens an account at. In external mode the server was started by somebody else: give it this
+   value as ADMIN_EMAILS, or set OAK_TEST_ADMIN_EMAIL here to whatever it was given. */
+const ADMIN_EMAIL = process.env.OAK_TEST_ADMIN_EMAIL ?? 'admin@oak.invalid';
 const PNG_1X1 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
@@ -240,6 +245,10 @@ function spawnServer() {
        reason that is not the code under test. Raised rather than switched off, so the plumbing
        that reads the variable is exercised on every run. */
     REGISTER_IP_LIMIT: '1000',
+    /* The one account /api/admin answers to in this run. The gate reads the variable once at
+       import, so the address has to be decided here rather than in the group that uses it —
+       group 20g registers exactly this account and no other. */
+    ADMIN_EMAILS: ADMIN_EMAIL,
   };
   // A shell with production's credentials exported would otherwise have this suite writing
   // its fixture images into the real bucket and mailing real people; the child gets neither.
@@ -582,19 +591,19 @@ async function groupSalons() {
   const hair = ok(byCategory, 'GET /api/salons?category=hair');
   assert(hair.length > 0, 'salons?category=hair: expected a match', byCategory);
 
+  /* 'Nổi bật' is a placement somebody buys for a stretch of days, so nobody holds one until
+     an operator sells it: the seed hands out none, and the filter that used to narrow the
+     list to the salons a fixture had flagged now narrows it to nothing. Group 20g is where a
+     salon is pinned and the filter, the ranking and the chip are read against it. */
   const featuredResponse = await guest.fetch('/api/salons?featured=1');
-  const featured = ok(featuredResponse, 'GET /api/salons?featured=1');
-  assert(featured.length > 0, 'salons?featured=1: expected a match', featuredResponse);
+  ok(featuredResponse, 'GET /api/salons?featured=1');
   assert(
-    featuredResponse.body.meta.total < totalSalons,
-    'salons?featured=1: the filter must narrow the list',
+    featuredResponse.body.meta.total === 0,
+    'salons?featured=1: a seeded platform has sold no placement',
     featuredResponse,
   );
-  const featuredDetail = ok(
-    await guest.fetch(`/api/salons/${featured[0].id}`),
-    'featured salon detail',
-  );
-  assert(featuredDetail.featured === true, 'salons?featured=1: returned a non-featured salon');
+  assert(totalSalons > 0, 'the seed lists salons at all', all);
+  assert(card.featured === false, 'salon card: featured must be a boolean, and false here');
 
   const sortedResponse = await guest.fetch('/api/salons?sort=rating&limit=50');
   const sorted = ok(sortedResponse, 'GET /api/salons?sort=rating');
@@ -12731,6 +12740,251 @@ async function groupSalonAddress() {
 }
 
 /* ============================================================================
+ * 20g — a placement that runs out, and the channel a fee is announced through
+ *
+ * 'Nổi bật' is the first thing OAK will sell, and it is sold by hand: an operator sets a day
+ * for it to end and the salon is at the top of the list until that day arrives. So the two
+ * things worth pinning are that the pin RANKS — list, search, card and profile agree — and
+ * that it EXPIRES, because a placement that outlives what was paid for is the whole risk of
+ * storing it as a flag, which is what this replaced.
+ *
+ * And beside it the other half of charging money: the terms promise thirty days' notice
+ * before any fee, and this is the channel that notice travels down. An announcement to
+ * partners has to reach partner bells and no customer's.
+ * ========================================================================= */
+
+async function groupFeaturedAndAnnouncements() {
+  const stamp = Date.now();
+  const guest = session('guest');
+  const customer = session('customer');
+  const partner = session('partnerA');
+  const tomorrow = addDays(state.today, 1);
+  const yesterday = addDays(state.today, -1);
+
+  /* -- the door only the address in ADMIN_EMAILS opens ------------------------- */
+
+  expectError(
+    await guest.fetch('/api/admin/salons'),
+    401,
+    'UNAUTHENTICATED',
+    'GET /api/admin/salons as a stranger',
+  );
+  expectError(
+    await partner.fetch('/api/admin/salons'),
+    403,
+    'FORBIDDEN',
+    'GET /api/admin/salons as an ordinary partner',
+  );
+
+  const admin = new Session();
+  ok(
+    await admin.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Người Vận Hành',
+        email: ADMIN_EMAIL,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'register the one account ADMIN_EMAILS names',
+  );
+
+  /* -- what the operator can see, and the salon they are about to sell to ------ */
+
+  const adminSalons = ok(await admin.fetch('/api/admin/salons'), 'GET /api/admin/salons');
+  assert(adminSalons.length > 0, 'the operator sees the salons on the platform');
+  const listed = adminSalons[0];
+  for (const field of ['id', 'name', 'slug', 'owner_email', 'published', 'featured_until']) {
+    assert(field in listed, `GET /api/admin/salons: every row carries ${field}`, listed);
+  }
+  assert(
+    adminSalons.every((row) => row.featured_until === null),
+    'nobody holds a placement before one is sold',
+  );
+
+  /* A salon whose owner's session this suite already holds, so the bell the pin rings can be
+     read without a second login, and one that is NOT already at the top: "it came first" then
+     has nothing to say except that the pin said it. */
+  const ownerClient = session('partnerB');
+  const target = ok(await ownerClient.fetch('/api/partner/salon'), 'the salon about to be pinned');
+  const beforeResponse = await guest.fetch('/api/salons?limit=50');
+  const before = ok(beforeResponse, 'GET /api/salons (before any pin)');
+  assert(before.length > 1, 'the ranking below needs more than one salon', beforeResponse);
+  assert(before[0].id !== target.id, 'the salon under test does not already rank first', before[0]);
+  assert(target.featured === false, 'the console says featured is false until a pin is sold');
+  assert(target.featured_until === null, 'and names no day, because none was sold');
+
+  /* -- sold: it ranks first everywhere the reader has not asked for another order -- */
+
+  const pinned = ok(
+    await admin.fetch(`/api/admin/salons/${target.id}/featured`, {
+      method: 'PATCH',
+      json: { until: tomorrow },
+    }),
+    'PATCH /api/admin/salons/:id/featured',
+  );
+  assert(pinned.featured_until === tomorrow, 'the route answers with the day it stored', pinned);
+
+  const afterResponse = await guest.fetch('/api/salons?limit=50');
+  const after = ok(afterResponse, 'GET /api/salons (with a pin live)');
+  assert(after[0].id === target.id, 'a salon pinned until tomorrow is first today', afterResponse);
+  assert(after[0].featured === true, 'and its card says so', afterResponse);
+
+  const searchedResponse = await guest.fetch('/api/search/salons?limit=50');
+  const searched = ok(searchedResponse, 'GET /api/search/salons (with a pin live)');
+  assert(searched[0].id === target.id, 'and it is first in search too', searchedResponse);
+  assert(searched[0].featured === true, 'and its search card says so', searchedResponse);
+
+  const onlyFeaturedResponse = await guest.fetch('/api/salons?featured=1');
+  const onlyFeatured = ok(onlyFeaturedResponse, 'GET /api/salons?featured=1 (with a pin live)');
+  assert(
+    onlyFeatured.length === 1 && onlyFeatured[0].id === target.id,
+    'the filter answers with the one salon that holds a placement',
+    onlyFeaturedResponse,
+  );
+
+  const profile = ok(await guest.fetch(`/api/salons/${target.id}`), 'the pinned salon profile');
+  assert(profile.featured === true, 'and the profile carries the same flag as the card');
+
+  /* A sort the reader asked for by name is theirs: a paid placement must not answer "rẻ
+     nhất trước" with an advertisement. */
+  const byPriceResponse = await guest.fetch('/api/search/salons?sort=price&limit=50');
+  const byPrice = ok(byPriceResponse, 'GET /api/search/salons?sort=price');
+  for (let index = 1; index < byPrice.length; index += 1) {
+    assert(
+      (byPrice[index - 1].price_from ?? Infinity) <= (byPrice[index].price_from ?? Infinity),
+      'a pin does not reorder a price sort',
+      byPriceResponse,
+    );
+  }
+
+  // And the owner was told, in their own bell, with the day it ends in the sentence.
+  const ownerBell = ok(await ownerClient.fetch('/api/notifications'), 'the owner’s bell');
+  assert(
+    ownerBell.some((item) => item.type === 'system' && item.body.includes(formatDateVN(tomorrow))),
+    'the owner is told their salon was pinned, and until when',
+  );
+  const pinnedConsole = ok(
+    await ownerClient.fetch('/api/partner/salon'),
+    'the console, with the pin live',
+  );
+  assert(
+    pinnedConsole.featured === true && pinnedConsole.featured_until === tomorrow,
+    'and the console shows the placement and the day it ends',
+    pinnedConsole,
+  );
+
+  /* -- and it runs out, without anything having to run ------------------------- */
+
+  ok(
+    await admin.fetch(`/api/admin/salons/${target.id}/featured`, {
+      method: 'PATCH',
+      json: { until: yesterday },
+    }),
+    'PATCH /api/admin/salons/:id/featured (a placement that ended yesterday)',
+  );
+  const expiredResponse = await guest.fetch('/api/salons?limit=50');
+  const expired = ok(expiredResponse, 'GET /api/salons (with a spent pin)');
+  assert(
+    expired[0].id !== target.id,
+    'a placement whose day has passed stops ranking, with no sweep',
+    expiredResponse,
+  );
+  assert(
+    expired.find((item) => item.id === target.id).featured === false,
+    'and the chip goes with it',
+    expiredResponse,
+  );
+  assert(
+    ok(await guest.fetch('/api/salons?featured=1'), 'GET /api/salons?featured=1 (spent)').length === 0,
+    'and the filter is empty again',
+  );
+
+  ok(
+    await admin.fetch(`/api/admin/salons/${target.id}/featured`, {
+      method: 'PATCH',
+      json: { until: null },
+    }),
+    'PATCH /api/admin/salons/:id/featured (taking it off)',
+  );
+  expectError(
+    await admin.fetch(`/api/admin/salons/${target.id}/featured`, {
+      method: 'PATCH',
+      json: { until: 'tuần sau' },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'PATCH /api/admin/salons/:id/featured with something that is not a date',
+  );
+
+  /* -- the notice channel: partners hear it, customers do not ----------------- */
+
+  const title = `Bảng giá OAK từ 2027 (${stamp})`;
+  const announced = ok(
+    await admin.fetch('/api/admin/announcements', {
+      method: 'POST',
+      json: {
+        title,
+        body: 'Từ 01/01/2027 gói Nổi bật có phí. Thông báo này gửi trước hơn 30 ngày.',
+        audience: 'partner',
+      },
+    }),
+    'POST /api/admin/announcements',
+  );
+  assert(announced.notified > 0, 'an announcement to partners reached somebody', announced);
+
+  const partnerBell = ok(await partner.fetch('/api/notifications'), 'a partner’s bell');
+  assert(
+    partnerBell.some((item) => item.title === title && item.type === 'system'),
+    'the announcement reached a partner',
+  );
+  const customerBell = ok(await customer.fetch('/api/notifications'), 'a customer’s bell');
+  assert(
+    !customerBell.some((item) => item.title === title),
+    'and it did not reach a customer, who was not the audience',
+  );
+
+  const announcements = ok(
+    await admin.fetch('/api/admin/announcements'),
+    'GET /api/admin/announcements',
+  );
+  assert(
+    announcements[0].title === title && announcements[0].audience === 'partner',
+    'the sending is on the record, newest first',
+    announcements[0],
+  );
+
+  expectError(
+    await admin.fetch('/api/admin/announcements', {
+      method: 'POST',
+      json: { title: '', body: 'x', audience: 'partner' },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'POST /api/admin/announcements with no title',
+  );
+  expectError(
+    await admin.fetch('/api/admin/announcements', {
+      method: 'POST',
+      json: { title, body: 'x', audience: 'everybody' },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'POST /api/admin/announcements to an audience that does not exist',
+  );
+  expectError(
+    await partner.fetch('/api/admin/announcements', {
+      method: 'POST',
+      json: { title, body: 'x', audience: 'all' },
+    }),
+    403,
+    'FORBIDDEN',
+    'POST /api/admin/announcements as an ordinary partner',
+  );
+}
+
+/* ============================================================================
  * 21 — the two doors that answer "is this number taken", rationed together
  *
  * LAST IN THE SUITE, and it has to be. This group deliberately spends the whole per-address
@@ -12926,6 +13180,7 @@ async function main() {
   await group('20d the number typed at the counter', groupWalkInAttach);
   await group('20e a day taken off the calendar', groupClosedDays);
   await group('20f the address a salon answers at', groupSalonAddress);
+  await group('20g a placement that runs out, and the notice channel', groupFeaturedAndAnnouncements);
   // Last, always: it spends the whole per-IP sign-up allowance and cannot give it back.
   await group('21 sign-up throttle', groupRegisterThrottle);
 }

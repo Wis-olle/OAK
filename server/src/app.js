@@ -5,6 +5,7 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import { db, queries } from './db.js';
+import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import bookingRoutes from './routes/bookings.js';
 import eventRoutes from './routes/events.js';
@@ -132,6 +133,8 @@ app.use('/api/partner/import', importSalonRoutes);
 app.use('/api/partner', partnerRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/geo', geoRoutes);
+// Not part of the product's API either: what OAK does to the platform, behind ADMIN_EMAILS.
+app.use('/api/admin', adminRoutes);
 // Not part of the product's API: the scheduler's own door, behind TICK_SECRET.
 app.use('/api/internal', internalRoutes);
 

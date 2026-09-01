@@ -292,3 +292,68 @@ Giới hạn cố định trong code, không cấu hình bằng env:
 Chặn SSRF: chỉ `http`/`https`, cổng mặc định, không kèm user/password; hostname được resolve trước và **từ chối nếu bất kỳ địa chỉ nào là nội bộ** (0/8, 10/8, 100.64/10 CGNAT, 127/8, 169.254/16, 172.16/12, 192.0.0/24, 192.168/16, 198.18/15, 224/4 trở lên — multicast/reserved/broadcast, `::1`, `::`, `fc00::/7`, `fe80::/10`, v4-mapped). Link Facebook/Instagram/TikTok/Zalo/YouTube **không bao giờ được fetch** — chỉ lưu thành social link.
 
 Nếu host deploy chặn egress, route này trả `502 UPSTREAM_ERROR` và đối tác nhập tay như trước — không có bước cấu hình nào cần làm khi deploy. Bảng `salon_imports` (lưu link + thời điểm đồng ý + tóm tắt kết quả) được tạo bằng `CREATE TABLE IF NOT EXISTS` lúc boot như mọi bảng khác.
+
+---
+
+## 12. Vận hành thủ công (`/api/admin`)
+
+Hai việc OAK làm với **nền tảng** chứ không với một tài khoản: bán vị trí **Nổi bật** cho một salon, và **thông báo** cho tất cả mọi người. Cả hai đều làm bằng tay, vài lần một tháng, nên **không có trang quản trị** — một màn hình không ai mở hai lần một tuần là một bề mặt phải canh giữ mà chẳng được gì.
+
+### Ai mở được
+
+Biến `ADMIN_EMAILS` (danh sách email, ngăn nhau bằng dấu phẩy). **Không khai thì không ai vào được** — mặc định là cửa đóng, không phải cửa mở. Người vận hành đăng nhập bằng tài khoản thường ở `dang-nhap-nguoi-dung.html`; cửa này nhận ra họ qua địa chỉ email chứ không qua vai trò.
+
+```
+ADMIN_EMAILS=ban@oakbeauty.vn,vanhanh@oakbeauty.vn
+```
+
+Đổi biến này phải **redeploy** mới có hiệu lực (đọc một lần lúc import).
+
+### Ghim "Nổi bật" cho một salon
+
+`salons.featured_until` là **ngày kết thúc, không tính ngày đó**: bán "đến hết 30/09" thì ghi `2026-10-01`. Salon đang ghim được xếp lên đầu `/api/salons` và `/api/search/salons` (không đụng tới ba kiểu sắp xếp khách tự chọn: rating, khoảng cách, giá), thẻ salon và trang salon hiện nhãn **Nổi bật**. Hết hạn là hết — **không có tác vụ quét nào phải chạy**.
+
+Lấy cookie đăng nhập một lần rồi dùng lại:
+
+```bash
+BASE=https://oak-demo.onrender.com
+curl -s -c /tmp/oak.txt -X POST "$BASE/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"ban@oakbeauty.vn","password":"..."}'
+
+# Danh sách salon: id, tên, slug, email chủ salon, đã publish chưa, đang ghim đến ngày nào
+curl -s -b /tmp/oak.txt "$BASE/api/admin/salons"
+
+# Ghim salon id 12 đến hết 30/09/2026
+curl -s -b /tmp/oak.txt -X PATCH "$BASE/api/admin/salons/12/featured" \
+  -H 'Content-Type: application/json' -d '{"until":"2026-10-01"}'
+
+# Gỡ ghim ngay
+curl -s -b /tmp/oak.txt -X PATCH "$BASE/api/admin/salons/12/featured" \
+  -H 'Content-Type: application/json' -d '{"until":null}'
+```
+
+Khi ghim, chủ salon nhận một thông báo trong chuông ("Salon của bạn được ghim Nổi bật đến ngày …"). Gỡ ghim thì không — người vận hành sửa lỗi gõ của chính mình không nên rung chuông nhà người khác.
+
+### Thông báo hệ thống — **đây là kênh báo trước 30 ngày**
+
+Điều khoản mục 7 hứa: trước khi thu bất kỳ khoản phí nào, OAK Beauty báo cho đối tác **trước ít nhất 30 ngày qua Thông báo trong ứng dụng**. Route dưới đây là cách lời hứa đó được giữ — và bảng `announcements` là bằng chứng đã báo, còn đọc được nhiều tháng sau.
+
+`audience` là `partner`, `customer` hoặc `all`. Một lần gọi ghi một dòng `announcements` và một thông báo cho **mỗi** tài khoản thuộc nhóm đó (loại `system`), tất cả trong **một transaction** — đã gửi thì gửi hết, hỏng thì không ai nhận, nên gọi lại không rung chuông hai lần cho nửa đầu danh sách.
+
+```bash
+# Báo phí trước 30 ngày (gọi vào 01/11 cho mức phí bắt đầu 01/01)
+curl -s -b /tmp/oak.txt -X POST "$BASE/api/admin/announcements" \
+  -H 'Content-Type: application/json' -d '{
+    "audience": "partner",
+    "title": "Từ 01/01/2027, vị trí Nổi bật có phí",
+    "body": "Từ 01/01/2027, vị trí Nổi bật trên trang tìm kiếm có phí 300.000đ/tháng. Nền tảng vẫn miễn phí và vẫn không thu hoa hồng trên lịch hẹn. Thông báo này gửi trước hơn 30 ngày; salon không đồng ý có thể ngừng hợp tác trước ngày áp dụng mà không mất phí."
+  }'
+
+# Những gì đã thông báo, mới nhất trước
+curl -s -b /tmp/oak.txt "$BASE/api/admin/announcements"
+```
+
+Giới hạn: tiêu đề ≤ 120 ký tự, nội dung ≤ 1000 ký tự. Câu trả lời có `notified` — số chuông đã rung, để đối chiếu với số tài khoản đáng lẽ phải nhận.
+
+Không cần cấu hình gì thêm khi deploy ngoài `ADMIN_EMAILS`: bảng `announcements` được tạo bằng `CREATE TABLE IF NOT EXISTS` lúc boot như mọi bảng khác.
