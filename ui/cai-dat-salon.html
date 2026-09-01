@@ -164,7 +164,7 @@
      the imported values after a reload. -->
 <section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]" id="nhap-tu-web" x-data="salonImport()">
 <h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Nhập từ web có sẵn</h3>
-<p class="font-caption text-caption text-on-surface-variant mb-6">Dán link trang web hoặc trang đặt lịch salon bạn đang dùng. Link KiotViet (web-store, booksalon) nhập được gần như mọi thứ; link Facebook hay Zalo được lưu vào mục Mạng xã hội, phần còn lại bạn điền tay.</p>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Dán link trang web hoặc trang đặt lịch salon bạn đang dùng. Link KiotViet (web-store, booksalon) nhập được gần như mọi thứ; link Facebook hay Zalo chỉ lưu được đường dẫn, phần còn lại bạn điền tay.</p>
 <!-- Enter is caught here: this card sits inside the page's save form, and Enter in a bare
      field would submit that form instead of asking for the import. -->
 <div class="relative mb-6">
@@ -314,19 +314,6 @@
 </div>
 </section>
 
-<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
-<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Mạng xã hội</h3>
-<p class="font-caption text-caption text-on-surface-variant mb-6">Thêm link trang hoặc hồ sơ chính thức của salon. Để trống nếu salon chưa dùng nền tảng đó.</p>
-<div class="space-y-8">
-<template :key="social.platform" x-for="social in socialPlatforms">
-<div class="relative">
-<input :id="'salon-social-' + social.platform" :placeholder="social.placeholder" class="input-minimal always-raised font-body-md text-body-md text-primary" type="url" x-model="form.social_links[social.platform]"/>
-<label :for="'salon-social-' + social.platform" class="floating-label font-label-md uppercase tracking-widest" x-text="social.label"></label>
-</div>
-</template>
-</div>
-</section>
-
 <section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]" id="vi-tri">
 <h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Vị trí trên bản đồ</h3>
 <p class="font-caption text-caption text-on-surface-variant mb-6">Tìm theo tên đường, chợ hay toà nhà rồi kéo ghim cho đúng cửa tiệm. Chưa có toạ độ thì salon không hiện trên bản đồ tìm kiếm.</p>
@@ -387,8 +374,8 @@
 </section>
 
 <section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
-<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Đặt lịch online</h3>
-<p class="font-caption text-caption text-on-surface-variant mb-6">Quyết định lịch khách đặt trên OAK được nhận thế nào.</p>
+<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Đặt lịch và hủy lịch</h3>
+<p class="font-caption text-caption text-on-surface-variant mb-6">Quyết định lịch khách đặt trên OAK được nhận thế nào, và khách được hủy đến lúc nào. Khách xem mốc hủy trên trang salon, trong lúc đặt và ở Lịch hẹn của tôi.</p>
 <div class="space-y-8">
 <label class="flex items-start gap-3 font-body-md text-body-md text-on-surface-variant cursor-pointer">
 <input class="mt-1" type="checkbox" x-model="form.auto_confirm"/>
@@ -407,13 +394,6 @@
 <label class="floating-label font-label-md uppercase tracking-widest" for="salon-lead-time">Khách phải đặt trước</label>
 </div>
 <p class="font-caption text-caption text-on-surface-variant">Khung giờ gần hơn mức này sẽ không hiện cho khách.</p>
-</div>
-</section>
-
-<section class="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-surface-variant shadow-[0_4px_24px_rgba(44,44,44,0.04)]">
-<h3 class="font-headline-sm text-headline-sm text-on-background mb-2">Chính sách hủy</h3>
-<p class="font-caption text-caption text-on-surface-variant mb-6">Khách xem mốc này trên trang salon, trong lúc đặt và ở Lịch hẹn của tôi.</p>
-<div class="space-y-8">
 <div class="relative">
 <select class="input-minimal always-raised font-body-md text-body-md text-primary" id="salon-cancel-cutoff" x-model="form.cancel_cutoff_hours">
 <option value="2">Trước 2 tiếng</option>
@@ -489,11 +469,6 @@
         x-text="amenity"></button>
 </template>
 </div>
-<div class="relative mt-10">
-<input class="input-minimal font-body-md text-body-md text-primary" id="salon-tags" placeholder=" " type="text" x-model="tagsText"/>
-<label class="floating-label font-label-md uppercase tracking-widest" for="salon-tags">Thẻ phân loại (cách nhau bởi dấu phẩy)</label>
-</div>
-<p class="font-caption text-caption text-on-surface-variant mt-2">Ví dụ: Nail, Cao cấp, Gần trung tâm</p>
 </section>
 </div>
 
@@ -803,7 +778,7 @@
 
     /* Form fields fill() sets by hand: the plain "value or empty string" pass would flatten
        a list, a nested object or a meaningful zero. */
-    var SHAPED_FIELDS = ['amenities', 'hours', 'social_links', 'auto_confirm', 'lead_time_min',
+    var SHAPED_FIELDS = ['amenities', 'hours', 'auto_confirm', 'lead_time_min',
         'cancel_cutoff_hours'];
 
     /** Keep the salon's own value in the list even when it is not one of the presets. */
@@ -820,7 +795,6 @@
             error: '',
             user: null,
             slug: '',
-            tagsText: '',
             original: null,
             snapshot: '',
             confirmOpen: false,
@@ -840,7 +814,6 @@
                 auto_confirm: true, lead_time_min: '0',
                 cancel_cutoff_hours: '2', cancel_policy_text: '',
                 amenities: [], hours: [],
-                social_links: { facebook: '', instagram: '', tiktok: '', youtube: '', zalo: '' },
             },
 
             /* Whether the salon is on the public side, and the gallery beside the cover
@@ -866,14 +839,6 @@
             timeOffError: '',
             timeOffSaving: false,
             timeOffAffected: 0,
-
-            socialPlatforms: [
-                { platform: 'facebook', label: 'Facebook', placeholder: 'https://www.facebook.com/ten-salon' },
-                { platform: 'instagram', label: 'Instagram', placeholder: 'https://www.instagram.com/ten-salon' },
-                { platform: 'tiktok', label: 'TikTok', placeholder: 'https://www.tiktok.com/@ten-salon' },
-                { platform: 'youtube', label: 'YouTube', placeholder: 'https://www.youtube.com/@ten-salon' },
-                { platform: 'zalo', label: 'Zalo', placeholder: 'https://zalo.me/ten-salon' },
-            ],
 
             async init() {
                 await OAK.requirePartner();
@@ -1520,19 +1485,15 @@
                 this.form.cancel_cutoff_hours = String(
                     salon.cancel_cutoff_hours == null ? 2 : salon.cancel_cutoff_hours,
                 );
-                Object.keys(this.form.social_links).forEach(function (platform) {
-                    self.form.social_links[platform] = (salon.social_links && salon.social_links[platform]) || '';
-                });
                 this.form.amenities = (salon.amenities || []).slice();
                 this.form.hours = this.buildHours(salon.hours || []);
-                this.tagsText = (salon.tags || []).join(', ');
                 this.error = '';
                 this.syncPin(false);
                 this.snapshot = this.formSnapshot();
             },
 
             formSnapshot() {
-                return JSON.stringify({ form: this.form, tagsText: this.tagsText });
+                return JSON.stringify(this.form);
             },
 
             get dirty() {
@@ -1710,7 +1671,6 @@
                             lat: this.hasPin ? Number(this.form.lat) : null,
                             lng: this.hasPin ? Number(this.form.lng) : null,
                             amenities: this.form.amenities,
-                            social_links: Object.assign({}, this.form.social_links),
                             hours: this.form.hours.map(function (day) {
                                 return {
                                     weekday: day.weekday,
@@ -1719,9 +1679,6 @@
                                     is_off: day.is_off ? 1 : 0,
                                 };
                             }),
-                            tags: this.tagsText.split(',').map(function (tag) {
-                                return tag.trim();
-                            }).filter(Boolean),
                         },
                     });
                     this.slug = saved.slug;

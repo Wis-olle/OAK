@@ -170,18 +170,6 @@ Cài đặt
 </div>
 </form>
 </div>
-<!-- Marketing, kept apart from the notifications about a booking: those are the service
-     itself and are always sent, this one is a permission that can be withdrawn. -->
-<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-6 md:p-8 mt-8">
-<h2 class="font-headline-sm text-headline-sm text-primary mb-2">Ưu đãi &amp; khuyến mãi</h2>
-<p class="font-body-md text-body-md text-on-surface-variant mb-8">Thông báo về lịch hẹn của bạn luôn được gửi. Mục này chỉ áp dụng cho tin ưu đãi.</p>
-<label class="flex items-start gap-3 cursor-pointer" for="settings-marketing">
-<input :disabled="marketingBusy" @change="saveMarketing()" class="mt-1" id="settings-marketing" type="checkbox" x-model="marketing">
-<span class="font-body-md text-body-md text-on-surface-variant">Nhận ưu đãi và tin khuyến mãi qua Thông báo.</span>
-</label>
-<p class="font-caption text-caption text-error mt-4" role="alert" x-cloak="" x-show="marketingError" x-text="marketingError"></p>
-<p class="font-caption text-caption text-primary mt-4" role="status" x-cloak="" x-show="marketingNotice" x-text="marketingNotice"></p>
-</div>
 <!-- Erasing the account, done here rather than by writing to an address and waiting: the
      right is only a right if it can be exercised. Not offered to a partner: the header
      hands this page to every signed-in account, but a salon owner's account cannot be
@@ -280,10 +268,6 @@ Cài đặt
             passwordError: '',
             passwordNotice: '',
             passwordBusy: false,
-            marketing: false,
-            marketingError: '',
-            marketingNotice: '',
-            marketingBusy: false,
             deleteOpen: false,
             deletePassword: '',
             deleteError: '',
@@ -291,31 +275,6 @@ Cài đặt
 
             async init() {
                 this.user = await OAK.requireLogin();
-                // The stored permission is an integer; the box is a boolean.
-                this.marketing = Boolean(this.user.marketing_opt_in);
-            },
-
-            /** Saved on the change itself: a permission is not a form to submit. */
-            async saveMarketing() {
-                this.marketingError = '';
-                this.marketingNotice = '';
-                this.marketingBusy = true;
-                try {
-                    await OAK.api('/api/users/me', {
-                        method: 'PATCH',
-                        body: { marketing_opt_in: this.marketing },
-                    });
-                    this.marketingNotice = this.marketing
-                        ? 'Bạn sẽ nhận tin ưu đãi.'
-                        : 'Bạn sẽ không nhận tin ưu đãi.';
-                } catch (error) {
-                    // Put back what is actually stored, so the box never claims a choice
-                    // the server did not take.
-                    this.marketing = !this.marketing;
-                    this.marketingError = error.message;
-                } finally {
-                    this.marketingBusy = false;
-                }
             },
 
             openDelete() {

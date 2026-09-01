@@ -509,6 +509,9 @@
         eyelash: 'Nối mi',
         amenity: 'Tiện ích',
     };
+    /* The five a salon may file a service under. The map above still holds 'amenity' so a
+       row written before that stopped being allowed still reads as "Tiện ích" on its card. */
+    var OAK_BOOKABLE_CATEGORIES = ['hair', 'nail', 'skincare', 'spa', 'eyelash'];
     var OAK_PROMOTION_LABELS = {
         discount: 'Giảm giá',
         combo: 'Combo',
@@ -641,7 +644,7 @@
             },
 
             allCategories() {
-                return Object.keys(OAK_CATEGORY_LABELS).map(function (key) {
+                return OAK_BOOKABLE_CATEGORIES.map(function (key) {
                     return { key: key, label: OAK_CATEGORY_LABELS[key] };
                 });
             },
@@ -694,7 +697,12 @@
                     ? {
                           id: service.id,
                           name: service.name,
-                          category: service.category,
+                          /* An old amenity row opens with the box empty rather than with a
+                             value the list no longer offers and the server would refuse:
+                             the select is required, so editing it means re-filing it. */
+                          category: OAK_BOOKABLE_CATEGORIES.indexOf(service.category) === -1
+                              ? ''
+                              : service.category,
                           price: service.price,
                           price_is_from: service.price_is_from === 1,
                           duration_min: service.duration_min,

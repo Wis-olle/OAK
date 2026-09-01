@@ -394,21 +394,21 @@ test('the offers box starts off, and both answers ride with the sign-up', async 
   state.password = 'longenough1';
   state.confirm = 'longenough1';
   state.consent = true;
-  assert.equal(state.marketing, false, 'marketing is opt-IN, so it starts off');
   await state.submit();
 
   assert.equal(calls[0][0], '/api/auth/register');
   assert.equal(calls[0][1].consent, true);
-  assert.equal(calls[0][1].marketing_opt_in, false);
+  /* The offers box is gone from this form, so the sign-up asks about one thing only. The
+     key is not sent at all rather than sent as false: the column defaults to 0, and a
+     value nobody was asked for should not travel as though somebody had answered. */
+  assert.ok(!('marketing_opt_in' in calls[0][1]), 'the sign-up still carries a marketing answer');
   // Khám phá greets a new account with "the welcome code is in Thông báo". Nothing to
   // point at here, so nothing is left behind for it to say.
   assert.deepEqual(state.stored, []);
 
-  // Asked for, but no platform-wide promotion was live: the account got the plain hello,
-  // so the greeting that names a code stays quiet rather than pointing at nothing.
-  state.marketing = true;
+  // No platform-wide promotion was live, so the account got the plain hello and the
+  // greeting that names a code stays quiet rather than pointing at nothing.
   await state.submit();
-  assert.equal(calls[1][1].marketing_opt_in, true);
   assert.deepEqual(state.stored, [], 'no code written, no promise of one');
 
   welcomeCode = 'OAKNEW20';
@@ -418,9 +418,16 @@ test('the offers box starts off, and both answers ride with the sign-up', async 
 
 test('the tick is what carries the consent now, not a sentence under the button', () => {
   assert.match(registerHtml, /id="consent"[^>]*type="checkbox"/);
-  assert.match(registerHtml, /id="marketing"[^>]*type="checkbox"/);
   // The old implied-consent line is gone: an affirmative act cannot be read into a button.
   assert.doesNotMatch(registerHtml, /Khi đăng ký, bạn đồng ý với/);
+  // And consent is the only box at the customer's door now: the offers tick asked for a
+  // permission nothing on OAK spends, on the one screen a visitor cannot skip.
+  assert.doesNotMatch(registerHtml, /id="marketing"/);
+  assert.doesNotMatch(readUi('dat-lich.html'), /id="auth-marketing"/);
+  assert.doesNotMatch(readUi('cai-dat.html'), /id="settings-marketing"/);
+  // The column and the route that writes it are untouched, so an account that turned the
+  // permission on keeps it and can still be sent the other way.
+  assert.match(readServer('routes/users.js'), /if \('marketing_opt_in' in body\) \{/);
   // The partner form asks the same thing, in the same shape.
   assert.match(partnerHtml, /id="register-consent"[^>]*type="checkbox"/);
   assert.match(partnerHtml, /id="register-marketing"[^>]*type="checkbox"/);
@@ -959,40 +966,20 @@ test('the mailed link is absolute and prefers the origin Render publishes', () =
 
 // -------------------------------------------------------- cai-dat: offers and deletion
 
-test('the offers box saves itself, and puts itself back when the server refuses', async () => {
+test('settings no longer offers a permission for mail nobody sends', async () => {
   const calls = [];
   const state = settingsPage(async (path, options) => {
-    calls.push([path, options.method, options.body]);
-    if (calls.length === 2) {
-      const error = new Error('Đã có lỗi xảy ra, vui lòng thử lại sau.');
-      throw error;
-    }
+    calls.push([path, options.method]);
     return { user: { id: 1 } };
   });
 
-  state.marketing = true;
-  await state.saveMarketing();
-  // Field by field: the body is built inside the vm, so it is not reference-equal to one
-  // built out here.
-  assert.equal(calls[0][0], '/api/users/me');
-  assert.equal(calls[0][1], 'PATCH');
-  assert.equal(calls[0][2].marketing_opt_in, true);
-  assert.equal(state.marketing, true);
-  assert.equal(state.marketingError, '');
-
-  state.marketing = false;
-  await state.saveMarketing();
-  // The box may never claim a choice the server did not take.
-  assert.equal(state.marketing, true);
-  assert.match(state.marketingError, /lỗi/);
-  assert.equal(state.marketingBusy, false);
-});
-
-test('the box opens on what is stored, whatever shape the column arrives in', async () => {
-  const state = settingsPage(async () => ({}));
-  state.user = { id: 1, marketing_opt_in: 1 };
-  state.marketing = Boolean(state.user.marketing_opt_in);
-  assert.equal(state.marketing, true);
+  /* The section, its state and the request behind it are all gone. OAK sends no campaign
+     of any kind, so the box was a choice with no consequence either way — and it sat on
+     the page a reader opens to change their password. */
+  assert.equal(state.saveMarketing, undefined);
+  assert.ok(!('marketing' in state));
+  await state.init();
+  assert.deepEqual(calls, [], 'the settings page still asks the server about offers');
 });
 
 test('deleting asks for the password, and asks it here rather than on the way out', async () => {

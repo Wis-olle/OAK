@@ -449,16 +449,12 @@
 </div>
 </div>
 <p class="font-caption text-caption text-on-surface-variant" x-cloak="" x-show="authTab === 'register'">Chúng tôi dùng họ tên và số điện thoại bạn vừa nhập ở trên.</p>
-<!-- The same two boxes dang-ky.html asks, asked once per purpose: this panel creates a real
-     account, so it takes the same affirmative consent the full sign-up page does. -->
+<!-- The same box dang-ky.html asks: this panel creates a real account, so it takes the
+     same affirmative consent the full sign-up page does. -->
 <div class="space-y-3" x-cloak="" x-show="authTab === 'register'">
 <label class="flex items-start gap-3 cursor-pointer" for="auth-consent">
 <input @change="authError = ''" class="mt-1" id="auth-consent" name="auth-consent" type="checkbox" x-model="authConsent"/>
 <span class="font-caption text-caption text-on-surface-variant">Tôi đồng ý với <a class="underline hover:text-primary transition-colors" href="dieu-khoan.html" rel="noopener noreferrer" target="_blank">Điều khoản sử dụng</a> và <a class="underline hover:text-primary transition-colors" href="bao-mat.html" rel="noopener noreferrer" target="_blank">Chính sách bảo mật</a> của OAK Beauty.</span>
-</label>
-<label class="flex items-start gap-3 cursor-pointer" for="auth-marketing">
-<input class="mt-1" id="auth-marketing" name="auth-marketing" type="checkbox" x-model="authMarketing"/>
-<span class="font-caption text-caption text-on-surface-variant">Nhận ưu đãi và tin khuyến mãi qua Thông báo (không bắt buộc).</span>
 </label>
 </div>
 <p class="font-body-md text-sm text-error" role="alert" x-cloak="" x-show="authError" x-text="authError"></p>
@@ -746,7 +742,6 @@
             auth: { email: '', password: '' },
             // Off unless it is ticked: an offer nobody asked for is not one they agreed to.
             authConsent: false,
-            authMarketing: false,
             authError: '',
             authBusy: false,
 
@@ -1550,7 +1545,6 @@
                                     phone: this.normalizedPhone() || null,
                                     password: this.auth.password,
                                     consent: true,
-                                    marketing_opt_in: this.authMarketing,
                                 },
                         },
                     );

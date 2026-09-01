@@ -18,14 +18,15 @@ const DEFAULT_DAYS = 1;
 const MIN_DAYS = 1;
 const MAX_DAYS = 14;
 
-// The six categories the schema allows, in display order, with Vietnamese labels.
+// The five bookable categories, in display order, with Vietnamese labels. 'amenity' is
+// the sixth the schema allows and is deliberately absent: every listing on the customer
+// side filters it out, so a chip offering it would count rows and then show none of them.
 const CATEGORIES = [
   { key: 'nail', label: 'Nail' },
   { key: 'hair', label: 'Tóc' },
   { key: 'skincare', label: 'Chăm sóc da' },
   { key: 'spa', label: 'Spa & Massage' },
   { key: 'eyelash', label: 'Nối mi' },
-  { key: 'amenity', label: 'Tiện ích' },
 ];
 
 // Sort keys are looked up in this table, never concatenated from the query string.

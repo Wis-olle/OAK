@@ -7,20 +7,29 @@ import { readRepo, readServer, readUi } from './lib/read-source.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-test('salon settings exposes all five social profile fields and saves the object', () => {
+/* Five link boxes on the settings page and a row of five chips on the salon page, for a
+   thing a salon states once on its own Facebook and never again. They are gone from both:
+   the columns and the route stay, because the shopfront importer still writes a link it
+   finds, but nothing on OAK asks for one or shows one. */
+test('the salon settings form no longer collects social profiles', () => {
   const html = readUi('cai-dat-salon.html');
   for (const platform of ['facebook', 'instagram', 'tiktok', 'youtube', 'zalo']) {
-    assert.match(html, new RegExp(`platform: '${platform}'`));
+    assert.doesNotMatch(html, new RegExp(`platform: '${platform}'`), platform);
   }
-  assert.match(html, /social_links:\s*Object\.assign/);
-  assert.match(html, /salon\.social_links/);
+  assert.doesNotMatch(html, /form\.social_links|social_links:/);
+  // Nor the free-text tags beside the amenities, which fed no filter and no listing.
+  assert.doesNotMatch(html, /id="salon-tags"/);
+  assert.doesNotMatch(html, /tagsText/);
+  // The route that stores both is untouched: an importer's link is still written and read.
+  assert.match(readServer('routes/partner.js'), /social_links/);
 });
 
-test('public salon profile renders only allowlisted links without x-html', () => {
+test('the public salon page renders no link it was handed, and still no x-html', () => {
   const html = readUi('salon-profile.html');
-  assert.match(html, /safeSocialLinks\(\)/);
-  assert.match(html, /rel="noopener noreferrer"/);
-  assert.match(html, /target="_blank"/);
+  assert.doesNotMatch(html, /safeSocialLinks/);
+  assert.doesNotMatch(html, /social_links/);
+  /* The rule that made the old chips safe, kept as the rule for the page as a whole: a
+     salon's own text reaches the reader through x-text and never as markup. */
   assert.doesNotMatch(html, /x-html/);
 });
 

@@ -168,11 +168,6 @@
 </template>
 </div>
 <p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl" x-text="salon.description"></p>
-<div class="flex flex-wrap gap-3 mt-5" x-show="safeSocialLinks().length">
-<template :key="social.platform" x-for="social in safeSocialLinks()">
-<a :href="social.url" class="inline-flex items-center rounded-full border border-outline-variant px-4 py-2 font-label-md text-label-md text-on-surface-variant hover:border-primary hover:text-primary transition-colors" rel="noopener noreferrer" target="_blank" x-text="social.label"></a>
-</template>
-</div>
 <div class="flex flex-wrap items-center gap-6 mt-6">
 <div class="flex items-center gap-1">
 <span aria-hidden="true" class="material-symbols-outlined oak-star oak-star-lg">star</span>
@@ -711,29 +706,6 @@
             /** zalo.me addresses a Vietnamese number in international form: 090… -> 8490…  */
             zaloUrl() {
                 return 'https://zalo.me/' + this.digits(this.salon.phone).replace(/^0/, '84');
-            },
-
-            safeSocialLinks() {
-                const labels = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', zalo: 'Zalo' };
-                const hosts = {
-                    facebook: ['facebook.com', 'www.facebook.com'],
-                    instagram: ['instagram.com', 'www.instagram.com'],
-                    tiktok: ['tiktok.com', 'www.tiktok.com'],
-                    youtube: ['youtube.com', 'www.youtube.com'],
-                    zalo: ['zalo.me', 'www.zalo.me'],
-                };
-                return Object.keys(labels).flatMap((platform) => {
-                    const value = this.salon.social_links && this.salon.social_links[platform];
-                    try {
-                        const parsed = new URL(value);
-                        return parsed.protocol === 'https:' && !parsed.username && !parsed.password
-                            && !parsed.port && hosts[platform].includes(parsed.hostname)
-                            ? [{ platform, label: labels[platform], url: parsed.toString() }]
-                            : [];
-                    } catch {
-                        return [];
-                    }
-                });
             },
 
             /** How many photos the five gallery tiles are not showing. */

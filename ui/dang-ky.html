@@ -93,18 +93,16 @@
 </button>
 <p class="font-caption text-caption text-error mt-2" x-cloak="" x-show="errors.confirm" x-text="errors.confirm"></p>
 </div>
-<!-- Consent, asked as an act of its own rather than read into the button below it, and
-     asked once per purpose: agreeing to be here is not agreeing to be marketed to. -->
+<!-- Consent, asked as an act of its own rather than read into the button below it. The
+     marketing box that used to sit under it is gone: it was a second question at the door
+     for a permission nothing on OAK has ever spent, and marketing_opt_in stays 0 until an
+     account turns it on somewhere it means something. -->
 <div class="space-y-3">
 <label class="flex items-start gap-3 cursor-pointer" for="consent">
 <input @change="delete errors.consent" class="mt-1" id="consent" name="consent" type="checkbox" x-model="consent">
 <span class="font-caption text-caption text-on-surface-variant">Tôi đồng ý với <a class="underline hover:text-primary transition-colors" href="dieu-khoan.html" rel="noopener noreferrer" target="_blank">Điều khoản sử dụng</a> và <a class="underline hover:text-primary transition-colors" href="bao-mat.html" rel="noopener noreferrer" target="_blank">Chính sách bảo mật</a> của OAK Beauty.</span>
 </label>
 <p class="font-caption text-caption text-error" role="alert" x-cloak="" x-show="errors.consent" x-text="errors.consent"></p>
-<label class="flex items-start gap-3 cursor-pointer" for="marketing">
-<input class="mt-1" id="marketing" name="marketing" type="checkbox" x-model="marketing">
-<span class="font-caption text-caption text-on-surface-variant">Nhận ưu đãi và tin khuyến mãi qua Thông báo (không bắt buộc).</span>
-</label>
 </div>
 <!-- Inline error -->
 <p class="font-caption text-caption text-error" role="alert" x-cloak="" x-show="error" x-text="error"></p>
@@ -262,8 +260,6 @@
             password: '',
             confirm: '',
             consent: false,
-            // Off unless it is ticked: an offer nobody asked for is not one they agreed to.
-            marketing: false,
             showPassword: false,
             showConfirm: false,
             errors: {},
@@ -324,7 +320,6 @@
                             phone: this.phone.trim() || null,
                             password: this.password,
                             consent: true,
-                            marketing_opt_in: this.marketing,
                         },
                     });
                     oakRememberWelcome(created.welcome_code);

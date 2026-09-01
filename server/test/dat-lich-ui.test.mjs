@@ -1001,7 +1001,9 @@ test('a guest signs up inside the wizard and lands on the confirmation, never on
   // POST /api/auth/register refuses a body with no consent (CONSENT_REQUIRED), so the
   // wizard's own sign-up has to carry it — this is the one path that used to send none.
   assert.equal(registerBody.consent, true);
-  assert.equal(registerBody.marketing_opt_in, false);
+  // And nothing else: the offers box that used to sit beside the consent one is gone, so
+  // the panel asks the one question it has to and sends no answer to any other.
+  assert.ok(!('marketing_opt_in' in registerBody));
   assert.equal(state.user.id, 9);
   assert.equal(state.authError, '');
   assert.equal(state.authBusy, false);

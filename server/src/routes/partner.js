@@ -59,7 +59,11 @@ const router = express.Router();
 router.use(requireAuth, requirePartner);
 
 const BOOKING_STATUSES = ['pending', 'confirmed', 'completed', 'cancelled', 'no_show'];
-const SERVICE_CATEGORIES = ['hair', 'nail', 'skincare', 'spa', 'eyelash', 'amenity'];
+// 'amenity' is not among them: a tea or a sauna is not something a customer books, and
+// the search, the price-from figure and the public category list all skip that category
+// — so a service filed there would be one nobody could ever reach. Rows written under it
+// before this keep it: nothing here rewrites them, they simply cannot be edited into it.
+const SERVICE_CATEGORIES = ['hair', 'nail', 'skincare', 'spa', 'eyelash'];
 const PROMOTION_TYPES = ['discount', 'combo', 'flash_sale'];
 
 // The only transitions a partner may drive. completed/cancelled list nothing, so those

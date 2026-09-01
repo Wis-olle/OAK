@@ -715,7 +715,14 @@ async function groupServices() {
   const categoriesResponse = await guest.fetch('/api/services/categories');
   const categories = ok(categoriesResponse, 'GET /api/services/categories');
   assert(Array.isArray(categories), '/api/services/categories: must not be swallowed by /:id', categoriesResponse);
-  assert(categories.length === 6, '/api/services/categories: expected 6 categories', categoriesResponse);
+  // Five, not six: 'amenity' is the sixth the schema allows and every customer-side listing
+  // filters it out, so a chip for it counted rows and then showed none of them.
+  assert(categories.length === 5, '/api/services/categories: expected 5 categories', categoriesResponse);
+  assert(
+    !categories.some((item) => item.key === 'amenity'),
+    '/api/services/categories: amenity is not a category a customer browses',
+    categoriesResponse,
+  );
   assert(
     categories.every((item) => 'key' in item && 'label' in item && typeof item.count === 'number'),
     '/api/services/categories: expected {key,label,count}',

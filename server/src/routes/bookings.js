@@ -19,9 +19,6 @@ import { httpError, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Reserved line in the quote: the product decides per-staff pricing later, and having the
-// line already wired means adding a price is a one-constant change, not a shape change.
-const STAFF_SURCHARGE = 0;
 // What a salon that has never opened its settings still promises. The column carries the
 // same default, so this only stands in for a row written before the column existed.
 const DEFAULT_CANCEL_WINDOW_HOURS = 2;
@@ -245,13 +242,14 @@ async function requireUsablePromotion(code, salonId) {
  *
  * Money is whole đồng: the percentage discount is floored so rounding can never hand out
  * a fraction of a đồng, and the total is clamped at 0 for a discount larger than the price.
+ *
+ * The technician a customer picks adds no line: it used to add one reading "Phụ phí kỹ
+ * thuật viên  0đ", a charge of nothing on every quote where somebody was named. Per-staff
+ * pricing is not a thing OAK sells, and a line worth zero only makes the reader look for
+ * what it cost them.
  */
-async function buildQuote(service, staffId, promotionCode) {
+async function buildQuote(service, promotionCode) {
   const items = [{ label: service.name, amount: service.price ?? 0 }];
-
-  if (staffId !== null) {
-    items.push({ label: 'Phụ phí kỹ thuật viên', amount: STAFF_SURCHARGE });
-  }
 
   if (promotionCode) {
     const promotion = await requireUsablePromotion(promotionCode, service.salon_id);
@@ -325,7 +323,7 @@ router.get('/quote', async (req, res, next) => {
 
     res.json({
       success: true,
-      data: await buildQuote(service, toId(req.query.staff_id), promotionCode),
+      data: await buildQuote(service, promotionCode),
     });
   } catch (error) {
     next(error);
@@ -525,7 +523,7 @@ async function validateBookingRequest(
   }
 
   // Recomputed here rather than read from the body: the client is never the price authority.
-  const total = knownTotal ?? (await buildQuote(service, staffId, promotionCode)).total;
+  const total = knownTotal ?? (await buildQuote(service, promotionCode)).total;
   // A salon that takes bookings automatically has already agreed to the hour its own
   // calendar offered, so the booking is confirmed on the spot and never joins the
   // console's "Cần xử lý" queue. A salon that turned that off still decides by hand.
