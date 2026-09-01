@@ -34,13 +34,48 @@ const SERVICE_SHIFTS_SQL = `
 `;
 const selectServiceShifts = db.prepare(SERVICE_SHIFTS_SQL);
 
+// The link itself, asked about one pair at a time by staffCanDo below.
+const STAFF_SERVICE_SQL = 'SELECT 1 FROM staff_services WHERE staff_id = ? AND service_id = ?';
+const selectStaffService = db.prepare(STAFF_SERVICE_SQL);
+
+/**
+ * THE RULE: a technician performs a service when a staff_services row links the two, and
+ * never otherwise. An empty list of links means she performs NOTHING, not everything.
+ *
+ * Written down once here because it used to be answered two ways. The customer paths asked
+ * for the row and the console's own walk-in create did not, so a technician nobody had
+ * linked to anything was unbookable to a customer and bookable to everybody at the counter —
+ * and the counter's answer was the dangerous one, since pickAvailableStaff and the departure
+ * sweep both read candidates through SERVICE_SHIFTS_SQL above and would never hand her the
+ * work back. One rule, and it is the strict one, because that is the one the slot arithmetic
+ * has always been built on.
+ *
+ * The forgiving half of the bargain is at the other end, where a roster row is created:
+ * POST /api/partner/staff links a new technician to the salon's whole menu unless the request
+ * says otherwise, and POST /api/partner/services links a new service to the whole roster. So
+ * strictness here refuses the mistake without ever stranding a salon that made none.
+ *
+ * `handle` is the pool (db) or a caller's transaction. The two expose different shapes, which
+ * is why the SQL text is kept beside the prepared statement — the same seam pickAvailableStaff
+ * below runs its three queries through.
+ */
+export async function staffCanDo(handle, staffId, serviceId) {
+  const row =
+    typeof handle.prepare === 'function'
+      ? await selectStaffService.get(staffId, serviceId)
+      : await handle.get(STAFF_SERVICE_SQL, staffId, serviceId);
+  return Boolean(row);
+}
+
 // Joined to staff so one round trip yields both the shift and the salon whose opening
-// hours it has to fit inside; staffDaySlots is only ever handed a staff id.
+// hours it has to fit inside; staffDaySlots is only ever handed a staff id. st.active = 1
+// for the same reason SERVICE_SHIFTS_SQL above carries it: a technician who has left keeps
+// her schedule rows, and a day strip built from them would go on selling her hours.
 const selectStaffShift = db.prepare(`
   SELECT sch."start", sch."end", st.salon_id
   FROM staff_schedule sch
   JOIN staff st ON st.id = sch.staff_id
-  WHERE sch.staff_id = ? AND sch.weekday = ? AND sch.is_off = 0
+  WHERE sch.staff_id = ? AND st.active = 1 AND sch.weekday = ? AND sch.is_off = 0
 `);
 
 // The salon's own opening hours for one weekday. Every shift is clamped to these: the
@@ -165,17 +200,21 @@ function isFree(ranges, start, duration) {
 /**
  * A shift narrowed to the salon's opening window, or null when the salon is closed.
  *
- * `hours` is undefined when the salon has no row for that weekday. That leaves the
- * shift untouched, which is the old behaviour: the boot-time backfill gave every salon
- * that ever published opening times a full week of rows, and a salon with none is a
- * brand-new one that has no staff rostered either, so nothing is lost.
+ * `hours` is undefined when the salon has no row for that weekday, and that reads as closed.
+ * It used to leave the shift untouched — "no row means no restriction" — which made a salon
+ * with a partial week bookable around the clock on every day it had never described. Nothing
+ * writes a partial week: the console replaces all seven rows at once, the importer writes all
+ * seven (closed for the days the source never named) and the boot backfill fans the legacy
+ * open/close pair across the week. So a missing row is not an unrestricted day, it is a salon
+ * that has not said when it opens — and one of those is not ready to be listed either
+ * (has_hours, routes/partner.js).
  *
  * 'HH:MM' strings compare correctly as plain text, so the narrowing is a pair of
  * min/max. An empty or inverted window simply yields no starts.
  */
 function clampToHours(shift, hours) {
   if (!hours) {
-    return shift;
+    return null;
   }
   if (hours.is_off === 1) {
     return null;
@@ -210,14 +249,14 @@ function* shiftStarts(shift, duration, floor) {
  *
  * The write-side counterpart of clampToHours, which is the read side: a booking that
  * names no technician generates no slots to be clamped, so the rule has to be asked
- * directly. Same conventions — no row for that weekday means unrestricted, an off day
- * means closed, and the service may finish exactly at closing time but not after.
+ * directly. Same conventions as clampToHours — no row for that weekday means closed, an off
+ * day means closed, and the service may finish exactly at closing time but not after.
  * A duration that runs past midnight formats above every 'HH:MM' and so is refused.
  */
 export async function isSalonOpenFor(salonId, date, time, durationMin) {
   const hours = await selectSalonHours.get(salonId, weekdayOf(date));
   if (!hours) {
-    return true;
+    return false;
   }
   if (hours.is_off === 1) {
     return false;

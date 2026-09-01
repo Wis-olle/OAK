@@ -1183,6 +1183,35 @@ test('a picture the allowance refuses leaves a partial gallery, not a failed imp
   assert.equal(body.data.photos_added, 0);
 });
 
+test('a CDN answering 200 with nothing in it stores no picture', async () => {
+  // A 0-byte object in the bucket with a gallery row pointing at it is a broken picture on
+  // the salon's own page. Refused the way POST /api/uploads refuses an empty decode, and
+  // like every other bad picture it costs that picture and nothing else.
+  const { db, writes } = fakeDb({ ...REGISTERED_SALON });
+  const handler = lift({
+    db,
+    safeFetch: mock.fn(async (url) =>
+      url.startsWith('https://cdn-booking.kiotviet.vn/')
+        ? { url, status: 200, contentType: 'image/jpeg', buffer: Buffer.alloc(0) }
+        : kiotvietNetwork()(url),
+    ),
+  });
+
+  const { body, error } = await call(handler, {
+    url: 'https://booksalon.kiotviet.vn/4abf76ad',
+    consent: true,
+  });
+
+  assert.equal(error, undefined);
+  assert.equal(body.data.warnings.includes('images_partial'), true);
+  assert.equal(body.data.photos_added, 0);
+  // Not the cover either, and nothing was stored to point at.
+  assert.equal(body.data.filled.includes('image'), false);
+  assert.equal(writes.some((write) => /^INSERT INTO salon_photos/.test(write.sql)), false);
+  // Everything the page gave up besides its pictures is still written.
+  assert.equal(body.data.services_added, 4);
+});
+
 test('nothing an import reads may replace something the salon already holds', async () => {
   const { db, writes } = fakeDb(
     {
@@ -1652,9 +1681,10 @@ test('a page that names two days closes the other five rather than leaving them 
 
   assert.equal(error, undefined);
   assert.equal(body.data.hours_set, true);
-  // A weekday with no row at all is not "unknown" to lib/availability.js — it is "open
-  // around the clock". The five days this page never mentioned are written closed instead,
-  // in the shape PATCH /api/partner/salon writes one: no window, is_off = 1.
+  // A weekday with no row at all reads as closed to lib/availability.js, which is the same
+  // answer is_off = 1 gives — but only one of the two is something the salon can open from
+  // the console. The five days this page never mentioned are written closed instead, in the
+  // shape PATCH /api/partner/salon writes one: no window, is_off = 1.
   const hourWrites = writes.filter((write) => write.sql.startsWith('INSERT INTO salon_hours'));
   assert.deepEqual(
     hourWrites.map((write) => write.params.slice(1)),

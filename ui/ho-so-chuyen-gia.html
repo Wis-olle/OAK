@@ -263,7 +263,16 @@
 <div class="bg-surface-container-lowest p-4 md:p-6 flex flex-col gap-2 rounded-lg border border-outline-variant/20">
 <p class="flex flex-wrap items-center gap-2 font-body-md text-body-md text-on-surface">
 <span aria-hidden="true" class="material-symbols-outlined text-[18px]">storefront</span>
+<!-- The name always; the link only where there is a page to go to. A salon that has taken
+     itself off OAK still belongs in this career — it is where the work was done — but its
+     profile answers nothing public any more, and a link to it would be a dead end wearing
+     the same underline as every live one. -->
+<template x-if="stint.salon.published === 1">
 <a :href="'salon-profile.html?salon=' + encodeURIComponent(stint.salon.slug)" class="text-primary hover:underline" x-text="stint.salon.name"></a>
+</template>
+<template x-if="stint.salon.published !== 1">
+<span class="text-on-surface" x-text="stint.salon.name"></span>
+</template>
 <span class="inline-block px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant font-caption text-caption rounded-full" x-show="stint.is_current">Hiện tại</span>
 <span class="font-caption text-caption text-on-surface-variant" x-show="!stint.is_current">trước đây</span>
 </p>

@@ -844,8 +844,25 @@
                         active: 1,
                         tenure_disputed: 0,
                         tenure_verified: {},
-                        service_ids: [],
-                        schedule: this.buildSchedule([]),
+                        /* A new technician starts bookable, and that takes both halves: a
+                           week of shifts and the services she may be booked for. The form
+                           used to open with every day off and nothing ticked and post them
+                           as an explicit empty week — so the salon added its first
+                           technician, went live, and had no free hours to sell. The server
+                           defaults the same way for a request that omits them, but this
+                           form always sends both, so the pre-fill is what a salon actually
+                           meets. Every box is still the owner's to untick: this is the
+                           starting point, not a decision made on their behalf. */
+                        service_ids: this.services
+                            .filter(function (service) {
+                                // Only what the public side can see, which is what the
+                                // server links a technician to when the request says nothing.
+                                return service.active === 1;
+                            })
+                            .map(function (service) {
+                                return service.id;
+                            }),
+                        schedule: this.buildSchedule([], true),
                         claimed: false,
                         invite_pending: false,
                     };
@@ -885,8 +902,11 @@
                 }
             },
 
-            /* One editable row per weekday; days with no stored shift start as days off. */
-            buildSchedule(rows) {
+            /* One editable row per weekday; days with no stored shift start as days off —
+               except on a technician who does not exist yet, where `working` opens the whole
+               week on the default shift. An existing row's blanks stay blank: a day the
+               salon has already saved as off is an answer, not an omission. */
+            buildSchedule(rows, working) {
                 return OAK_WEEKDAY_ORDER.map(function (weekday) {
                     var stored = rows.find(function (row) {
                         return row.weekday === weekday;
@@ -895,7 +915,7 @@
                         weekday: weekday,
                         start: stored ? stored.start : OAK_DEFAULT_SHIFT.start,
                         end: stored ? stored.end : OAK_DEFAULT_SHIFT.end,
-                        is_off: stored ? stored.is_off === 1 : true,
+                        is_off: stored ? stored.is_off === 1 : !working,
                     };
                 });
             },

@@ -6,6 +6,7 @@ import {
   isSalonOpenFor,
   pickAvailableStaff,
   respectsLeadTime,
+  staffCanDo,
   timeOffOn,
 } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
@@ -57,11 +58,17 @@ const selectService = db.prepare(
 const selectPromotion = db.prepare(
   'SELECT code, salon_id, type, discount_percent, discount_amount, active, starts_at, ends_at FROM promotions WHERE code = ?',
 );
-const selectSalonStaff = db.prepare('SELECT id FROM staff WHERE id = ? AND salon_id = ?');
-const selectSalonAutoConfirm = db.prepare('SELECT auto_confirm FROM salons WHERE id = ?');
-const selectStaffService = db.prepare(
-  'SELECT 1 FROM staff_services WHERE staff_id = ? AND service_id = ?',
+// active = 1: a technician who has left keeps her row for the sake of the bookings and
+// reviews that point at it, and without this clause a customer holding an old link could
+// still name her — the one thing a departure is supposed to have stopped.
+const selectSalonStaff = db.prepare(
+  'SELECT id FROM staff WHERE id = ? AND salon_id = ? AND active = 1',
 );
+const selectSalonAutoConfirm = db.prepare('SELECT auto_confirm FROM salons WHERE id = ?');
+// Whether the salon is on the public side at all. A booking is made from a link, and links
+// outlive the switch: a favourite, a bookmark or a search result cached an hour before the
+// owner hid the salon all still lead here.
+const selectSalonListing = db.prepare('SELECT published, verified FROM salons WHERE id = ?');
 // Also used inside transactions, so the text is kept alongside the pool statement.
 const SELECT_BOOKING = `SELECT ${BOOKING_COLUMNS} ${BOOKING_FROM} WHERE b.id = ?`;
 const selectBooking = db.prepare(SELECT_BOOKING);
@@ -396,6 +403,15 @@ router.post('/', async (req, res, next) => {
     if (service.active !== 1) {
       throw httpError(400, 'VALIDATION_ERROR', 'Dịch vụ này hiện không nhận đặt lịch.');
     }
+    /* The same switch every public listing reads (routes/salons.js, routes/search.js,
+       routes/services.js), asked here too because this route is reachable without any of
+       them: a salon that has switched itself off — or been unpublished automatically when a
+       write left it short — went on taking bookings from every link already handed out, and
+       its owner would find them in a console they had deliberately taken off the market. */
+    const listing = await selectSalonListing.get(salonId);
+    if (listing.published !== 1 || listing.verified !== 1) {
+      throw httpError(400, 'SALON_UNLISTED', 'Salon này hiện không nhận đặt lịch qua OAK.');
+    }
 
     if (!isISODate(date) || date < todayISO()) {
       throw httpError(400, 'VALIDATION_ERROR', 'Ngày hẹn không hợp lệ hoặc đã qua.');
@@ -436,11 +452,19 @@ router.post('/', async (req, res, next) => {
     let staffId = null;
     if (staffIdInput != null) {
       staffId = toId(staffIdInput);
+      // One answer for a technician at another salon and for one who no longer works at
+      // this one: from out here both are simply not somebody this salon can be booked with,
+      // and telling them apart would say who used to work where.
       if (staffId === null || !(await selectSalonStaff.get(staffId, salonId))) {
-        throw httpError(400, 'VALIDATION_ERROR', 'Kỹ thuật viên không thuộc salon đã chọn.');
+        throw httpError(
+          400,
+          'VALIDATION_ERROR',
+          'Kỹ thuật viên này hiện không nhận lịch tại salon đã chọn.',
+        );
       }
 
-      if (!(await selectStaffService.get(staffId, serviceId))) {
+      // The rule, spelled once in lib/availability.js: no staff_services row, no booking.
+      if (!(await staffCanDo(db, staffId, serviceId))) {
         throw httpError(
           400,
           'VALIDATION_ERROR',

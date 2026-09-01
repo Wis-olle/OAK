@@ -210,7 +210,8 @@ router.get('/:id/reviews', async (req, res, next) => {
 const selectVisibleStaffRow = db.prepare(`
   SELECT st.id, st.user_id, st.active, st.started_at, st.left_at, st.left_by,
          st.started_confirmed_at, st.left_confirmed_at, st.tenure_disputed,
-         s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name
+         s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name,
+         s.published AS salon_published
   FROM staff st
   JOIN salons s ON s.id = st.salon_id
   WHERE st.id = ? AND ${VISIBLE_PROFILE}

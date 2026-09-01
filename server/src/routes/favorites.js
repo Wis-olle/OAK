@@ -14,27 +14,38 @@ const router = express.Router();
 // A favourite only means anything in the context of one account.
 router.use(requireAuth);
 
+// The publish switch, the same one every public listing reads. A favourite is the longest-
+// lived link a customer holds — it outlasts a search result and a browser history — so a
+// salon that has taken itself off OAK would otherwise keep a card in somebody's saved list
+// leading to a page and a booking form that no longer answer.
+const LISTED_SALON = 's.published = 1 AND s.verified = 1';
 const selectFavoriteSalons = db.prepare(`
   SELECT ${SALON_CARD_COLUMNS}
   FROM favorites f
   JOIN salons s ON s.id = f.salon_id
-  WHERE f.user_id = ?
+  WHERE f.user_id = ? AND ${LISTED_SALON}
   ORDER BY f.id DESC
 `);
 // A service the salon has hidden ("Tạm ẩn dịch vụ") is gone from every customer-facing
 // listing, so it must drop out of the favourites list too — the row itself is kept, and
-// comes back if the salon un-hides the service.
+// comes back if the salon un-hides the service. Its salon's own switch reads the same way.
 const selectFavoriteServices = db.prepare(`
   SELECT ${SERVICE_CARD_COLUMNS}
   FROM favorites f
   JOIN services sv ON sv.id = f.service_id
   JOIN salons s ON s.id = sv.salon_id
-  WHERE f.user_id = ? AND sv.active = 1
+  WHERE f.user_id = ? AND sv.active = 1 AND ${LISTED_SALON}
   ORDER BY f.id DESC
 `);
-const selectSalon = db.prepare('SELECT 1 FROM salons WHERE id = ?');
-// Same 404 the public service endpoints give: a hidden service does not exist for a customer.
-const selectService = db.prepare('SELECT 1 FROM services WHERE id = ? AND active = 1');
+// Same 404 a missing salon gets: an unlisted one does not exist for a customer, and a heart
+// that could be pressed on it would save a card the list above then refuses to serve back.
+const selectSalon = db.prepare(`SELECT 1 FROM salons s WHERE s.id = ? AND ${LISTED_SALON}`);
+// Same 404 the public service endpoints give: a hidden service does not exist for a customer,
+// and neither does one whose salon is not on OAK — the list above serves back neither.
+const selectService = db.prepare(`
+  SELECT 1 FROM services sv JOIN salons s ON s.id = sv.salon_id
+  WHERE sv.id = ? AND sv.active = 1 AND ${LISTED_SALON}
+`);
 const selectFavoriteSalon = db.prepare(
   'SELECT id FROM favorites WHERE user_id = ? AND salon_id = ?',
 );

@@ -378,6 +378,13 @@ async function rehostImages(urls, userId) {
         partial = true;
         continue;
       }
+      // A CDN answering 200 with nothing in it. Refused here the way POST /api/uploads
+      // refuses an empty decode, because the alternative is a 0-byte object in the bucket
+      // with a gallery row pointing at it — a broken picture on the salon's own page.
+      if (answer.buffer.length === 0) {
+        partial = true;
+        continue;
+      }
       // Taken after the download and before the store, the same order the upload route
       // takes it in: what the allowance rations is bytes written into the bucket, and a
       // picture that turned out to be a PDF never gets that far.
@@ -632,10 +639,11 @@ async function writeImport(tx, salon, source, { images, geo, url, consentAt, ove
     if (existingHours.count > 0) {
       await tx.run(DELETE_SALON_HOURS, salon.id);
     }
-    // Every weekday gets a row, including the ones the source never named. A missing row is
-    // not "unknown" to lib/availability.js — it is "no restriction", so a page that lists
-    // Monday to Friday would leave the salon bookable around the clock at the weekend. A day
-    // the source did not name is written closed, in the shape PATCH /api/partner/salon
+    // Every weekday gets a row, including the ones the source never named. A missing row now
+    // reads as closed to lib/availability.js, which is the same answer is_off = 1 gives — but
+    // only one of the two is a day the partner can find and open from the console, and a
+    // silent gap is a day nobody knows is shut. A day the source did not name is therefore
+    // still written closed, explicitly, in the shape PATCH /api/partner/salon
     // writes one: no window, is_off = 1. The partner opens it from the console if it was
     // open all along, which is the safe way round.
     const named = new Map(source.hours.map((day) => [day.weekday, day]));

@@ -770,7 +770,7 @@ BEGIN
     WHERE table_name = 'salons' AND column_name = 'published'
   ) THEN
     ALTER TABLE salons ADD COLUMN IF NOT EXISTS published INTEGER DEFAULT 0;
-    -- The same four conditions PUBLISH_REQUIREMENTS (routes/partner.js) enforces, and for
+    -- The same conditions PUBLISH_REQUIREMENTS (routes/partner.js) enforces, and for
     -- the reason they exist: a salon lifted here on weaker terms would be listed but unable
     -- to pass its own gate, so its owner could not save the settings form at all.
     UPDATE salons SET published = 1
@@ -778,7 +778,19 @@ BEGIN
       AND EXISTS (SELECT 1 FROM services sv WHERE sv.salon_id = salons.id AND sv.active = 1)
       AND EXISTS (SELECT 1 FROM salon_hours h WHERE h.salon_id = salons.id AND h.is_off = 0)
       AND (COALESCE(image, '') <> ''
-          OR EXISTS (SELECT 1 FROM salon_photos p WHERE p.salon_id = salons.id));
+          OR EXISTS (SELECT 1 FROM salon_photos p WHERE p.salon_id = salons.id))
+      AND EXISTS (
+        SELECT 1 FROM staff st
+        WHERE st.salon_id = salons.id AND st.active = 1
+          AND EXISTS (
+            SELECT 1 FROM staff_schedule sch WHERE sch.staff_id = st.id AND sch.is_off = 0
+          )
+          AND EXISTS (
+            SELECT 1 FROM staff_services ss
+            JOIN services sv2 ON sv2.id = ss.service_id AND sv2.active = 1
+            WHERE ss.staff_id = st.id
+          )
+      );
   END IF;
 END $$;
 

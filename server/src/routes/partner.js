@@ -2,7 +2,7 @@
 import { randomBytes } from 'node:crypto';
 import express from 'express';
 import { db } from '../db.js';
-import { getServiceSlots, getStaffSlots, isSalonOpenFor } from '../lib/availability.js';
+import { getServiceSlots, getStaffSlots, isSalonOpenFor, staffCanDo } from '../lib/availability.js';
 import { withBookingCode } from '../lib/booking-code.js';
 import { recordEvent } from '../lib/events.js';
 import { notifyStaff, notifyUser } from '../lib/notify.js';
@@ -818,6 +818,26 @@ async function activeStaffIdForBooking(value, salonId) {
   return staff.id;
 }
 
+/**
+ * The counter asking the same question the customer's wizard asks: may this technician be
+ * put on this service at all? See staffCanDo() in lib/availability.js for the rule.
+ *
+ * The console used to skip it entirely, so a walk-in could be written onto somebody the
+ * roster never linked to the service — and every read that sizes a calendar (the slot lists,
+ * pickAvailableStaff, the departure sweep) filters on that link, so the booking existed on a
+ * calendar nothing else agreed she had. The refusal names the door out: the link is made in
+ * Quản lý nhân viên, not here.
+ */
+async function assertStaffCanDo(staffId, serviceId) {
+  if (!(await staffCanDo(db, staffId, serviceId))) {
+    throw httpError(
+      400,
+      'STAFF_NOT_LINKED',
+      'Kỹ thuật viên chưa được gắn dịch vụ này. Gắn dịch vụ trong Quản lý nhân viên rồi thử lại.',
+    );
+  }
+}
+
 router.post('/bookings', async (req, res, next) => {
   try {
     const salon = await ownedSalon(req);
@@ -846,6 +866,9 @@ router.post('/bookings', async (req, res, next) => {
       body.staff_id === null || body.staff_id === undefined
         ? null
         : await activeStaffIdForBooking(body.staff_id, salon.id);
+    if (staffId !== null) {
+      await assertStaffCanDo(staffId, service.id);
+    }
 
     // A booking made over the phone belongs in that customer's own list, with the
     // notifications and the "đặt lại" that come with it — the number is what ties the
@@ -1030,6 +1053,18 @@ router.patch('/bookings/:id', async (req, res, next) => {
         return value;
       },
     });
+
+    /* Asked about the pair this save LEAVES the booking on, and only when the save touches
+       one half of it: a body that moves the service is as able to break the link as one that
+       moves the chair, while a plain status change must go through whatever pairing the row
+       already carries — a booking taken before this rule was enforced is history, and
+       refusing to mark it completed would strand it forever. */
+    if (Object.hasOwn(patch, 'staff_id') || newService !== null) {
+      const staffId = Object.hasOwn(patch, 'staff_id') ? patch.staff_id : booking.staff_id;
+      if (staffId !== null) {
+        await assertStaffCanDo(staffId, newService === null ? booking.service_id : newService.id);
+      }
+    }
 
     // The price is the service's, never the request's — the same rule POST /bookings
     // follows. Without this the console could move a booking onto a cheaper service and
@@ -1648,6 +1683,15 @@ router.post('/services', async (req, res, next) => {
       ).lastInsertRowid,
     );
 
+    /* The other half of the forgiving default staffCanDo() describes: a service nobody is
+       linked to is a service nobody can be booked for, and the form that creates one has no
+       staff picker on it at all, so the salon is never even asked. Everyone on the roster
+       today, and the roster editor is where that is narrowed — which is where a salon that
+       cares which technician does what is already working. */
+    for (const staff of await selectActiveStaffIds.all(salon.id)) {
+      await insertStaffService.run(staff.id, serviceId);
+    }
+
     res.json({
       success: true,
       data: serviceShape(await selectOwnedService.get(serviceId, salon.id)),
@@ -1790,7 +1834,17 @@ const INSERT_STAFF_SCHEDULE =
   'INSERT INTO staff_schedule (staff_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)';
 const DELETE_STAFF_SCHEDULE = 'DELETE FROM staff_schedule WHERE staff_id = ?';
 const INSERT_STAFF_SERVICE = 'INSERT INTO staff_services (staff_id, service_id) VALUES (?, ?)';
+// The same statement on the pool, for the one caller that writes a link outside a transaction.
+const insertStaffService = db.prepare(INSERT_STAFF_SERVICE);
 const DELETE_STAFF_SERVICES = 'DELETE FROM staff_services WHERE staff_id = ?';
+// The two ends of the forgiving default: everything a new technician is linked to when the
+// request names nothing, and everybody a new service is linked to for the same reason.
+const selectActiveServiceIds = db.prepare(
+  'SELECT id FROM services WHERE salon_id = ? AND active = 1 ORDER BY id',
+);
+const selectActiveStaffIds = db.prepare(
+  'SELECT id FROM staff WHERE salon_id = ? AND active = 1 ORDER BY id',
+);
 const DEACTIVATE_STAFF = 'UPDATE staff SET active = 0 WHERE id = ? AND salon_id = ?';
 /* Appended to the SET clause of any save that carries a new started_at. What the technician
    confirmed was a date, not the idea of one, so the ✓ does not survive the salon replacing
@@ -1839,6 +1893,19 @@ const STAFF_COLUMNS = {
      can be UNDONE. See the PATCH itself: that is the only correction there is. */
   active: (value) => requireFlag(value, 'Trạng thái hoạt động'),
 };
+
+// The working week a salon means when it says nothing: the hours ui/quan-ly-nhan-vien.html
+// pre-fills its own grid with, so the two doors into a new roster row agree.
+const DEFAULT_SHIFT = { start: '09:00', end: '18:00' };
+
+/** Mon–Sun on the default shift, the week a technician created with no schedule works. */
+function defaultSchedule() {
+  return Array.from({ length: DAYS_IN_WEEK }, (unused, weekday) => ({
+    weekday,
+    ...DEFAULT_SHIFT,
+    is_off: 0,
+  }));
+}
 
 /** Validate a full-replace schedule payload: one row per weekday, start before end. */
 function parseSchedule(value) {
@@ -2044,10 +2111,19 @@ router.post('/staff', async (req, res, next) => {
     // Optional, and nothing is inferred when it is left out: a row with no date of its own
     // answers from its first completed visit, which is a truer silence than today's date.
     const startedAt = STAFF_COLUMNS.started_at(body.started_at);
-    const schedule = body.schedule === undefined ? [] : parseSchedule(body.schedule);
+    /* Absent is not empty. A row created with no schedule and no service links is a
+       technician nobody can book — the slot arithmetic needs a shift AND a link, and the
+       console's own create form used to send neither — so a salon would finish its checklist,
+       go live, and show "không còn giờ trống" until somebody noticed. So silence gets the
+       obvious week and the whole menu, which is what a salon adding its first technician
+       means, and both are one save away from anything else.
+
+       An explicit [] still means []: a salon that deliberately sends an empty list is saying
+       something, and that is the shape PUT /staff/:id/schedule and /services speak in. */
+    const schedule = body.schedule === undefined ? defaultSchedule() : parseSchedule(body.schedule);
     const serviceIds =
       body.service_ids === undefined
-        ? []
+        ? (await selectActiveServiceIds.all(salon.id)).map((row) => row.id)
         : await parseStaffServiceIds(body.service_ids, salon.id);
 
     let staffId;
@@ -2318,10 +2394,22 @@ router.patch('/staff/:id', async (req, res, next) => {
       assignments.push(RESET_DEPARTURE);
     }
 
+    /* active = 0 through this door is the same event the DELETE above is: the technician is
+       off the roster from now on, and the hours already sold on her calendar have to be handed
+       on rather than left on a row nothing bookable reads. Swept inside the same transaction
+       and after the UPDATE, for the reason lib/staff-departure.js gives. A row that is already
+       inactive is left alone — the save is about something else on it. */
+    const deactivating = staff.active === 1 && patch.active === 0;
+
     const update = `UPDATE staff SET ${assignments.join(', ')} WHERE id = ? AND salon_id = ?`;
     try {
       await db.withTransaction(async (tx) => {
         await tx.run(update, ...values, staffId, salon.id);
+        if (deactivating) {
+          await sweepFutureBookings(tx, {
+            staffId, salon, leftAt: todayISO(), actorUserId: req.user.id,
+          });
+        }
         /* She was told the day her stint was closed, so she is told the day it is opened again:
            a page that went from "đã nghỉ" back to a working stint without a word would leave
            her to find it out from her own profile. */
@@ -2456,11 +2544,22 @@ router.delete('/staff/:id', async (req, res, next) => {
     // be one the owner has no way to replace. And `active` is patchable, so a row restored
     // inside the seven days would otherwise come back with the old token still live: the
     // link the owner thought ending the stint had killed.
-    await db.withTransaction(async (tx) => {
+    /* And the calendar goes with the chair. Taking an unclaimed row off the roster used to
+       leave next week's appointments sitting on somebody who is no longer bookable: they were
+       invisible to every list keyed on an active technician and would simply not be worked.
+       Same handling a claimed departure gets, for the same reason — the difference between
+       the two rows is whether a person answers for the date, not what happens to the hours
+       the salon has already sold. Today is the last day worked, so the sweep starts tomorrow;
+       AFTER the deactivation, because pickAvailableStaff picks the replacement through
+       st.active = 1 and would otherwise hand the work straight back. */
+    const swept = await db.withTransaction(async (tx) => {
       await tx.run(DEACTIVATE_STAFF, staffId, salon.id);
       await tx.run(RETIRE_STAFF_INVITES, staffId);
+      return sweepFutureBookings(tx, {
+        staffId, salon, leftAt: todayISO(), actorUserId: req.user.id,
+      });
     });
-    res.json({ success: true, data: { ok: true } });
+    res.json({ success: true, data: { ok: true, ...swept } });
   } catch (error) {
     next(error);
   }
@@ -2990,15 +3089,33 @@ function toChoice(value) {
 }
 
 // What a salon must hold before the public side may list it: somewhere to go, a week that
-// says when, something to book, and one picture. Read in one query so a refusal can name
-// what is still missing instead of only saying no.
+// says when, something to book, one picture, and somebody who can actually do the work.
+// Read in one query so a refusal can name what is still missing instead of only saying no.
+//
+// has_bookable_staff is the condition the first four hid. Everything else can be complete
+// and the calendar still empty, because an hour is generated by a technician who is on the
+// roster, on shift and linked to a live service — all three, and the checklist asked about
+// none of them. A salon in that state published itself, told its customers, and showed them
+// "không còn giờ trống" for a week.
 const PUBLISH_READINESS_SQL = `
   SELECT
     (COALESCE(s.address, '') <> '') AS has_address,
     EXISTS (SELECT 1 FROM salon_hours h WHERE h.salon_id = s.id AND h.is_off = 0) AS has_hours,
     EXISTS (SELECT 1 FROM services sv WHERE sv.salon_id = s.id AND sv.active = 1) AS has_service,
     (COALESCE(s.image, '') <> ''
-      OR EXISTS (SELECT 1 FROM salon_photos p WHERE p.salon_id = s.id)) AS has_photo
+      OR EXISTS (SELECT 1 FROM salon_photos p WHERE p.salon_id = s.id)) AS has_photo,
+    EXISTS (
+      SELECT 1 FROM staff st
+      WHERE st.salon_id = s.id AND st.active = 1
+        AND EXISTS (
+          SELECT 1 FROM staff_schedule sch WHERE sch.staff_id = st.id AND sch.is_off = 0
+        )
+        AND EXISTS (
+          SELECT 1 FROM staff_services ss
+          JOIN services sv2 ON sv2.id = ss.service_id AND sv2.active = 1
+          WHERE ss.staff_id = st.id
+        )
+    ) AS has_bookable_staff
   FROM salons s WHERE s.id = ?
 `;
 
@@ -3007,6 +3124,7 @@ const PUBLISH_REQUIREMENTS = [
   ['has_hours', 'giờ mở cửa'],
   ['has_service', 'ít nhất một dịch vụ đang hiển thị'],
   ['has_photo', 'ít nhất một ảnh'],
+  ['has_bookable_staff', 'ít nhất một kỹ thuật viên có lịch làm việc và dịch vụ'],
 ];
 
 /**

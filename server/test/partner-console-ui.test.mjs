@@ -448,15 +448,19 @@ test('the technician list holds only the ones who do the chosen service', () => 
     { id: 1, name: 'Minh Hằng', active: 1, service_ids: [2, 3] },
     { id: 2, name: 'Lan Khuê', active: 1, service_ids: [4] },
     { id: 3, name: 'Đã nghỉ', active: 0, service_ids: [4] },
-    // Hired this morning, linked to nothing yet: unconfigured, not disqualified.
+    /* Linked to nothing, which is now a disqualification and not a state of being
+       unconfigured: the server refuses the booking (STAFF_NOT_LINKED) because every slot
+       list is built from the same links, so offering her here would only produce a 400 —
+       and a technician is linked to the whole menu the day she is added. */
     { id: 5, name: 'Tân binh', active: 1, service_ids: [] },
   ];
 
+  // Nothing to filter by yet, so the whole active roster stands.
   state.form = { service_id: '', staff_id: '' };
   assert.deepEqual(state.staffForService().map((member) => member.id), [1, 2, 5]);
 
   state.form.service_id = '4';
-  assert.deepEqual(state.staffForService().map((member) => member.id), [2, 5]);
+  assert.deepEqual(state.staffForService().map((member) => member.id), [2]);
 
   // A technician who does not do the new service cannot stay selected.
   state.form.staff_id = '1';

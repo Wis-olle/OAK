@@ -300,3 +300,85 @@ test('the cancellation window is measured in Vietnam time, whatever the host run
   // that is 2.5 hours away on a UTC host too, not grant it 31.
   assert.ok(minutesUntil('UTC', TODAY, '13:00') < 24 * 60);
 });
+
+/* ---------------------------------------------- who performs what, and when - */
+
+const availabilitySource = fs.readFileSync(
+  path.join(root, 'server', 'src', 'lib', 'availability.js'),
+  'utf8',
+);
+
+/** One function lifted out of lib/availability.js and driven in a bare context. */
+function liftFromAvailability(pattern, call, context) {
+  const body = availabilitySource.match(pattern);
+  assert.ok(body, `lib/availability.js no longer holds ${pattern} as written`);
+  vm.runInNewContext(`${body[0]}\nresult = ${call};`, context);
+  return context.result;
+}
+
+test('the one rule about who performs what is asked in exactly one place', async () => {
+  // Both branches: the pool goes through the prepared statement, a caller's transaction
+  // through the SQL text. Nothing in the codebase may keep a second spelling of the rule.
+  const asked = [];
+  const canDo = (handle, staffId, serviceId) =>
+    liftFromAvailability(
+      /async function staffCanDo[\s\S]*?\n}\n/,
+      `staffCanDo(handle, ${staffId}, ${serviceId})`,
+      {
+        handle,
+        STAFF_SERVICE_SQL: 'SQL',
+        selectStaffService: {
+          get: async (...params) => {
+            asked.push(['pool', ...params]);
+            return params[0] === 1 ? { '?column?': 1 } : undefined;
+          },
+        },
+      },
+    );
+
+  const pool = { prepare: () => {} };
+  assert.equal(await canDo(pool, 1, 4), true);
+  // The link is the whole of the rule: no row means she performs nothing, not everything.
+  assert.equal(await canDo(pool, 2, 4), false);
+  assert.deepEqual(asked, [['pool', 1, 4], ['pool', 2, 4]]);
+
+  const tx = { get: async (sql, ...params) => (sql === 'SQL' && params[0] === 3 ? {} : null) };
+  assert.equal(await canDo(tx, 3, 4), true);
+  assert.equal(await canDo(tx, 9, 4), false);
+
+  // And the two routes that ask it hold no staff_services SELECT of their own.
+  const partnerSource = fs.readFileSync(
+    path.join(root, 'server', 'src', 'routes', 'partner.js'),
+    'utf8',
+  );
+  for (const [name, text] of [['bookings.js', source], ['partner.js', partnerSource]]) {
+    assert.ok(text.includes('staffCanDo'), `${name} must ask the rule rather than restate it`);
+    assert.ok(
+      !/SELECT 1 FROM staff_services WHERE staff_id = \? AND service_id = \?/.test(text),
+      `${name} must not keep a second spelling of the staff_services rule`,
+    );
+  }
+});
+
+test('a weekday the salon never described is closed, not unrestricted', () => {
+  const clamp = (shift, hours) =>
+    liftFromAvailability(
+      /function clampToHours[\s\S]*?\n}\n/,
+      `clampToHours(${JSON.stringify(shift)}, ${JSON.stringify(hours)})`,
+      {},
+    );
+  const shift = { start: '08:00', end: '20:00' };
+
+  /* The whole of the bug: a missing row used to leave the shift untouched, so a salon with
+     a half-described week was bookable round the clock on the days it had never mentioned.
+     Nothing writes a partial week, so a missing row was never an open day. */
+  assert.equal(clamp(shift, undefined), null);
+  assert.equal(clamp(shift, { is_off: 1, start: null, end: null }), null);
+  // Read field by field: the lifted function builds its object in the vm's own realm, so a
+  // deep-equal against one of ours compares prototypes and not opening hours.
+  const narrowed = clamp(shift, { is_off: 0, start: '09:00', end: '18:00' });
+  assert.equal(`${narrowed.start}-${narrowed.end}`, '09:00-18:00');
+  // The narrowing is a plain min/max over 'HH:MM' text, so the tighter end of each pair wins.
+  const wider = clamp(shift, { is_off: 0, start: '07:00', end: '23:00' });
+  assert.equal(`${wider.start}-${wider.end}`, '08:00-20:00');
+});

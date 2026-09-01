@@ -26,7 +26,8 @@ import { staffStats, VISIBLE_PROFILE } from './staff-stats.js';
 export const selectStaffStints = db.prepare(`
   SELECT st.id, st.user_id, st.active, st.started_at, st.left_at, st.left_by,
          st.started_confirmed_at, st.left_confirmed_at, st.tenure_disputed,
-         s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name
+         s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name,
+         s.published AS salon_published
   FROM staff st
   JOIN salons s ON s.id = st.salon_id
   WHERE st.user_id = ? AND ${VISIBLE_PROFILE}
@@ -38,7 +39,17 @@ export async function stintShape(row) {
   const stats = await staffStats(row.id);
   return {
     staff_id: row.id,
-    salon: { id: row.salon_id, slug: row.salon_slug, name: row.salon_name },
+    /* `published` rather than a dropped entry: a salon that has left OAK is still where this
+       technician worked, and a career that quietly lost a year of itself the day a former
+       employer hid its page would be worth less than no career at all. What it loses is the
+       link — the page renders the name as plain text — because a salon nothing public lists
+       is not a page to send a reader to. */
+    salon: {
+      id: row.salon_id,
+      slug: row.salon_slug,
+      name: row.salon_name,
+      published: row.salon_published,
+    },
     started_at: stats.started_at,
     left_at: row.left_at,
     left_by: row.left_by,

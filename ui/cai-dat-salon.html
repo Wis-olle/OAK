@@ -865,6 +865,7 @@
                days off below they sit outside `form` and outside the dirty/undo state. */
             published: 0,
             serviceCount: 0,
+            bookableStaff: 0,
             publishSaving: false,
             publishError: '',
             photos: [],
@@ -973,6 +974,7 @@
                     this.fill(salon);
                     await this.loadPhotos();
                     await this.loadServiceCount();
+                    await this.loadBookableStaff();
                     await this.loadTimeOff();
                 } catch (error) {
                     this.loadError = error.message;
@@ -1015,7 +1017,26 @@
                 }
             },
 
-            /* The same four conditions the server enforces on PATCH published=1, read from
+            /* Whether anybody can actually be booked. Three things at once — on the roster,
+               on shift some day of the week, and linked to a service — and a salon can have
+               technicians and none of them. next_shift is non-null whenever the row has any
+               working day at all, because the server scans the whole week ahead for it. */
+            async loadBookableStaff() {
+                try {
+                    var roster = await OAK.api('/api/partner/staff');
+                    this.bookableStaff = roster.filter(function (member) {
+                        return (
+                            member.active === 1 &&
+                            (member.service_ids || []).length > 0 &&
+                            ((member.shift && member.shift.is_off === 0) || member.next_shift)
+                        );
+                    }).length;
+                } catch (error) {
+                    this.bookableStaff = 0;
+                }
+            },
+
+            /* The same conditions the server enforces on PATCH published=1, read from
                the saved salon rather than the form, so the list and the refusal agree. */
             publishChecks() {
                 var salon = this.original || {};
@@ -1033,6 +1054,11 @@
                         key: 'photo',
                         label: 'Ít nhất một ảnh (ảnh bìa hoặc thư viện)',
                         done: Boolean(salon.image) || this.photos.length > 0,
+                    },
+                    {
+                        key: 'staff',
+                        label: 'Ít nhất một kỹ thuật viên có lịch làm việc và dịch vụ',
+                        done: this.bookableStaff > 0,
                     },
                 ];
             },

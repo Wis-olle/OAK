@@ -1437,6 +1437,43 @@ async function groupBookings() {
     'VALIDATION_ERROR',
     'POST /api/bookings without a technician on a day the salon declared closed',
   );
+
+  /* And a weekday with no row at all now reads the same way. It used to read as "no
+     restriction", so a salon whose week was only half described was bookable round the clock
+     on the days it had never mentioned — and nothing writes a partial week, so a missing row
+     was never an open day, only a salon that has not said when it opens. Written straight
+     into the table because no endpoint can produce one: the console's hours PATCH takes all
+     seven days or none. The reopen below puts the row back. */
+  if (!EXTERNAL_URL) {
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      await directClient.query('DELETE FROM salon_hours WHERE salon_id = $1 AND weekday = $2', [
+        state.lalaId,
+        hoursWeekday,
+      ]);
+    } finally {
+      await directClient.end();
+    }
+    const undescribed = await guest.fetch(
+      `/api/services/${service.id}/availability?date=${hoursDate}`,
+    );
+    assert(
+      ok(undescribed, 'GET /api/services/:id/availability on a weekday with no hours row')
+        .slots.length === 0,
+      'a weekday the salon has never described offers no hours at all',
+      undescribed,
+    );
+    expectError(
+      await customer.fetch('/api/bookings', { method: 'POST', json: walkIn }),
+      400,
+      'VALIDATION_ERROR',
+      'POST /api/bookings on a weekday the salon has never described',
+    );
+  } else {
+    skip('a weekday with no hours row can only be made by writing to the table');
+  }
+
   ok(
     await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: weekClosedOn(-1) } }),
     'PATCH /api/partner/salon (reopening that weekday)',
@@ -1828,6 +1865,46 @@ async function groupFavorites() {
   assert(Array.isArray(list.salons[0].tags), 'favorites: salon card must carry a tags array', listResponse);
   assert('price_from' in list.salons[0], 'favorites: salon card must carry price_from', listResponse);
   assert(list.services[0].salon?.id === state.lalaId, 'favorites: service card must nest its salon', listResponse);
+
+  /* A favourite is the longest-lived link a customer holds — it outlasts a search result and
+     a browser history — so it has to read the publish switch the listings read. A salon that
+     took itself off OAK left a card in somebody's saved list pointing at a page and a booking
+     form that no longer answer. The row itself is kept, exactly as it is for a hidden
+     service: the card comes back when the salon does. */
+  const partner = session('partnerA');
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 0 } }),
+    'PATCH /api/partner/salon (the favourited salon goes to draft)',
+  );
+  const hiddenResponse = await customer.fetch('/api/favorites');
+  const hidden = ok(hiddenResponse, 'GET /api/favorites with the salon unlisted');
+  assert(
+    hidden.salons.length === 0,
+    'favorites: an unlisted salon must not be served back as a card',
+    hiddenResponse,
+  );
+  assert(
+    hidden.services.length === 0,
+    'favorites: nor a service of one — the card links straight at the same salon',
+    hiddenResponse,
+  );
+  expectError(
+    await customer.fetch('/api/favorites', { method: 'POST', json: { salon_id: state.lalaId } }),
+    404,
+    'NOT_FOUND',
+    'POST /api/favorites on a salon that is not listed',
+  );
+  ok(
+    await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (the favourited salon goes back on OAK)',
+  );
+  const backResponse = await customer.fetch('/api/favorites');
+  const back = ok(backResponse, 'GET /api/favorites once the salon is listed again');
+  assert(
+    back.salons.length === 1 && back.services.length === 1,
+    'favorites: nothing was deleted, only withheld',
+    backResponse,
+  );
 
   ok(
     await customer.fetch(`/api/favorites?salon_id=${state.lalaId}`, { method: 'DELETE' }),
@@ -2758,7 +2835,17 @@ async function groupPartner() {
     await partner.fetch('/api/partner/staff?limit=50'),
     'partner staff for the technician swap',
   );
-  const otherStaff = roster.find((member) => member.id !== (linked.staff?.id ?? null));
+  /* Somebody else who ALSO performs this service: the console refuses a swap onto a
+     technician the roster never linked to it (STAFF_NOT_LINKED), and a candidate picked
+     without asking would test the refusal instead of the notification. */
+  const otherStaff = roster.find(
+    (member) =>
+      member.id !== (linked.staff?.id ?? null) &&
+      (member.service_ids ?? []).includes(linked.service.id),
+  );
+  // Which chair the booking is on once the swap below has been tried, since it may not
+  // land: the service it moves onto afterwards has to be one that technician performs.
+  let onChairId = linked.staff?.id ?? null;
   if (otherStaff !== undefined) {
     const swapAttempt = await partner.fetch(`/api/partner/bookings/${linked.id}`, {
       method: 'PATCH',
@@ -2766,6 +2853,7 @@ async function groupPartner() {
     });
     // The other technician may not be free at that hour; only assert when the swap landed.
     if (swapAttempt.status === 200) {
+      onChairId = otherStaff.id;
       assert(
         (await restaffedNotices()) === staffNoticesBefore + 1,
         'technician swap: the customer is told, in its own words',
@@ -2779,7 +2867,13 @@ async function groupPartner() {
 
   // The price belongs to the service, exactly as it does when a booking is created — a
   // PATCH that left the old total behind would be wrong in every revenue figure after it.
-  const others = services.filter((item) => item.id !== linked.service.id);
+  // Only services the technician on the chair performs: moving a booking onto one she is
+  // not linked to is the STAFF_NOT_LINKED refusal, which is a different test.
+  const performs = roster.find((member) => member.id === onChairId)?.service_ids ?? null;
+  const others = services.filter(
+    (item) =>
+      item.id !== linked.service.id && (performs === null || performs.includes(item.id)),
+  );
   assert(others.length > 0, 'service change: needed a second service to move the booking onto');
   const dearer = others.reduce((best, item) => (item.price > best.price ? item : best));
   assert(dearer.price !== linked.total_price, 'service change: needed a service at a different price');
@@ -3715,13 +3809,13 @@ async function groupAuthz() {
     draftProfile,
   );
 
-  // Nothing set up yet, so the refusal has to name all four conditions.
+  // Nothing set up yet, so the refusal has to name every condition.
   const notReady = await applicant.fetch('/api/partner/salon', {
     method: 'PATCH',
     json: { published: 1 },
   });
   expectError(notReady, 409, 'SALON_NOT_READY', 'PATCH published=1 on an empty profile');
-  for (const wanted of ['địa chỉ', 'giờ mở cửa', 'dịch vụ', 'ảnh']) {
+  for (const wanted of ['địa chỉ', 'giờ mở cửa', 'dịch vụ', 'ảnh', 'kỹ thuật viên']) {
     assert(
       String(notReady.body?.error?.message ?? '').includes(wanted),
       `PATCH published=1: the refusal must name the missing "${wanted}"`,
@@ -3771,6 +3865,59 @@ async function groupAuthz() {
     }),
     'PATCH /api/partner/salon (the draft week)',
   );
+
+  /* The condition the other four hid, and the whole of this group's reason for meeting it
+     here: an address, a week, a menu and a photo can all be in place and the calendar still
+     be empty, because an hour is generated by a technician on the roster, on shift and
+     linked to a live service. A salon that could publish without one told its customers to
+     come and showed them nothing to book. */
+  const noStaffYet = await applicant.fetch('/api/partner/salon', {
+    method: 'PATCH',
+    json: { published: 1 },
+  });
+  expectError(noStaffYet, 409, 'SALON_NOT_READY', 'PATCH published=1 with nobody to book');
+  assert(
+    String(noStaffYet.body?.error?.message ?? '').includes(
+      'ít nhất một kỹ thuật viên có lịch làm việc và dịch vụ',
+    ),
+    'PATCH published=1: the refusal must name the missing technician in the checklist’s words',
+    noStaffYet,
+  );
+
+  /* Created with a name and nothing else, which is the whole point: silence about the week
+     and about the menu is a salon adding its first technician, not a salon declaring she
+     works no days and does nothing. She comes out bookable — Mon–Sun and the whole active
+     menu — so the strict "no staff_services row, no booking" rule can never strand one. */
+  const firstStaff = ok(
+    await applicant.fetch('/api/partner/staff', { method: 'POST', json: { name: 'Ngô Bảo Trân' } }),
+    'POST /api/partner/staff with neither a schedule nor a service list',
+  );
+  assert(
+    firstStaff.schedule.length === 7 && firstStaff.schedule.every((day) => day.is_off === 0),
+    'new staff: a request that names no schedule gets a full working week',
+  );
+  assert(
+    firstStaff.schedule.every((day) => day.start === '09:00' && day.end === '18:00'),
+    'new staff: the default week runs 09:00–18:00',
+  );
+  assert(
+    firstStaff.service_ids.length === 1 && firstStaff.service_ids[0] === draftService.id,
+    'new staff: a request that names no services is linked to the salon’s whole active menu',
+  );
+
+  // An explicit empty list is still an answer, and stays one.
+  const narrowed = ok(
+    await applicant.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: { name: 'Chưa xếp ca', schedule: [], service_ids: [] },
+    }),
+    'POST /api/partner/staff with both lists sent empty',
+  );
+  assert(
+    narrowed.schedule.length === 0 && narrowed.service_ids.length === 0,
+    'new staff: an explicit empty list is not a silence, and is not defaulted over',
+  );
+
   const published = ok(
     await applicant.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
     'PATCH /api/partner/salon (going live)',
@@ -9179,6 +9326,195 @@ async function groupStaffDeparture() {
     skip('the reassignment audit is write-only over HTTP');
   }
 
+  /* -- the same calendar, through the two doors that carry no date ------------ */
+
+  /* A chair nobody stands behind leaves by DELETE and a row can be switched off by PATCH,
+     and until now neither of them touched the appointments already sold on that calendar:
+     next week's bookings sat on somebody no list keyed on an active technician would ever
+     show, and were simply not worked. Both doors sweep now, exactly as the dated departure
+     above does — the difference between the rows is who answers for the date, not what
+     becomes of the hours the salon has already sold. Staged on a salon of its own so the
+     narrative above it keeps its roster. */
+  const chairSalon = await openSalon(
+    'Chủ Salon Ghế Trống', `Salon Ghế Trống ${stamp}`, `chairowner${stamp}@oak.invalid`,
+  );
+  const chairService = ok(
+    await chairSalon.owner.fetch('/api/partner/services', {
+      method: 'POST',
+      json: { category: 'nail', name: 'Sơn gel ghế trống', price: 200000, duration_min: 60 },
+    }),
+    'POST /api/partner/services (the service the swept bookings are for)',
+  );
+  const chairWalkIn = async (staffId, date, time, label) =>
+    ok(
+      await chairSalon.owner.fetch('/api/partner/bookings', {
+        method: 'POST',
+        json: { service_id: chairService.id, staff_id: staffId, date, time, customer_name: 'Khách Ghé Qua' },
+      }),
+      `POST /api/partner/bookings (${label})`,
+    );
+  const chairBookingStaff = async (id, label) =>
+    ok(
+      await chairSalon.owner.fetch(`/api/partner/bookings/${id}`),
+      `GET /api/partner/bookings/:id (${label})`,
+    ).staff?.id ?? null;
+
+  /* Two on the roster for the first case and a third hired only for the second, so that in
+     each of them exactly one colleague can take the hour: with two free candidates the
+     replacement is whichever has the emptier day, and the assertion would be about
+     pickAvailableStaff's tie-break rather than about the sweep having happened at all. */
+  const goneRow = await hire(chairSalon.owner, 'KTV Bị Xóa', chairService.id);
+  const chairCover = await hire(chairSalon.owner, 'KTV Nhận Thay', chairService.id);
+
+  const deletedHolds = await chairWalkIn(goneRow.id, addDays(state.today, 5), '10:00', 'on the row about to be deleted');
+  const deleted = ok(
+    await chairSalon.owner.fetch(`/api/partner/staff/${goneRow.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/staff/:id holding a future appointment',
+  );
+  assert(
+    deleted.reassigned === 1 && deleted.needs_attention === 0,
+    'deleting a chair hands its future appointments on, and says how many',
+    deleted,
+  );
+  assert(
+    (await chairBookingStaff(deletedHolds.id, 'after the chair was deleted')) === chairCover.id,
+    'the appointment left by a deleted chair lands on a colleague who can work it',
+  );
+
+  const switchedRow = await hire(chairSalon.owner, 'KTV Bị Tắt', chairService.id);
+  const switchedHolds = await chairWalkIn(switchedRow.id, addDays(state.today, 6), '10:00', 'on the row about to be switched off');
+  ok(
+    await chairSalon.owner.fetch(`/api/partner/staff/${switchedRow.id}`, {
+      method: 'PATCH',
+      json: { active: 0 },
+    }),
+    'PATCH /api/partner/staff/:id with active = 0',
+  );
+  assert(
+    (await chairBookingStaff(switchedHolds.id, 'after the row was switched off')) === chairCover.id,
+    'switching a row off hands its future appointments on too, and does not need a DELETE to',
+  );
+
+  /* -- one rule about who performs what, on both sides of the counter --------- */
+
+  /* The console used to skip the staff_services link entirely, so a walk-in could be written
+     onto somebody every slot list would then refuse to offer — a booking on a calendar
+     nothing else agreed she had. */
+  const unlinked = ok(
+    await chairSalon.owner.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: { name: 'KTV Chưa Gắn Dịch Vụ', service_ids: [] },
+    }),
+    'POST /api/partner/staff with an explicitly empty service list',
+  );
+  expectError(
+    await chairSalon.owner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: chairService.id,
+        staff_id: unlinked.id,
+        date: addDays(state.today, 7),
+        time: '10:00',
+        customer_name: 'Khách Ghé Qua',
+      },
+    }),
+    400,
+    'STAFF_NOT_LINKED',
+    'a walk-in onto a technician the roster never linked to that service',
+  );
+  ok(
+    await chairSalon.owner.fetch(`/api/partner/staff/${unlinked.id}/services`, {
+      method: 'PUT',
+      json: { service_ids: [chairService.id] },
+    }),
+    'PUT /api/partner/staff/:id/services (making the link the refusal asked for)',
+  );
+  ok(
+    await chairSalon.owner.fetch('/api/partner/bookings', {
+      method: 'POST',
+      json: {
+        service_id: chairService.id,
+        staff_id: unlinked.id,
+        date: addDays(state.today, 7),
+        time: '10:00',
+        customer_name: 'Khách Ghé Qua',
+      },
+    }),
+    'the same walk-in once the link exists',
+  );
+
+  /* -- and a customer holding an old link cannot name somebody who has gone ---- */
+
+  /* This salon goes live for it: a technician's page and a booking form both outlive her
+     stint, and the only way to prove the door is shut is to knock on it as a customer. */
+  ok(
+    await chairSalon.owner.fetch('/api/partner/salon', {
+      method: 'PATCH',
+      json: { address: '9 Ghế Trống, Quận 1', image: 'assets/images/img-d469cbe2a5.jpg' },
+    }),
+    'PATCH /api/partner/salon (what the chair salon still needs to go live)',
+  );
+  ok(
+    await chairSalon.owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+    'PATCH /api/partner/salon (the chair salon goes live)',
+  );
+  const chairCustomer = new Session();
+  ok(
+    await chairCustomer.fetch('/api/auth/register', {
+      method: 'POST',
+      json: {
+        name: 'Khách Giữ Link Cũ',
+        email: `chaircustomer${stamp}@oak.invalid`,
+        password: 'Oak@1234',
+        consent: true,
+      },
+    }),
+    'register the customer holding the old link',
+  );
+  const chairBooking = {
+    salon_id: chairSalon.salon.id,
+    service_id: chairService.id,
+    date: addDays(state.today, 8),
+    time: '10:00',
+  };
+  expectError(
+    await chairCustomer.fetch('/api/bookings', {
+      method: 'POST',
+      json: { ...chairBooking, staff_id: goneRow.id },
+    }),
+    400,
+    'VALIDATION_ERROR',
+    'POST /api/bookings naming a technician who is no longer on the roster',
+  );
+  const stillHere = ok(
+    await chairCustomer.fetch('/api/bookings', {
+      method: 'POST',
+      json: { ...chairBooking, staff_id: chairCover.id },
+    }),
+    'POST /api/bookings naming a technician who is',
+  );
+  assert(
+    stillHere.staff?.id === chairCover.id,
+    'and it is booked with the person who was named',
+    stillHere,
+  );
+
+  /* -- a salon that has switched itself off takes nothing from an old link ----- */
+
+  ok(
+    await chairSalon.owner.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 0 } }),
+    'PATCH /api/partner/salon (the chair salon goes back to draft)',
+  );
+  expectError(
+    await chairCustomer.fetch('/api/bookings', {
+      method: 'POST',
+      json: { ...chairBooking, time: '12:00' },
+    }),
+    400,
+    'SALON_UNLISTED',
+    'POST /api/bookings at a salon that has taken itself off OAK',
+  );
+
   /* -- the technician answers for the leaving date too ------------------------ */
 
   const ownStints = ok(await leaver.fetch('/api/staff-me/profile'), 'GET /api/staff-me/profile after leaving');
@@ -9407,6 +9743,14 @@ async function groupStaffDeparture() {
     history,
   );
   const stintOf = (staffId) => history.find((stint) => stint.staff_id === staffId);
+  /* Every stint says whether the salon it names is on OAK at all. The CV keeps the line
+     either way — a salon that has left is still where the work was done — and the page turns
+     the name into a link only where there is a public page behind it. */
+  assert(
+    history.every((stint) => stint.salon.published === 0 || stint.salon.published === 1),
+    'each stint carries its salon’s publish switch, as the 0/1 the page compares against',
+    history,
+  );
   assert(
     stintOf(rehiredRow.id).is_current === true && stintOf(leaverRow.id).is_current === false,
     'the open stint is the one with no leaving date on a row still on the roster',

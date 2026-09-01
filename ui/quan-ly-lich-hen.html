@@ -1191,19 +1191,23 @@
                 this.filledName = '';
             },
 
-            /* Only the technicians who perform the chosen service. Before a service is
-               chosen there is nothing to filter by, so the whole roster stands — and so
-               does a technician nobody has linked to any service yet: they are
-               unconfigured, not disqualified, and dropping them silently is how a new
-               hire becomes unbookable with no explanation. */
+            /* Only the technicians who perform the chosen service, and "perform" means the
+               link and nothing else — the rule the server states once in staffCanDo()
+               (server/src/lib/availability.js) and now enforces on this form's own POST.
+               A technician nobody has linked to any service used to stand here as merely
+               unconfigured; the server would take the booking and then never offer her hour
+               to anybody, because every slot list is built from the same links. She is
+               linked to the whole menu the day she is added now, so an empty list is a
+               salon that narrowed it on purpose.
+
+               Before a service is chosen there is nothing to filter by, so the whole roster
+               stands; "Bất kỳ" is the empty option on the select and is never filtered. */
             staffForService() {
                 var serviceId = Number(this.form.service_id);
                 return this.activeStaff().filter(function (member) {
                     return (
                         !serviceId ||
-                        !member.service_ids ||
-                        member.service_ids.length === 0 ||
-                        member.service_ids.indexOf(serviceId) !== -1
+                        (member.service_ids || []).indexOf(serviceId) !== -1
                     );
                 });
             },
