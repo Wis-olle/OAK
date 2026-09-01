@@ -587,6 +587,10 @@
     var OAK_WEEKDAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     var OAK_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
     var OAK_DEFAULT_SHIFT = { start: '09:00', end: '18:00' };
+    /* The list endpoints cap ?limit at 50 (MAX_LIMIT, server/src/lib/query.js), so this is
+       the whole menu for every salon that has fewer, and a first page for one that has more.
+       submitStaff below is what covers the salon that has more. */
+    var OAK_SERVICE_PAGE_MAX = 50;
 
     /* Today as 'YYYY-MM-DD' in the reader's own clock — which is the clock the salon closes
        its day by. It took an offset while a departure could be dated ahead; nothing on this
@@ -669,6 +673,8 @@
             // The service chips render before the modal is ever opened, so both fields
             // the template reads must exist from the start.
             form: { schedule: [], service_ids: [] },
+            // Whether the owner has changed the service chips since the form opened.
+            serviceIdsTouched: false,
             formError: '',
             /* Days off live on their own endpoint and save as soon as they are added, so
                they sit outside the profile/schedule/services save below. */
@@ -699,7 +705,7 @@
                 await OAK.requirePartner();
                 this.query = OAK.qs('q') || '';
                 try {
-                    this.services = await OAK.api('/api/partner/services');
+                    this.services = await OAK.api('/api/partner/services?limit=' + OAK_SERVICE_PAGE_MAX);
                 } catch (error) {
                     OAK.toast(error.message, 'error');
                 }
@@ -824,6 +830,7 @@
 
             async openStaff(member) {
                 this.formError = '';
+                this.serviceIdsTouched = false;
                 this.timeOffError = '';
                 this.timeOffAffected = 0;
                 this.timeOffForm = { date_from: '', date_to: '', reason: '' };
@@ -1112,6 +1119,9 @@
             },
 
             toggleService(id) {
+                // Once the owner has narrowed the list, it is theirs and the create below
+                // sends exactly it. See submitStaff.
+                this.serviceIdsTouched = true;
                 var index = this.form.service_ids.indexOf(id);
                 if (index === -1) {
                     this.form.service_ids.push(id);
@@ -1147,6 +1157,20 @@
                 } catch (error) {
                     OAK.toast(error.message, 'error');
                 }
+            },
+
+            /* Is the grid still the week a create opens on — Mon–Sun on the default shift?
+               Compared rather than tracked with a flag, because the shift inputs are bound
+               straight through x-model and a typed hour that was typed back is not a change.
+               The server writes exactly this week for a create that names none. */
+            scheduleIsDefault() {
+                return this.form.schedule.every(function (day) {
+                    return (
+                        !day.is_off &&
+                        day.start === OAK_DEFAULT_SHIFT.start &&
+                        day.end === OAK_DEFAULT_SHIFT.end
+                    );
+                });
             },
 
             /* The schedule endpoint validates start < end on every row, day off or not. */
@@ -1196,8 +1220,20 @@
                     } else {
                         // Nothing to compare against on a create, and nothing to reset either.
                         profile.started_at = this.form.started_at || null;
-                        profile.schedule = this.schedulePayload();
-                        profile.service_ids = this.form.service_ids;
+                        /* Both lists are sent only where they say something this form knows
+                           and the server does not. Left out, POST /api/partner/staff writes
+                           the same working week and links the whole active menu — which is
+                           more than this page can always see, since the menu it pre-ticked
+                           from is one page of at most fifty. So an untouched form defers to
+                           the server, and a narrowed one is sent exactly as narrowed; a
+                           services list that never loaded defers too, rather than posting an
+                           empty list that would mean "she performs nothing". */
+                        if (!this.scheduleIsDefault()) {
+                            profile.schedule = this.schedulePayload();
+                        }
+                        if (this.serviceIdsTouched) {
+                            profile.service_ids = this.form.service_ids;
+                        }
                         await OAK.api('/api/partner/staff', { method: 'POST', body: profile });
                     }
                     this.staffModalOpen = false;

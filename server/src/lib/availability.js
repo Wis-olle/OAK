@@ -57,7 +57,9 @@ const selectStaffService = db.prepare(STAFF_SERVICE_SQL);
  *
  * `handle` is the pool (db) or a caller's transaction. The two expose different shapes, which
  * is why the SQL text is kept beside the prepared statement — the same seam pickAvailableStaff
- * below runs its three queries through.
+ * below runs its three queries through. Every caller today is a pre-check on the pool: the
+ * transaction branch has no production caller yet, and is here so that a call site that has
+ * to read this under the same lock it writes with does not have to restate the rule.
  */
 export async function staffCanDo(handle, staffId, serviceId) {
   const row =

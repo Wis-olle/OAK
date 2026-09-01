@@ -1119,16 +1119,23 @@ router.patch('/bookings/:id', async (req, res, next) => {
       },
     });
 
-    /* Asked about the pair this save LEAVES the booking on, and only when the save touches
-       one half of it: a body that moves the service is as able to break the link as one that
-       moves the chair, while a plain status change must go through whatever pairing the row
-       already carries — a booking taken before this rule was enforced is history, and
-       refusing to mark it completed would strand it forever. */
-    if (Object.hasOwn(patch, 'staff_id') || newService !== null) {
-      const staffId = Object.hasOwn(patch, 'staff_id') ? patch.staff_id : booking.staff_id;
-      if (staffId !== null) {
-        await assertStaffCanDo(staffId, newService === null ? booking.service_id : newService.id);
-      }
+    /* Asked about the pair this save LEAVES the booking on, and only when the save actually
+       CHANGES that pair — not merely when it names it. The edit modal posts every field on
+       every save, so gating on the key being present made a rescheduling of a booking whose
+       pair predates this rule impossible: the body resent the same staff_id it already had
+       and was answered STAFF_NOT_LINKED. What is refused is the console putting a booking
+       onto a pair the roster does not link; a booking resaved onto the technician it already
+       sat on is not that. Same "did it really change" test the `restaffed` notification
+       below uses, and for the same reason.
+
+       A service move is checked too: it breaks the link from the other end. */
+    const nextStaffId = Object.hasOwn(patch, 'staff_id') ? patch.staff_id : booking.staff_id;
+    const pairChanged =
+      (Object.hasOwn(patch, 'staff_id') &&
+        Number(patch.staff_id ?? 0) !== Number(booking.staff_id ?? 0)) ||
+      (newService !== null && newService.id !== booking.service_id);
+    if (pairChanged && nextStaffId !== null) {
+      await assertStaffCanDo(nextStaffId, newService === null ? booking.service_id : newService.id);
     }
 
     // The price is the service's, never the request's — the same rule POST /bookings
@@ -1682,12 +1689,15 @@ router.patch('/reviews/:id/reply', async (req, res, next) => {
 const selectServiceCategoryCounts = db.prepare(
   'SELECT category, COUNT(*) AS count FROM services WHERE salon_id = ? GROUP BY category',
 );
-const insertService = db.prepare(`
+// SQL text rather than a prepared statement: the row and the roster links it hands out are
+// one write, so POST /services runs both on its own transaction. A menu entry nobody is
+// linked to is a service nobody can be booked for, and half of that committing is that.
+const INSERT_SERVICE = `
   INSERT INTO services
     (salon_id, category, subcategory, name, description, price, duration_min, image,
      price_is_from, sort_order, active)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-`);
+`;
 // A new service joins the end of the menu, never the middle: every existing position keeps
 // the meaning the salon gave it. COALESCE covers the very first service of a salon.
 const selectNextServicePosition = db.prepare(
@@ -1772,31 +1782,34 @@ router.post('/services', async (req, res, next) => {
     const salon = await ownedSalon(req);
     const body = req.body ?? {};
 
-    const serviceId = Number(
-      (
-        await insertService.run(
-          salon.id,
-          SERVICE_COLUMNS.category(body.category),
-          SERVICE_COLUMNS.subcategory(body.subcategory),
-          SERVICE_COLUMNS.name(body.name),
-          SERVICE_COLUMNS.description(body.description),
-          SERVICE_COLUMNS.price(body.price),
-          SERVICE_COLUMNS.duration_min(body.duration_min),
-          SERVICE_COLUMNS.image(body.image),
-          body.price_is_from === undefined ? 0 : SERVICE_COLUMNS.price_is_from(body.price_is_from),
-          (await selectNextServicePosition.get(salon.id)).position,
-        )
-      ).lastInsertRowid,
-    );
+    const columns = [
+      salon.id,
+      SERVICE_COLUMNS.category(body.category),
+      SERVICE_COLUMNS.subcategory(body.subcategory),
+      SERVICE_COLUMNS.name(body.name),
+      SERVICE_COLUMNS.description(body.description),
+      SERVICE_COLUMNS.price(body.price),
+      SERVICE_COLUMNS.duration_min(body.duration_min),
+      SERVICE_COLUMNS.image(body.image),
+      body.price_is_from === undefined ? 0 : SERVICE_COLUMNS.price_is_from(body.price_is_from),
+      (await selectNextServicePosition.get(salon.id)).position,
+    ];
 
-    /* The other half of the forgiving default staffCanDo() describes: a service nobody is
-       linked to is a service nobody can be booked for, and the form that creates one has no
-       staff picker on it at all, so the salon is never even asked. Everyone on the roster
-       today, and the roster editor is where that is narrowed — which is where a salon that
-       cares which technician does what is already working. */
-    for (const staff of await selectActiveStaffIds.all(salon.id)) {
-      await insertStaffService.run(staff.id, serviceId);
-    }
+    /* One transaction, the way POST /staff writes its row and its two lists: the links below
+       are the other half of the forgiving default staffCanDo() describes, and a service that
+       committed without them is a menu entry nobody can be booked for — the exact state this
+       whole rule exists to prevent. A service nobody is linked to would otherwise be the
+       ordinary outcome, because the form that creates one has no staff picker on it at all
+       and the salon is never even asked. Everyone on the roster today, and the roster editor
+       is where that is narrowed — which is where a salon that cares which technician does
+       what is already working. */
+    let serviceId;
+    await db.withTransaction(async (tx) => {
+      serviceId = Number((await tx.run(INSERT_SERVICE, ...columns)).lastInsertRowid);
+      for (const staff of await tx.all(SELECT_ACTIVE_STAFF_IDS, salon.id)) {
+        await tx.run(INSERT_STAFF_SERVICE, staff.id, serviceId);
+      }
+    });
 
     res.json({
       success: true,
@@ -1940,17 +1953,15 @@ const INSERT_STAFF_SCHEDULE =
   'INSERT INTO staff_schedule (staff_id, weekday, "start", "end", is_off) VALUES (?, ?, ?, ?, ?)';
 const DELETE_STAFF_SCHEDULE = 'DELETE FROM staff_schedule WHERE staff_id = ?';
 const INSERT_STAFF_SERVICE = 'INSERT INTO staff_services (staff_id, service_id) VALUES (?, ?)';
-// The same statement on the pool, for the one caller that writes a link outside a transaction.
-const insertStaffService = db.prepare(INSERT_STAFF_SERVICE);
 const DELETE_STAFF_SERVICES = 'DELETE FROM staff_services WHERE staff_id = ?';
 // The two ends of the forgiving default: everything a new technician is linked to when the
-// request names nothing, and everybody a new service is linked to for the same reason.
+// request names nothing, and everybody a new service is linked to for the same reason. The
+// roster is read on the caller's transaction, because POST /services writes the row and its
+// links together; the menu is read on the pool, before POST /staff opens its own.
 const selectActiveServiceIds = db.prepare(
   'SELECT id FROM services WHERE salon_id = ? AND active = 1 ORDER BY id',
 );
-const selectActiveStaffIds = db.prepare(
-  'SELECT id FROM staff WHERE salon_id = ? AND active = 1 ORDER BY id',
-);
+const SELECT_ACTIVE_STAFF_IDS = 'SELECT id FROM staff WHERE salon_id = ? AND active = 1 ORDER BY id';
 const DEACTIVATE_STAFF = 'UPDATE staff SET active = 0 WHERE id = ? AND salon_id = ?';
 /* Appended to the SET clause of any save that carries a new started_at. What the technician
    confirmed was a date, not the idea of one, so the ✓ does not survive the salon replacing
@@ -2269,6 +2280,9 @@ router.put('/staff/:id/schedule', async (req, res, next) => {
       for (const shift of schedule) {
         await tx.run(INSERT_STAFF_SCHEDULE, staffId, shift.weekday, shift.start, shift.end, shift.is_off);
       }
+      // A week of days off is the roster equivalent of hiding the last service: allowed, but
+      // not while the salon is listed with nobody its calendar can generate an hour from.
+      await unpublishIfNotReady(tx, salon, req.user.id);
     });
 
     res.json({
@@ -2292,6 +2306,9 @@ router.put('/staff/:id/services', async (req, res, next) => {
       for (const serviceId of serviceIds) {
         await tx.run(INSERT_STAFF_SERVICE, staffId, serviceId);
       }
+      // Unlinking the last technician who performed anything empties the calendar as surely
+      // as deleting her would, so it drops the salon to draft the same way.
+      await unpublishIfNotReady(tx, salon, req.user.id);
     });
 
     res.json({
@@ -2515,6 +2532,7 @@ router.patch('/staff/:id', async (req, res, next) => {
           await sweepFutureBookings(tx, {
             staffId, salon, leftAt: todayISO(), actorUserId: req.user.id,
           });
+          await unpublishIfNotReady(tx, salon, req.user.id);
         }
         /* She was told the day her stint was closed, so she is told the day it is opened again:
            a page that went from "đã nghỉ" back to a working stint without a word would leave
@@ -2611,7 +2629,14 @@ router.post('/staff/:id/departure', async (req, res, next) => {
         'Hợp tác đã kết thúc',
         `${salon.name} ghi nhận ngày bạn kết thúc làm việc là ${formatDateVN(leftAt)}. Bạn có thể xác nhận hoặc báo sai ngày này trong hồ sơ của mình.`,
       );
-      return sweepFutureBookings(tx, { staffId, salon, leftAt, actorUserId: req.user.id });
+      const result = await sweepFutureBookings(tx, {
+        staffId, salon, leftAt, actorUserId: req.user.id,
+      });
+      /* After the sweep, so the readiness question is asked of the roster the departure
+         leaves behind. A salon whose last bookable technician has just left is listed with
+         nothing its calendar can offer, which is the state unpublishIfNotReady exists for. */
+      await unpublishIfNotReady(tx, salon, req.user.id);
+      return result;
     });
 
     res.json({ success: true, data: { left_at: leftAt, ...swept } });
@@ -2653,17 +2678,18 @@ router.delete('/staff/:id', async (req, res, next) => {
     /* And the calendar goes with the chair. Taking an unclaimed row off the roster used to
        leave next week's appointments sitting on somebody who is no longer bookable: they were
        invisible to every list keyed on an active technician and would simply not be worked.
-       Same handling a claimed departure gets, for the same reason — the difference between
-       the two rows is whether a person answers for the date, not what happens to the hours
-       the salon has already sold. Today is the last day worked, so the sweep starts tomorrow;
-       AFTER the deactivation, because pickAvailableStaff picks the replacement through
-       st.active = 1 and would otherwise hand the work straight back. */
+       The row has no date on it and needs none — the cut-off is today, because today's
+       remaining appointments are still hers to work and tomorrow onward is re-staffed. AFTER
+       the deactivation, because pickAvailableStaff picks the replacement through st.active = 1
+       and would otherwise hand the work straight back. */
     const swept = await db.withTransaction(async (tx) => {
       await tx.run(DEACTIVATE_STAFF, staffId, salon.id);
       await tx.run(RETIRE_STAFF_INVITES, staffId);
-      return sweepFutureBookings(tx, {
+      const result = await sweepFutureBookings(tx, {
         staffId, salon, leftAt: todayISO(), actorUserId: req.user.id,
       });
+      await unpublishIfNotReady(tx, salon, req.user.id);
+      return result;
     });
     res.json({ success: true, data: { ok: true, ...swept } });
   } catch (error) {
@@ -3255,9 +3281,16 @@ async function assertPublishable(salonId, tx) {
  * Take a listed salon back off the public list once a write has left it short.
  *
  * Hiding or deleting the last visible service — or the last photo of a salon with no
- * cover — is allowed, but it would otherwise leave a listed profile a customer can open
- * with nothing to book. The salon drops to draft instead, and its owner is told why so
- * the switch does not simply appear to have flipped itself.
+ * cover, or the last technician its calendar could generate an hour from — is allowed, but
+ * it would otherwise leave a listed profile a customer can open with nothing to book. The
+ * salon drops to draft instead, and its owner is told why so the switch does not simply
+ * appear to have flipped itself.
+ *
+ * Called from every write that can take a publish condition away: the service and photo
+ * routes, and the five that change a roster — DELETE and PATCH active = 0 on a row, a dated
+ * departure, and the two full-replace lists (schedule, services). PUBLISH_REQUIREMENTS is
+ * what keeps that list honest: a condition added to the gate is enforced on the way out of
+ * every one of them without any of them being touched.
  */
 async function unpublishIfNotReady(tx, salon, ownerId) {
   if (salon.published !== 1) {

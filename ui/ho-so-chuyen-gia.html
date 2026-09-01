@@ -124,7 +124,15 @@
      it names is where the work was done rather than where to go looking for her. -->
 <span x-show="!departed()">Làm việc tại</span>
 <span x-show="departed()">Từng làm việc tại</span>
+<!-- Linked only where the salon is on OAK, exactly as the career list below does it: a
+     salon that has switched itself off is still where this chair is, but its profile
+     answers nothing public any more. -->
+<template x-if="staff.salon.published === 1">
 <a :href="'salon-profile.html?salon=' + encodeURIComponent(staff.salon.slug)" class="text-primary hover:underline" x-text="staff.salon.name"></a>
+</template>
+<template x-if="staff.salon.published !== 1">
+<span class="text-on-surface" x-text="staff.salon.name"></span>
+</template>
 </p>
 </template>
 <!-- The way from the chair to the career. Served only where there is a published page to go
@@ -858,7 +866,15 @@
              * leaves that page's own booking button the only one there.
              */
             currentStints() {
-                return this.person ? this.history.filter((stint) => stint.is_current) : [];
+                /* A listed salon as well as an open stint. The button leads to the booking
+                   wizard, and a salon that has taken itself off OAK refuses the booking at
+                   the end of it (SALON_UNLISTED) — so offering the hour here would send a
+                   reader down a wizard that cannot finish. */
+                return this.person
+                    ? this.history.filter(
+                          (stint) => stint.is_current && stint.salon.published === 1,
+                      )
+                    : [];
             },
 
             /**

@@ -507,6 +507,48 @@ test('the console pages this slice touches carry the Nội dung entry point', ()
    PATCH published=1 runs through, and the boot-time backfill that lifted the salons which
    predate the column. A backfill on weaker terms would list a salon that could not then
    pass its own gate — its owner could not save the settings form at all. */
+/* The server's clause is sv.active = 1, and GET /partner/staff deliberately serves links to
+   hidden services as well (the roster editor needs them), so the page has to do the
+   intersection itself or tick a row the server then refuses to publish on. */
+test('a technician linked only to a hidden service does not tick the roster row', async () => {
+    const listed = (services, roster) =>
+        settings(async (route) => {
+            if (route === '/api/partner/photos') {
+                return [];
+            }
+            if (route === '/api/partner/staff') {
+                return roster;
+            }
+            // A fresh array per call: withMeta defines a non-configurable `meta`, so handing
+            // the same one back twice throws where the page can only see a failed load.
+            return withMeta(
+                services.slice(),
+                services.length,
+                services.filter((service) => service.active === 1).length,
+            );
+        });
+    const staffDone = async (services, roster) => {
+        const state = listed(services, roster);
+        state.original = salonRow({});
+        await state.loadPhotos();
+        await state.loadServiceCount();
+        await state.loadBookableStaff();
+        return state.publishChecks().find((item) => item.key === 'staff').done;
+    };
+    const working = { active: 1, shift: null, next_shift: { date: '2026-08-24' } };
+    const menu = [{ id: 1, active: 1 }, { id: 2, active: 0 }];
+
+    assert.equal(await staffDone(menu, [{ ...working, service_ids: [1] }]), true);
+    assert.equal(await staffDone(menu, [{ ...working, service_ids: [2] }]), false);
+    assert.equal(await staffDone(menu, [{ ...working, service_ids: [2, 1] }]), true);
+
+    /* Past the endpoint's ceiling this page holds only a first page of the menu, so it stops
+       intersecting rather than calling a technician unbookable over a service it cannot see.
+       Generous where it cannot be exact: the server still has the last word on publishing. */
+    const wholePage = Array.from({ length: 50 }, (unused, index) => ({ id: index + 1, active: 1 }));
+    assert.equal(await staffDone(wholePage, [{ ...working, service_ids: [999] }]), true);
+});
+
 test('the publish gate and the boot backfill ask the same thing of a roster', () => {
     const readSrc = (...parts) =>
         fs.readFileSync(path.join(root, 'server', 'src', ...parts), 'utf8');

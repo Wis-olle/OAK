@@ -3932,7 +3932,9 @@ test('the CV is every stint of one person, and the withdrawal reaches it', () =>
    badge out from the two columns underneath it. */
 const STINT = {
   staff_id: 7,
-  salon: { id: 4, slug: 'lala', name: 'Lala Nail Studio' },
+  // published rides on every stint's salon (lib/staff-career.js): the CV names a salon that
+  // has left OAK, and the page decides from this whether to link to it or sell an hour at it.
+  salon: { id: 4, slug: 'lala', name: 'Lala Nail Studio', published: 1 },
   started_at: '2024-01-05',
   left_at: null,
   left_by: null,
@@ -3949,7 +3951,7 @@ const STINT = {
 const CLOSED_STINT = {
   ...STINT,
   staff_id: 9,
-  salon: { id: 5, slug: 'moc', name: 'Mộc Spa' },
+  salon: { id: 5, slug: 'moc', name: 'Mộc Spa', published: 1 },
   started_at: '2021-06-01',
   left_at: '2023-12-20',
   left_by: 'partner',
@@ -4818,6 +4820,68 @@ test('a row being created carries whatever date the form was opened with', async
   const bare = blank.sent.filter((call) => call.method === 'POST')[0];
   assert.ok(Object.hasOwn(bare.body, 'started_at'));
   assert.equal(bare.body.started_at, null);
+});
+
+test('a create defers to the server for the two lists it has not narrowed', async () => {
+  const api = async (endpoint, options) => {
+    if (endpoint === '/api/partner/staff') {
+      return options ? { id: 9 } : rosterList([]);
+    }
+    return assert.fail(`unexpected call: ${endpoint}`);
+  };
+  const opened = async () => {
+    const page = rosterPage(api);
+    // Two live services and one the salon has hidden, as GET /api/partner/services serves them.
+    page.services = [
+      { id: 1, name: 'Sơn gel', active: 1 },
+      { id: 2, name: 'Đắp bột', active: 1 },
+      { id: 3, name: 'Đã tạm ẩn', active: 0 },
+    ];
+    await page.openStaff(null);
+    page.form.name = 'Mai Lan';
+    return page;
+  };
+  const posted = (page) => page.sent.filter((call) => call.method === 'POST')[0].body;
+
+  /* What the owner meets: a whole working week and every live service ticked. The form used
+     to open on seven days off with nothing ticked, which is a technician nobody can book. */
+  const page = await opened();
+  assert.deepEqual(page.form.service_ids, [1, 2]);
+  assert.equal(page.form.schedule.length, 7);
+  assert.equal(page.form.schedule.every((day) => !day.is_off), true);
+
+  /* And neither list is SENT while it still says what the server would have written anyway.
+     That matters past fifty services, where this page holds one page of the menu and the
+     server holds all of it: posting the visible ids would silently narrow the roster row. */
+  await page.submitStaff();
+  const untouched = posted(page);
+  assert.equal(Object.hasOwn(untouched, 'service_ids'), false);
+  assert.equal(Object.hasOwn(untouched, 'schedule'), false);
+  assert.equal(untouched.name, 'Mai Lan');
+
+  // Narrowed by hand, it is the owner's list and goes exactly as narrowed.
+  const narrowed = await opened();
+  narrowed.toggleService(2);
+  await narrowed.submitStaff();
+  assert.deepEqual(posted(narrowed).service_ids, [1]);
+  assert.equal(Object.hasOwn(posted(narrowed), 'schedule'), false);
+
+  // Same for the week: one day taken off is a week the form has something to say about.
+  const sunday = await opened();
+  sunday.form.schedule[6].is_off = true;
+  await sunday.submitStaff();
+  assert.equal(posted(sunday).schedule.length, 7);
+  assert.equal(posted(sunday).schedule[6].is_off, 1);
+  assert.equal(Object.hasOwn(posted(sunday), 'service_ids'), false);
+
+  /* A services list that never loaded defers too. Posting the empty array it would otherwise
+     hold means "she performs nothing", which is the one answer that cannot be recovered from
+     by a salon that does not know the list failed. */
+  const blind = rosterPage(api);
+  await blind.openStaff(null);
+  blind.form.name = 'Mai Lan';
+  await blind.submitStaff();
+  assert.equal(Object.hasOwn(posted(blind), 'service_ids'), false);
 });
 
 test('the departure posts the day, closes both dialogs and reads the sweep back', async () => {
@@ -5921,8 +5985,19 @@ test('a career with nothing verified behind it says so, rather than falling sile
 });
 
 test('a person is never bookable, and every button on her page names a salon', async () => {
-  const TWO = { ...STINT, staff_id: 9, salon: { id: 6, slug: 'ha-noi', name: 'Hà Nội Spa' } };
+  const TWO = {
+    ...STINT,
+    staff_id: 9,
+    salon: { id: 6, slug: 'ha-noi', name: 'Hà Nội Spa', published: 1 },
+  };
   const CLOSED = { ...STINT, staff_id: 4, is_current: false };
+  /* An open stint at a salon that has switched itself off. The hour is not for sale: the
+     wizard this button opens ends at POST /api/bookings, which answers SALON_UNLISTED. */
+  const UNLISTED = {
+    ...STINT,
+    staff_id: 11,
+    salon: { id: 8, slug: 'da-an', name: 'Đã Ẩn Spa', published: 0 },
+  };
 
   /* Nowhere to send anybody: somebody between salons has no hour anybody can sell, and the
      page says nothing rather than offering a chair she has left. */
@@ -5952,6 +6027,17 @@ test('a person is never bookable, and every button on her page names a salon', a
   assert.deepEqual(many.currentStints().map((stint) => stint.staff_id), [9, 7]);
   assert.equal(many.personBookingUrl(TWO), 'dat-lich.html?salon_id=6&staff_id=9');
 
+  /* And a salon that is not listed sells nothing from here, open stint or not. The line
+     stays in the career below — it is where the work was done — but the button would open
+     a wizard that cannot finish. */
+  const unlisted = formerPage({
+    query: { u: PERSON.slug },
+    person: { ...PERSON, career: [UNLISTED, { ...STINT, staff_id: 7 }] },
+  });
+  await unlisted.init();
+  assert.deepEqual(unlisted.currentStints().map((stint) => stint.staff_id), [7]);
+  assert.equal(unlisted.history.length, 2);
+
   // In stint mode the list is empty, so the page's own booking button is the only one drawn.
   const stint = formerPage({ query: { id: '7' }, history: [{ ...STINT, staff_id: 7 }] });
   await stint.init();
@@ -5967,7 +6053,8 @@ test('a person is never bookable, and every button on her page names a salon', a
      the payload: a stint whose page she has taken down is absent from the career the server
      sent, and must therefore be unbookable from here too. */
   const current = handler(profileHtml, 'currentStints() {', '\n            },');
-  assert.match(current, /this\.history\.filter\(\(stint\) => stint\.is_current\)/);
+  assert.match(current, /this\.history\.filter\(/);
+  assert.match(current, /stint\.is_current && stint\.salon\.published === 1/);
 });
 
 test('a person page shows her words, and hands the salon-shaped sections back', () => {

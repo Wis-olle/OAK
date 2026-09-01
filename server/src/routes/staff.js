@@ -34,7 +34,8 @@ const CLAIMED_OR_ON_ROSTER = '(st.user_id IS NOT NULL OR st.active = 1)';
 const selectStaffProfile = db.prepare(`
   SELECT st.id, st.user_id, st.name, st.title, st.specialty, st.bio, st.image, st.rating,
          st.years_experience, st.portfolio,
-         s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name
+         s.id AS salon_id, s.slug AS salon_slug, s.name AS salon_name,
+         s.published AS salon_published
   FROM staff st
   JOIN salons s ON s.id = st.salon_id
   WHERE st.id = ? AND ${CLAIMED_OR_ON_ROSTER} AND ${VISIBLE_PROFILE}
@@ -373,7 +374,16 @@ router.get('/:id', async (req, res, next) => {
         rating: row.rating ?? 0,
         years_experience: person.years_experience,
         portfolio: person.portfolio,
-        salon: { id: row.salon_id, slug: row.salon_slug, name: row.salon_name },
+        /* `published` for the same reason a career stint carries it (lib/staff-career.js):
+           this page is reachable by a link the salon's own switch cannot reach, so it says
+           where the work is done either way and the page links to the salon only where
+           there is a public page to link to. */
+        salon: {
+          id: row.salon_id,
+          slug: row.salon_slug,
+          name: row.salon_name,
+          published: row.salon_published,
+        },
         // One key, `technician`, naming where the person's own page lives — and nothing
         // whatsoever when this chair is all there is to read. See personalHalf above.
         ...person.link,

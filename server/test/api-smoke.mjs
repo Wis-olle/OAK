@@ -4022,6 +4022,88 @@ async function groupAuthz() {
     'PATCH /api/partner/salon (going live again)',
   );
 
+  /* -- and the roster is a publish condition on the way OUT as well as in -------- */
+
+  /* The gate refused to list this salon without somebody its calendar could generate an hour
+     from, and every door that can take that away answers the same: the salon drops to draft
+     and its owner is told why, exactly as hiding the last service above did. Three doors —
+     unlinking her services, giving her a week of days off, and taking her off the roster —
+     because a condition enforced only on the way in is a salon that goes dark without ever
+     leaving the public list. */
+  const stillListed = async (label) =>
+    ok(await applicant.fetch('/api/partner/salon'), `GET /api/partner/salon (${label})`).published;
+  const demotedTo = async (label) => {
+    assert((await stillListed(label)) === 0, `${label} must take the salon off the public list`);
+    const notices = ok(
+      await applicant.fetch('/api/notifications?limit=5'),
+      `GET /api/notifications after ${label}`,
+    );
+    assert(
+      notices.some(
+        (item) =>
+          item.title === 'Salon đã tạm ẩn khỏi OAK' &&
+          /kỹ thuật viên có lịch làm việc và dịch vụ/.test(item.body ?? ''),
+      ),
+      `${label} must leave the owner a notice naming the roster condition`,
+      notices,
+    );
+  };
+  const relist = async (label) =>
+    ok(
+      await applicant.fetch('/api/partner/salon', { method: 'PATCH', json: { published: 1 } }),
+      `PATCH /api/partner/salon (listed again after ${label})`,
+    );
+  const wholeWeek = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+    weekday, start: '09:00', end: '18:00', is_off: 0,
+  }));
+
+  ok(
+    await applicant.fetch(`/api/partner/staff/${firstStaff.id}/services`, {
+      method: 'PUT',
+      json: { service_ids: [] },
+    }),
+    'PUT /api/partner/staff/:id/services (unlinking the only bookable technician)',
+  );
+  await demotedTo('unlinking every service from the last bookable technician');
+  ok(
+    await applicant.fetch(`/api/partner/staff/${firstStaff.id}/services`, {
+      method: 'PUT',
+      json: { service_ids: [draftService.id] },
+    }),
+    'PUT /api/partner/staff/:id/services (linking her back)',
+  );
+  await relist('the services came back');
+
+  ok(
+    await applicant.fetch(`/api/partner/staff/${firstStaff.id}/schedule`, {
+      method: 'PUT',
+      json: { schedule: wholeWeek.map((day) => ({ ...day, is_off: 1 })) },
+    }),
+    'PUT /api/partner/staff/:id/schedule (a week of days off)',
+  );
+  await demotedTo('giving the last bookable technician a week of days off');
+  ok(
+    await applicant.fetch(`/api/partner/staff/${firstStaff.id}/schedule`, {
+      method: 'PUT',
+      json: { schedule: wholeWeek },
+    }),
+    'PUT /api/partner/staff/:id/schedule (putting the week back)',
+  );
+  await relist('the week came back');
+
+  ok(
+    await applicant.fetch(`/api/partner/staff/${firstStaff.id}`, { method: 'DELETE' }),
+    'DELETE /api/partner/staff/:id (the only bookable technician)',
+  );
+  await demotedTo('deleting the last bookable technician');
+  /* And the way back is the one the checklist points at: hire somebody. Created with a name
+     and nothing else, so the forgiving default is what makes the salon listable again. */
+  ok(
+    await applicant.fetch('/api/partner/staff', { method: 'POST', json: { name: 'KTV Thay Thế' } }),
+    'POST /api/partner/staff (the replacement that makes the salon listable again)',
+  );
+  await relist('somebody was hired');
+
   // A save that touches nothing publishing depends on is none of the gate's business:
   // an owner must be able to write a phone number without the salon's whole checklist
   // being re-run against them.
@@ -9525,6 +9607,57 @@ async function groupStaffDeparture() {
     400,
     'SALON_UNLISTED',
     'POST /api/bookings at a salon that has taken itself off OAK',
+  );
+
+  /* -- a pair the roster stopped linking is still an appointment ------------- */
+
+  /* STAFF_NOT_LINKED is about the console PUTTING a booking onto a pair the roster does not
+     link, not about every save that names one. The edit modal posts every field on every
+     save, so a booking whose pair was unlinked after it was taken — the salon narrowed the
+     technician's services, or the row predates the rule — could not be rescheduled, marked
+     completed or corrected at all: the body resent the staff_id it already had and was
+     answered 400. It is now the CHANGE that is checked, not the mention. */
+  const driftRow = await hire(chairSalon.owner, 'KTV Bị Gỡ Dịch Vụ', chairService.id);
+  const drifted = await chairWalkIn(
+    driftRow.id, addDays(state.today, 9), '10:00', 'the booking whose pair is about to be unlinked',
+  );
+  ok(
+    await chairSalon.owner.fetch(`/api/partner/staff/${driftRow.id}/services`, {
+      method: 'PUT',
+      json: { service_ids: [] },
+    }),
+    'PUT /api/partner/staff/:id/services (unlinking her under a live booking)',
+  );
+
+  const moved = ok(
+    await chairSalon.owner.fetch(`/api/partner/bookings/${drifted.id}`, {
+      method: 'PATCH',
+      json: { staff_id: driftRow.id, time: '14:00' },
+    }),
+    'PATCH /api/partner/bookings/:id moving an unlinked pair to another hour',
+  );
+  assert(
+    moved.time === '14:00' && moved.staff?.id === driftRow.id,
+    'the hour moves and the chair stays exactly where it was',
+    moved,
+  );
+
+  // What is still refused is the console putting it onto a DIFFERENT unlinked technician.
+  const stranger = ok(
+    await chairSalon.owner.fetch('/api/partner/staff', {
+      method: 'POST',
+      json: { name: 'KTV Khác Chưa Gắn', service_ids: [] },
+    }),
+    'POST /api/partner/staff (another technician linked to nothing)',
+  );
+  expectError(
+    await chairSalon.owner.fetch(`/api/partner/bookings/${drifted.id}`, {
+      method: 'PATCH',
+      json: { staff_id: stranger.id },
+    }),
+    400,
+    'STAFF_NOT_LINKED',
+    'moving the same booking onto a different technician the roster does not link',
   );
 
   /* -- the technician answers for the leaving date too ------------------------ */

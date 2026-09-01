@@ -806,6 +806,9 @@
        the thirteenth too, but only after its bytes were already sitting in the bucket with
        nothing pointing at them. */
     var PHOTO_MAX = 12;
+    /* The list endpoints cap ?limit at 50 (MAX_LIMIT, server/src/lib/query.js), so this is
+       the whole menu for every salon that has fewer, and a first page for one that has more. */
+    var SERVICE_PAGE_MAX = 50;
 
     /* Where the picker opens before a salon has any coordinates: District 1, HCMC. */
     var MAP_FALLBACK = { center: [10.776, 106.700], zoom: 13 };
@@ -865,6 +868,9 @@
                days off below they sit outside `form` and outside the dirty/undo state. */
             published: 0,
             serviceCount: 0,
+            /* The ids of the services the public side can see, or null when this page cannot
+               be sure it holds all of them. See loadServiceCount. */
+            activeServiceIds: null,
             bookableStaff: 0,
             publishSaving: false,
             publishError: '',
@@ -1010,24 +1016,48 @@
                condition into a refusal. */
             async loadServiceCount() {
                 try {
-                    var rows = await OAK.api('/api/partner/services?limit=1');
+                    var rows = await OAK.api('/api/partner/services?limit=' + SERVICE_PAGE_MAX);
                     this.serviceCount = rows.meta ? rows.meta.active_total : 0;
+                    /* The rows themselves too, because the roster condition below has to ask
+                       which services a technician is linked to and the server's own clause is
+                       sv.active = 1. Null when this page holds only a first page of a longer
+                       menu: intersecting against a partial set would report a technician as
+                       unbookable over a service the server can see and this page cannot, and
+                       a checklist that contradicts the refusal beside it is worse than one
+                       that is merely generous. */
+                    this.activeServiceIds =
+                        rows.length < SERVICE_PAGE_MAX
+                            ? rows
+                                  .filter(function (service) {
+                                      return service.active === 1;
+                                  })
+                                  .map(function (service) {
+                                      return service.id;
+                                  })
+                            : null;
                 } catch (error) {
                     this.serviceCount = 0;
+                    this.activeServiceIds = null;
                 }
             },
 
             /* Whether anybody can actually be booked. Three things at once — on the roster,
-               on shift some day of the week, and linked to a service — and a salon can have
-               technicians and none of them. next_shift is non-null whenever the row has any
-               working day at all, because the server scans the whole week ahead for it. */
+               on shift some day of the week, and linked to a service the public side can see
+               — and a salon can have technicians and none of them. next_shift is non-null
+               whenever the row has any working day at all, because the server scans the whole
+               week ahead for it. GET /partner/staff deliberately serves links to hidden
+               services too (the roster editor needs them), so the intersection happens here
+               rather than being asked of that endpoint. */
             async loadBookableStaff() {
+                var active = this.activeServiceIds;
                 try {
                     var roster = await OAK.api('/api/partner/staff');
                     this.bookableStaff = roster.filter(function (member) {
                         return (
                             member.active === 1 &&
-                            (member.service_ids || []).length > 0 &&
+                            (member.service_ids || []).some(function (id) {
+                                return active === null || active.indexOf(id) !== -1;
+                            }) &&
                             ((member.shift && member.shift.is_off === 0) || member.next_shift)
                         );
                     }).length;
