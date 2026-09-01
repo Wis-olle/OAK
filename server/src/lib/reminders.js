@@ -16,17 +16,31 @@ import { notifyUser } from './notify.js';
 import { addDaysISO, fromMinutes, toMinutes } from './time.js';
 
 const MINUTES_PER_DAY = 24 * 60;
-/* Everything starting between this moment and a day and an hour from now.
+const MINUTES_PER_HOUR = 60;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+/* The far edge of the window: a day and an hour out.
  *
- * There is no lower bound, and there used to be one — an hour either side of the 24-hour
- * mark. A window with a floor only works for a sweep that never misses a beat, and this one
- * can: the free tier sleeps, a deploy restarts the process, an instance is asleep for hours.
- * Anything that fell through such a gap was never reminded about at all. A reminder that
- * arrives eight hours before the appointment instead of twenty-four is late; it is not
- * useless, and it is worth far more than none. The hour past the day is what keeps the
- * upper edge from being stepped over between two runs of a ten-minute tick.
+ * The hour past the day is what keeps that edge from being stepped over between two runs of
+ * a ten-minute tick. There is no matching floor on the window as a whole, and there used to
+ * be one — an hour short of the 24-hour mark. A floor on the WINDOW only works for a sweep
+ * that never misses a beat, and this one misses them: the free tier sleeps, a deploy
+ * restarts the process, an instance is away for hours. Anything that fell through such a gap
+ * was never reminded about at all, and a reminder eight hours ahead instead of twenty-four
+ * is late rather than useless.
  */
 const WINDOW_TO_MIN = 25 * 60;
+/* The floor is per BOOKING instead, and it is not about lateness — it is about whether the
+ * reminder still has a point. What this notice says is "your appointment is at X, and you
+ * can cancel free until Y". Once Y has passed there is nothing left to act on, and the
+ * sentence becomes an instruction the cancel route would refuse: a booking made at 13:00 for
+ * 15:00 was being reminded about five minutes after it was confirmed, quoting a deadline
+ * already gone. So a booking is due only while more than the salon's own free-cancellation
+ * window still stands between now and its start.
+ *
+ * Never less than two hours of it, whatever the salon's column says: a salon that has set a
+ * cutoff of zero has not thereby asked for a reminder to arrive on top of the appointment.
+ */
+const MIN_LEAD_MIN = 2 * MINUTES_PER_HOUR;
 // Only for a salon that never set one of its own: bookings.js DEFAULT_CANCEL_WINDOW_HOURS is
 // the same fallback, and PATCH /api/bookings/:id/cancel enforces the salon's column. The two
 // have to agree, or the reminder names a deadline the cancel route refuses.
@@ -82,10 +96,29 @@ function reminderBody(row) {
   );
 }
 
+/** How long the reminder has to have left to be worth sending, for this salon's booking. */
+function leadRequired(cutoffHours) {
+  return Math.max((cutoffHours ?? DEFAULT_CANCEL_WINDOW_HOURS) * MINUTES_PER_HOUR, MIN_LEAD_MIN);
+}
+
+/** Minutes from `now` on `today` until a booking's ('YYYY-MM-DD', 'HH:MM') start. */
+function minutesUntil(today, now, date, time) {
+  // Both dates read as UTC midnight, so the subtraction is a whole number of days whatever
+  // the host's zone — the same arithmetic bookings.js minutesUntilStart does.
+  const days =
+    (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / MS_PER_DAY;
+  return days * MINUTES_PER_DAY + toMinutes(time) - now;
+}
+
 /**
- * Write one 'reminder' notification for every appointment starting between `now` (minutes
- * past midnight on `today`) and a day and an hour later that has not been reminded about
- * yet. Returns how many were written.
+ * Write one 'reminder' notification for every appointment starting within a day and an hour
+ * of `now` (minutes past midnight on `today`) that is still far enough off to be worth
+ * warning about and has not been reminded about yet. Returns how many were written.
+ *
+ * The ceiling is the query's; the floor is asked per row, because it is the salon's own
+ * free-cancellation window and every salon has a different one. The rows in between the two
+ * are few, so reading them and dropping some is cheaper than teaching the SQL to do interval
+ * arithmetic over a joined column.
  *
  * Runs on the caller's transaction: lib/tick.js opens it and holds the lock that keeps two
  * instances out of the same window.
@@ -94,7 +127,10 @@ export async function sweepReminders(tx, today, now) {
   const [fromDate, fromTime] = shift(today, now);
   const [toDate, toTime] = shift(today, now + WINDOW_TO_MIN);
 
-  const due = await tx.all(SELECT_DUE, fromDate, fromDate, fromTime, toDate, toDate, toTime);
+  const inWindow = await tx.all(SELECT_DUE, fromDate, fromDate, fromTime, toDate, toDate, toTime);
+  const due = inWindow.filter(
+    (row) => minutesUntil(today, now, row.date, row.time) > leadRequired(row.cancel_cutoff_hours),
+  );
 
   let written = 0;
   for (const row of due) {

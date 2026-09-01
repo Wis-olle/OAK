@@ -446,7 +446,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   auto_closed INTEGER DEFAULT 0
 );
 
--- Set only by the lazy sweep in routes/bookings.js: this booking was closed by the calendar,
+-- Set only by the sweep in lib/tick.js: this booking was closed by the calendar,
 -- nobody looked at it. A flag of its own rather than a marker inside the note column, which
 -- also holds the customer's own words and so can be made to say anything.
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS auto_closed INTEGER DEFAULT 0;

@@ -71,6 +71,22 @@ function vnParts() {
   );
 }
 
+/**
+ * Today and the minute of it, in Vietnam time, from ONE reading of the clock.
+ *
+ * todayISO() and nowMinutes() each look at the clock themselves, so a caller that wants both
+ * can be handed 23:59 of one day and the date of the next — a sweep would then ask for a
+ * window that never existed. Anything comparing a date against a time of day should read the
+ * pair here instead of the two separately.
+ */
+export function vnNow() {
+  const { year, month, day, hour, minute } = vnParts();
+  return {
+    today: `${year}-${month}-${day}`,
+    now: Number(hour) * MINUTES_PER_HOUR + Number(minute),
+  };
+}
+
 export function todayISO() {
   const { year, month, day } = vnParts();
   return `${year}-${month}-${day}`;

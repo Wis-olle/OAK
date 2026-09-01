@@ -966,14 +966,19 @@ router.get('/me', async (req, res) => {
       if (user && sessionOutlivedPassword(payload, user)) {
         user = null;
       }
+      // Inside the same try as the account lookup, and for the same reason: this route has
+      // no next(error) to fall through to, so a database that will not answer has to leave
+      // it answering something rather than hanging. The reader is then treated as a guest —
+      // which is what a failed selectPublicUser has always done here — instead of the whole
+      // header failing over a badge.
+      if (user) {
+        user.unread_count = (await selectUnreadCount.get(user.id)).count;
+        if (user.role === 'customer') {
+          user.next_booking = await nextBookingFor(user.id);
+        }
+      }
     } catch {
       user = null;
-    }
-  }
-  if (user) {
-    user.unread_count = (await selectUnreadCount.get(user.id)).count;
-    if (user.role === 'customer') {
-      user.next_booking = await nextBookingFor(user.id);
     }
   }
   res.json({ success: true, data: { user } });

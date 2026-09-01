@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import app from './app.js';
 import { db } from './db.js';
-import { runTick } from './lib/tick.js';
+import { runTick, tickIntervalFrom } from './lib/tick.js';
 
 const port = process.env.PORT || 3000;
 const dataDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../data');
@@ -99,9 +99,10 @@ server.on('error', (error) => {
  * stands beside this for an external cron; the advisory lock in lib/tick.js is what keeps
  * the two of them (and two instances mid-deploy) out of each other's way.
  */
-const DEFAULT_TICK_INTERVAL_MS = 10 * 60 * 1000;
 const BOOT_TICK_DELAY_MS = 15 * 1000;
-const tickIntervalMs = Number(process.env.TICK_INTERVAL_MS ?? DEFAULT_TICK_INTERVAL_MS);
+// Parsed in lib/tick.js, where it can be tested: only a literal 0 turns the clock off, and
+// anything unusable falls back to the default rather than to silence.
+const tickIntervalMs = tickIntervalFrom(process.env.TICK_INTERVAL_MS);
 
 async function tick() {
   try {
@@ -113,9 +114,15 @@ async function tick() {
   }
 }
 
-if (Number.isFinite(tickIntervalMs) && tickIntervalMs > 0) {
+// One line at boot, because the tick is otherwise silent by design — it logs only when it
+// wrote something — and "no tick lines all day" would look exactly the same whether it was
+// running and finding nothing or never scheduled at all.
+if (tickIntervalMs > 0) {
+  console.log(`[${stamp()}] tick: every ${Math.round(tickIntervalMs / 1000)}s, first in ${BOOT_TICK_DELAY_MS / 1000}s.`);
   setTimeout(tick, BOOT_TICK_DELAY_MS).unref();
   setInterval(tick, tickIntervalMs).unref();
+} else {
+  console.log(`[${stamp()}] tick disabled (TICK_INTERVAL_MS=0) — only GET /api/internal/tick will run it.`);
 }
 
 function shutdown(signal) {

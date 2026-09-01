@@ -21,6 +21,11 @@ import { runTick } from '../lib/tick.js';
 
 const router = express.Router();
 
+// Said once, not once per request: a cron hitting a service whose key was never set would
+// otherwise write the same line every ten minutes for ever, and the log a real fault has to
+// be found in is the one thing that would be lost.
+let warnedNoSecret = false;
+
 /**
  * True when `given` is the configured key. Constant-time over equal-length buffers, and a
  * plain length comparison first because timingSafeEqual throws on a mismatch — the length
@@ -38,7 +43,10 @@ async function tick(req, res, next) {
     if (!secret) {
       // Not a 401: nothing the caller sends could ever be right, and an operator reading a
       // wall of 401s would look for a wrong key rather than for a missing setting.
-      console.error('TICK_SECRET is not set — /api/internal/tick is closed.');
+      if (!warnedNoSecret) {
+        warnedNoSecret = true;
+        console.error('TICK_SECRET is not set — /api/internal/tick is closed.');
+      }
       res.status(503).json({
         success: false,
         error: { code: 'TICK_DISABLED', message: 'Không có TICK_SECRET, tác vụ định kỳ đang tắt.' },

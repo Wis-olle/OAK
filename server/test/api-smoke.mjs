@@ -308,7 +308,26 @@ async function tick() {
   const response = await session('guest').fetch(
     `/api/internal/tick?key=${encodeURIComponent(TICK_SECRET)}`,
   );
+  /* In external mode the key is not this suite's to know: the server was started by somebody
+     else, with a secret of their choosing or none at all. That is a suite that cannot drive
+     the clock, not a broken server — so it says so and hands back null, and the cases that
+     need a tick step around it. Against the server the suite spawns, both of these are real
+     failures and fall through to ok(). */
+  if (EXTERNAL_URL && (response.status === 401 || response.status === 503)) {
+    skip(
+      "GET /api/internal/tick refused this suite's key — set TICK_SECRET on that server, " +
+        'or OAK_TEST_TICK_SECRET here, to run the cases that need the clock',
+    );
+    return null;
+  }
   return ok(response, 'GET /api/internal/tick');
+}
+
+/** The ('YYYY-MM-DD', 'HH:MM') pair `minutes` from the server's now. */
+function startingIn(now, minutes) {
+  const total = now + minutes;
+  const days = Math.floor(total / (24 * 60));
+  return { date: addDays(state.today, days), time: hhmm(total - days * 24 * 60) };
 }
 
 /**
@@ -2102,91 +2121,19 @@ async function groupBookings() {
     );
   }
 
-  /* The key is the whole of what stands between a stranger and a sweep of everybody's rows,
-     so it is asked for both ways round before it is used. */
-  expectError(
-    await guest.fetch('/api/internal/tick'),
-    401,
-    'UNAUTHENTICATED',
-    'GET /api/internal/tick with no key',
-  );
-  expectError(
-    await guest.fetch('/api/internal/tick?key=oak-smoke-tick-keyy'),
-    401,
-    'UNAUTHENTICATED',
-    'GET /api/internal/tick with the wrong key',
-  );
-
-  const ran = await tick();
+  /* And it is in a tab while it waits. Between the day ending and the next tick a booking is
+     neither upcoming — that tab starts at today — nor closed, and "Đã qua" holds it for those
+     minutes so it is never in no tab at all. Asked before AND after, because the row has to
+     stay where the reader last saw it when the clock finally settles it. */
+  const stalePastResponse = await customer.fetch('/api/bookings/mine?status=past&limit=50');
+  const stalePast = ok(stalePastResponse, 'GET /api/bookings/mine?status=past (before the clock runs)');
   assert(
-    ran.closed >= 2 && ran.cancelled >= 1,
-    'the clock reports the appointments it completed and cancelled',
-    ran,
+    stalePast.find((item) => item.id === stranded.confirmed)?.status === 'confirmed',
+    'auto-close: a day already over is in "Đã qua" under its own status while it waits',
+    stalePastResponse,
   );
 
-  const sweptResponse = await customer.fetch('/api/bookings/mine?status=completed&limit=50');
-  const swept = ok(sweptResponse, 'GET /api/bookings/mine?status=completed (after the sweep)');
-  const closed = swept.find((item) => item.id === stranded.confirmed);
-  assert(closed !== undefined, "auto-close: yesterday's confirmed booking must land in the completed tab", sweptResponse);
-  assert(closed.auto === true, 'auto-close: a card the sweep closed must say so', sweptResponse);
-
-  const droppedResponse = await customer.fetch('/api/bookings/mine?status=cancelled&limit=50');
-  const droppedList = ok(droppedResponse, 'GET /api/bookings/mine?status=cancelled (after the sweep)');
-  const dropped = droppedList.find((item) => item.id === stranded.pending);
-  assert(dropped !== undefined, "auto-close: yesterday's pending booking must land in the cancelled tab", droppedResponse);
-  assert(dropped.auto === true, 'auto-close: a cancelled card the sweep closed must say so', droppedResponse);
-
-  const invitedResponse = await customer.fetch('/api/notifications');
-  const invited = ok(invitedResponse, 'GET /api/notifications after the sweep');
-  const invitations = invited.filter(
-    (item) => item.type === 'review' && item.booking_id === stranded.confirmed,
-  );
-  assert(invitations.length === 1, 'auto-close: expected one invitation to review the closed booking', invitedResponse);
-
-  // The walk-in closed out with the rest, and nobody was invited to review it: there is no
-  // account behind the number on the counter's booking.
-  const closedWalkIn = ok(
-    await partner.fetch(`/api/partner/bookings/${walkInBooking.id}`),
-    'GET /api/partner/bookings/:id (the walk-in after the clock ran)',
-  );
-  assert(closedWalkIn.status === 'completed', 'auto-close: the walk-in must close out too', closedWalkIn);
-  if (!EXTERNAL_URL) {
-    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
-    await directClient.connect();
-    try {
-      const row = (
-        await directClient.query('SELECT user_id, status, auto_closed FROM bookings WHERE id = $1', [
-          walkInBooking.id,
-        ])
-      ).rows[0];
-      assert(row.user_id === null, 'auto-close: the walk-in must belong to no account at all');
-      assert(row.auto_closed === 1, 'auto-close: the walk-in card must say the clock closed it');
-      const notified = (
-        await directClient.query(
-          'SELECT COUNT(*)::int AS total FROM notifications WHERE booking_id = $1',
-          [walkInBooking.id],
-        )
-      ).rows[0].total;
-      assert(notified === 0, 'auto-close: there is nobody to invite to review a walk-in');
-    } finally {
-      await directClient.end();
-    }
-  } else {
-    skip('auto_closed and the absent invitation are read straight from the table');
-  }
-
-  // A second run sweeps nothing: those rows are no longer pending or confirmed.
-  const again = await tick();
-  assert(
-    again.closed === 0 && again.cancelled === 0,
-    'auto-close: a second run finds nothing left to close',
-    again,
-  );
-  const repeated = ok(await customer.fetch('/api/notifications'), 'GET /api/notifications after the second run');
-  assert(
-    repeated.filter((item) => item.type === 'review' && item.booking_id === stranded.confirmed).length === 1,
-    'auto-close: a second run must not queue a second invitation',
-  );
+  await theClockClosesTheDayOut({ customer, partner, stranded, walkInBooking });
 
   ok(
     await partner.fetch('/api/partner/salon', { method: 'PATCH', json: { hours: salonHours } }),
@@ -2305,6 +2252,117 @@ async function meCarriesTheHeader(customer, partner, service) {
     }
     await directClient.end();
   }
+}
+
+/**
+ * What the clock does with a day that has ended, once the three appointments above have been
+ * left in it. Its own function so that a suite which cannot drive the clock — external mode,
+ * where the key belongs to whoever started the server — steps around the whole case in one
+ * place instead of guarding every assertion in it.
+ */
+async function theClockClosesTheDayOut({ customer, partner, stranded, walkInBooking }) {
+  const ran = await tick();
+  if (ran === null) {
+    return;
+  }
+
+  /* The key is the whole of what stands between a stranger and a sweep of everybody's rows,
+     so both ways of getting it wrong are asked about too. Below the guard above, because a
+     server whose secret this suite does not know answers 503 to the first of these rather
+     than the 401 a wrong key earns. */
+  const guest = session('guest');
+  expectError(
+    await guest.fetch('/api/internal/tick'),
+    401,
+    'UNAUTHENTICATED',
+    'GET /api/internal/tick with no key',
+  );
+  expectError(
+    await guest.fetch('/api/internal/tick?key=oak-smoke-tick-keyy'),
+    401,
+    'UNAUTHENTICATED',
+    'GET /api/internal/tick with the wrong key',
+  );
+  assert(
+    ran.closed >= 2 && ran.cancelled >= 1,
+    'the clock reports the appointments it completed and cancelled',
+    ran,
+  );
+
+  const sweptResponse = await customer.fetch('/api/bookings/mine?status=completed&limit=50');
+  const swept = ok(sweptResponse, 'GET /api/bookings/mine?status=completed (after the sweep)');
+  const closed = swept.find((item) => item.id === stranded.confirmed);
+  assert(closed !== undefined, "auto-close: yesterday's confirmed booking must land in the completed tab", sweptResponse);
+  assert(closed.auto === true, 'auto-close: a card the sweep closed must say so', sweptResponse);
+
+  const droppedResponse = await customer.fetch('/api/bookings/mine?status=cancelled&limit=50');
+  const droppedList = ok(droppedResponse, 'GET /api/bookings/mine?status=cancelled (after the sweep)');
+  const dropped = droppedList.find((item) => item.id === stranded.pending);
+  assert(dropped !== undefined, "auto-close: yesterday's pending booking must land in the cancelled tab", droppedResponse);
+  assert(dropped.auto === true, 'auto-close: a cancelled card the sweep closed must say so', droppedResponse);
+
+  /* And it is still in the tab the reader last saw it in. The clause that put it there was
+     "the day is over and nothing has closed it"; the clause holding it now is "completed".
+     A row that jumped tabs the moment the clock caught up would be a row that vanished. */
+  const settledPastResponse = await customer.fetch('/api/bookings/mine?status=past&limit=50');
+  const settledPast = ok(settledPastResponse, 'GET /api/bookings/mine?status=past (after the clock ran)');
+  assert(
+    settledPast.find((item) => item.id === stranded.confirmed)?.status === 'completed',
+    'auto-close: the settled booking stays in "Đã qua", now as a completed visit',
+    settledPastResponse,
+  );
+
+  const invitedResponse = await customer.fetch('/api/notifications');
+  const invited = ok(invitedResponse, 'GET /api/notifications after the sweep');
+  const invitations = invited.filter(
+    (item) => item.type === 'review' && item.booking_id === stranded.confirmed,
+  );
+  assert(invitations.length === 1, 'auto-close: expected one invitation to review the closed booking', invitedResponse);
+
+  // The walk-in closed out with the rest, and nobody was invited to review it: there is no
+  // account behind the number on the counter's booking.
+  const closedWalkIn = ok(
+    await partner.fetch(`/api/partner/bookings/${walkInBooking.id}`),
+    'GET /api/partner/bookings/:id (the walk-in after the clock ran)',
+  );
+  assert(closedWalkIn.status === 'completed', 'auto-close: the walk-in must close out too', closedWalkIn);
+  if (!EXTERNAL_URL) {
+    const directClient = new pg.Client({ connectionString: TEST_DATABASE_URL });
+    await directClient.connect();
+    try {
+      const row = (
+        await directClient.query('SELECT user_id, status, auto_closed FROM bookings WHERE id = $1', [
+          walkInBooking.id,
+        ])
+      ).rows[0];
+      assert(row.user_id === null, 'auto-close: the walk-in must belong to no account at all');
+      assert(row.auto_closed === 1, 'auto-close: the walk-in card must say the clock closed it');
+      const notified = (
+        await directClient.query(
+          'SELECT COUNT(*)::int AS total FROM notifications WHERE booking_id = $1',
+          [walkInBooking.id],
+        )
+      ).rows[0].total;
+      assert(notified === 0, 'auto-close: there is nobody to invite to review a walk-in');
+    } finally {
+      await directClient.end();
+    }
+  } else {
+    skip('auto_closed and the absent invitation are read straight from the table');
+  }
+
+  // A second run sweeps nothing: those rows are no longer pending or confirmed.
+  const again = await tick();
+  assert(
+    again.closed === 0 && again.cancelled === 0,
+    'auto-close: a second run finds nothing left to close',
+    again,
+  );
+  const repeated = ok(await customer.fetch('/api/notifications'), 'GET /api/notifications after the second run');
+  assert(
+    repeated.filter((item) => item.type === 'review' && item.booking_id === stranded.confirmed).length === 1,
+    'auto-close: a second run must not queue a second invitation',
+  );
 }
 
 /* ============================================================================
@@ -5414,16 +5472,19 @@ async function groupAccountLifecycle() {
   const partner = session('partnerA');
   const service = ok(await guest.fetch('/api/services/1'), 'GET /api/services/1 (for a reminder)');
 
-  /* Two bookings, one on each side of the window. The hours they end up at are chosen so the
-     answer cannot depend on what time of day the suite runs at: tomorrow at midnight is
-     between now and a day from now whatever the clock says, and the day after tomorrow at
-     23:00 is more than forty-seven hours away at the very least. Only the salon may move a
-     booking, so a real bookable hour is booked first and then moved. */
+  /* Two bookings, one on each side of the window, placed by the server's own clock rather
+     than by a wall-clock hour, so the answer cannot depend on what time of day the suite runs
+     at. Six hours out clears the floor — the reminder has to leave the customer time to act
+     on what it says, which means more than the salon's free-cancellation window — and sits
+     well inside the day-and-an-hour ceiling. Twenty-six hours out is past that ceiling with
+     an hour to spare. Only the salon may move a booking, so a real bookable hour is booked
+     first and then moved onto the hour the case needs. */
+  const clockNow = await serverNowMinutes();
   const reminderCases = [];
   const reminderSlots = [];
-  for (const [kind, date, time] of [
-    ['due', addDays(state.today, 1), '00:00'],
-    ['too far off', addDays(state.today, 2), '23:00'],
+  for (const [kind, { date, time }] of [
+    ['due', startingIn(clockNow, 6 * 60)],
+    ['too far off', startingIn(clockNow, 26 * 60)],
   ]) {
     const slot = await findServiceSlot(service, reminderSlots);
     assert(slot !== null, `no free hour left to hang the ${kind} reminder case on`);
@@ -5446,6 +5507,11 @@ async function groupAccountLifecycle() {
       await partner.fetch(`/api/partner/bookings/${booked.id}`, { method: 'PATCH', json: { date, time } }),
       `PATCH /api/partner/bookings/:id (move the ${kind} case onto its hour)`,
     );
+    assert(
+      (booked.salon.cancel_cutoff_hours ?? 2) < 6,
+      'reminders: these cases assume a salon whose free-cancellation window is a few hours',
+      booked,
+    );
     reminderCases.push(booked.id);
   }
   const [due, tooFarOff] = reminderCases;
@@ -5464,24 +5530,27 @@ async function groupAccountLifecycle() {
   );
 
   const swept = await tick();
-  assert(swept.reminded >= 1, 'the clock reports the reminders it wrote', swept);
+  if (swept !== null) {
+    assert(swept.reminded >= 1, 'the clock reports the reminders it wrote', swept);
 
-  const remindersOf = async (label) => {
-    const inbox = ok(await customer.fetch('/api/notifications?limit=50'), label);
-    return (id) => inbox.filter((item) => item.type === 'reminder' && item.booking_id === id);
-  };
-  const afterOne = await remindersOf('GET /api/notifications (after the clock ran)');
-  assert(afterOne(due).length === 1, 'reminders: an appointment inside the window gets exactly one');
-  assert(
-    afterOne(tooFarOff).length === 0,
-    'reminders: an appointment two days out is nobody’s business yet',
-  );
+    const remindersOf = async (label) => {
+      const inbox = ok(await customer.fetch('/api/notifications?limit=50'), label);
+      return (id) => inbox.filter((item) => item.type === 'reminder' && item.booking_id === id);
+    };
+    const afterOne = await remindersOf('GET /api/notifications (after the clock ran)');
+    assert(afterOne(due).length === 1, 'reminders: an appointment inside the window gets exactly one');
+    assert(
+      afterOne(tooFarOff).length === 0,
+      'reminders: an appointment a day and a bit out is nobody’s business yet',
+    );
 
-  // And running it again writes nothing more: one reminder per booking, ever.
-  await tick();
-  const afterTwo = await remindersOf('GET /api/notifications (after the second run)');
-  assert(afterTwo(due).length === 1, 'reminders: a second run must not write a second reminder');
-  assert(afterTwo(tooFarOff).length === 0, 'reminders: nor reach further than its window');
+    // And running it again writes nothing more: one reminder per booking, ever.
+    await tick();
+    const afterTwo = await remindersOf('GET /api/notifications (after the second run)');
+    assert(afterTwo(due).length === 1, 'reminders: a second run must not write a second reminder');
+    assert(afterTwo(tooFarOff).length === 0, 'reminders: nor reach further than its window');
+  }
+
   /* -- erasing an account ----------------------------------------------------- */
 
   expectError(

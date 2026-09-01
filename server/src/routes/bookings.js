@@ -14,7 +14,7 @@ import {
 import { withBookingCode } from '../lib/booking-code.js';
 import { notifyStaff, notifyUser } from '../lib/notify.js';
 import { parsePagination } from '../lib/query.js';
-import { fromMinutes, isHHMM, isISODate, nowMinutes, toMinutes, todayISO } from '../lib/time.js';
+import { fromMinutes, isHHMM, isISODate, nowMinutes, toMinutes, todayISO, vnNow } from '../lib/time.js';
 import { httpError, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -125,11 +125,26 @@ const MINE_FILTERS = {
     fromToday: true,
   },
   completed: { where: "b.status = 'completed'", order: 'b.date DESC, b.time DESC' },
-  // Both ways an appointment closes out, which is what the customer's "Đã qua" tab shows.
-  // It is a key of its own rather than a widening of `completed`: the review gates on the
-  // home, salon and service pages ask for that one, and a visit that never happened is
-  // not a visit to review.
-  past: { where: "b.status IN ('completed', 'no_show')", order: 'b.date DESC, b.time DESC' },
+  /* Both ways an appointment closes out, which is what the customer's "Đã qua" tab shows,
+     AND the day that has gone by which nothing has closed out yet. That last clause is here
+     because the closing is a clock's job now (lib/tick.js) rather than something this very
+     request does: for up to ten minutes a booking can be neither upcoming — the tab above
+     starts at today — nor closed, and without this it would be in no tab at all, which is
+     precisely the disappearance the "upcoming" comment above describes from the other side.
+     The next tick settles it, and the row simply stops being matched by this clause and
+     starts being matched by the first one. The card reads sensibly in the meantime: it is
+     shown under its real status, and lich-hen-cua-toi.html offers Hủy and Đổi lịch only on
+     the upcoming tab, so nothing here invites an action on a day already gone.
+
+     Still a key of its own rather than a widening of `completed`: the review gates on the
+     home, salon and service pages ask for that one, and a visit that never happened — or has
+     not yet been said to have happened — is not a visit to review. */
+  past: {
+    where:
+      "(b.status IN ('completed', 'no_show') OR (b.date < ? AND b.status IN ('pending', 'confirmed')))",
+    order: 'b.date DESC, b.time DESC',
+    fromToday: true,
+  },
   cancelled: { where: "b.status = 'cancelled'", order: 'b.date DESC, b.time DESC' },
 };
 const ALL_BOOKINGS_FILTER = { where: '1 = 1', order: 'b.date DESC, b.time DESC' };
@@ -281,8 +296,10 @@ function minutesUntilStart(date, time) {
  * thing to drift.
  */
 export async function nextBookingFor(userId) {
-  const today = todayISO();
-  const row = await selectNextBooking.get(userId, today, today, fromMinutes(nowMinutes()));
+  // One reading of the clock, not two: todayISO() and nowMinutes() asked separately can
+  // straddle midnight and answer with a moment that never happened.
+  const { today, now } = vnNow();
+  const row = await selectNextBooking.get(userId, today, today, fromMinutes(now));
   return row ? toBookingCard(row) : null;
 }
 

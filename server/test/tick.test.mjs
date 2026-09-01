@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { runTick } from '../src/lib/tick.js';
+import { DEFAULT_TICK_INTERVAL_MS, runTick, tickIntervalFrom } from '../src/lib/tick.js';
 
 const TODAY = '2026-08-23';
 const NOW_MIN = 10 * 60;
@@ -123,4 +123,24 @@ test('a second tick over the same rows writes nothing more', async () => {
 
   assert.deepEqual(second, { skipped: false, closed: 0, cancelled: 0, reminded: 0 });
   assert.equal(store.notifications.length, 1);
+});
+
+/* TICK_INTERVAL_MS. The asymmetry is the point: turning the clock off has to be something
+   somebody meant, so only a literal 0 does it and everything unusable falls back to the
+   default. A scheduler that quietly stops scheduling is the one failure nothing else here
+   would notice — the tick logs only when it wrote something, so silence looks identical
+   whether it is running and finding nothing or was never started. */
+test('only a deliberate zero turns the clock off', () => {
+  assert.equal(tickIntervalFrom('0'), 0);
+  assert.equal(tickIntervalFrom(' 0 '), 0);
+
+  for (const raw of [undefined, null, '', '   ', 'abc', '10m', NaN, Infinity, '-5', '0.0']) {
+    assert.equal(tickIntervalFrom(raw), DEFAULT_TICK_INTERVAL_MS, `TICK_INTERVAL_MS=${raw}`);
+  }
+});
+
+test('a usable number is taken as it stands', () => {
+  assert.equal(tickIntervalFrom('2000'), 2000);
+  assert.equal(tickIntervalFrom(600000), 600000);
+  assert.equal(DEFAULT_TICK_INTERVAL_MS, 10 * 60 * 1000);
 });
