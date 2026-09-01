@@ -55,7 +55,7 @@ function lift() {
     todayISO,
     weekdayOf,
     httpError: () => new Error('httpError'),
-    hasSlotsInRange: async () => false,
+    salonsWithSlotsInRange: async () => new Set(),
     SALON_CARD_COLUMNS: '',
     toSalonCard: (row) => row,
     haversineKm: () => null,

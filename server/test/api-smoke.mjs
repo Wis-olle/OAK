@@ -237,6 +237,9 @@ function spawnServer() {
     // booking a test had staged and left the failure looking like a bug in the route.
     TICK_SECRET,
     TICK_INTERVAL_MS: '0',
+    // Count the round trips and report them per request, so the blocks below can assert
+    // what a page COSTS rather than only what it says. Off everywhere else (src/db.js).
+    OAK_QUERY_COUNT: '1',
   };
   // A shell with production's credentials exported would otherwise have this suite writing
   // its fixture images into the real bucket and mailing real people; the child gets neither.
@@ -298,6 +301,24 @@ async function serverNowMinutes() {
   const response = await fetch(`${BASE_URL}/api/health`);
   const vietnam = new Date(Date.parse(response.headers.get('date')) + 7 * 60 * 60 * 1000);
   return vietnam.getUTCHours() * 60 + vietnam.getUTCMinutes();
+}
+
+/**
+ * How many database round trips one GET spent, from the `x-oak-queries` header the app
+ * writes when it is told to count (OAK_QUERY_COUNT, src/db.js).
+ *
+ * A page whose cost grows with the number of salons on it reads perfectly in every other
+ * assertion here — the list is right, it is merely slow, and locally it is not even slow.
+ * The only way that regression fails a test is if the cost itself is asserted.
+ *
+ * null when the server was not asked to count, which in external mode is somebody else's
+ * choice rather than a fault.
+ */
+async function queriesFor(pathname) {
+  const response = await fetch(`${BASE_URL}${pathname}`);
+  await response.text();
+  const spent = response.headers.get('x-oak-queries');
+  return spent === null ? null : Number(spent);
 }
 
 /**
@@ -720,6 +741,45 @@ async function groupServices() {
   const serviceStaffResponse = await guest.fetch(`/api/services/${slot.service.id}/staff`);
   const serviceStaff = ok(serviceStaffResponse, 'GET /api/services/:id/staff');
   assert(serviceStaff.length > 0, 'service staff: expected performers', serviceStaffResponse);
+
+  /* The day strip and the day itself are two readings of one calendar, and they are now two
+     different readings: ?days= loads the whole week in one go, ?date= reads that one day the
+     way a booking check does. They have to agree slot for slot, or the wizard offers an hour
+     the next screen refuses — so the strip is checked against seven separate days. Starting
+     tomorrow rather than today, because "now" moves between two requests and only today's
+     answer depends on it. */
+  const stripFrom = addDays(state.today, 1);
+  const stripResponse = await guest.fetch(
+    `/api/services/${slot.service.id}/availability?from=${stripFrom}&days=7`,
+  );
+  const strip = ok(stripResponse, 'GET /api/services/:id/availability?days=7');
+  assert(strip.week.length === 7, 'week strip: expected 7 day entries', stripResponse);
+  for (const day of strip.week) {
+    const dayResponse = await guest.fetch(
+      `/api/services/${slot.service.id}/availability?date=${day.date}`,
+    );
+    const one = ok(dayResponse, `GET /api/services/:id/availability?date=${day.date}`);
+    assert(
+      JSON.stringify(day.slots) === JSON.stringify(one.slots),
+      `week strip ${day.date}: the strip and the single day must offer the same slots`,
+      dayResponse,
+    );
+  }
+
+  /* And it has to cost a week's worth of reading rather than a week of walks. The strip used
+     to ask per day, per technician — 46 round trips for these seven days — which is invisible
+     next to a local database and half a minute next to a hosted one. */
+  const stripQueries = await queriesFor(
+    `/api/services/${slot.service.id}/availability?from=${stripFrom}&days=7`,
+  );
+  if (stripQueries === null) {
+    skip('x-oak-queries is absent: set OAK_QUERY_COUNT=1 on that server to assert the cost');
+  } else {
+    assert(
+      stripQueries <= 10,
+      `week strip: expected at most 10 queries for 7 days, spent ${stripQueries}`,
+    );
+  }
 }
 
 /* ============================================================================
@@ -825,7 +885,7 @@ async function groupSearch() {
     locatedResponse,
   );
   assert('availability' in hit, 'search: availability must be present when a date is given', locatedResponse);
-  // The key alone is satisfied by `false`, which is what a broken hasSlotsInRange
+  // The key alone is satisfied by `false`, which is what a broken salonsWithSlotsInRange
   // returns for every salon; at least one salon really does have an afternoon slot.
   assert(
     located.some((item) => item.availability === true),
@@ -1113,6 +1173,78 @@ async function groupSearch() {
     'paging: the second page must hold none of the first',
     secondPageResponse,
   );
+
+  /* ------------------------------------------------------------------------
+   * The dated search reads its calendars in one go now (loadDayCalendar in
+   * lib/availability.js) rather than walking every salon, every service and every
+   * technician one round trip at a time. That is only a safe trade if the two readings
+   * answer the same question the same way, and nothing else here would notice if they
+   * stopped: a salon quietly missing from a dated search still leaves a valid page.
+   *
+   * So the whole rule is asserted directly, salon by salon and day by day — a salon is on
+   * a dated search exactly when one of its bookable services still has a free slot that
+   * day, which is what the wizard would go on to offer. Tomorrow onwards, because "hôm
+   * nay" is measured from a clock that moves between two requests and would make an
+   * honest disagreement look like a broken one.
+   * --------------------------------------------------------------------- */
+  const rosterResponse = await guest.fetch('/api/salons?limit=100');
+  const roster = ok(rosterResponse, 'GET /api/salons?limit=100');
+  assert(roster.length > 1, 'availability equivalence: needs more than one salon to be a test');
+
+  const menus = new Map();
+  for (const salon of roster) {
+    const menuResponse = await guest.fetch(`/api/services?salon_id=${salon.id}&limit=100`);
+    const menu = ok(menuResponse, `GET /api/services?salon_id=${salon.id}`);
+    // What the search reads the calendars of: the bookable menu. An amenity row
+    // ("Phòng VIP riêng tư") is a facility nobody books an hour of.
+    menus.set(salon.id, menu.filter((service) => service.category !== 'amenity'));
+  }
+
+  for (let offset = 1; offset <= 7; offset += 1) {
+    const day = addDays(state.today, offset);
+    const dayResponse = await guest.fetch(`/api/search/salons?date=${day}&limit=100`);
+    const matched = new Set(ok(dayResponse, `GET /api/search/salons?date=${day}`).map((row) => row.id));
+
+    for (const salon of roster) {
+      let free = false;
+      for (const service of menus.get(salon.id)) {
+        const slotsResponse = await guest.fetch(
+          `/api/services/${service.id}/availability?date=${day}`,
+        );
+        const slots = ok(slotsResponse, `GET /api/services/${service.id}/availability`);
+        if (slots.slots.some((entry) => entry.available === true)) {
+          free = true;
+          break;
+        }
+      }
+      assert(
+        matched.has(salon.id) === free,
+        `availability equivalence ${day}: search ${matched.has(salon.id) ? 'lists' : 'drops'} ` +
+          `salon ${salon.id}, whose services ${free ? 'do' : 'do not'} have a free slot`,
+        dayResponse,
+      );
+    }
+  }
+
+  /* And what the hero's "Hôm nay" costs. It used to be one round trip per technician per
+     service per candidate salon — 88 of them over this seed of six, thousands over a city,
+     on a pool five connections deep and from an endpoint nobody has to sign in to reach. */
+  const searchQueries = await queriesFor(`/api/search/salons?date=${state.today}&limit=100`);
+  if (searchQueries === null) {
+    skip('x-oak-queries is absent: set OAK_QUERY_COUNT=1 on that server to assert the cost');
+  } else {
+    assert(
+      searchQueries <= 12,
+      `dated search: expected at most 12 queries over the whole seed, spent ${searchQueries}`,
+    );
+    // The same search without a date is the floor: the calendars are what the date adds,
+    // and it must add a handful of reads rather than a walk.
+    const undatedQueries = await queriesFor('/api/search/salons?limit=100');
+    assert(
+      searchQueries - undatedQueries <= 6,
+      `dated search: a date must cost at most 6 extra queries, cost ${searchQueries - undatedQueries}`,
+    );
+  }
 }
 
 /* ============================================================================

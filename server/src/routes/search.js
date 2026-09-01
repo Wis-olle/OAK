@@ -1,7 +1,7 @@
 // Salon search, the rule-based Vietnamese assistant and suggestion chips.
 import express from 'express';
 import { db } from '../db.js';
-import { hasSlotsInRange } from '../lib/availability.js';
+import { salonsWithSlotsInRange } from '../lib/availability.js';
 import { SALON_CARD_COLUMNS, toSalonCard } from '../lib/cards.js';
 import { CITY_DISTRICTS } from '../lib/locations.js';
 import { haversineKm, parsePagination } from '../lib/query.js';
@@ -436,7 +436,9 @@ router.get('/salons', async (req, res, next) => {
 
     // A date the caller asked for is part of matching, so it has to narrow the set before the
     // page slice — meta.total comes from filtered.length. It runs last of the filters and only
-    // over what the cheap ones left, because each call fans out into a query per service.
+    // over what the cheap ones left, and it asks about all of them in one breath: the day's
+    // calendars are read for every surviving salon at once (lib/availability.js), so this
+    // costs a handful of queries rather than one per technician per salon.
     if (date) {
       // Today only has the hours it has left: POST /api/bookings refuses an hour that has
       // already started, so a salon whose last free slot was this morning is not a match at
@@ -445,13 +447,10 @@ router.get('/salons', async (req, res, next) => {
       const now = fromMinutes(nowMinutes());
       const effectiveFrom =
         date === todayISO() ? (timeFrom && timeFrom > now ? timeFrom : now) : timeFrom;
-      const withSlots = [];
-      for (const item of filtered) {
-        if (await hasSlotsInRange(item.id, date, effectiveFrom, timeTo)) {
-          withSlots.push(item);
-        }
-      }
-      filtered = withSlots;
+      const withSlots = await salonsWithSlotsInRange(
+        filtered.map((item) => item.id), date, effectiveFrom, timeTo,
+      );
+      filtered = filtered.filter((item) => withSlots.has(item.id));
     }
 
     // Only the salons that matched the most words of the query, and taken last so a filter

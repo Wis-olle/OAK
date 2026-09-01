@@ -2,7 +2,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { SERVICE_CARD_COLUMNS, toServiceCard } from '../lib/cards.js';
-import { getServiceSlots, salonSettingsForService, timeOffOn } from '../lib/availability.js';
+import { calendarServiceSlots, getServiceSlots, loadDayCalendar } from '../lib/availability.js';
 import { exceptBookingIdFor } from '../lib/except-booking.js';
 import { parsePagination } from '../lib/query.js';
 import { addDaysISO, isISODate, todayISO } from '../lib/time.js';
@@ -223,24 +223,23 @@ router.get('/categories', async (req, res, next) => {
  * included, so the day strip can tell a day the salon declared off from one whose calendar
  * simply filled up. Without it the wizard struck a declared day off through as "full".
  *
- * The salon and its lead time are read once for the whole week and the day-off rows once
- * per date, then handed to getServiceSlots, so a seven-day grid asks each question once.
+ * The whole week is read first and computed after: one loadDayCalendar covers every date
+ * at once, so the strip costs a handful of queries instead of the roster's worth per day it
+ * used to spend walking the technicians one at a time.
  */
 async function getServiceWeek(serviceId, from, days, except = null) {
-  const settings = await salonSettingsForService(serviceId);
-  const week = [];
-  for (let offset = 0; offset < days; offset += 1) {
-    const date = addDaysISO(from, offset);
-    const off = settings === null ? { salon: false, staff: new Set() } : await timeOffOn(settings.salon_id, date);
-    week.push({
-      date,
-      closed: off.salon,
-      slots: await getServiceSlots(
-        serviceId, date, off, settings?.lead_time_min ?? null, except,
-      ),
-    });
-  }
-  return week;
+  const calendar = await loadDayCalendar({
+    serviceIds: [serviceId],
+    dateFrom: from,
+    dateTo: addDaysISO(from, days - 1),
+    exceptBookingId: except,
+  });
+  const salonId = calendar.services.get(serviceId)?.salon_id ?? null;
+  return calendar.dates.map((date) => ({
+    date,
+    closed: calendar.offSalonDays.has(`${salonId}:${date}`),
+    slots: calendarServiceSlots(calendar, serviceId, date),
+  }));
 }
 
 /**

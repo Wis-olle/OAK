@@ -214,18 +214,6 @@ export async function timeOffOn(salonId, date) {
   };
 }
 
-/** The salon a service belongs to, and that salon's lead time, in one read. */
-export async function salonSettingsForService(serviceId) {
-  const service = await selectService.get(serviceId);
-  if (!service) {
-    return null;
-  }
-  return {
-    salon_id: service.salon_id,
-    lead_time_min: (await selectSalonSettings.get(service.salon_id))?.lead_time_min ?? 0,
-  };
-}
-
 /** Whole days from today to `date`, in Vietnam time. Negative for a date already past. */
 function daysAhead(date) {
   const [thisYear, thisMonth, thisDay] = todayISO().split('-').map(Number);
@@ -253,10 +241,6 @@ function leadFloor(date, leadMin) {
 async function leadFloorFor(salonId, date) {
   return leadFloor(date, (await selectSalonSettings.get(salonId))?.lead_time_min ?? 0);
 }
-
-const selectSalonServiceIds = db.prepare(
-  "SELECT id FROM services WHERE salon_id = ? AND active = 1 AND category <> 'amenity'",
-);
 
 /** Busy [start, end) minute ranges from rows of {time, duration_min}. */
 function toRanges(bookings) {
@@ -334,6 +318,36 @@ function* shiftStarts(shift, duration, floor) {
 }
 
 /**
+ * The slot arithmetic itself, over shifts whose calendars are already in hand.
+ *
+ * Every shift is a window already clamped to the salon's hours, carrying the busy ranges
+ * of the technician who works it. One free technician is enough, so availability ORs
+ * across them; a minute nobody is rostered for is not a slot at all and never enters the
+ * map. A single shift in the list is the one-technician answer, which is why the staff
+ * grid comes through here too.
+ *
+ * Kept as the one place this is computed because there are now two ways to reach it: a
+ * caller asking about one service on one day and reading its calendars as it goes, and a
+ * caller that loaded a whole week of salons in one go (loadDayCalendar below). The two
+ * read differently and must answer identically, and the only way to promise that is for
+ * there to be one arithmetic underneath both.
+ */
+function unionSlots(shifts, duration, floor) {
+  const availability = new Map();
+  for (const shift of shifts) {
+    for (const minute of shiftStarts(shift, duration, floor)) {
+      availability.set(
+        minute,
+        (availability.get(minute) ?? false) || isFree(shift.ranges, minute, duration),
+      );
+    }
+  }
+  return [...availability.keys()]
+    .sort((a, b) => a - b)
+    .map((minute) => ({ time: fromMinutes(minute), available: availability.get(minute) }));
+}
+
+/**
  * Is the salon open for the WHOLE of one service starting at that time?
  *
  * The write-side counterpart of clampToHours, which is the read side: a booking that
@@ -390,23 +404,17 @@ export async function getServiceSlots(
   const duration = service.duration_min || FALLBACK_DURATION_MIN;
   const floor =
     leadMin === null ? await leadFloorFor(service.salon_id, date) : leadFloor(date, leadMin);
-  const availability = new Map();
+  const shifts = [];
 
   for (const shift of await selectServiceShifts.all(serviceId, weekday)) {
     const open = off.staff.has(shift.id) ? null : clampToHours(shift, hours);
     if (!open) {
       continue;
     }
-    const ranges = await busyRanges(shift.id, date, exceptBookingId);
-    for (const minute of shiftStarts(open, duration, floor)) {
-      // One free staff member is enough, so availability ORs across staff.
-      availability.set(minute, (availability.get(minute) ?? false) || isFree(ranges, minute, duration));
-    }
+    shifts.push({ ...open, ranges: await busyRanges(shift.id, date, exceptBookingId) });
   }
 
-  return [...availability.keys()]
-    .sort((a, b) => a - b)
-    .map((minute) => ({ time: fromMinutes(minute), available: availability.get(minute) }));
+  return unionSlots(shifts, duration, floor);
 }
 
 /**
@@ -433,12 +441,10 @@ async function staffDaySlots(
   }
   const floor =
     leadMin === null ? await leadFloorFor(shift.salon_id, date) : leadFloor(date, leadMin);
+  // One shift, so the union across technicians unions across exactly one — the same
+  // arithmetic the service-wide answer is built from, which is the point of sharing it.
   const ranges = await busyRanges(staffId, date, exceptBookingId);
-  const slots = [];
-  for (const minute of shiftStarts(open, duration, floor)) {
-    slots.push({ time: fromMinutes(minute), available: isFree(ranges, minute, duration) });
-  }
-  return slots;
+  return unionSlots([{ ...open, ranges }], duration, floor);
 }
 
 /**
@@ -559,13 +565,236 @@ export async function getStaffWeek(staffId, fromDate, days = 7) {
   return week;
 }
 
-/** Does any service of this salon still have a free slot starting inside the window? */
-export async function hasSlotsInRange(salonId, date, timeFrom, timeTo) {
-  const from = toMinutes(timeFrom) ?? DAY_START_MIN;
-  const to = toMinutes(timeTo) ?? DAY_END_MIN;
+/*
+ * ============================================================================
+ * The set-based half: a run of dates, read in a handful of queries
+ * ==========================================================================
+ *
+ * Everything above answers about one service or one technician, reading the calendars it
+ * needs as it goes. That is the right shape for a booking wizard and the wrong one for a
+ * page that asks about a whole city: the dated search used to walk every candidate salon,
+ * every service on its menu and every technician who performs it, one round trip per row.
+ * Six salons of demo seed cost 88 of them; a real city costs thousands, on a pool five
+ * deep, from an endpoint nobody has to sign in to reach — and with the database an ocean
+ * away from the instance that is half a minute of waiting and "kiểm tra mạng" on the phone.
+ *
+ * So the same facts are read for every salon and every date at once — six queries, whatever
+ * the size of the question — and the answer is computed from that. The arithmetic is not a
+ * second copy of the one above: it clamps with clampToHours, steps with shiftStarts and
+ * unions with unionSlots, exactly as getServiceSlots does. The two cannot disagree because
+ * there is only one of them, and the smoke suite pins that by asking both.
+ */
 
-  for (const service of await selectSalonServiceIds.all(salonId)) {
-    for (const slot of await getServiceSlots(service.id, date)) {
+// Services to answer about. By salon it is the public menu — what a customer could book —
+// which is the rule the old per-salon walk used; by id it is whatever was named.
+const CALENDAR_SERVICES_BY_SALON_SQL = `
+  SELECT id, salon_id, duration_min
+  FROM services
+  WHERE salon_id = ANY(?) AND active = 1 AND category <> 'amenity'
+  ORDER BY id
+`;
+const CALENDAR_SERVICES_BY_ID_SQL =
+  'SELECT id, salon_id, duration_min FROM services WHERE id = ANY(?) ORDER BY id';
+
+// Only the weekdays the window covers: a two-day search has no use for the other five
+// rows of every salon's week.
+const CALENDAR_HOURS_SQL = `
+  SELECT salon_id, weekday, "start", "end", is_off
+  FROM salon_hours
+  WHERE salon_id = ANY(?) AND weekday = ANY(?)
+`;
+
+const CALENDAR_LEAD_SQL = 'SELECT id, lead_time_min FROM salons WHERE id = ANY(?)';
+
+// Rows are ranges, so they are read as ranges and expanded per date below — the same
+// inclusive-at-both-ends rule timeOffOn applies one date at a time.
+const CALENDAR_TIME_OFF_SQL = `
+  SELECT salon_id, staff_id, date_from, date_to
+  FROM time_off
+  WHERE salon_id = ANY(?) AND date_from <= ? AND date_to >= ?
+`;
+
+// SERVICE_SHIFTS_SQL for many services and many weekdays at once, carrying the service and
+// the weekday back so the rows can be filed. Same three joins and the same st.active = 1:
+// a technician who has left keeps her schedule rows and must sell nothing.
+const CALENDAR_SHIFTS_SQL = `
+  SELECT ss.service_id, st.id, sch.weekday, sch."start", sch."end"
+  FROM staff st
+  JOIN staff_services ss ON ss.staff_id = st.id
+  JOIN staff_schedule sch ON sch.staff_id = st.id
+  WHERE ss.service_id = ANY(?) AND st.active = 1 AND sch.weekday = ANY(?) AND sch.is_off = 0
+  ORDER BY st.id
+`;
+
+// OTHER_STAFF_BOOKINGS_SQL for every technician the shifts above turned up, across the
+// whole window. IS DISTINCT FROM for the reason it carries it there: the appointment being
+// moved is never in its own way, and a null id excludes nothing.
+const CALENDAR_BOOKINGS_SQL = `
+  SELECT b.staff_id, b.date, b.time, sv.duration_min
+  FROM bookings b
+  JOIN services sv ON sv.id = b.service_id
+  WHERE b.staff_id = ANY(?) AND b.date >= ? AND b.date <= ?
+    AND b.status IN ('pending', 'confirmed') AND b.id IS DISTINCT FROM ?
+`;
+
+const selectCalendarServicesBySalon = db.prepare(CALENDAR_SERVICES_BY_SALON_SQL);
+const selectCalendarServicesById = db.prepare(CALENDAR_SERVICES_BY_ID_SQL);
+const selectCalendarHours = db.prepare(CALENDAR_HOURS_SQL);
+const selectCalendarLead = db.prepare(CALENDAR_LEAD_SQL);
+const selectCalendarTimeOff = db.prepare(CALENDAR_TIME_OFF_SQL);
+const selectCalendarShifts = db.prepare(CALENDAR_SHIFTS_SQL);
+const selectCalendarBookings = db.prepare(CALENDAR_BOOKINGS_SQL);
+
+const NOTHING = [];
+
+/** The dates from `from` to `to`, both ends included. */
+function datesBetween(from, to) {
+  const dates = [];
+  for (let date = from; date <= to; date = addDaysISO(date, 1)) {
+    dates.push(date);
+  }
+  return dates;
+}
+
+/** map.get(key).push(value), creating the list on first use. */
+function fileUnder(map, key, value) {
+  const found = map.get(key);
+  if (found) {
+    found.push(value);
+  } else {
+    map.set(key, [value]);
+  }
+}
+
+/**
+ * Every calendar a run of dates touches, in six queries however many salons it covers.
+ *
+ * Name the services either way round — `salonIds` for everything those salons sell,
+ * `serviceIds` for a named few — and the dates as an inclusive `dateFrom`..`dateTo`.
+ * `exceptBookingId` is the appointment being moved, taken out of the busy ranges exactly
+ * as busyRanges takes it out of a single day.
+ *
+ * What comes back is a photograph of the calendars at the moment they were read, so it
+ * belongs to the request that asked for it and is never held across two.
+ */
+export async function loadDayCalendar({
+  salonIds = null, serviceIds = null, dateFrom, dateTo, exceptBookingId = null,
+}) {
+  const dates = datesBetween(dateFrom, dateTo);
+  const weekdays = [...new Set(dates.map((date) => weekdayOf(date)))];
+  const calendar = {
+    dates,
+    services: new Map(),
+    salonServiceIds: new Map(),
+    leadMin: new Map(),
+    hours: new Map(),
+    offSalonDays: new Set(),
+    offStaffDays: new Set(),
+    shifts: new Map(),
+    busy: new Map(),
+  };
+
+  // = ANY('{}') can match nothing, and an empty array is one Postgres cannot infer a type
+  // for. Two reasons to answer an empty question here rather than ask it.
+  const named = serviceIds ?? salonIds ?? NOTHING;
+  if (dates.length === 0 || named.length === 0) {
+    return calendar;
+  }
+
+  const serviceRows = serviceIds
+    ? await selectCalendarServicesById.all(serviceIds)
+    : await selectCalendarServicesBySalon.all(salonIds);
+  if (serviceRows.length === 0) {
+    return calendar;
+  }
+  for (const service of serviceRows) {
+    calendar.services.set(service.id, service);
+    fileUnder(calendar.salonServiceIds, service.salon_id, service.id);
+  }
+  const salons = [...calendar.salonServiceIds.keys()];
+  const ids = serviceRows.map((service) => service.id);
+
+  for (const row of await selectCalendarLead.all(salons)) {
+    calendar.leadMin.set(row.id, row.lead_time_min ?? 0);
+  }
+  for (const row of await selectCalendarHours.all(salons, weekdays)) {
+    calendar.hours.set(`${row.salon_id}:${row.weekday}`, row);
+  }
+  for (const row of await selectCalendarTimeOff.all(salons, dateTo, dateFrom)) {
+    for (const date of dates) {
+      if (date < row.date_from || date > row.date_to) {
+        continue;
+      }
+      if (row.staff_id === null) {
+        calendar.offSalonDays.add(`${row.salon_id}:${date}`);
+      } else {
+        calendar.offStaffDays.add(`${row.staff_id}:${date}`);
+      }
+    }
+  }
+
+  const shiftRows = await selectCalendarShifts.all(ids, weekdays);
+  for (const row of shiftRows) {
+    fileUnder(calendar.shifts, `${row.service_id}:${row.weekday}`, row);
+  }
+
+  // Nobody rostered is nobody to read a day for, and the sixth query is skipped rather
+  // than asked with an empty list.
+  const staffIds = [...new Set(shiftRows.map((row) => row.id))];
+  if (staffIds.length > 0) {
+    const booked = new Map();
+    for (const booking of await selectCalendarBookings.all(
+      staffIds, dateFrom, dateTo, exceptBookingId,
+    )) {
+      fileUnder(booked, `${booking.staff_id}:${booking.date}`, booking);
+    }
+    for (const [key, rows] of booked) {
+      calendar.busy.set(key, toRanges(rows));
+    }
+  }
+
+  return calendar;
+}
+
+/**
+ * Ordered slots for one service on one date, out of an already-loaded calendar.
+ *
+ * The same five steps getServiceSlots takes — the salon's day off, that weekday's opening
+ * hours, the duration, the lead-time floor, then every rostered shift clamped and unioned —
+ * with each read replaced by a lookup. A service the calendar was not loaded for has no
+ * slots, which is the honest answer to a question this object was never asked to hold.
+ */
+export function calendarServiceSlots(calendar, serviceId, date) {
+  const service = calendar.services.get(serviceId);
+  if (!service) {
+    return [];
+  }
+  if (calendar.offSalonDays.has(`${service.salon_id}:${date}`)) {
+    return [];
+  }
+  const weekday = weekdayOf(date);
+  const hours = calendar.hours.get(`${service.salon_id}:${weekday}`);
+  const duration = service.duration_min || FALLBACK_DURATION_MIN;
+  const floor = leadFloor(date, calendar.leadMin.get(service.salon_id) ?? 0);
+
+  const shifts = [];
+  for (const shift of calendar.shifts.get(`${serviceId}:${weekday}`) ?? NOTHING) {
+    const open = calendar.offStaffDays.has(`${shift.id}:${date}`)
+      ? null
+      : clampToHours(shift, hours);
+    if (!open) {
+      continue;
+    }
+    shifts.push({ ...open, ranges: calendar.busy.get(`${shift.id}:${date}`) ?? NOTHING });
+  }
+
+  return unionSlots(shifts, duration, floor);
+}
+
+/** Whether any service of this salon has a free slot on `date` inside `[from, to]`. */
+export function calendarSalonHasSlots(calendar, salonId, date, from, to) {
+  for (const serviceId of calendar.salonServiceIds.get(salonId) ?? NOTHING) {
+    for (const slot of calendarServiceSlots(calendar, serviceId, date)) {
       const minute = toMinutes(slot.time);
       if (slot.available && minute >= from && minute <= to) {
         return true;
@@ -573,4 +802,24 @@ export async function hasSlotsInRange(salonId, date, timeFrom, timeTo) {
     }
   }
   return false;
+}
+
+/**
+ * Which of these salons still have a free slot on `date` inside the window.
+ *
+ * Asked about every salon a search matched at once, because the answer for fifty of them
+ * is the same six queries as the answer for one. An absent bound is the whole day at that
+ * end, the way an unset time filter reads.
+ */
+export async function salonsWithSlotsInRange(salonIds, date, timeFrom, timeTo) {
+  const from = toMinutes(timeFrom) ?? DAY_START_MIN;
+  const to = toMinutes(timeTo) ?? DAY_END_MIN;
+  const calendar = await loadDayCalendar({ salonIds, dateFrom: date, dateTo: date });
+  const found = new Set();
+  for (const salonId of calendar.salonServiceIds.keys()) {
+    if (calendarSalonHasSlots(calendar, salonId, date, from, to)) {
+      found.add(salonId);
+    }
+  }
+  return found;
 }

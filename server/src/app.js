@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import express from 'express';
-import { db } from './db.js';
+import { db, queries } from './db.js';
 import authRoutes from './routes/auth.js';
 import bookingRoutes from './routes/bookings.js';
 import eventRoutes from './routes/events.js';
@@ -69,6 +69,26 @@ app.use((req, res, next) => {
 app.use(compression());
 
 app.use(cookieParser());
+
+/* What this request cost the database, as `x-oak-queries`, when OAK_QUERY_COUNT=1 says to
+   measure. Not on by default and never in production: the header is a measurement the smoke
+   suite asks for, not a fact about the product, and it would tell a stranger how the server
+   is built. Written from inside a wrapped res.end because that is the last moment before the
+   headers go out — the count is not final until the handler is. */
+if (queries.enabled) {
+  app.use((req, res, next) => {
+    queries.run(() => {
+      const finish = res.end;
+      res.end = function countedEnd(...args) {
+        if (!res.headersSent) {
+          res.setHeader('x-oak-queries', String(queries.spent()));
+        }
+        return finish.apply(this, args);
+      };
+      next();
+    });
+  });
+}
 
 // An API answer is either personal — a booking, a favourite, a notification — or a moment's
 // truth about a shared list. Neither is safe to keep: a shared device would let the next
